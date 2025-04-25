@@ -1,0 +1,42 @@
+from fastapi import APIRouter, HTTPException
+
+from src.api.admin.schemas.variant import ProductVariantCreate, ProductVariant, ProductVariantUpdate
+from src.core import models
+from src.core.database import GetDBDep
+from src.core.dependencies import GetProductDep, GetVariantDep
+
+router = APIRouter(tags=["Variants"], prefix="/stores/{store_id}/products/{product_id}/variants")
+
+@router.post("", response_model=ProductVariant)
+def create_product_variant(
+        db: GetDBDep,
+        product: GetProductDep,
+        variant: ProductVariantCreate,
+):
+    db_variant = models.ProductVariant(
+        **variant.model_dump(),
+        product_id=product.id,
+        store_id=product.store_id,
+    )
+
+    db.add(db_variant)
+    db.commit()
+    return db_variant
+
+@router.get("/{variant_id}", response_model=ProductVariant)
+def get_product_variant(
+    variant: GetVariantDep
+):
+    return variant
+
+@router.patch("/{variant_id}", response_model=ProductVariant)
+def patch_product_variant(
+    db: GetDBDep,
+    variant: GetVariantDep,
+    variant_update: ProductVariantUpdate,
+):
+    for field, value in variant_update.model_dump(exclude_unset=True).items():
+        setattr(variant, field, value)
+
+    db.commit()
+    return variant
