@@ -198,3 +198,24 @@ class ProductVariantOption(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
     product_variant_id: Mapped[int] = mapped_column(ForeignKey("product_variants.id"))
+
+
+
+class Coupon(Base, TimestampMixin):
+    __tablename__ = "coupons"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+    code: Mapped[str] = mapped_column(unique=True)
+
+    discount_percent: Mapped[int | None] = mapped_column()
+    discount_fixed: Mapped[int | None] = mapped_column()
+
+    max_uses: Mapped[int] = mapped_column()
+    used: Mapped[int] = mapped_column(default=0)
+
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"))
+
+    start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
