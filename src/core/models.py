@@ -144,6 +144,7 @@ class Product(Base, TimestampMixin):
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
     category: Mapped[Category] = relationship()
 
+
     supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id", ), default=None)
 
     supplier: Mapped[Supplier] = relationship()
