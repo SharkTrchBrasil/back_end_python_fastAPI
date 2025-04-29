@@ -13,6 +13,17 @@ def create_coupon(
         store: GetStoreDep,
         coupon: CouponCreate,
 ):
+    existing_coupon = db.query(models.Coupon).filter(
+        models.Coupon.code == coupon.code,
+        models.Coupon.store_id == store.id,
+    ).first()
+
+    if existing_coupon:
+        raise HTTPException(status_code=400, detail={
+            "code": "CODE_ALREADY_EXISTS",
+            "message": "A coupon with this code already exists for this store."
+        })
+
     db_coupon = models.Coupon(
         **coupon.model_dump(),
         store_id=store.id,

@@ -220,3 +220,17 @@ class Coupon(Base, TimestampMixin):
 
     start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class TotemAuthorization(Base, TimestampMixin):
+    __tablename__ = "totem_authorizations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    totem_token: Mapped[str] = mapped_column(unique=True)
+    totem_name: Mapped[str] = mapped_column()
+    public_key: Mapped[str] = mapped_column(unique=True)
+
+    store_id: Mapped[int | None] = mapped_column(ForeignKey("stores.id"))
+    granted: Mapped[bool] = mapped_column(default=False)
+    granted_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
