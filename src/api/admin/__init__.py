@@ -9,6 +9,7 @@ from src.api.admin.routes.variants import router as variants_router
 from src.api.admin.routes.variant_options import router as options_router
 from src.api.admin.routes.coupons import router as coupons_router
 from src.api.admin.routes.totems import router as totems_router
+from src.api.admin.routes.themes import router as themes_router
 
 
 
@@ -28,7 +29,7 @@ router.include_router(options_router)
 
 router.include_router(coupons_router)
 router.include_router(totems_router)
-
+router.include_router(themes_router)
 
 
 
