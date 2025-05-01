@@ -119,8 +119,80 @@ def list_stores(
     return db_store_accesses
 
 
-@router.patch("/{store_id}")
+@router.get("/{store_id}", response_model=Store)
+def get_store(
+    store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
+):
+    return store
+
+
+@router.patch("/{store_id}", response_model=Store)
 def patch_store(
+    db: GetDBDep,
+    store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
+    name: Annotated[str, Body(embed=True, min_length=4, max_length=20)],
+):
+    store.name = name
+    db.commit()
+    return store
+
+
+@router.get("/{store_id}/accesses", response_model=list[StoreAccess])
+def get_store_accesses(
+    db: GetDBDep,
     store: GetStoreDep,
 ):
-    pass
+    store_accesses = db.query(models.StoreAccess).filter(models.StoreAccess.store_id == store.id).all()
+    return store_accesses
+
+
+@router.put("/{store_id}/accesses")
+def create_or_update_store_access(
+    db: GetDBDep,
+    store: GetStoreDep,
+    user_email: str,
+    role: str,
+    user: GetCurrentUserDep,
+):
+    if user.email == user_email:
+        raise HTTPException(status_code=400, detail="Cannot update your own access")
+
+    role = db.query(models.Role).filter(models.Role.machine_name == role).first()
+    if role is None:
+        raise HTTPException(status_code=404, detail="Role not found")
+
+    user = db.query(models.User).filter(models.User.email == user_email).first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    store_access = db.query(models.StoreAccess).filter(
+        models.StoreAccess.store_id == store.id,
+        models.StoreAccess.user_id == user.id
+    ).first()
+
+    if store_access is None:
+        store_access = models.StoreAccess(store=store, user=user, role=role)
+        db.add(store_access)
+    else:
+        store_access.role = role
+
+    db.commit()
+
+
+@router.delete("/{store_id}/accesses")
+def delete_store_access(
+    db: GetDBDep,
+    store: GetStoreDep,
+    user_id: int,
+    user: GetCurrentUserDep,
+):
+    if user.id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own access")
+    store_access = db.query(models.StoreAccess).filter(
+        models.StoreAccess.store_id == store.id,
+        models.StoreAccess.user_id == user_id
+    ).first()
+    if store_access is None:
+        raise HTTPException(status_code=400, detail="Invalid user_id")
+    db.delete(store_access)
+    db.commit()

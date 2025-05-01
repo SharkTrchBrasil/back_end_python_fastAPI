@@ -234,3 +234,26 @@ class TotemAuthorization(Base, TimestampMixin):
     store_id: Mapped[int | None] = mapped_column(ForeignKey("stores.id"))
     granted: Mapped[bool] = mapped_column(default=False)
     granted_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+
+
+
+
+class StoreTheme(Base, TimestampMixin):
+    __tablename__ = "store_themes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+
+    primary_color: Mapped[str] = mapped_column()
+    secondary_color: Mapped[str] = mapped_column()
+    background_color: Mapped[str] = mapped_column()
+    card_color: Mapped[str] = mapped_column()
+    on_primary_color: Mapped[str] = mapped_column()
+    on_secondary_color: Mapped[str] = mapped_column()
+    on_background_color: Mapped[str] = mapped_column()
+    on_card_color: Mapped[str] = mapped_column()
+    inactive_color: Mapped[str] = mapped_column()
+    on_inactive_color: Mapped[str] = mapped_column()
+
+    font_family: Mapped[str] = mapped_column()
