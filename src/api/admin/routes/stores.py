@@ -1,10 +1,14 @@
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Body
 
-from src.api.admin.schemas.store import StoreCreate, StoreWithRole, Roles
+from src.api.admin.schemas.store import StoreCreate, StoreWithRole, Roles, Store
+from src.api.admin.schemas.store_access import StoreAccess
 from src.core import models
 from src.core.database import GetDBDep
-from src.core.dependencies import GetCurrentUserDep, GetStoreDep
+from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetStore
+
+router = APIRouter(prefix="/stores", tags=["Stores"])
 
 router = APIRouter(prefix="/stores", tags=["Stores"])
 
