@@ -47,7 +47,7 @@ def get_coupons(
     coupons = db.query(models.Coupon).filter(
         models.Coupon.store_id == store.id,
     ).options(
-        joinedload(models.Coupon.product).joinedload(models.Product.image) # Carrega o produto e, dentro dele, a imagem
+        joinedload(models.Coupon.product) # Carrega o produto e, dentro dele, a imagem
     ).all()
 
     return coupons
