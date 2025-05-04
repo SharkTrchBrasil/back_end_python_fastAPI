@@ -214,12 +214,22 @@ class Coupon(Base, TimestampMixin):
     discount_fixed: Mapped[int | None] = mapped_column()
 
     max_uses: Mapped[int] = mapped_column()
+
     used: Mapped[int] = mapped_column(default=0)
 
     product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"))
 
     start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    # new campos
+    maxUsesPerCustomer: Mapped[int | None] = mapped_column()
+
+    minOrderValue: Mapped[int | None] = mapped_column()
+
+    available: Mapped[bool] = mapped_column(default=True)
+
+    onlyNewCustomers: Mapped[bool] = mapped_column(default=False)
 
 
 class TotemAuthorization(Base, TimestampMixin):
