@@ -34,6 +34,11 @@ def create_coupon(
     db.commit()
     return db_coupon
 
+
+
+
+
+# alterado do original para buscar o produto vinculado
 @router.get("", response_model=list[Coupon])
 def get_coupons(
         db: GetDBDep,

@@ -218,7 +218,9 @@ class Coupon(Base, TimestampMixin):
     used: Mapped[int] = mapped_column(default=0)
 
     product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"))
-
+    #add aqui para buscar o produto selecionado
+    product: Mapped[Product] = relationship()
+    # ///
     start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
