@@ -9,6 +9,7 @@ class Config(BaseSettings):
     AWS_SECRET_KEY: str
     AWS_REGION: str
     AWS_BUCKET_NAME: str
+    RESEND_API_KEY: str
 
     model_config = SettingsConfigDict(env_file=".env")
 

@@ -1,14 +1,14 @@
 import os
 
 import resend
-import os
-from dotenv import load_dotenv
+
 from typing import Dict
 from fastapi import FastAPI
+from src.core.config import config
 
-load_dotenv()  # Carrega variáveis do .env
+resend.api_key = config.RESEND_API_KEY
 
-resend.api_key = os.getenv("RESEND_API_KEY")
+
 print(f"Resend API Key being used: '{resend.api_key}'")  # Use resend.api_key diretamente
 
 app = FastAPI()
