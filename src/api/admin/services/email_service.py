@@ -1,7 +1,4 @@
-import os
-
 import resend
-
 from typing import Dict
 from fastapi import FastAPI
 from src.core.config import config
