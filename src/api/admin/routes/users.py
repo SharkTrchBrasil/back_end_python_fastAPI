@@ -29,7 +29,7 @@ def create_user(user: UserCreate, db: GetDBDep):
 
     user_internal_dict = user.model_dump()
     user_internal_dict["hashed_password"] = get_password_hash(password=user_internal_dict["password"])
-    user_internal_dict["email_verified"] = False
+    user_internal_dict["is_email_verified"] = False
     user_internal_dict["verification_token"] = verification_token
     del user_internal_dict["password"]
 
