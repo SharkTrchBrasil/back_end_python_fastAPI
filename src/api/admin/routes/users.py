@@ -19,7 +19,7 @@ def create_user(user: UserCreate, db: GetDBDep):
 
     # Verifica se já existe um usuário com o mesmo número de telefone (se fornecido)
     if user.phone_number:
-        existing_user_by_phone = db.query(models.User).filter(models.User.phone_number == user.phone_number).first()
+        existing_user_by_phone = db.query(models.User).filter(models.User.phone == user.phone).first()
         if existing_user_by_phone:
             raise HTTPException(status_code=400, detail="User with this phone number already exists")
 
