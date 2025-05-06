@@ -2,13 +2,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Depends, Body
 
-from src.api.admin.schemas.store import StoreCreate, StoreWithRole, Roles, Store
+from src.api.admin.schemas.store import StoreCreate, StoreWithRole, Roles, Store, StoreUpdate
 from src.api.admin.schemas.store_access import StoreAccess
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetStore
 
-router = APIRouter(prefix="/stores", tags=["Stores"])
+
 
 router = APIRouter(prefix="/stores", tags=["Stores"])
 
@@ -19,7 +19,29 @@ def create_store(
     store_create: StoreCreate
 ):
     # 1) cria a loja e grava no banco
-    db_store = models.Store(name=store_create.name, is_active= store_create.is_active, phone=store_create.phone,language=store_create.language,country=store_create.country, currency=store_create.currency )
+
+    db_store = models.Store(
+        name=store_create.name,
+        phone=store_create.phone,
+        language=store_create.language,
+        country=store_create.country,
+        currency=store_create.currency,
+        is_active=store_create.is_active,
+        zip_code=store_create.zip_code,
+        street=store_create.street,
+        number=store_create.number,
+        neighborhood=store_create.neighborhood,
+        complement=store_create.complement,
+        reference=store_create.reference,
+        city=store_create.city,
+        state=store_create.state,
+        logo_url=store_create.logo_url,
+        instagram=store_create.instagram,
+        facebook=store_create.facebook,
+        plan_type=store_create.plan_type,
+    )
+
+
     db.add(db_store)
     db.flush()                     # ← gera db_store.id sem dar commit
 
@@ -129,16 +151,15 @@ def get_store(
 ):
     return store
 
-
+# alterado do original pelo gpt
 @router.patch("/{store_id}", response_model=Store)
 def patch_store(
     db: GetDBDep,
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
-    name: Annotated[str, Body(embed=True, min_length=4, max_length=20)],
-    is_active: Annotated[bool, Body(embed=True)],  # Adicione este parâmetro
+    store_update: StoreUpdate,
 ):
-    store.name = name
-    store.is_active = is_active
+    for field, value in store_update.model_dump(exclude_unset=True).items():
+        setattr(store, field, value)
     db.commit()
     return store
 

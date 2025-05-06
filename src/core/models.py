@@ -24,11 +24,34 @@ class Store(Base, TimestampMixin):
     name: Mapped[str] = mapped_column()
     phone: Mapped[str] = mapped_column()
 
+    # Internacionalização
     language: Mapped[str] = mapped_column()
-
     country: Mapped[str] = mapped_column(default="BR")  # Ex: BR, US, ES
     currency: Mapped[str] = mapped_column(default="BRL")  # Ex: BRL, USD, EUR
+
+    # Ativação
     is_active: Mapped[bool] = mapped_column(default=True)
+
+    # Endereço
+    zip_code: Mapped[str] = mapped_column()  # CEP
+    street: Mapped[str] = mapped_column()  # Rua
+    number: Mapped[str] = mapped_column()  # Número
+    neighborhood: Mapped[str] = mapped_column()  # Bairro
+    complement: Mapped[str] = mapped_column(nullable=True)  # Complemento (opcional)
+    reference: Mapped[str] = mapped_column(nullable=True)  # Referência (opcional)
+    city: Mapped[str] = mapped_column()
+    state: Mapped[str] = mapped_column()
+
+
+    # Identidade visual
+    logo_url: Mapped[str] = mapped_column(nullable=True)
+
+    # Redes sociais
+    instagram: Mapped[str] = mapped_column(nullable=True)  # Ex: https://instagram.com/minhaloja
+    facebook: Mapped[str] = mapped_column(nullable=True)  # Ex: https://facebook.com/minhaloja
+
+    # Plano
+    plan_type: Mapped[str] = mapped_column(default="free")  # Ex: free, basic, premium
 
 
 class User(Base, TimestampMixin):
@@ -135,13 +158,11 @@ class StorePaymentMethod(Base, TimestampMixin):
 
 
 class StoreType(Base):
-    __tablename__ = "store_types"
+    __tablename__ = "segments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(unique=True, nullable=False)
 
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    store: Mapped["Store"] = relationship()
 
 
 
