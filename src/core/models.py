@@ -62,7 +62,9 @@ class User(Base, TimestampMixin):
     name: Mapped[str] = mapped_column()
     phone: Mapped[str] = mapped_column()
     hashed_password: Mapped[str] = mapped_column()
-    is_active: Mapped[bool] = mapped_column(default=True)
+    is_active: Mapped[bool] = mapped_column(default=False)
+    is_email_verified: Mapped[bool] = mapped_column(default=False)
+    verification_token:Mapped[str] = mapped_column()
 
 class Role(Base, TimestampMixin):
     __tablename__ = "roles"

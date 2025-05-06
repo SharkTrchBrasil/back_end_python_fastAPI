@@ -7,6 +7,8 @@ class User(BaseModel):
     name: str
     phone: str
     is_active: bool
+    is_email_verified:bool
+    verification_token: str
 
 
 class UserCreate(BaseModel):
@@ -15,6 +17,8 @@ class UserCreate(BaseModel):
     phone: str
     password: str = Field(..., min_length=8, max_length=16)
     is_active: bool
+    is_email_verified: bool
+    verification_token: str
 
 
 class ChangePasswordData(BaseModel):
