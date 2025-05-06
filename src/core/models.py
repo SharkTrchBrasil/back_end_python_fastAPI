@@ -3,7 +3,7 @@ import enum
 from datetime import time
 
 
-from sqlalchemy import DateTime, func, ForeignKey, Index, Enum
+from sqlalchemy import DateTime, func, ForeignKey, Index, Enum, LargeBinary
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -284,3 +284,18 @@ class StoreTheme(Base, TimestampMixin):
     on_inactive_color: Mapped[str] = mapped_column()
 
     font_family: Mapped[str] = mapped_column()
+
+
+class StorePixConfig(Base, TimestampMixin):
+    __tablename__ = "store_pix_configs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), unique=True)
+
+    client_id: Mapped[str] = mapped_column()
+    client_secret: Mapped[str] = mapped_column()
+    pix_key: Mapped[str] = mapped_column()
+    certificate: Mapped[bytes] = mapped_column(LargeBinary)
+
+    hmac_key: Mapped[str] = mapped_column(unique=True)
