@@ -12,7 +12,7 @@ print(f"Resend API Key being used: '{api_key}'")  # Adicione esta linha
 def send_verification_email(to_email: str, token: str):
     verify_link = f"https://food.zapdelivery.online/verify-email?token={token}"
     return resend.Emails.send({
-        "from": "Zap Delivery <no-reply@seusite.com>",
+        "from": "Acme <onboarding@resend.dev>",
         "to": [to_email],
         "subject": "Verifique seu e-mail",
         "html": f"""
