@@ -12,16 +12,7 @@ router = APIRouter(prefix="/verify-email", tags=["Verify Email"])
 
 VERIFY_PAGE_URL = "https://food.zapdelivery.online/verify_email.html"
 
-@router.get("", status_code=200)
-async def show_verify_email_page(token: str = Query(...)):
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(VERIFY_PAGE_URL)
-            response.raise_for_status()
-            html_content = response.text
-        return HTMLResponse(html_content)
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao buscar a página de verificação: {e}")
+
 @router.post("", status_code=200)
 async def verify_email(token: str = Query(...), db: GetDBDep = Depends()):
     """Verifica o token de e-mail enviado pelo front-end."""
