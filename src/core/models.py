@@ -28,6 +28,8 @@ class Store(Base, TimestampMixin):
 
     country: Mapped[str] = mapped_column(default="BR")  # Ex: BR, US, ES
     currency: Mapped[str] = mapped_column(default="BRL")  # Ex: BRL, USD, EUR
+    is_active: Mapped[bool] = mapped_column(default=True)
+
 
 class User(Base, TimestampMixin):
     __tablename__ = "users"
@@ -37,6 +39,7 @@ class User(Base, TimestampMixin):
     name: Mapped[str] = mapped_column()
     phone: Mapped[str] = mapped_column()
     hashed_password: Mapped[str] = mapped_column()
+    is_active: Mapped[bool] = mapped_column(default=True)
 
 class Role(Base, TimestampMixin):
     __tablename__ = "roles"
@@ -79,7 +82,7 @@ class Category(Base, TimestampMixin):
     priority: Mapped[int] = mapped_column()
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     file_key: Mapped[str] = mapped_column()
-
+    is_active: Mapped[bool] = mapped_column(default=True)
     store: Mapped[Store] = relationship()
 
 
@@ -128,6 +131,18 @@ class StorePaymentMethod(Base, TimestampMixin):
 
     pix_key:        Mapped[str]  = mapped_column(nullable=True)
     pix_key_active: Mapped[bool] = mapped_column(default=False)
+
+
+
+class StoreType(Base):
+    __tablename__ = "store_types"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(unique=True, nullable=False)
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+    store: Mapped["Store"] = relationship()
+
 
 
 

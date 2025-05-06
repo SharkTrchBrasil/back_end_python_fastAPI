@@ -6,6 +6,7 @@ class User(BaseModel):
     email: str
     name: str
     phone: str
+    is_active: bool
 
 
 class UserCreate(BaseModel):
@@ -13,6 +14,7 @@ class UserCreate(BaseModel):
     name: str = Field(..., min_length=3, max_length=32)
     phone: str
     password: str = Field(..., min_length=8, max_length=16)
+    is_active: bool
 
 
 class ChangePasswordData(BaseModel):

@@ -19,7 +19,7 @@ def create_store(
     store_create: StoreCreate
 ):
     # 1) cria a loja e grava no banco
-    db_store = models.Store(name=store_create.name, phone=store_create.phone,language=store_create.language,country=store_create.country, currency=store_create.currency )
+    db_store = models.Store(name=store_create.name, is_active= store_create.is_active, phone=store_create.phone,language=store_create.language,country=store_create.country, currency=store_create.currency )
     db.add(db_store)
     db.flush()                     # ← gera db_store.id sem dar commit
 
@@ -135,8 +135,10 @@ def patch_store(
     db: GetDBDep,
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
     name: Annotated[str, Body(embed=True, min_length=4, max_length=20)],
+    is_active: Annotated[bool, Body(embed=True)],  # Adicione este parâmetro
 ):
     store.name = name
+    store.is_active = is_active
     db.commit()
     return store
 

@@ -8,6 +8,7 @@ class Category(BaseModel):
     name: str
     priority: int
     file_key: str = Field(exclude=True)
+    is_active: bool
 
     @computed_field
     @property

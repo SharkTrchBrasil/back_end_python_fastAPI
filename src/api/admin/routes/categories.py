@@ -15,11 +15,13 @@ def create_category(
     store: GetStoreDep,
     name: str = Form(...),
     priority: int = Form(...),
-    image: UploadFile = File(...)
+    image: UploadFile = File(...),
+    is_active: bool = Form(True)
+
 ):
     file_key = upload_file(image)
 
-    db_category = models.Category(name=name, store=store, priority=priority, file_key=file_key)
+    db_category = models.Category(name=name, store=store, priority=priority, file_key=file_key, is_active=is_active)
 
     db.add(db_category)
     db.commit()
@@ -51,7 +53,8 @@ def patch_category(
     category_id: int,
     name: str | None = Form(None),
     priority: int | None = Form(None),
-    image: UploadFile | None = File(None)
+    image: UploadFile | None = File(None),
+    is_active: bool | None = Form(True)
 ):
     db_category = db.query(models.Category).filter(models.Category.id == category_id,
                                                    models.Category.store_id == store.id).first()
@@ -62,6 +65,8 @@ def patch_category(
 
     if name:
         db_category.name = name
+    if name:
+        db_category.is_active = is_active
     if priority:
         db_category.priority = priority
     if image:

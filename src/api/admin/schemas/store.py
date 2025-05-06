@@ -14,6 +14,7 @@ class StoreBase(BaseModel):
     country: str
     currency: str
     phone: str
+    is_active: bool
 
 
 class Store(StoreBase):
@@ -32,6 +33,7 @@ class StoreUpdate(BaseModel):
     country: str | None = Field(default=None, min_length=2, max_length=2)
     currency: str | None = Field(default=None, min_length=3, max_length=3)
     phone: str
+    is_active: bool
 
 
 
