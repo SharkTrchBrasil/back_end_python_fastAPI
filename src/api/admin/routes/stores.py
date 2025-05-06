@@ -1,13 +1,12 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Depends, Body
+from fastapi import APIRouter, HTTPException, Depends
 
-from src.api.admin.schemas.store import StoreCreate, StoreWithRole, Roles, Store, StoreUpdate
+from src.api.admin.schemas.store import StoreCreate, StoreWithRole, Roles, Store, StoreUpdate, Role
 from src.api.admin.schemas.store_access import StoreAccess
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetStore
-
 
 
 router = APIRouter(prefix="/stores", tags=["Stores"])
@@ -43,7 +42,7 @@ def create_store(
 
 
     db.add(db_store)
-    db.flush()                     # ← gera db_store.id sem dar commit
+    db.flush()                     # ← gera db_store.id sem dar commit
 
     # 2) vincula o usuário dono
     db_role = (
@@ -132,7 +131,31 @@ def create_store(
     # 4) salva tudo de uma vez
     db.commit()
     db.refresh(db_store_access)     # garante dados atualizados no retorno
-    return db_store_access
+
+    # Construa e retorne o objeto StoreWithRole corretamente
+    store_pydantic = Store(
+        id=db_store.id,
+        name=db_store.name,
+        phone=db_store.phone,
+        language=db_store.language,
+        country=db_store.country,
+        currency=db_store.currency,
+        is_active=db_store.is_active,
+        zip_code=db_store.zip_code,
+        street=db_store.street,
+        number=db_store.number,
+        neighborhood=db_store.neighborhood,
+        complement=db_store.complement,
+        reference=db_store.reference,
+        city=db_store.city,
+        state=db_store.state,
+        logo_url=db_store.logo_url,
+        instagram=db_store.instagram,
+        facebook=db_store.facebook,
+        plan_type=db_store.plan_type,
+    )
+    role_pydantic = Role(machine_name=db_role.machine_name)
+    return StoreWithRole(store=store_pydantic, role=role_pydantic)
 
 
 
@@ -142,7 +165,32 @@ def list_stores(
     user: GetCurrentUserDep,
 ):
     db_store_accesses = db.query(models.StoreAccess).filter(models.StoreAccess.user == user).all()
-    return db_store_accesses
+    stores_with_roles = []
+    for access in db_store_accesses:
+        store_pydantic = Store(
+            id=access.store.id,
+            name=access.store.name,
+            phone=access.store.phone,
+            language=access.store.language,
+            country=access.store.country,
+            currency=access.store.currency,
+            is_active=access.store.is_active,
+            zip_code=access.store.zip_code,
+            street=access.store.street,
+            number=access.store.number,
+            neighborhood=access.store.neighborhood,
+            complement=access.store.complement,
+            reference=access.store.reference,
+            city=access.store.city,
+            state=access.store.state,
+            logo_url=access.store.logo_url,
+            instagram=access.store.instagram,
+            facebook=access.store.facebook,
+            plan_type=access.store.plan_type,
+        )
+        role_pydantic = Role(machine_name=access.role.machine_name)
+        stores_with_roles.append(StoreWithRole(store=store_pydantic, role=role_pydantic))
+    return stores_with_roles
 
 
 @router.get("/{store_id}", response_model=Store)
@@ -169,8 +217,7 @@ def get_store_accesses(
     db: GetDBDep,
     store: GetStoreDep,
 ):
-    store_accesses = db.query(models.StoreAccess).filter(models.StoreAccess.store_id == store.id).all()
-    return store_accesses
+    return db.query(models.StoreAccess).filter(models.StoreAccess.store_id == store.id).all()
 
 
 @router.put("/{store_id}/accesses")
@@ -184,24 +231,24 @@ def create_or_update_store_access(
     if user.email == user_email:
         raise HTTPException(status_code=400, detail="Cannot update your own access")
 
-    role = db.query(models.Role).filter(models.Role.machine_name == role).first()
-    if role is None:
+    db_role = db.query(models.Role).filter(models.Role.machine_name == role).first()
+    if db_role is None:
         raise HTTPException(status_code=404, detail="Role not found")
 
-    user = db.query(models.User).filter(models.User.email == user_email).first()
-    if user is None:
+    db_user = db.query(models.User).filter(models.User.email == user_email).first()
+    if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
     store_access = db.query(models.StoreAccess).filter(
         models.StoreAccess.store_id == store.id,
-        models.StoreAccess.user_id == user.id
+        models.StoreAccess.user_id == db_user.id
     ).first()
 
     if store_access is None:
-        store_access = models.StoreAccess(store=store, user=user, role=role)
+        store_access = models.StoreAccess(store=store, user=db_user, role=db_role)
         db.add(store_access)
     else:
-        store_access.role = role
+        store_access.role = db_role
 
     db.commit()
 
