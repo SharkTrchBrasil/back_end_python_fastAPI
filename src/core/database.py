@@ -1,3 +1,6 @@
+
+
+
 from typing import Annotated
 
 from fastapi import Depends
@@ -21,4 +24,4 @@ def get_db():
         db.close()
 
 
-GetDBDep = Annotated[Session, Depends(get_db)]
+GetDBDep = Depends(get_db)
