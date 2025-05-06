@@ -2,10 +2,10 @@ from fastapi import APIRouter, HTTPException
 
 from src.core import models
 from src.core.database import GetDBDep
-from src.core.dependencies import GetOptionalUserDep, GetCurrentUserDep
+from src.core.dependencies import GetCurrentUserDep
 from src.api.admin.schemas.user import UserCreate, User
 from src.api.admin.services.auth import get_password_hash
-from src.core.email_service import send_verification_email
+from src.api.admin.services.email_service import send_verification_email
 from src.core.security import generate_verification_token  # novo import
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -18,7 +18,7 @@ def create_user(user: UserCreate, db: GetDBDep):
         raise HTTPException(status_code=400, detail="User with this email already exists")
 
     # Verifica se já existe um usuário com o mesmo número de telefone (se fornecido)
-    if user.phone_number:
+    if user.phone:
         existing_user_by_phone = db.query(models.User).filter(models.User.phone == user.phone).first()
         if existing_user_by_phone:
             raise HTTPException(status_code=400, detail="User with this phone number already exists")

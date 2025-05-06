@@ -18,9 +18,10 @@ class UserCreate(BaseModel):
     password: str = Field(..., min_length=8, max_length=16)
 
 
-
-
-
 class ChangePasswordData(BaseModel):
     old_password: str
     new_password: str = Field(..., min_length=8, max_length=16)
+
+
+class ResendEmail(BaseModel):
+    email: str

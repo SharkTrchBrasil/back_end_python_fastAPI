@@ -64,6 +64,7 @@ class User(Base, TimestampMixin):
     hashed_password: Mapped[str] = mapped_column()
     is_active: Mapped[bool] = mapped_column(default=False)
     is_email_verified: Mapped[bool] = mapped_column(default=False)
+    verification_token: Mapped[str] = mapped_column()
 
 
 class Role(Base, TimestampMixin):
