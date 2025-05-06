@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()  # Carrega variáveis do .env
 
 resend.api_key = api_key=os.getenv("RESEND_API_KEY")
-
+print(f"Resend API Key being used: '{api_key}'")  # Adicione esta linha
 
 def send_verification_email(to_email: str, token: str):
     verify_link = f"https://food.zapdelivery.online/verify-email?token={token}"
