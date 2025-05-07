@@ -1,20 +1,20 @@
 # routes/verify_code.py
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from src.core.database import GetDBDep
-from src.core.models import User  # <-- Importa User, não Store
+from sqlalchemy import select
+from src.core.database import get_db  # Supondo que esse seja o nome correto do dependente
+from src.core.models import User
 
 router = APIRouter()
 
 @router.get("/verify-code")
 async def verify_code(
-    db: GetDBDep,
+    db: AsyncSession = Depends(get_db),
     email: str = Query(...),
     code: str = Query(...),
-
 ):
-    result = await db.execute(select(User).where(User.email == email))
+    stmt = select(User).where(User.email == email)
+    result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
     if not user:
