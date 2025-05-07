@@ -13,20 +13,20 @@ app = FastAPI()
 def send_verification_email(to_email: str, code: str) -> Dict:
     params: resend.Emails.SendParams = {
 
-
-        
-        "from": "Zap Delivery <onboarding@resend.dev>",
+        "from": "PDVix <bemvindo@pdvix.com.br>",
         "to": [to_email],
-        "subject": "{code} é o código de confirmação do registro do seu PDVix",
+        "subject": "Seu código PDVix chegou! Confirme seu registro",
         "html": f"""
             <p>Olá!</p>
-            <p><h2 style="font-size: 32px; color: #4CAF50;">{code}</h2> é o código de confirmação do registro do seu PDVix</p>
-            
-            <p>Digite o código acima na tela do PDVix para confirmar o registro e começar a gerenciar sua loja com muito mais facilidade e eficiência!</p>
-            <p>Se você não solicitou esse cadastro, ignore este e-mail.</p>
-               <p>Se você não solicitou este registro, ignore este e-mail.</p>
+            <p>Para completar seu registro no PDVix, utilize o seguinte código:</p>
+            <div style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; text-align: center;">
+                <h2 style="font-size: 36px; color: #sua_cor_primaria; margin: 0;">{code}</h2>
+            </div>
+            <p>Copie e cole este código na tela de confirmação do PDVix para começar a usar todas as funcionalidades!</p>
+            <p>Caso não tenha se registrado no PDVix, ignore esta mensagem.</p>
+            <br>
             <p>Atenciosamente,</p>
-            <p>Equipe PDVix</p>
+            <p>A Equipe PDVix</p>
         """
     }
     email: resend.Email = resend.Emails.send(params)
