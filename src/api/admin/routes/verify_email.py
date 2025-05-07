@@ -27,6 +27,7 @@ async def verify_code(
         raise HTTPException(status_code=400, detail="Código incorreto.")
 
     user.is_email_verified = True
+    user.is_active = True
     user.verification_code = None
     db.commit()
 
