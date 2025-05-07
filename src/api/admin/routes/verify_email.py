@@ -7,17 +7,14 @@ from src.core.models import User
 
 router = APIRouter(tags=["Code"], prefix="/verify-code")
 
-@router.post("",)
-def get_categories(
+@router.get("")  # Mantemos o método GET
+async def verify_code(
     db: GetDBDep,
-    email: str = Query(...),
+    email: str = Query(...),  # Parâmetros continuam vindo pela URL como Query
     code: str = Query(...),
-
 ):
-
-
     stmt = select(User).where(User.email == email)
-    result = db.execute(stmt)
+    result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
     if not user:
@@ -29,6 +26,6 @@ def get_categories(
 
     user.is_email_verified = True
     user.verification_code = None
-    db.commit()
+    await db.commit()
 
     return {"message": "Código validado com sucesso."}
