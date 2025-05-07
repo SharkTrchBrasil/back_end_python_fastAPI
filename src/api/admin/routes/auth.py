@@ -22,13 +22,11 @@ def login_for_access_token(
     if not user:
         raise HTTPException(status_code=401, detail="Incorrect email or password")
 
-    # Verifica se a conta do usuário está ativa
-    if not user.is_active:
-        raise HTTPException(status_code=401, detail="Inactive account")
-
-    # Verifica se o e-mail do usuário foi verificado
     if not user.is_email_verified:
         raise HTTPException(status_code=401, detail="Email not verified")
+
+    if not user.is_active:
+        raise HTTPException(status_code=401, detail="Inactive account")
 
     access_token = create_access_token(data={"sub": user.email})
     refresh_token = create_refresh_token(data={"sub": user.email})
