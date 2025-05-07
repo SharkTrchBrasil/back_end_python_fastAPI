@@ -13,8 +13,11 @@ app = FastAPI()
 def send_verification_email(to_email: str, code: str) -> Dict:
     params: resend.Emails.SendParams = {
 
-        "from": "PDVix <bemvindo@pdvix.com.br>",
-        "to": [to_email],
+
+
+        "from": "Zap Delivery <onboarding@resend.dev>",
+
+     "to": [to_email],
         "subject": "Seu código PDVix chegou! Confirme seu registro",
         "html": f"""
             <p>Olá!</p>
