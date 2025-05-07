@@ -7,6 +7,8 @@ from src.core.models import User
 
 router = APIRouter(tags=["Code"], prefix="/verify-code")
 
+
+
 @router.post("")  # Mantemos o método GET
 async def verify_code(
     db: GetDBDep,
