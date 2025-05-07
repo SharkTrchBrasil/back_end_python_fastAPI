@@ -2,19 +2,22 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from src.core.database import get_db  # Supondo que esse seja o nome correto do dependente
+from src.core.database import GetDBDep # Supondo que esse seja o nome correto do dependente
 from src.core.models import User
 
-router = APIRouter()
+router = APIRouter(tags=["Code"], prefix="/verify-code")
 
-@router.get("/verify-code")
-async def verify_code(
-    db: AsyncSession = Depends(get_db),
+
+def get_categories(
+    db: GetDBDep,
     email: str = Query(...),
     code: str = Query(...),
+
 ):
+
+
     stmt = select(User).where(User.email == email)
-    result = await db.execute(stmt)
+    result = db.execute(stmt)
     user = result.scalar_one_or_none()
 
     if not user:
@@ -26,6 +29,6 @@ async def verify_code(
 
     user.is_email_verified = True
     user.verification_code = None
-    await db.commit()
+    db.commit()
 
     return {"message": "Código validado com sucesso."}
