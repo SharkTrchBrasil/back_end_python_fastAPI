@@ -7,7 +7,7 @@ from src.core.models import User
 
 router = APIRouter(tags=["Code"], prefix="/verify-code")
 
-@router.get("")  # Mantemos o método GET
+@router.post("")  # Mantemos o método GET
 async def verify_code(
     db: GetDBDep,
     email: str = Query(...),  # Parâmetros continuam vindo pela URL como Query
