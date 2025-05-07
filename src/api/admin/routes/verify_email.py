@@ -28,6 +28,6 @@ async def verify_code(
 
     user.is_email_verified = True
     user.verification_code = None
-    await db.commit()
+    db.commit()
 
     return {"message": "Código validado com sucesso."}
