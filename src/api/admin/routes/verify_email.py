@@ -7,7 +7,7 @@ from src.core.models import User
 
 router = APIRouter(tags=["Code"], prefix="/verify-code")
 
-
+@router.post("",)
 def get_categories(
     db: GetDBDep,
     email: str = Query(...),
