@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -8,7 +10,7 @@ class User(BaseModel):
     phone: str
     is_active: bool
     is_email_verified:bool
-    verification_code: str
+    verification_code: Optional[str] = None  # Usa Optional para permitir None
 
 
 class UserCreate(BaseModel):
