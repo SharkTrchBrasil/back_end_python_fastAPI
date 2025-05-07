@@ -8,7 +8,7 @@ class User(BaseModel):
     phone: str
     is_active: bool
     is_email_verified:bool
-    verification_token: str
+    verification_code: str
 
 
 class UserCreate(BaseModel):

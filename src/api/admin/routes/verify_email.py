@@ -1,7 +1,31 @@
-from fastapi import APIRouter, HTTPException, Depends, Query
-from src.core import models
+# routes/verify_code.py
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from src.core.database import GetDBDep
+from src.core.models import User  # <-- Importa User, não Store
 
-router = APIRouter(prefix="/verify-email", tags=["Verify Email"])
+router = APIRouter()
 
+@router.get("/verify-code")
+async def verify_code(
+    db: GetDBDep,
+    email: str = Query(...),
+    code: str = Query(...),
 
+):
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    if user.is_email_verified:
+        raise HTTPException(status_code=400, detail="Código já validado.")
+    if user.verification_code != code:
+        raise HTTPException(status_code=400, detail="Código incorreto.")
+
+    user.is_email_verified = True
+    user.verification_code = None
+    await db.commit()
+
+    return {"message": "Código validado com sucesso."}

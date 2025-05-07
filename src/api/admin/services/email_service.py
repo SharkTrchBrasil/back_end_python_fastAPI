@@ -10,18 +10,18 @@ print(f"Resend API Key being used: '{resend.api_key}'")  # Use resend.api_key di
 
 app = FastAPI()
 
-def send_verification_email(to_email: str, token: str) -> Dict:
-    verify_link = f"https://food.zapdelivery.online/verify-email?token={token}"
+def send_verification_email(to_email: str, code: str) -> Dict:
     params: resend.Emails.SendParams = {
-        "from": "Acme <onboarding@resend.dev>",
+        "from": "Zap Delivery <onboarding@resend.dev>",
         "to": [to_email],
-        "subject": "Verifique seu e-mail",
+        "subject": "Código de verificação do seu e-mail",
         "html": f"""
             <p>Olá!</p>
-            <p>Para ativar sua conta, clique no link abaixo:</p>
-            <a href="{verify_link}">Verificar e-mail</a>
+            <p>Seu código de verificação é:</p>
+            <h2 style="font-size: 32px; color: #4CAF50;">{code}</h2>
+            <p>Digite este código no app para concluir seu cadastro.</p>
+            <p>Se você não solicitou esse cadastro, ignore este e-mail.</p>
         """
     }
     email: resend.Email = resend.Emails.send(params)
     return email
-
