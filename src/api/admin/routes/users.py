@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetCurrentUserDep
-from src.api.admin.schemas.user import UserCreate, User
+from src.api.admin.schemas.user import UserCreate, User, UserUpdate
 from src.api.admin.services.auth import get_password_hash
 from src.api.admin.services.email_service import send_verification_email
 from src.core.security import generate_verification_code  # novo import
@@ -49,3 +49,34 @@ def get_me(
     current_user: GetCurrentUserDep,
 ):
     return current_user
+
+
+
+@router.patch("/me", response_model=User)
+def update_me(
+    data: UserUpdate,
+    db: GetDBDep,
+    current_user: GetCurrentUserDep,
+):
+    user = db.query(models.User).filter(models.User.id == current_user.id).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+    if data.name is not None:
+        user.name = data.name
+
+    if data.phone is not None:
+        # Verifica se outro usuário já usa esse telefone
+        existing = db.query(models.User).filter(
+            models.User.phone == data.phone,
+            models.User.id != current_user.id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Este número de telefone já está em uso")
+        user.phone = data.phone
+
+    db.commit()
+    db.refresh(user)
+
+    return user

@@ -25,11 +25,11 @@ def send_verification_email(to_email: str, code: str) -> Dict:
             <div style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; text-align: center;">
                 <h2 style="font-size: 36px; color: #sua_cor_primaria; margin: 0;">{code}</h2>
             </div>
-            <p>Copie e cole este código na tela de confirmação do PDVix para começar a usar todas as funcionalidades!</p>
-            <p>Caso não tenha se registrado no PDVix, ignore esta mensagem.</p>
+            <p>Digite o código acima na tela do PDVix para confirmar o registro e começar a gerenciar sua loja com muito mais facilidade e eficiência!</p>
+            <p>Qualquer dúvida, fale com a nossa equipe de atendimento, disponível de segunda a sexta-feira, das 9h às 18h, no horário de Brasília.</p>
             <br>
-            <p>Atenciosamente,</p>
-            <p>A Equipe PDVix</p>
+            <p>Ótimas vendas!</p>
+          
         """
     }
     email: resend.Email = resend.Emails.send(params)

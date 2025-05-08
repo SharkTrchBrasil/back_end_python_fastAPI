@@ -27,3 +27,8 @@ class ChangePasswordData(BaseModel):
 
 class ResendEmail(BaseModel):
     email: str
+
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=3, max_length=32)
+    phone: Optional[str]
