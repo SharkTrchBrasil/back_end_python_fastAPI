@@ -1,10 +1,8 @@
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, computed_field, Field
 from typing import Optional
 
-from pydantic_core.core_schema import computed_field
 
-from src.api.admin.schemas.user import User
 from src.core.aws import get_presigned_url
 
 
