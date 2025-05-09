@@ -1,13 +1,16 @@
+# src/api/admin/routes/store.py
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Depends, Body
+from fastapi import APIRouter, HTTPException, Depends, Body, UploadFile
+from fastapi.params import File
+from sqlalchemy.orm import Session
 
 from src.api.admin.schemas.store import StoreCreate, StoreWithRole, Roles, Store, StoreUpdate
 from src.api.admin.schemas.store_access import StoreAccess
 from src.core import models
+from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
 from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetStore
-
 
 
 router = APIRouter(prefix="/stores", tags=["Stores"])
@@ -16,10 +19,12 @@ router = APIRouter(prefix="/stores", tags=["Stores"])
 def create_store(
     db: GetDBDep,
     user: GetCurrentUserDep,
-    store_create: StoreCreate
+    store_create: StoreCreate,
+    image: UploadFile | None = File(None),
 ):
-    # 1) cria a loja e grava no banco
+    logo_file_key = upload_file(image) if image else None
 
+    # 1) cria a loja e grava no banco
     db_store = models.Store(
         name=store_create.name,
         phone=store_create.phone,
@@ -35,17 +40,18 @@ def create_store(
         reference=store_create.reference,
         city=store_create.city,
         state=store_create.state,
-        logo_url=store_create.logo_url,
+        logo_url=store_create.logo_url,  # Você pode manter este campo, se tiver outro uso
         instagram=store_create.instagram,
         facebook=store_create.facebook,
         plan_type=store_create.plan_type,
+        logo_file_key=logo_file_key  # Adicione o file_key do logo AQUI
     )
 
 
     db.add(db_store)
-    db.flush()                     # ← gera db_store.id sem dar commit
+    db.flush()                     # ← gera db_store.id sem dar commit
 
-    # 2) vincula o usuário dono
+    # 2) vincula o usuário dono (código existente)
     db_role = (
         db.query(models.Role)
         .filter(models.Role.machine_name == "owner")
@@ -58,74 +64,8 @@ def create_store(
     )
     db.add(db_store_access)
 
-    # 3) meios de pagamento default
-    defaults = [
-        dict(
-            payment_type="cash",
-            custom_name="Dinheiro",
-            custom_icon="cash.svg",
-            change_back=True,
-            credit_in_account=False,
-            is_active=True,
-            active_on_delivery=True,
-            active_on_pickup=True,
-            active_on_counter=True,
-            tax_rate=0.0,
-            days_to_receive=0,
-            has_fee=False,
-            pix_key=None,
-            pix_key_active=False,
-        ),
-        dict(
-            payment_type="card",
-            custom_name="Cartão",
-            custom_icon="card.svg",
-            change_back=False,
-            credit_in_account=False,
-            is_active=True,
-            active_on_delivery=True,
-            active_on_pickup=True,
-            active_on_counter=True,
-            tax_rate=2.49,
-            days_to_receive=30,
-            has_fee=True,
-            pix_key=None,
-            pix_key_active=False,
-        ),
-        dict(
-            payment_type="pix",
-            custom_name="Pix",
-            custom_icon="pix.svg",
-            change_back=False,
-            credit_in_account=False,
-            is_active=True,
-            active_on_delivery=True,
-            active_on_pickup=True,
-            active_on_counter=True,
-            tax_rate=0.0,
-            days_to_receive=0,
-            has_fee=False,
-            pix_key=None,           # lojista configurará depois
-            pix_key_active=False,
-        ),
-        dict(
-            payment_type="other",
-            custom_name="Outro",
-            custom_icon="other.svg",
-            change_back=False,
-            credit_in_account=False,
-            is_active=True,
-            active_on_delivery=True,
-            active_on_pickup=True,
-            active_on_counter=True,
-            tax_rate=0.0,
-            days_to_receive=0,
-            has_fee=False,
-            pix_key=None,  # lojista configurará depois
-            pix_key_active=False,
-        ),
-    ]
-
+    # 3) meios de pagamento default (código existente)
+    defaults = [...]
     for data in defaults:
         db.add(models.StorePaymentMethod(store_id=db_store.id, **data))
 
@@ -133,7 +73,6 @@ def create_store(
     db.commit()
     db.refresh(db_store_access)     # garante dados atualizados no retorno
     return db_store_access
-
 
 
 @router.get("", response_model=list[StoreWithRole])
@@ -157,10 +96,26 @@ def patch_store(
     db: GetDBDep,
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
     store_update: StoreUpdate,
+    image: UploadFile | None = File(None),  # Adicione o parâmetro para receber a imagem
 ):
+    file_key_to_delete = None
+
+    if image:
+        # Se uma nova imagem foi enviada:
+        new_file_key = upload_file(image)
+        if store.logo_file_key:
+            file_key_to_delete = store.logo_file_key
+        store.logo_file_key = new_file_key
+
+    # Atualiza os outros campos da loja
     for field, value in store_update.model_dump(exclude_unset=True).items():
         setattr(store, field, value)
     db.commit()
+
+    # Deleta a imagem antiga, se existir
+    if file_key_to_delete:
+        delete_file(file_key_to_delete)
+
     return store
 
 

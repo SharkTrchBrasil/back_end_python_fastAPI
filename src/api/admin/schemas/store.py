@@ -2,7 +2,11 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from typing import Optional
 
+from pydantic_core.core_schema import computed_field
+
 from src.api.admin.schemas.user import User
+from src.core.aws import get_presigned_url
+
 
 class Roles(Enum):
     OWNER = 'owner'
@@ -29,6 +33,7 @@ class StoreBase(BaseModel):
 
     # Identidade visual
     logo_url: Optional[str] = None
+    logo_file_key: Optional[str] = Field(exclude=True)  # Renomeado para logo_file_key
 
     # Redes sociais
     instagram: Optional[str] = None
@@ -37,6 +42,12 @@ class StoreBase(BaseModel):
     # Plano
     plan_type: str = "free"
 
+    @computed_field
+    @property
+    def logo_image_path(self) -> Optional[str]:  # Renomeado para logo_image_path
+        if self.logo_file_key:
+            return get_presigned_url(self.logo_file_key)
+        return None
 
 class Store(StoreBase):
     id: int
