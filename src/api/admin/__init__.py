@@ -10,6 +10,8 @@ from src.api.admin.routes.variant_options import router as options_router
 from src.api.admin.routes.coupons import router as coupons_router
 from src.api.admin.routes.totems import router as totems_router
 from src.api.admin.routes.themes import router as themes_router
+from src.api.admin.routes.pix_configs import router as pix_configs_router
+from src.api.admin.routes.webhook import router as webhook_router
 
 
 
@@ -32,6 +34,8 @@ router.include_router(options_router)
 router.include_router(coupons_router)
 router.include_router(totems_router)
 router.include_router(themes_router)
+router.include_router(pix_configs_router)
+router.include_router(webhook_router)
 
 
 

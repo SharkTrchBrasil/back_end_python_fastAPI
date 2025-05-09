@@ -323,3 +323,29 @@ class StorePixConfig(Base, TimestampMixin):
     certificate: Mapped[bytes] = mapped_column(LargeBinary)
 
     hmac_key: Mapped[str] = mapped_column(unique=True)
+
+
+class Charge(Base, TimestampMixin):
+    __tablename__ = "charges"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), nullable=False)
+    tx_id: Mapped[str] = mapped_column()
+    status: Mapped[str] = mapped_column()
+    amount: Mapped[int] = mapped_column()
+    copy_key: Mapped[str] = mapped_column()
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    e2e_id: Mapped[str | None] = mapped_column()
+
+
+class PixDevolution(Base, TimestampMixin):
+    __tablename__ = "pix_devolutions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), nullable=False)
+    rtr_id: Mapped[str] = mapped_column()
+    status: Mapped[str] = mapped_column()
+    amount: Mapped[int] = mapped_column()
+    e2e_id: Mapped[str] = mapped_column()
+    reason: Mapped[str | None] = mapped_column()
