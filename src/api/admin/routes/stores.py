@@ -100,6 +100,7 @@ def patch_store(
 ):
     file_key_to_delete = None
 
+
     if image:
         # Se uma nova imagem foi enviada:
         new_file_key = upload_file(image)
