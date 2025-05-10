@@ -25,7 +25,7 @@ class Store(Base, TimestampMixin):
     phone: Mapped[str] = mapped_column()
 
     # Ativação
-    is_active: Mapped[bool] = mapped_column(default=True)
+    is_active: Mapped[bool] = mapped_column(default=False, nullable=True)
 
     # Endereço
     zip_code: Mapped[str] = mapped_column()  # CEP
