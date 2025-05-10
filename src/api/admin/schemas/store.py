@@ -29,10 +29,6 @@ class StoreBase(BaseModel):
     city: str
     state: str
 
-    # Identidade visual
-    logo_url: Optional[str] = None
-    logo_file_key: Optional[str] = None  # Alterado: Não excluir e permitir None
-
     # Redes sociais
     instagram: Optional[str] = None
     facebook: Optional[str] = None
@@ -40,10 +36,12 @@ class StoreBase(BaseModel):
     # Plano
     plan_type: str = "free"
 
+    file_key: str = Field(exclude=True)
+
     @computed_field
     @property
     def image_path(self) -> str:
-        return get_presigned_url(self.logo_file_key)
+        return get_presigned_url(self.file_key)
 
 class Store(StoreBase):
     id: int
@@ -71,9 +69,8 @@ class StoreUpdate(BaseModel):
     city: Optional[str] = None
     state: Optional[str] = None
 
-    # Identidade visual
-    logo_url: Optional[str] = None
-    logo_file_key: Optional[str] = None
+
+    file_key: Optional[str] = None
 
     # Redes sociais
     instagram: Optional[str] = None

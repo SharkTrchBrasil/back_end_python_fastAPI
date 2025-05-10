@@ -20,9 +20,9 @@ def create_store(
     db: GetDBDep,
     user: GetCurrentUserDep,
     store_create: StoreCreate,
-    image: UploadFile | None = File(None),
+    image: UploadFile = File(...),
 ):
-    logo_file_key = upload_file(image) if image else None
+    file_key = upload_file(image)
 
     # 1) cria a loja e grava no banco
     db_store = models.Store(
@@ -40,11 +40,11 @@ def create_store(
         reference=store_create.reference,
         city=store_create.city,
         state=store_create.state,
-        logo_url=store_create.logo_url,  # Você pode manter este campo, se tiver outro uso
+        file_key=file_key,
         instagram=store_create.instagram,
         facebook=store_create.facebook,
         plan_type=store_create.plan_type,
-        logo_file_key=logo_file_key  # Adicione o file_key do logo AQUI
+
     )
 
 
