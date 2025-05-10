@@ -1,11 +1,10 @@
 # src/api/admin/routes/store.py
-from typing import Annotated
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, HTTPException, Depends, Body, UploadFile
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, Form
 from fastapi.params import File
-from sqlalchemy.orm import Session
 
-from src.api.admin.schemas.store import StoreCreate, StoreWithRole, Roles, Store, StoreUpdate
+from src.api.admin.schemas.store import StoreWithRole, Roles, Store
 from src.api.admin.schemas.store_access import StoreAccess
 from src.core import models
 from src.core.aws import upload_file, delete_file
@@ -19,44 +18,57 @@ router = APIRouter(prefix="/stores", tags=["Stores"])
 def create_store(
     db: GetDBDep,
     user: GetCurrentUserDep,
-    store_create: StoreCreate,
-    image: UploadFile = File(...),
+    name: str = Form(...),
+    language: str = Form(...),
+    country: str = Form(...),
+    currency: str = Form(...),
+    phone: str = Form(...),
+    is_active: bool = Form(...),
+    zip_code: str = Form(...),
+    street: str = Form(...),
+    number: str = Form(...),
+    neighborhood: str = Form(...),
+    complement: Optional[str] = Form(None),
+    reference: Optional[str] = Form(None),
+    city: str = Form(...),
+    state: str = Form(...),
+    instagram: Optional[str] = Form(None),
+    facebook: Optional[str] = Form(None),
+    plan_type: str = Form("free"),
+    image: Optional[UploadFile] = File(None),
 ):
-    file_key = upload_file(image)
+    if image:
+        file_key = upload_file(image)
+    else:
+        file_key = None
 
-    # 1) cria a loja e grava no banco
+    # 2) Criar a loja
     db_store = models.Store(
-        name=store_create.name,
-        phone=store_create.phone,
-        language=store_create.language,
-        country=store_create.country,
-        currency=store_create.currency,
-        is_active=store_create.is_active,
-        zip_code=store_create.zip_code,
-        street=store_create.street,
-        number=store_create.number,
-        neighborhood=store_create.neighborhood,
-        complement=store_create.complement,
-        reference=store_create.reference,
-        city=store_create.city,
-        state=store_create.state,
-        file_key=file_key,
-        instagram=store_create.instagram,
-        facebook=store_create.facebook,
-        plan_type=store_create.plan_type,
-
+        name=name,
+        language=language,
+        country=country,
+        currency=currency,
+        phone=phone,
+        is_active=is_active,
+        zip_code=zip_code,
+        street=street,
+        number=number,
+        neighborhood=neighborhood,
+        complement=complement,
+        reference=reference,
+        city=city,
+        state=state,
+        instagram=instagram,
+        facebook=facebook,
+        plan_type=plan_type,
+        file_key=file_key
     )
-
 
     db.add(db_store)
-    db.flush()                     # ← gera db_store.id sem dar commit
+    db.flush()  # gera db_store.id sem dar commit
 
-    # 2) vincula o usuário dono (código existente)
-    db_role = (
-        db.query(models.Role)
-        .filter(models.Role.machine_name == "owner")
-        .first()
-    )
+    # 3) Vincular o usuário dono
+    db_role = db.query(models.Role).filter(models.Role.machine_name == "owner").first()
     db_store_access = models.StoreAccess(
         user=user,
         role=db_role,
@@ -64,16 +76,16 @@ def create_store(
     )
     db.add(db_store_access)
 
-    # 3) meios de pagamento default (código existente)
-    defaults = [...]
+    # 4) Adicionar métodos de pagamento (código existente)
+    defaults = [...]  # seu código aqui
     for data in defaults:
         db.add(models.StorePaymentMethod(store_id=db_store.id, **data))
 
-    # 4) salva tudo de uma vez
+    # 5) Salvar tudo
     db.commit()
-    db.refresh(db_store_access)     # garante dados atualizados no retorno
-    return db_store_access
+    db.refresh(db_store_access)
 
+    return db_store_access
 
 @router.get("", response_model=list[StoreWithRole])
 def list_stores(
@@ -95,29 +107,70 @@ def get_store(
 def patch_store(
     db: GetDBDep,
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
-    store_update: StoreUpdate,
-    image: UploadFile | None = File(None),  # Adicione o parâmetro para receber a imagem
+    name: str | None = Form(None),
+    document: str | None = Form(None),
+    phone: str | None = Form(None),
+    email: str | None = Form(None),
+    site: str | None = Form(None),
+    instagram: str | None = Form(None),
+    facebook: str | None = Form(None),
+    tiktok: str | None = Form(None),
+    whatsapp: str | None = Form(None),
+    about: str | None = Form(None),
+    cnpj: str | None = Form(None),
+    address: str | None = Form(None),
+    city: str | None = Form(None),
+    state: str | None = Form(None),
+    zipcode: str | None = Form(None),
+    logo: UploadFile | None = File(None),
 ):
     file_key_to_delete = None
 
-
-    if image:
-        # Se uma nova imagem foi enviada:
-        new_file_key = upload_file(image)
-        if store.logo_file_key:
-            file_key_to_delete = store.logo_file_key
+    # Se uma nova logo for enviada, faça o upload e substitua
+    if logo:
+        file_key_to_delete = store.logo_file_key
+        new_file_key = upload_file(logo)
         store.logo_file_key = new_file_key
 
-    # Atualiza os outros campos da loja
-    for field, value in store_update.model_dump(exclude_unset=True).items():
-        setattr(store, field, value)
+
+    if name is not None: store.name = name
+    if document is not None: store.document = document
+    if phone is not None: store.phone = phone
+    if email is not None: store.email = email
+    if site is not None: store.site = site
+    if instagram is not None: store.instagram = instagram
+    if facebook is not None: store.facebook = facebook
+    if tiktok is not None: store.tiktok = tiktok
+    if whatsapp is not None: store.whatsapp = whatsapp
+    if about is not None: store.about = about
+    if cnpj is not None: store.cnpj = cnpj
+    if address is not None: store.address = address
+    if city is not None: store.city = city
+    if state is not None: store.state = state
+    if zipcode is not None: store.zipcode = zipcode
+
+    # Confirmar as mudanças no banco de dados
     db.commit()
 
-    # Deleta a imagem antiga, se existir
+    # Se a logo foi alterada, exclua a antiga
     if file_key_to_delete:
         delete_file(file_key_to_delete)
 
     return store
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 @router.get("/{store_id}/accesses", response_model=list[StoreAccess])
