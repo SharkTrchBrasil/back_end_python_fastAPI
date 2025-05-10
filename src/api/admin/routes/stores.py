@@ -164,23 +164,15 @@ def patch_store(
     if zipcode is not None: store.zipcode = zipcode
 
     # Confirmar as mudanças no banco de dados
+    db.add(store)
     db.commit()
+    db.refresh(store)
 
     # Se a logo foi alterada, exclua a antiga
     if file_key_to_delete:
         delete_file(file_key_to_delete)
 
     return store
-
-
-
-
-
-
-
-
-
-
 
 
 
