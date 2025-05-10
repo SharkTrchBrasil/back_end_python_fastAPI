@@ -21,12 +21,37 @@ def create_store(
     user: GetCurrentUserDep,
     store_create: StoreCreate
 ):
-    db_store = models.Store(name=store_create.name)
+    # Verificando se os campos necessários foram fornecidos
+    if not store_create.name or not store_create.phone:
+        raise ValueError("Nome e telefone são obrigatórios")
+
+    # Criando a loja no banco
+    db_store = models.Store(
+        name=store_create.name,
+        phone=store_create.phone,
+        zip_code=store_create.zip_code,
+        street=store_create.street,
+        number=store_create.number,
+        neighborhood=store_create.neighborhood,
+        complement=store_create.complement,
+        reference=store_create.reference,
+        city=store_create.city,
+        state=store_create.state,
+        instagram=store_create.instagram,
+        facebook=store_create.facebook,
+        tiktok=store_create.tiktok,
+        plan_type=store_create.plan_type,
+        file_key=store_create.file_key,
+    )
+
+    # Associando a loja ao usuário
     db_role = db.query(models.Role).filter(models.Role.machine_name == "owner").first()
     db_store_access = models.StoreAccess(user=user, role=db_role, store=db_store)
+
     db.add(db_store_access)
     db.commit()
     return db_store_access
+
 
 # @router.post("", response_model=StoreWithRole)
 # def create_store(

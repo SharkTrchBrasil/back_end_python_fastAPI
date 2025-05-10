@@ -55,3 +55,21 @@ class Role(BaseModel):
 class StoreWithRole(BaseModel):
     store: Store
     role: Role
+
+class StoreUpdate(BaseModel):
+    name: Optional[str]
+    phone: Optional[str]
+    zip_code: Optional[str]
+    street: Optional[str]
+    number: Optional[str]
+    neighborhood: Optional[str]
+    complement: Optional[str]
+    reference: Optional[str]
+    city: Optional[str]
+    state: Optional[str]
+    instagram: Optional[str]
+    facebook: Optional[str]
+    tiktok: Optional[str]
+    plan_type: Optional[str]
+    file_key: Optional[str]
+
