@@ -45,7 +45,8 @@ class Store(StoreBase):
 
 
 class StoreCreate(StoreBase):
-    pass
+    name: str = Field(min_length=4, max_length=20)
+    phone: str
 
 
 class Role(BaseModel):
