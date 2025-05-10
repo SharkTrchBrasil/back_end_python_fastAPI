@@ -137,15 +137,15 @@ def patch_store(
     city: str | None = Form(None),
     state: str | None = Form(None),
     zipcode: str | None = Form(None),
-    logo: UploadFile | None = File(None),
+    image: UploadFile | None = File(None),
 ):
     file_key_to_delete = None
 
     # Se uma nova logo for enviada, faça o upload e substitua
-    if logo:
-        file_key_to_delete = store.logo_file_key
-        new_file_key = upload_file(logo)
-        store.logo_file_key = new_file_key
+    if image:
+        file_key_to_delete = store.file_key
+        new_file_key = upload_file(image)
+        store.file_key = new_file_key
 
 
     if name is not None: store.name = name
