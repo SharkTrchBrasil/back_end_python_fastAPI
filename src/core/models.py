@@ -42,10 +42,9 @@ class Store(Base, TimestampMixin):
     city: Mapped[str] = mapped_column()
     state: Mapped[str] = mapped_column()
 
-
     # Identidade visual
-    logo_url: Mapped[str] = mapped_column(nullable=True)
-    logo_file_key: Optional[str] = None
+    logo_url: Mapped[Optional[str]] = mapped_column(nullable=True)
+    logo_file_key: Mapped[Optional[str]] = mapped_column(nullable=True)  # Modificado para Mapped
     # Redes sociais
     instagram: Mapped[str] = mapped_column(nullable=True)  # Ex: https://instagram.com/minhaloja
     facebook: Mapped[str] = mapped_column(nullable=True)  # Ex: https://facebook.com/minhaloja
