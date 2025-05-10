@@ -11,9 +11,7 @@ class Roles(Enum):
 
 class StoreBase(BaseModel):
     name: str = Field(min_length=4, max_length=20)
-    language: str
-    country: str
-    currency: str
+
     phone: str
     is_active: bool
 
@@ -30,6 +28,7 @@ class StoreBase(BaseModel):
     # Redes sociais
     instagram: Optional[str] = None
     facebook: Optional[str] = None
+    tiktok: Optional[str] = None
 
     # Plano
     plan_type: Optional[str] = "free"

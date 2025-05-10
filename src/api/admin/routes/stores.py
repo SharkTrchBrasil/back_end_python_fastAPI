@@ -19,9 +19,7 @@ def create_store(
     db: GetDBDep,
     user: GetCurrentUserDep,
     name: str = Form(...),
-    language: str = Form(...),
-    country: str = Form(...),
-    currency: str = Form(...),
+
     phone: str = Form(...),
     is_active: bool = Form(...),
     zip_code: str = Form(...),
@@ -34,6 +32,7 @@ def create_store(
     state: str = Form(...),
     instagram: Optional[str] = Form(None),
     facebook: Optional[str] = Form(None),
+    tiktok: Optional[str] = Form(None),
     plan_type: str = Form("free"),
     image: Optional[UploadFile] = File(None),
 ):
@@ -45,9 +44,7 @@ def create_store(
     # 2) Criar a loja
     db_store = models.Store(
         name=name,
-        language=language,
-        country=country,
-        currency=currency,
+
         phone=phone,
         is_active=is_active,
         zip_code=zip_code,
@@ -60,6 +57,7 @@ def create_store(
         state=state,
         instagram=instagram,
         facebook=facebook,
+        tiktok=tiktok,
         plan_type=plan_type,
         file_key=file_key
     )
@@ -108,7 +106,6 @@ def patch_store(
     db: GetDBDep,
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
     name: str | None = Form(None),
-    document: str | None = Form(None),
     phone: str | None = Form(None),
     email: str | None = Form(None),
     site: str | None = Form(None),
@@ -134,7 +131,6 @@ def patch_store(
 
 
     if name is not None: store.name = name
-    if document is not None: store.document = document
     if phone is not None: store.phone = phone
     if email is not None: store.email = email
     if site is not None: store.site = site

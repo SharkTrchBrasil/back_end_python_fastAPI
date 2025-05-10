@@ -24,11 +24,6 @@ class Store(Base, TimestampMixin):
     name: Mapped[str] = mapped_column()
     phone: Mapped[str] = mapped_column()
 
-    # Internacionalização
-    language: Mapped[str] = mapped_column()
-    country: Mapped[str] = mapped_column(default="BR")  # Ex: BR, US, ES
-    currency: Mapped[str] = mapped_column(default="BRL")  # Ex: BRL, USD, EUR
-
     # Ativação
     is_active: Mapped[bool] = mapped_column(default=True)
 
@@ -47,7 +42,7 @@ class Store(Base, TimestampMixin):
     # Redes sociais
     instagram: Mapped[str] = mapped_column(nullable=True)  # Ex: https://instagram.com/minhaloja
     facebook: Mapped[str] = mapped_column(nullable=True)  # Ex: https://facebook.com/minhaloja
-
+    tiktok: Mapped[str] = mapped_column(nullable=True)  # Ex: https://facebook.com/minhaloja
     # Plano
     plan_type: Mapped[str] = mapped_column(default="free")  # Ex: free, basic, premium
 
