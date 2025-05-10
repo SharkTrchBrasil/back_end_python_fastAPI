@@ -17,14 +17,7 @@ def create_user(user: UserCreate, db: GetDBDep):
     if existing_user_by_email:
         raise HTTPException(status_code=400, detail="User with this email already exists")
 
-    # Verifica se já existe um usuário com o mesmo número de telefone (se fornecido)
-    if user.phone:
-        existing_user_by_phone = db.query(models.User).filter(models.User.phone == user.phone).first()
-        if existing_user_by_phone:
-            raise HTTPException(status_code=400, detail="User with this phone number already exists")
 
-    # Se o e-mail e (se fornecido) o telefone não existirem, cria o novo usuário
-    # Gera o token de verificação
     verification_code = generate_verification_code()
 
     user_internal_dict = user.model_dump()
@@ -66,15 +59,6 @@ def update_me(
     if data.name is not None:
         user.name = data.name
 
-    if data.phone is not None:
-        # Verifica se outro usuário já usa esse telefone
-        existing = db.query(models.User).filter(
-            models.User.phone == data.phone,
-            models.User.id != current_user.id
-        ).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Este número de telefone já está em uso")
-        user.phone = data.phone
 
     db.commit()
     db.refresh(user)
