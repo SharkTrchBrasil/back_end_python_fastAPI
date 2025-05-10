@@ -43,7 +43,7 @@ class StoreBase(BaseModel):
     @computed_field
     @property
     def image_path(self) -> str:
-        return get_presigned_url(self.file_key)
+        return get_presigned_url(self.logo_file_key)
 
 class Store(StoreBase):
     id: int
