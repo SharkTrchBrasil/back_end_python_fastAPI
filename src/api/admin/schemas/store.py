@@ -31,7 +31,7 @@ class StoreBase(BaseModel):
 
     # Identidade visual
     logo_url: Optional[str] = None
-    logo_file_key: Optional[str] = Field(exclude=True)  # Renomeado para logo_file_key
+    logo_file_key: Optional[str] = None  # Alterado: Não excluir e permitir None
 
     # Redes sociais
     instagram: Optional[str] = None
@@ -73,6 +73,7 @@ class StoreUpdate(BaseModel):
 
     # Identidade visual
     logo_url: Optional[str] = None
+    logo_file_key: Optional[str] = None
 
     # Redes sociais
     instagram: Optional[str] = None

@@ -1,9 +1,9 @@
 from datetime import datetime
-import enum
+
 from datetime import time
+from typing import Optional
 
-
-from sqlalchemy import DateTime, func, ForeignKey, Index, Enum, LargeBinary
+from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -45,7 +45,7 @@ class Store(Base, TimestampMixin):
 
     # Identidade visual
     logo_url: Mapped[str] = mapped_column(nullable=True)
-
+    logo_file_key: Optional[str] = None
     # Redes sociais
     instagram: Mapped[str] = mapped_column(nullable=True)  # Ex: https://instagram.com/minhaloja
     facebook: Mapped[str] = mapped_column(nullable=True)  # Ex: https://facebook.com/minhaloja
