@@ -46,7 +46,7 @@ class Store(StoreBase):
 
 class StoreCreate(StoreBase):
     name: str = Field(min_length=4, max_length=20)
-    phone: str
+    phone: str = Field(min_length=10, max_length=15)
 
 
 class Role(BaseModel):
@@ -73,4 +73,10 @@ class StoreUpdate(BaseModel):
     tiktok: Optional[str]
     plan_type: Optional[str]
     file_key: Optional[str]
+
+
+    @computed_field
+    @property
+    def image_path(self) -> str:
+        return get_presigned_url(self.file_key)
 

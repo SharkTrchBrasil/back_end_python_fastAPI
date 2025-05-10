@@ -22,7 +22,9 @@ def create_store(
     user: GetCurrentUserDep,
     store_create: StoreCreate
 ):
-    db_store = models.Store(name=store_create.name)
+
+    # tem que passar todos os campos aqui
+    db_store = models.Store(name=store_create.name, phone=store_create.phone)
     db_role = db.query(models.Role).filter(models.Role.machine_name == "owner").first()
     db_store_access = models.StoreAccess(user=user, role=db_role, store=db_store)
     db.add(db_store_access)
