@@ -15,114 +15,77 @@ from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetStore
 router = APIRouter(prefix="/stores", tags=["Stores"])
 
 
+
 @router.post("", response_model=StoreWithRole)
 def create_store(
     db: GetDBDep,
     user: GetCurrentUserDep,
-    store_create: StoreCreate
-):
-    # Verificando se os campos necessários foram fornecidos
-    if not store_create.name or not store_create.phone:
-        raise ValueError("Nome e telefone são obrigatórios")
+    name: str = Form(...),
 
-    # Criando a loja no banco
+    phone: str = Form(...),
+    is_active: bool = Form(...),
+    zip_code: str = Form(...),
+    street: str = Form(...),
+    number: str = Form(...),
+    neighborhood: str = Form(...),
+    complement: Optional[str] = Form(None),
+    reference: Optional[str] = Form(None),
+    city: str = Form(...),
+    state: str = Form(...),
+    instagram: Optional[str] = Form(None),
+    facebook: Optional[str] = Form(None),
+    tiktok: Optional[str] = Form(None),
+    plan_type: str = Form("free"),
+    image: Optional[UploadFile] = File(None),
+):
+    if image:
+        file_key = upload_file(image)
+    else:
+        file_key = None
+
+    # 2) Criar a loja
     db_store = models.Store(
-        name=store_create.name,
-        phone=store_create.phone,
-        zip_code=store_create.zip_code,
-        street=store_create.street,
-        number=store_create.number,
-        neighborhood=store_create.neighborhood,
-        complement=store_create.complement,
-        reference=store_create.reference,
-        city=store_create.city,
-        state=store_create.state,
-        instagram=store_create.instagram,
-        facebook=store_create.facebook,
-        tiktok=store_create.tiktok,
-        plan_type=store_create.plan_type,
-        file_key=store_create.file_key,
+        name=name,
+
+        phone=phone,
+        is_active=is_active,
+        zip_code=zip_code,
+        street=street,
+        number=number,
+        neighborhood=neighborhood,
+        complement=complement,
+        reference=reference,
+        city=city,
+        state=state,
+        instagram=instagram,
+        facebook=facebook,
+        tiktok=tiktok,
+        plan_type=plan_type,
+        file_key=file_key
     )
 
-    # Associando a loja ao usuário
+    db.add(db_store)
+    db.flush()  # gera db_store.id sem dar commit
+
+    # 3) Vincular o usuário dono
     db_role = db.query(models.Role).filter(models.Role.machine_name == "owner").first()
-    db_store_access = models.StoreAccess(user=user, role=db_role, store=db_store)
-
+    db_store_access = models.StoreAccess(
+        user=user,
+        role=db_role,
+        store=db_store,
+    )
     db.add(db_store_access)
+
+    # 4) Adicionar métodos de pagamento (código existente)
+    defaults = [...]  # seu código aqui
+    for data in defaults:
+        db.add(models.StorePaymentMethod(store_id=db_store.id, **data))
+
+    # 5) Salvar tudo
     db.commit()
+    db.refresh(db_store_access)
+
     return db_store_access
-
-
-# @router.post("", response_model=StoreWithRole)
-# def create_store(
-#     db: GetDBDep,
-#     user: GetCurrentUserDep,
-#     name: str = Form(...),
-#
-#     phone: str = Form(...),
-#     is_active: bool = Form(...),
-#     zip_code: str = Form(...),
-#     street: str = Form(...),
-#     number: str = Form(...),
-#     neighborhood: str = Form(...),
-#     complement: Optional[str] = Form(None),
-#     reference: Optional[str] = Form(None),
-#     city: str = Form(...),
-#     state: str = Form(...),
-#     instagram: Optional[str] = Form(None),
-#     facebook: Optional[str] = Form(None),
-#     tiktok: Optional[str] = Form(None),
-#     plan_type: str = Form("free"),
-#     image: Optional[UploadFile] = File(None),
-# ):
-#     if image:
-#         file_key = upload_file(image)
-#     else:
-#         file_key = None
-#
-#     # 2) Criar a loja
-#     db_store = models.Store(
-#         name=name,
-#
-#         phone=phone,
-#         is_active=is_active,
-#         zip_code=zip_code,
-#         street=street,
-#         number=number,
-#         neighborhood=neighborhood,
-#         complement=complement,
-#         reference=reference,
-#         city=city,
-#         state=state,
-#         instagram=instagram,
-#         facebook=facebook,
-#         tiktok=tiktok,
-#         plan_type=plan_type,
-#         file_key=file_key
-#     )
-#
-#     db.add(db_store)
-#     db.flush()  # gera db_store.id sem dar commit
-#
-#     # 3) Vincular o usuário dono
-#     db_role = db.query(models.Role).filter(models.Role.machine_name == "owner").first()
-#     db_store_access = models.StoreAccess(
-#         user=user,
-#         role=db_role,
-#         store=db_store,
-#     )
-#     db.add(db_store_access)
-#
-#     # 4) Adicionar métodos de pagamento (código existente)
-#     defaults = [...]  # seu código aqui
-#     for data in defaults:
-#         db.add(models.StorePaymentMethod(store_id=db_store.id, **data))
-#
-#     # 5) Salvar tudo
-#     db.commit()
-#     db.refresh(db_store_access)
-#
-#     return db_store_access
 
 @router.get("", response_model=list[StoreWithRole])
 def list_stores(
