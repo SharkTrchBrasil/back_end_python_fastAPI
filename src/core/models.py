@@ -25,26 +25,28 @@ class Store(Base, TimestampMixin):
     phone: Mapped[str] = mapped_column()
 
     # Ativação
-    is_active: Mapped[bool] = mapped_column(default=False, nullable=True)
+    is_active: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     # Endereço
-    zip_code: Mapped[str] = mapped_column()  # CEP
-    street: Mapped[str] = mapped_column()  # Rua
-    number: Mapped[str] = mapped_column()  # Número
-    neighborhood: Mapped[str] = mapped_column()  # Bairro
-    complement: Mapped[str] = mapped_column(nullable=True)  # Complemento (opcional)
-    reference: Mapped[str] = mapped_column(nullable=True)  # Referência (opcional)
-    city: Mapped[str] = mapped_column()
-    state: Mapped[str] = mapped_column()
+    zip_code: Mapped[Optional[str]] = mapped_column(nullable=True)
+    street: Mapped[Optional[str]] = mapped_column(nullable=True)
+    number: Mapped[Optional[str]] = mapped_column(nullable=True)
+    neighborhood: Mapped[Optional[str]] = mapped_column(nullable=True)
+    complement: Mapped[Optional[str]] = mapped_column(nullable=True)
+    reference: Mapped[Optional[str]] = mapped_column(nullable=True)
+    city: Mapped[Optional[str]] = mapped_column(nullable=True)
+    state: Mapped[Optional[str]] = mapped_column(nullable=True)
 
     # Identidade visual
-    file_key: Mapped[str] = mapped_column() # Modificado para Mapped
+    file_key: Mapped[Optional[str]] = mapped_column(nullable=True)
+
     # Redes sociais
-    instagram: Mapped[str] = mapped_column(nullable=True)  # Ex: https://instagram.com/minhaloja
-    facebook: Mapped[str] = mapped_column(nullable=True)  # Ex: https://facebook.com/minhaloja
-    tiktok: Mapped[str] = mapped_column(nullable=True)  # Ex: https://facebook.com/minhaloja
+    instagram: Mapped[Optional[str]] = mapped_column(nullable=True)
+    facebook: Mapped[Optional[str]] = mapped_column(nullable=True)
+    tiktok: Mapped[Optional[str]] = mapped_column(nullable=True)
+
     # Plano
-    plan_type: Mapped[str] = mapped_column(default="free")  # Ex: free, basic, premium
+    plan_type: Mapped[str] = mapped_column(default="free", nullable=False)
 
 
 class User(Base, TimestampMixin):
