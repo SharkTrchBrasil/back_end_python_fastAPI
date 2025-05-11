@@ -1,5 +1,5 @@
 # src/api/admin/routes/store.py
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, Form
 from fastapi.params import File
@@ -32,76 +32,6 @@ def create_store(
     return db_store_access
 
 
-# @router.post("", response_model=StoreWithRole)
-# def create_store(
-#     db: GetDBDep,
-#     user: GetCurrentUserDep,
-#     name: str = Form(...),
-#
-#     phone: str = Form(...),
-#     is_active: bool = Form(...),
-#     zip_code: str = Form(...),
-#     street: str = Form(...),
-#     number: str = Form(...),
-#     neighborhood: str = Form(...),
-#     complement: Optional[str] = Form(None),
-#     reference: Optional[str] = Form(None),
-#     city: str = Form(...),
-#     state: str = Form(...),
-#     instagram: Optional[str] = Form(None),
-#     facebook: Optional[str] = Form(None),
-#     tiktok: Optional[str] = Form(None),
-#     plan_type: str = Form("free"),
-#     image: Optional[UploadFile] = File(None),
-# ):
-#     if image:
-#         file_key = upload_file(image)
-#     else:
-#         file_key = None
-#
-#     # 2) Criar a loja
-#     db_store = models.Store(
-#         name=name,
-#
-#         phone=phone,
-#         is_active=is_active,
-#         zip_code=zip_code,
-#         street=street,
-#         number=number,
-#         neighborhood=neighborhood,
-#         complement=complement,
-#         reference=reference,
-#         city=city,
-#         state=state,
-#         instagram=instagram,
-#         facebook=facebook,
-#         tiktok=tiktok,
-#         plan_type=plan_type,
-#         file_key=file_key
-#     )
-#
-#     db.add(db_store)
-#     db.flush()  # gera db_store.id sem dar commit
-#
-#     # 3) Vincular o usuário dono
-#     db_role = db.query(models.Role).filter(models.Role.machine_name == "owner").first()
-#     db_store_access = models.StoreAccess(
-#         user=user,
-#         role=db_role,
-#         store=db_store,
-#     )
-#     db.add(db_store_access)
-#
-#     # 4) Adicionar métodos de pagamento (código existente)
-#     defaults = [...]  # seu código aqui
-#     for data in defaults:
-#         db.add(models.StorePaymentMethod(store_id=db_store.id, **data))
-#
-#     # 5) Salvar tudo
-#     db.commit()
-#     db.refresh(db_store_access)
-#
-#     return db_store_access
 
 @router.get("", response_model=list[StoreWithRole])
 def list_stores(
@@ -118,7 +48,6 @@ def get_store(
 ):
     return store
 
-# alterado do original pelo gpt
 @router.patch("/{store_id}", response_model=Store)
 def patch_store(
     db: GetDBDep,
@@ -133,10 +62,14 @@ def patch_store(
     whatsapp: str | None = Form(None),
     about: str | None = Form(None),
     cnpj: str | None = Form(None),
-    address: str | None = Form(None),
+    zip_code: str | None = Form(None),
+    street: str | None = Form(None),
+    number: str | None = Form(None),
+    neighborhood: str | None = Form(None),
+    complement: str | None = Form(None),
+    reference: str | None = Form(None),
     city: str | None = Form(None),
     state: str | None = Form(None),
-    zipcode: str | None = Form(None),
     image: UploadFile | None = File(None),
 ):
     file_key_to_delete = None
@@ -146,7 +79,6 @@ def patch_store(
         file_key_to_delete = store.file_key
         new_file_key = upload_file(image)
         store.file_key = new_file_key
-
 
     if name is not None: store.name = name
     if phone is not None: store.phone = phone
@@ -158,10 +90,16 @@ def patch_store(
     if whatsapp is not None: store.whatsapp = whatsapp
     if about is not None: store.about = about
     if cnpj is not None: store.cnpj = cnpj
-    if address is not None: store.address = address
+
+    # Endereço
+    if zip_code is not None: store.zip_code = zip_code
+    if street is not None: store.street = street
+    if number is not None: store.number = number
+    if neighborhood is not None: store.neighborhood = neighborhood
+    if complement is not None: store.complement = complement
+    if reference is not None: store.reference = reference
     if city is not None: store.city = city
     if state is not None: store.state = state
-    if zipcode is not None: store.zipcode = zipcode
 
     # Confirmar as mudanças no banco de dados
     db.add(store)
