@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, computed_field
 
 from src.api.admin.schemas.category import Category
-from src.api.admin.schemas.supplier import Supplier
+
 from src.api.admin.schemas.variant import ProductVariant
 from src.core.aws import get_presigned_url
 
@@ -13,7 +13,6 @@ class Product(BaseModel):
     base_price: int
     available: bool
     category: Category
-    supplier: Supplier
     variants: list[ProductVariant]
 
 

@@ -17,7 +17,7 @@ from src.api.admin.routes.webhook import router as webhook_router
 
 
 
-from src.api.admin.routes.suppliers import router as suppliers_router
+
 from src.api.admin.routes.payment_methods import router as payment_methods_router
 from src.api.admin.routes.store_hours import router as store_hours_router
 from src.api.admin.routes.verify_email import router as verify_email_router
@@ -43,7 +43,7 @@ router.include_router(webhook_router)
 
 
 #minhas features
-router.include_router(suppliers_router)
+
 router.include_router(payment_methods_router)
 router.include_router(store_hours_router)
 

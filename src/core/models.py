@@ -106,25 +106,6 @@ class Category(Base, TimestampMixin):
     store: Mapped[Store] = relationship()
 
 
-class Supplier(Base, TimestampMixin):
-    __tablename__ = "suppliers"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column()
-    person_type: Mapped[str] = mapped_column()  # 'Física' ou 'Jurídica'
-    phone: Mapped[str] = mapped_column(nullable=True)
-    mobile: Mapped[str] = mapped_column(nullable=True)
-    cnpj: Mapped[str] = mapped_column(nullable=True)
-    ie: Mapped[str] = mapped_column(nullable=True)
-    is_icms_contributor: Mapped[bool] = mapped_column(default=False)
-    is_ie_exempt: Mapped[bool] = mapped_column(default=False)
-    address: Mapped[str] = mapped_column(nullable=True)
-    email: Mapped[str] = mapped_column(nullable=True)
-    notes: Mapped[str] = mapped_column(nullable=True)
-    priority: Mapped[int] = mapped_column(default=1)
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    store: Mapped["Store"] = relationship()
-
 class StorePaymentMethod(Base, TimestampMixin):
     __tablename__ = "store_payment_methods"
 
@@ -180,7 +161,7 @@ class Product(Base, TimestampMixin):
 
     supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id", ), default=None)
 
-    supplier: Mapped[Supplier] = relationship()
+
 
     file_key: Mapped[str] = mapped_column()
     variants: Mapped[list["ProductVariant"]] = relationship()

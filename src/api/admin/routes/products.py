@@ -110,7 +110,7 @@ def patch_product(
         cost_price: int | None = Form(None),
         available: bool | None = Form(None),
         category_id: int | None = Form(None),
-        supplier_id: int | None = Form(None),
+
         ean: str | None = Form(None),
         code: str | None = Form(None),
         auto_code: bool | None = Form(None),
@@ -140,15 +140,7 @@ def patch_product(
             raise HTTPException(status_code=400, detail="Category not found")
         db_product.category_id = category_id
 
-    if supplier_id:
-        supplier = db.query(models.Supplier).filter(
-            models.Supplier.id == supplier_id,
-            models.Supplier.store_id == db_product.store_id
-        ).first()
 
-        if not supplier:
-            raise HTTPException(status_code=400, detail="Supplier not found")
-        db_product.supplier_id = supplier.id
 
     if ean is not None:
         db_product.ean = ean
