@@ -7,9 +7,6 @@ class User(BaseModel):
     id: int
     email: str
     name: str
-    is_active: bool
-    is_email_verified:bool
-    verification_code: Optional[str] = None  # Usa Optional para permitir None
 
 
 class UserCreate(BaseModel):
