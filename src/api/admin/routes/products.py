@@ -21,7 +21,7 @@ def create_product(
         cost_price: int = Form(0),
         available: bool = Form(...),
         category_id: int = Form(...),
-        supplier_id: int = Form(...),
+
 
         ean: str = Form(""),
         code: str = Form(""),
@@ -45,13 +45,7 @@ def create_product(
         raise HTTPException(status_code=400, detail="Category not found")
 
 
-    supplier = db.query(models.Supplier).filter(
-        models.Supplier.id == supplier_id,
-        models.Supplier.store_id == store.id
-    ).first()
 
-    if not supplier:
-        raise HTTPException(status_code=400, detail="Supplier not found")
 
     file_key = upload_file(image)
     db_product = models.Product(
@@ -62,7 +56,7 @@ def create_product(
         available=available,
         store_id=store.id,
         category_id=category_id,
-        supplier_id=supplier_id,
+
         file_key=file_key,
         ean=ean,
         code=code,
