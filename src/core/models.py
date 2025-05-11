@@ -157,12 +157,6 @@ class Product(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
     category: Mapped[Category] = relationship()
-
-
-    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id", ), default=None)
-
-
-
     file_key: Mapped[str] = mapped_column()
     variants: Mapped[list["ProductVariant"]] = relationship()
 
