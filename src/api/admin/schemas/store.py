@@ -10,7 +10,7 @@ class Roles(Enum):
 
 
 class StoreBase(BaseModel):
-    name: str = Field(min_length=4, max_length=20)
+    name: str = Field(min_length=4, max_length=100)
 
     phone: str
 
@@ -45,7 +45,7 @@ class Store(StoreBase):
 
 
 class StoreCreate(StoreBase):
-    name: str = Field(min_length=4, max_length=20)
+    name: str = Field(min_length=4, max_length=100)
     phone: str = Field(min_length=10, max_length=15)
 
 

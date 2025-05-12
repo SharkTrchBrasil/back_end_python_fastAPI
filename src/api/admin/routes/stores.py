@@ -22,14 +22,63 @@ def create_store(
     user: GetCurrentUserDep,
     store_create: StoreCreate
 ):
-
-    # tem que passar todos os campos aqui
+    # Cria a loja
     db_store = models.Store(name=store_create.name, phone=store_create.phone)
+
+    # Formas de pagamento padrão
+    default_payments = [
+        {
+            "payment_type": "Cash",
+            "custom_name": "Dinheiro",
+            "custom_icon": "cash.png",
+            "change_back": True
+        },
+        {
+            "payment_type": "Pix",
+            "custom_name": "Pix",
+            "custom_icon": "pix.png",
+            "pix_key_active": False
+        },
+        {
+            "payment_type": "Card",
+            "custom_name": "Cartão de Débito",
+            "custom_icon": "debit.png",
+        },
+        {
+            "payment_type": "Card",
+            "custom_name": "Cartão de Crédito",
+            "custom_icon": "credit.png",
+        }
+    ]
+
+    for payment in default_payments:
+        db_payment = models.StorePaymentMethod(
+            store=db_store,
+            payment_type=payment["payment_type"],
+            custom_name=payment["custom_name"],
+            custom_icon=payment.get("custom_icon"),
+            change_back=payment.get("change_back", False),
+            credit_in_account=False,
+            is_active=True,
+            active_on_delivery=True,
+            active_on_pickup=True,
+            active_on_counter=True,
+            tax_rate=0.0,
+            days_to_receive=0,
+            has_fee=False,
+            pix_key=None,
+            pix_key_active=payment.get("pix_key_active", False)
+        )
+        db.add(db_payment)
+
+    # Cria o vínculo de acesso do usuário como dono da loja
     db_role = db.query(models.Role).filter(models.Role.machine_name == "owner").first()
     db_store_access = models.StoreAccess(user=user, role=db_role, store=db_store)
+
     db.add(db_store_access)
     db.commit()
     return db_store_access
+
 
 
 
