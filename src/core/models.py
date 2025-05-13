@@ -159,20 +159,6 @@ class Product(Base, TimestampMixin):
     observation: Mapped[str] = mapped_column(default="")
     location: Mapped[str] = mapped_column(default="")
 
-class ProductAvailability(Base, TimestampMixin):
-    __tablename__ = "product_availabilities"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
-
-    # Dias da semana: 0 = segunda, 6 = domingo
-    weekday: Mapped[int] = mapped_column()
-
-    # Horário de início e fim
-    start_time: Mapped[time] = mapped_column()
-    end_time: Mapped[time] = mapped_column()
-
-
 
 class ProductVariant(Base, TimestampMixin):
     __tablename__ = "product_variants"
