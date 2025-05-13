@@ -1,11 +1,8 @@
-from datetime import datetime
-
-from datetime import time
+from datetime import datetime, time
 from typing import Optional
 
 from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-
 
 
 
@@ -83,20 +80,6 @@ class StoreAccess(Base, TimestampMixin):
 
     __table_args__ = (Index("ix_store_user", "store_id", "user_id"),)
 
-class StoreHours(Base):
-    __tablename__ = 'store_hours'
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(ForeignKey('stores.id'), nullable=False)
-    store: Mapped[Store] = relationship()
-    day_of_week: Mapped[int] = mapped_column(nullable=False)  # 0 (Domingo) a 6 (Sábado)
-    opening_time: Mapped[time] = mapped_column(nullable=False)
-    closing_time: Mapped[time] = mapped_column(nullable=False)
-    shift_number: Mapped[int] = mapped_column(nullable=False)
-    is_active: Mapped[bool] = mapped_column(default=True)
-
-
-
 class Category(Base, TimestampMixin):
     __tablename__ = "categories"
 
@@ -107,7 +90,6 @@ class Category(Base, TimestampMixin):
     file_key: Mapped[str] = mapped_column()
     is_active: Mapped[bool] = mapped_column(default=True)
     store: Mapped[Store] = relationship()
-
 
 class StorePaymentMethods(Base, TimestampMixin):
     __tablename__ = "store_payment_methods"
@@ -137,15 +119,11 @@ class StorePaymentMethods(Base, TimestampMixin):
     pix_key_active: Mapped[bool] = mapped_column(default=False)
 
 
-
 class StoreType(Base):
     __tablename__ = "segments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(unique=True, nullable=False)
-
-
-
 
 
 class Product(Base, TimestampMixin):
