@@ -6,6 +6,8 @@ from typing import Optional
 from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from src.api.admin.schemas.payment_method import StorePaymentMethod
+
 
 class Base(DeclarativeBase):
     pass
@@ -47,6 +49,7 @@ class Store(Base, TimestampMixin):
 
     # Plano
     plan_type: Mapped[str] = mapped_column(default="free", nullable=False)
+
 
 
 class User(Base, TimestampMixin):
@@ -106,7 +109,7 @@ class Category(Base, TimestampMixin):
     store: Mapped[Store] = relationship()
 
 
-class StorePaymentMethod(Base, TimestampMixin):
+class StorePaymentMethods(Base, TimestampMixin):
     __tablename__ = "store_payment_methods"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -177,6 +180,21 @@ class Product(Base, TimestampMixin):
 
     observation: Mapped[str] = mapped_column(default="")
     location: Mapped[str] = mapped_column(default="")
+
+class ProductAvailability(Base, TimestampMixin):
+    __tablename__ = "product_availabilities"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+
+    # Dias da semana: 0 = segunda, 6 = domingo
+    weekday: Mapped[int] = mapped_column()
+
+    # Horário de início e fim
+    start_time: Mapped[time] = mapped_column()
+    end_time: Mapped[time] = mapped_column()
+
+
 
 class ProductVariant(Base, TimestampMixin):
     __tablename__ = "product_variants"

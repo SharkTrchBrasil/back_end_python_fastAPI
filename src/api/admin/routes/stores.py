@@ -52,7 +52,7 @@ def create_store(
     ]
 
     for payment in default_payments:
-        db_payment = models.StorePaymentMethod(
+        db_payment = models.StorePaymentMethods(
             store=db_store,
             payment_type=payment["payment_type"],
             custom_name=payment["custom_name"],
@@ -225,3 +225,8 @@ def delete_store_access(
         raise HTTPException(status_code=400, detail="Invalid user_id")
     db.delete(store_access)
     db.commit()
+
+
+
+
+

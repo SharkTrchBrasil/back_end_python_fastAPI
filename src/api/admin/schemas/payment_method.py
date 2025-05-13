@@ -1,7 +1,7 @@
 from pydantic import BaseModel, computed_field, Field
 
 
-class StorePaymentMethod(BaseModel):
+class StorePaymentMethods(BaseModel):
     id: int
     store_id: int
 

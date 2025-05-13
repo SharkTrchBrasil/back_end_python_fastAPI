@@ -2,10 +2,12 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import joinedload
 
 from src.api.admin.schemas.product import Product
+from src.api.admin.schemas.product_availability import ProductAvailabilityCreate
 from src.core import models
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep, GetProductDep
+from src.core.models import ProductAvailability
 
 router = APIRouter(prefix="/stores/{store_id}/products", tags=["Products"])
 
@@ -71,9 +73,28 @@ def create_product(
         observation=observation,
         location=location
     )
+
+
     db.add(db_product)
     db.commit()
     return db_product
+
+
+@router.post("/products/{product_id}/availabilities", response_model=ProductAvailability)
+def create_availability(
+    product_id: int,
+    availability_data: ProductAvailabilityCreate,
+    db: GetDBDep,
+):
+    availability = ProductAvailability(
+        product_id=product_id,
+        **availability_data.dict()
+    )
+    db.add(availability)
+    db.commit()
+    db.refresh(availability)
+    return availability
+
 
 
 @router.get("", response_model=list[Product])

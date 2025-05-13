@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Form, HTTPException
-from src.api.admin.schemas.payment_method import StorePaymentMethod
+from src.api.admin.schemas.payment_method import StorePaymentMethods
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
@@ -10,7 +10,7 @@ router = APIRouter(
 )
 
 # ───────────────────────── CREATE ─────────────────────────
-@router.post("", response_model=StorePaymentMethod)
+@router.post("", response_model=StorePaymentMethods)
 def create_payment_method(
     db: GetDBDep,
     store: GetStoreDep,
@@ -34,7 +34,7 @@ def create_payment_method(
     pix_key: str | None = Form(None),
     pix_key_active: bool = Form(False),
 ):
-    pm = models.StorePaymentMethod(
+    pm = models.StorePaymentMethods(
         store_id=store.id,
         payment_type=payment_type,
         custom_name=custom_name,
@@ -62,21 +62,21 @@ def create_payment_method(
     return pm
 
 # ───────────────────────── LIST ─────────────────────────
-@router.get("", response_model=list[StorePaymentMethod])
+@router.get("", response_model=list[StorePaymentMethods])
 def list_payment_methods(db: GetDBDep, store: GetStoreDep):
     return (
-        db.query(models.StorePaymentMethod)
-          .filter(models.StorePaymentMethod.store_id == store.id)
+        db.query(models.StorePaymentMethods)
+          .filter(models.StorePaymentMethods.store_id == store.id)
           .all()
     )
 
 # ───────────────────────── RETRIEVE ─────────────────────────
-@router.get("/{pm_id}", response_model=StorePaymentMethod)
+@router.get("/{pm_id}", response_model=StorePaymentMethods)
 def get_payment_method(db: GetDBDep, store: GetStoreDep, pm_id: int):
     pm = (
-        db.query(models.StorePaymentMethod)
-          .filter(models.StorePaymentMethod.id == pm_id,
-                  models.StorePaymentMethod.store_id == store.id)
+        db.query(models.StorePaymentMethods)
+          .filter(models.StorePaymentMethods.id == pm_id,
+                  models.StorePaymentMethods.store_id == store.id)
           .first()
     )
     if not pm:
@@ -84,7 +84,7 @@ def get_payment_method(db: GetDBDep, store: GetStoreDep, pm_id: int):
     return pm
 
 # ───────────────────────── UPDATE/PATCH ─────────────────────────
-@router.patch("/{pm_id}", response_model=StorePaymentMethod)
+@router.patch("/{pm_id}", response_model=StorePaymentMethods)
 def update_payment_method(
     db: GetDBDep,
     store: GetStoreDep,
@@ -110,9 +110,9 @@ def update_payment_method(
     pix_key_active: bool | None = Form(None),
 ):
     pm = (
-        db.query(models.StorePaymentMethod)
-          .filter(models.StorePaymentMethod.id == pm_id,
-                  models.StorePaymentMethod.store_id == store.id)
+        db.query(models.StorePaymentMethods)
+          .filter(models.StorePaymentMethods.id == pm_id,
+                  models.StorePaymentMethods.store_id == store.id)
           .first()
     )
     if not pm:

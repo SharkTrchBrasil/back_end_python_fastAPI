@@ -52,6 +52,11 @@ def create_or_update_pix_config(
     db.add(config)
     db.commit()
 
+    return {
+        'pix_key': pix_config.pix_key,
+        'is_active': True
+    }
+
 
 @router.get("")
 def get_pix_config(
