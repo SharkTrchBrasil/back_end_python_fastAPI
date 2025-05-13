@@ -6,7 +6,7 @@ from typing import Optional
 from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from src.api.admin.schemas.payment_method import StorePaymentMethod
+
 
 
 class Base(DeclarativeBase):
