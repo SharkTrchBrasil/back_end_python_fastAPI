@@ -1,3 +1,6 @@
+from datetime import datetime
+from typing import Optional
+
 from pydantic import BaseModel, computed_field, Field
 
 
@@ -27,10 +30,10 @@ class StorePaymentMethods(BaseModel):
     has_fee: bool = False
 
     # Pix
-    pix_key: str = None
+    pix_key: Optional[str]
     pix_key_active: bool = False
 
     # timestamps
-    created_at: str = None
-    updated_at: str = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
