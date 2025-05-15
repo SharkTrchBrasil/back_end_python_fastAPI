@@ -70,3 +70,29 @@ def patch_config(
 
     db.commit()
     return config
+
+
+@router.post("/qr-code")
+def receber_qr_code(
+    db: GetDBDep,
+    store: GetStoreDep,
+    body: dict = Body(...)
+):
+    qr = body.get("qr")
+    if not qr:
+        raise HTTPException(status_code=400, detail="QR code não enviado")
+
+    config = db.query(models.StoreChatbotConfig).filter_by(store_id=store.id).first()
+    if not config:
+        config = models.StoreChatbotConfig(
+            store_id=store.id,
+            last_qr_code=qr,
+            connection_status="awaiting_qr"
+        )
+        db.add(config)
+    else:
+        config.last_qr_code = qr
+        config.connection_status = "awaiting_qr"
+
+    db.commit()
+    return {"message": "QR code salvo com sucesso"}
