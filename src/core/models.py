@@ -300,3 +300,19 @@ class PixDevolution(Base, TimestampMixin):
     amount: Mapped[int] = mapped_column()
     e2e_id: Mapped[str] = mapped_column()
     reason: Mapped[str | None] = mapped_column()
+
+
+
+class StoreChatbotConfig(Base, TimestampMixin):
+    __tablename__ = "store_chatbot_configs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+
+    whatsapp_number: Mapped[str] = mapped_column(nullable=True)
+    whatsapp_name: Mapped[str] = mapped_column(nullable=True)
+    connection_status: Mapped[str] = mapped_column()  # exemplo: 'connected', 'disconnected', 'awaiting_qr'
+    last_qr_code: Mapped[str] = mapped_column(nullable=True)  # pode salvar o base64/texto do QR
+    last_connected_at: Mapped[datetime] = mapped_column(nullable=True)
+    session_path: Mapped[str] = mapped_column(nullable=True)  # caminho local ou info da sessão

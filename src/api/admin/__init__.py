@@ -21,6 +21,7 @@ from src.api.admin.routes.webhook import router as webhook_router
 from src.api.admin.routes.payment_methods import router as payment_methods_router
 from src.api.admin.routes.store_hours import router as store_hours_router
 from src.api.admin.routes.verify_email import router as verify_email_router
+from src.api.admin.routes.chatbot import router as chatbot_router
 
 router = APIRouter(prefix="/admin")
 router.include_router(stores_router)
@@ -49,4 +50,5 @@ router.include_router(store_hours_router)
 
 router.include_router(verify_email_router)
 
+router.include_router(chatbot_router)
 
