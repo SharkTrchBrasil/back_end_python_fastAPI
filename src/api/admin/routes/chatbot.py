@@ -1,7 +1,6 @@
-# src/api/admin/routes/chatbot_config.py
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Depends, BackgroundTasks
 import httpx  # cliente HTTP assíncrono para buscar dados do Node.js
 from src.api.admin.schemas.chatbot_config import StoreChatbotConfigCreate, StoreChatbotConfig, StoreChatbotConfigUpdate
 from src.core import models
@@ -9,6 +8,11 @@ from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 
 router = APIRouter(tags=["Chatbot Config"], prefix="/stores/{store_id}/chatbot-config")
+
+# Adicione esta dependência para criar um cliente httpx assíncrono
+async def get_async_http_client() -> httpx.AsyncClient:
+    async with httpx.AsyncClient() as client:
+        yield client
 
 @router.post("", response_model=StoreChatbotConfig)
 def create_config(
@@ -22,16 +26,6 @@ def create_config(
     existing = db.query(models.StoreChatbotConfig).filter_by(store_id=store.id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Config already exists")
-
-    # ⚠️ Buscando dados do chatbot Node.js
-    try:
-        response = httpx.get("https://chatbot-lr2h.onrender.com/qr", timeout=10)
-        response.raise_for_status()
-        qr_data = response.json()
-        config_data.last_qr_code = qr_data.get("qr")
-        config_data.connection_status = qr_data.get("status", "awaiting_qr")
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Failed to fetch QR code: {str(e)}")
 
     db_config = models.StoreChatbotConfig(
         **config_data.model_dump(),
@@ -96,3 +90,23 @@ def receber_qr_code(
 
     db.commit()
     return {"message": "QR code salvo com sucesso"}
+
+
+@router.post("/connect")
+async def conectar_whatsapp(  # Alterado para async def
+    store_id: int,
+    background_tasks: BackgroundTasks,
+    http_client: httpx.AsyncClient = Depends(get_async_http_client)
+):
+    try:
+        response = await http_client.post(
+            "https://chatbot-lr2h.onrender.com/connect",
+            json={"store_id": store_id},
+            timeout=10
+        )
+        response.raise_for_status()
+        return {"message": "Solicitação de conexão enviada ao chatbot"}
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=response.status_code, detail=f"Erro ao conectar o chatbot: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno ao conectar o chatbot: {str(e)}")
