@@ -93,11 +93,12 @@ def receber_qr_code(
 
 
 @router.post("/connect")
-async def conectar_whatsapp(  # Alterado para async def
+async def conectar_whatsapp(
     store_id: int,
     background_tasks: BackgroundTasks,
     http_client: httpx.AsyncClient = Depends(get_async_http_client)
 ):
+    response: Optional[httpx.Response] = None  # Inicializa response com None
     try:
         response = await http_client.post(
             "https://chatbot-lr2h.onrender.com/connect",
@@ -107,6 +108,9 @@ async def conectar_whatsapp(  # Alterado para async def
         response.raise_for_status()
         return {"message": "Solicitação de conexão enviada ao chatbot"}
     except httpx.HTTPError as e:
-        raise HTTPException(status_code=response.status_code, detail=f"Erro ao conectar o chatbot: {str(e)}")
+        # response pode ser None se a exceção ocorrer antes da chamada post
+        status_code = response.status_code if response else 500
+        detail = f"Erro ao conectar o chatbot: {str(e)}"
+        raise HTTPException(status_code=status_code, detail=detail)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro interno ao conectar o chatbot: {str(e)}")
