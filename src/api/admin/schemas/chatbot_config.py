@@ -6,7 +6,7 @@ from typing import Optional
 class StoreChatbotConfigBase(BaseModel):
     whatsapp_number: Optional[str] = None
     whatsapp_name: Optional[str] = None
-    connection_status: Optional[str] = None
+    connection_status: str = "disconnected"  # Adicione um valor padrão
     last_qr_code: Optional[str] = None
     last_connected_at: Optional[datetime] = None
     session_path: Optional[str] = None
