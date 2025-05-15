@@ -1,5 +1,7 @@
 # src/api/admin/routes/chatbot_config.py
-from fastapi import APIRouter, HTTPException
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Body
 import httpx  # cliente HTTP assíncrono para buscar dados do Node.js
 from src.api.admin.schemas.chatbot_config import StoreChatbotConfigCreate, StoreChatbotConfig, StoreChatbotConfigUpdate
 from src.core import models
@@ -12,8 +14,11 @@ router = APIRouter(tags=["Chatbot Config"], prefix="/stores/{store_id}/chatbot-c
 def create_config(
     db: GetDBDep,
     store: GetStoreDep,
-    config_data: StoreChatbotConfigCreate,
+    config_data: Optional[StoreChatbotConfigCreate] = Body(default=None),
 ):
+    if config_data is None:
+        config_data = StoreChatbotConfigCreate()
+
     existing = db.query(models.StoreChatbotConfig).filter_by(store_id=store.id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Config already exists")
