@@ -316,3 +316,23 @@ class StoreChatbotConfig(Base, TimestampMixin):
     last_qr_code: Mapped[str] = mapped_column(nullable=True)  # pode salvar o base64/texto do QR
     last_connected_at: Mapped[datetime] = mapped_column(nullable=True)
     session_path: Mapped[str] = mapped_column(nullable=True)  # caminho local ou info da sessão
+
+
+class StoreDeliveryOption(Base, TimestampMixin):
+    __tablename__ = "store_delivery_options"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+    store: Mapped["Store"] = relationship()
+    mode: Mapped[str] = mapped_column()  # delivery, pickup, table
+    title: Mapped[str] = mapped_column()  # Nome visível: "Entrega", "Balcão", "Mesa"
+    enabled: Mapped[bool] = mapped_column(default=True)
+
+    estimated_min: Mapped[int] = mapped_column(nullable=True)  # em minutos
+    estimated_max: Mapped[int] = mapped_column(nullable=True)
+
+    delivery_fee: Mapped[float] = mapped_column(nullable=True)  # opcional para retiradas
+    min_order_value: Mapped[float] = mapped_column(nullable=True)
+
+    instructions: Mapped[str] = mapped_column(nullable=True)  # ex: "Dirija-se ao caixa para retirada"

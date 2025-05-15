@@ -9,6 +9,8 @@ from src.api.admin.schemas.store_access import StoreAccess
 from src.core import models
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
+from src.core.defaults.delivery_methods import default_delivery_methods
+from src.core.defaults.payment_methods import default_payment_methods
 from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetStore
 
 
@@ -25,33 +27,8 @@ def create_store(
     # Cria a loja
     db_store = models.Store(name=store_create.name, phone=store_create.phone)
 
-    # Formas de pagamento padrão
-    default_payments = [
-        {
-            "payment_type": "Cash",
-            "custom_name": "Dinheiro",
-            "custom_icon": "cash.png",
-            "change_back": True
-        },
-        {
-            "payment_type": "Pix",
-            "custom_name": "Pix",
-            "custom_icon": "pix.png",
-            "pix_key_active": False
-        },
-        {
-            "payment_type": "Card",
-            "custom_name": "Cartão de Débito",
-            "custom_icon": "debit.png",
-        },
-        {
-            "payment_type": "Card",
-            "custom_name": "Cartão de Crédito",
-            "custom_icon": "credit.png",
-        }
-    ]
 
-    for payment in default_payments:
+    for payment in default_payment_methods:
         db_payment = models.StorePaymentMethods(
             store=db_store,
             payment_type=payment["payment_type"],
@@ -66,11 +43,24 @@ def create_store(
             tax_rate=0.0,
             days_to_receive=0,
             has_fee=False,
-            pix_key=None,
+            pix_key='',
             pix_key_active=payment.get("pix_key_active", False)
         )
         db.add(db_payment)
 
+    for method in default_delivery_methods:
+        db_delivery = models.StoreDeliveryOption(
+            store=db_store,
+            mode=method["mode"],
+            title=method["title"],
+            enabled=method.get("enabled", True),
+            estimated_min=method.get("estimated_min"),
+            estimated_max=method.get("estimated_max"),
+            delivery_fee=method.get("delivery_fee"),
+            min_order_value=method.get("min_order_value"),
+            instructions=method.get("instructions"),
+        )
+        db.add(db_delivery)
     # Cria o vínculo de acesso do usuário como dono da loja
     db_role = db.query(models.Role).filter(models.Role.machine_name == "owner").first()
     db_store_access = models.StoreAccess(user=user, role=db_role, store=db_store)
