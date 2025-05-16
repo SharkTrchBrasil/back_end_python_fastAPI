@@ -17,7 +17,6 @@ from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetStore
 router = APIRouter(prefix="/stores", tags=["Stores"])
 
 
-
 @router.post("", response_model=StoreWithRole)
 def create_store(
     db: GetDBDep,
@@ -26,8 +25,10 @@ def create_store(
 ):
     # Cria a loja
     db_store = models.Store(name=store_create.name, phone=store_create.phone)
+    db.add(db_store)
+    db.flush()  # envia insert e gera db_store.id
 
-
+    # Cria as formas de pagamento
     for payment in default_payment_methods:
         db_payment = models.StorePaymentMethods(
             store=db_store,
@@ -48,6 +49,7 @@ def create_store(
         )
         db.add(db_payment)
 
+    # Cria as configurações de entrega usando o id já gerado
     db_delivery_settings = models.StoreDeliveryConfiguration(
         store_id=db_store.id,
         delivery_enabled=default_delivery_settings["delivery_enabled"],
@@ -66,16 +68,14 @@ def create_store(
         table_estimated_max=default_delivery_settings["table_estimated_max"],
         table_instructions=default_delivery_settings["table_instructions"],
     )
-
     db.add(db_delivery_settings)
 
-
-
-    # Cria o vínculo de acesso do usuário como dono da loja
+    # Cria vínculo do usuário com a loja como dono
     db_role = db.query(models.Role).filter(models.Role.machine_name == "owner").first()
     db_store_access = models.StoreAccess(user=user, role=db_role, store=db_store)
-
     db.add(db_store_access)
+
+    # Comita tudo junto
     db.commit()
     return db_store_access
 
