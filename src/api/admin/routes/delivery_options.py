@@ -1,109 +1,80 @@
 from fastapi import APIRouter, Form, HTTPException
-from src.api.admin.schemas.store_delivery_options import StoreDeliveryOption
+from src.api.admin.schemas.store_delivery_options import StoreDeliveryConfig
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 
-router = APIRouter(tags=["Delivery Options"], prefix="/stores/{store_id}/delivery-options")
+router = APIRouter(tags=["Delivery Config"], prefix="/stores/{store_id}/delivery-config")
 
 
-@router.post("", response_model=StoreDeliveryOption)
-def create_delivery_option(
+@router.get("", response_model=StoreDeliveryConfig)
+def get_delivery_config(
     db: GetDBDep,
     store: GetStoreDep,
-    mode: str = Form(...),
-    title: str = Form(...),
-    enabled: bool = Form(True),
-    estimated_min: int | None = Form(None),
-    estimated_max: int | None = Form(None),
-    delivery_fee: float | None = Form(None),
-    min_order_value: float | None = Form(None),
-    instructions: str | None = Form(None),
 ):
-    db_option = models.StoreDeliveryOption(
-        store_id=store.id,
-        mode=mode,
-        title=title,
-        enabled=enabled,
-        estimated_min=estimated_min,
-        estimated_max=estimated_max,
-        delivery_fee=delivery_fee,
-        min_order_value=min_order_value,
-        instructions=instructions,
+    config = (
+        db.query(models.StoreDeliveryConfiguration)
+        .filter(models.StoreDeliveryConfiguration.store_id == store.id)
+        .first()
     )
 
-    db.add(db_option)
-    db.commit()
-    db.refresh(db_option)
+    if not config:
+        raise HTTPException(status_code=404, detail="Delivery config not found")
 
-    return db_option
+    return config
 
 
-@router.get("", response_model=list[StoreDeliveryOption])
-def get_delivery_options(
+@router.put("", response_model=StoreDeliveryConfig)
+def update_delivery_config(
     db: GetDBDep,
     store: GetStoreDep,
-):
-    return db.query(models.StoreDeliveryOption).filter(models.StoreDeliveryOption.store_id == store.id).all()
 
-
-@router.get("/{option_id}", response_model=StoreDeliveryOption)
-def get_delivery_option(
-    db: GetDBDep,
-    store: GetStoreDep,
-    option_id: int,
-):
-    db_option = db.query(models.StoreDeliveryOption).filter(
-        models.StoreDeliveryOption.id == option_id,
-        models.StoreDeliveryOption.store_id == store.id
-    ).first()
-
-    if not db_option:
-        raise HTTPException(status_code=404, detail="Delivery option not found")
-
-    return db_option
-
-
-@router.patch("/{option_id}", response_model=StoreDeliveryOption)
-def update_delivery_option(
-    db: GetDBDep,
-    store: GetStoreDep,
-    option_id: int,
-    mode: str | None = Form(None),
-    title: str | None = Form(None),
-    enabled: bool | None = Form(None),
-    estimated_min: int | None = Form(None),
-    estimated_max: int | None = Form(None),
+    # DELIVERY
+    delivery_enabled: bool = Form(...),
+    delivery_estimated_min: int | None = Form(None),
+    delivery_estimated_max: int | None = Form(None),
     delivery_fee: float | None = Form(None),
-    min_order_value: float | None = Form(None),
-    instructions: str | None = Form(None),
+    delivery_min_order: float | None = Form(None),
+
+    # PICKUP
+    pickup_enabled: bool = Form(...),
+    pickup_estimated_min: int | None = Form(None),
+    pickup_estimated_max: int | None = Form(None),
+    pickup_instructions: str | None = Form(None),
+
+    # TABLE
+    table_enabled: bool = Form(...),
+    table_estimated_min: int | None = Form(None),
+    table_estimated_max: int | None = Form(None),
+    table_instructions: str | None = Form(None),
 ):
-    db_option = db.query(models.StoreDeliveryOption).filter(
-        models.StoreDeliveryOption.id == option_id,
-        models.StoreDeliveryOption.store_id == store.id
-    ).first()
+    config = (
+        db.query(models.StoreDeliveryConfiguration)
+        .filter(models.StoreDeliveryConfiguration.store_id == store.id)
+        .first()
+    )
 
-    if not db_option:
-        raise HTTPException(status_code=404, detail="Delivery option not found")
+    if not config:
+        config = models.StoreDeliveryConfiguration(store_id=store.id)
+        db.add(config)
 
-    if mode is not None:
-        db_option.mode = mode
-    if title is not None:
-        db_option.title = title
-    if enabled is not None:
-        db_option.enabled = enabled
-    if estimated_min is not None:
-        db_option.estimated_min = estimated_min
-    if estimated_max is not None:
-        db_option.estimated_max = estimated_max
-    if delivery_fee is not None:
-        db_option.delivery_fee = delivery_fee
-    if min_order_value is not None:
-        db_option.min_order_value = min_order_value
-    if instructions is not None:
-        db_option.instructions = instructions
+    config.delivery_enabled = delivery_enabled
+    config.delivery_estimated_min = delivery_estimated_min
+    config.delivery_estimated_max = delivery_estimated_max
+    config.delivery_fee = delivery_fee
+    config.delivery_min_order = delivery_min_order
+
+    config.pickup_enabled = pickup_enabled
+    config.pickup_estimated_min = pickup_estimated_min
+    config.pickup_estimated_max = pickup_estimated_max
+    config.pickup_instructions = pickup_instructions
+
+    config.table_enabled = table_enabled
+    config.table_estimated_min = table_estimated_min
+    config.table_estimated_max = table_estimated_max
+    config.table_instructions = table_instructions
 
     db.commit()
-    db.refresh(db_option)
+    db.refresh(config)
 
-    return db_option
+    return config

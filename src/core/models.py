@@ -318,21 +318,27 @@ class StoreChatbotConfig(Base, TimestampMixin):
     session_path: Mapped[str] = mapped_column(nullable=True)  # caminho local ou info da sessão
 
 
-class StoreDeliveryOption(Base, TimestampMixin):
+class StoreDeliveryConfiguration(Base):
     __tablename__ = "store_delivery_options"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), unique=True)
 
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    store: Mapped["Store"] = relationship()
-    mode: Mapped[str] = mapped_column()  # delivery, pickup, table
-    title: Mapped[str] = mapped_column()  # Nome visível: "Entrega", "Balcão", "Mesa"
-    enabled: Mapped[bool] = mapped_column(default=True)
+    # DELIVERY
+    delivery_enabled: Mapped[bool] = mapped_column(default=False)
+    delivery_estimated_min: Mapped[int] = mapped_column(nullable=True)
+    delivery_estimated_max: Mapped[int] = mapped_column(nullable=True)
+    delivery_fee: Mapped[float] = mapped_column(nullable=True)
+    delivery_min_order: Mapped[float] = mapped_column(nullable=True)
 
-    estimated_min: Mapped[int] = mapped_column(nullable=True)  # em minutos
-    estimated_max: Mapped[int] = mapped_column(nullable=True)
+    # PICKUP
+    pickup_enabled: Mapped[bool] = mapped_column(default=False)
+    pickup_estimated_min: Mapped[int] = mapped_column(nullable=True)
+    pickup_estimated_max: Mapped[int] = mapped_column(nullable=True)
+    pickup_instructions: Mapped[str] = mapped_column(nullable=True)
 
-    delivery_fee: Mapped[float] = mapped_column(nullable=True)  # opcional para retiradas
-    min_order_value: Mapped[float] = mapped_column(nullable=True)
-
-    instructions: Mapped[str] = mapped_column(nullable=True)  # ex: "Dirija-se ao caixa para retirada"
+    # COUNTER / TABLE
+    table_enabled: Mapped[bool] = mapped_column(default=False)
+    table_estimated_min: Mapped[int] = mapped_column(nullable=True)
+    table_estimated_max: Mapped[int] = mapped_column(nullable=True)
+    table_instructions: Mapped[str] = mapped_column(nullable=True)

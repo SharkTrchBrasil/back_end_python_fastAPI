@@ -2,26 +2,33 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 
-class StoreDeliveryOptionBase(BaseModel):
-    type: str  # delivery, pickup, table
-    title: str
-    enabled: Optional[bool] = True
-
-    estimated_min: Optional[int] = None
-    estimated_max: Optional[int] = None
-
+class StoreDeliveryConfigBase(BaseModel):
+    # DELIVERY
+    delivery_enabled: Optional[bool] = False
+    delivery_estimated_min: Optional[int] = None
+    delivery_estimated_max: Optional[int] = None
     delivery_fee: Optional[float] = None
-    min_order_value: Optional[float] = None
+    delivery_min_order: Optional[float] = None
 
-    instructions: Optional[str] = None
+    # PICKUP
+    pickup_enabled: Optional[bool] = False
+    pickup_estimated_min: Optional[int] = None
+    pickup_estimated_max: Optional[int] = None
+    pickup_instructions: Optional[str] = None
 
-class StoreDeliveryOptionCreate(StoreDeliveryOptionBase):
+    # TABLE / COUNTER
+    table_enabled: Optional[bool] = False
+    table_estimated_min: Optional[int] = None
+    table_estimated_max: Optional[int] = None
+    table_instructions: Optional[str] = None
+
+class StoreDeliveryConfigCreate(StoreDeliveryConfigBase):
     pass
 
-class StoreDeliveryOptionUpdate(StoreDeliveryOptionBase):
+class StoreDeliveryConfigUpdate(StoreDeliveryConfigBase):
     pass
 
-class StoreDeliveryOption(StoreDeliveryOptionBase):
+class StoreDeliveryConfig(StoreDeliveryConfigBase):
     id: int
     store_id: int
     created_at: Optional[datetime] = None
