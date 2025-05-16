@@ -9,7 +9,7 @@ from src.api.admin.schemas.store_access import StoreAccess
 from src.core import models
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
-from src.core.defaults.delivery_methods import default_delivery_methods
+from src.core.defaults.delivery_methods import default_delivery_settings
 from src.core.defaults.payment_methods import default_payment_methods
 from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetStore
 
@@ -48,19 +48,29 @@ def create_store(
         )
         db.add(db_payment)
 
-    for method in default_delivery_methods:
-        db_delivery = models.StoreDeliveryOption(
-            store=db_store,
-            mode=method["mode"],
-            title=method["title"],
-            enabled=method.get("enabled", True),
-            estimated_min=method.get("estimated_min"),
-            estimated_max=method.get("estimated_max"),
-            delivery_fee=method.get("delivery_fee"),
-            min_order_value=method.get("min_order_value"),
-            instructions=method.get("instructions"),
-        )
-        db.add(db_delivery)
+    db_delivery_settings = models.StoreDeliveryConfiguration(
+        store_id=db_store.id,
+        delivery_enabled=default_delivery_settings["delivery_enabled"],
+        delivery_estimated_min=default_delivery_settings["delivery_estimated_min"],
+        delivery_estimated_max=default_delivery_settings["delivery_estimated_max"],
+        delivery_fee=default_delivery_settings["delivery_fee"],
+        delivery_min_order=default_delivery_settings["delivery_min_order"],
+
+        pickup_enabled=default_delivery_settings["pickup_enabled"],
+        pickup_estimated_min=default_delivery_settings["pickup_estimated_min"],
+        pickup_estimated_max=default_delivery_settings["pickup_estimated_max"],
+        pickup_instructions=default_delivery_settings["pickup_instructions"],
+
+        table_enabled=default_delivery_settings["table_enabled"],
+        table_estimated_min=default_delivery_settings["table_estimated_min"],
+        table_estimated_max=default_delivery_settings["table_estimated_max"],
+        table_instructions=default_delivery_settings["table_instructions"],
+    )
+
+    db.add(db_delivery_settings)
+
+
+
     # Cria o vínculo de acesso do usuário como dono da loja
     db_role = db.query(models.Role).filter(models.Role.machine_name == "owner").first()
     db_store_access = models.StoreAccess(user=user, role=db_role, store=db_store)
