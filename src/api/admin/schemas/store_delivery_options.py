@@ -9,6 +9,7 @@ class StoreDeliveryConfigBase(BaseModel):
     delivery_estimated_max: Optional[int] = None
     delivery_fee: Optional[float] = None
     delivery_min_order: Optional[float] = None
+    delivery_scope: Optional[str] = None
 
     # PICKUP
     pickup_enabled: Optional[bool] = False

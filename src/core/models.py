@@ -330,6 +330,7 @@ class StoreDeliveryConfiguration(Base, TimestampMixin):
     delivery_estimated_max: Mapped[int] = mapped_column(nullable=True)
     delivery_fee: Mapped[float] = mapped_column(nullable=True)
     delivery_min_order: Mapped[float] = mapped_column(nullable=True)
+    delivery_scope: Mapped[str] = mapped_column(nullable=True)
 
     # PICKUP
     pickup_enabled: Mapped[bool] = mapped_column(default=False)

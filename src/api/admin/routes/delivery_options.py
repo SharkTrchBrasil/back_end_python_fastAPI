@@ -35,6 +35,7 @@ def update_delivery_config(
     delivery_estimated_max: int | None = Form(None),
     delivery_fee: float | None = Form(None),
     delivery_min_order: float | None = Form(None),
+    delivery_scope:  str | None = Form(None),
 
     # PICKUP
     pickup_enabled: bool = Form(...),
@@ -63,6 +64,7 @@ def update_delivery_config(
     config.delivery_estimated_max = delivery_estimated_max
     config.delivery_fee = delivery_fee
     config.delivery_min_order = delivery_min_order
+    config.delivery_scope = delivery_scope
 
     config.pickup_enabled = pickup_enabled
     config.pickup_estimated_min = pickup_estimated_min
