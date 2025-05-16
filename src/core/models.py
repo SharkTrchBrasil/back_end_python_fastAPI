@@ -318,7 +318,7 @@ class StoreChatbotConfig(Base, TimestampMixin):
     session_path: Mapped[str] = mapped_column(nullable=True)  # caminho local ou info da sessão
 
 
-class StoreDeliveryConfiguration(Base):
+class StoreDeliveryConfiguration(Base, TimestampMixin):
     __tablename__ = "store_delivery_options"
 
     id: Mapped[int] = mapped_column(primary_key=True)
