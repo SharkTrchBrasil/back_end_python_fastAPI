@@ -35,6 +35,7 @@ class Store(Base, TimestampMixin):
     reference: Mapped[Optional[str]] = mapped_column(nullable=True)
     city: Mapped[Optional[str]] = mapped_column(nullable=True)
     state: Mapped[Optional[str]] = mapped_column(nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(nullable=True)
 
     # Identidade visual
     file_key: Mapped[Optional[str]] = mapped_column(nullable=True)
@@ -330,7 +331,7 @@ class StoreDeliveryConfiguration(Base, TimestampMixin):
     delivery_estimated_max: Mapped[int] = mapped_column(nullable=True)
     delivery_fee: Mapped[float] = mapped_column(nullable=True)
     delivery_min_order: Mapped[float] = mapped_column(nullable=True)
-    delivery_scope: Mapped[str] = mapped_column(nullable=True)
+    delivery_scope: Mapped[str] = mapped_column(nullable=True, default='neighborhood')
 
     # PICKUP
     pickup_enabled: Mapped[bool] = mapped_column(default=False)

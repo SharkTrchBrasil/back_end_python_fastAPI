@@ -23,6 +23,7 @@ class StoreBase(BaseModel):
     reference: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None
+    description: Optional[str] = None
 
     # Redes sociais
     instagram: Optional[str] = None

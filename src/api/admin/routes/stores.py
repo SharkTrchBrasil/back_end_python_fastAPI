@@ -119,6 +119,7 @@ def patch_store(
     reference: str | None = Form(None),
     city: str | None = Form(None),
     state: str | None = Form(None),
+    description:  str | None = Form(None),
     image: UploadFile | None = File(None),
 ):
     file_key_to_delete = None
@@ -139,6 +140,7 @@ def patch_store(
     if whatsapp is not None: store.whatsapp = whatsapp
     if about is not None: store.about = about
     if cnpj is not None: store.cnpj = cnpj
+    if description is not None: store.description = description
 
     # Endereço
     if zip_code is not None: store.zip_code = zip_code
