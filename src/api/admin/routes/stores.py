@@ -108,29 +108,15 @@ def get_full_store(
     user: GetCurrentUserDep,
 ):
     store = db.query(models.Store).filter(models.Store.id == store_id).options(
-        joinedload(models.Store.categories),
-        joinedload(models.Store.coupons).joinedload(models.Coupon.product),
-        joinedload(models.Store.payment_methods),
-        joinedload(models.Store.products).joinedload(models.Product.category),
-        joinedload(models.Store.products).joinedload(models.Product.variants).joinedload(models.ProductVariant.options),
+    joinedload(models.Store.categories),
+    joinedload(models.Store.coupons).joinedload(models.Coupon.product),
+    joinedload(models.Store.payment_methods),
+    joinedload(models.Store.products).joinedload(models.Product.category),
+    joinedload(models.Store.products).joinedload(models.Product.variants).joinedload(models.ProductVariant.options),
     ).first()
 
     if not store:
         raise HTTPException(status_code=404, detail="Loja não encontrada")
-
-    print("Categorias:", store.categories)
-    print("Cupons:", store.coupons)
-    if store.coupons and store.coupons[0].product:
-        print("Primeiro cupom e seu produto:", store.coupons[0], store.coupons[0].product)
-    print("Métodos de Pagamento:", store.payment_methods)
-    print("Produtos:", store.products)
-    if store.products and store.products[0].category:
-        print("Primeiro produto e sua categoria:", store.products[0], store.products[0].category)
-    if store.products and store.products[0].variants:
-        print("Primeiro produto e suas variantes:", store.products[0], store.products[0].variants)
-        if store.products[0].variants[0].options:
-            print("Primeira variante e suas opções:", store.products[0].variants[0],
-                  store.products[0].variants[0].options)
 
     return store
 
