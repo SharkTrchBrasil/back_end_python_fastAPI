@@ -114,9 +114,9 @@ def get_full_store(
        # joinedload(models.Store.),
         joinedload(models.Store.products)
             .joinedload(models.Product.category),
-        joinedload(models.Store.products)
-            .joinedload(models.Product.variants)
-            .joinedload(models.ProductVariant.options),
+      #  joinedload(models.Store.products)
+           # .joinedload(models.Product.variants)
+         #   .joinedload(models.ProductVariant.options),
     ).first()
 
     if not store:
