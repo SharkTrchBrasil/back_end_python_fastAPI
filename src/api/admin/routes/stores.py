@@ -107,17 +107,13 @@ def get_full_store(
     db: GetDBDep,
     user: GetCurrentUserDep,
 ):
-   store = db.query(models.Store).filter(models.Store.id == store_id).options(
+    store = db.query(models.Store).filter(models.Store.id == store_id).options(
     joinedload(models.Store.categories),
     joinedload(models.Store.coupons).joinedload(models.Coupon.product),
     joinedload(models.Store.payment_methods),
-    # joinedload(models.Store.products)
-    #     .joinedload(models.Product.category),
-    # joinedload(models.Store.products)
-    #     .joinedload(models.Product.variants)
-    #     .joinedload(models.ProductVariant.options),
-).first()
-
+    joinedload(models.Store.products).joinedload(models.Product.category),
+    joinedload(models.Store.products).joinedload(models.Product.variants).joinedload(models.ProductVariant.options),
+    ).first()
 
     if not store:
         raise HTTPException(status_code=404, detail="Loja não encontrada")
