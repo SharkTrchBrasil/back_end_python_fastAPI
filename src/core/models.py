@@ -4,6 +4,7 @@ from typing import Optional
 from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from src.api.admin.schemas.category import Category
 
 
 class Base(DeclarativeBase):
@@ -47,6 +48,20 @@ class Store(Base, TimestampMixin):
 
     # Plano
     plan_type: Mapped[str] = mapped_column(default="free", nullable=False)
+
+    # Relacionamentos
+
+
+    accesses: Mapped[list["StoreAccess"]] = relationship(back_populates="store")
+    categories: Mapped[list["Category"]] = relationship(back_populates="store")
+    payment_methods: Mapped[list["StorePaymentMethods"]] = relationship(back_populates="store")
+    products: Mapped[list["Product"]] = relationship(back_populates="store")
+    coupons: Mapped[list["Coupon"]] = relationship(back_populates="store")
+    product_variants: Mapped[list["ProductVariant"]] = relationship(back_populates="store")
+    variant_options: Mapped[list["ProductVariantOption"]] = relationship(back_populates="store")
+    themes: Mapped[list["StoreTheme"]] = relationship(back_populates="store")
+    totem_authorizations: Mapped[list["TotemAuthorization"]] = relationship(back_populates="store")
+
 
 
 

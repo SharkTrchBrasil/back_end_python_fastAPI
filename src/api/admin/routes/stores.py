@@ -3,7 +3,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, Form
 from fastapi.params import File
+from sqlalchemy.orm import joinedload
 
+from src.api.admin.schemas.full_store import FullStoreData
 from src.api.admin.schemas.store import StoreWithRole, Roles, Store, StoreCreate
 from src.api.admin.schemas.store_access import StoreAccess
 from src.core import models
@@ -96,6 +98,37 @@ def get_store(
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
 ):
     return store
+
+
+
+@router.get("/{store_id}/full", response_model=FullStoreData)
+def get_full_store(
+    store_id: int,
+    db: GetDBDep,
+    user: GetCurrentUserDep,
+):
+    store = db.query(models.Store).filter(models.Store.id == store_id).options(
+        joinedload(models.Store.categories),
+        joinedload(models.Store.coupons).joinedload(models.Coupon.product),
+        joinedload(models.Store.payment_methods),
+       # joinedload(models.Store.),
+        joinedload(models.Store.products)
+            .joinedload(models.Product.category),
+        joinedload(models.Store.products)
+            .joinedload(models.Product.variants)
+            .joinedload(models.ProductVariant.options),
+    ).first()
+
+    if not store:
+        raise HTTPException(status_code=404, detail="Loja não encontrada")
+
+    return store
+
+
+
+
+
+
 
 @router.patch("/{store_id}", response_model=Store)
 def patch_store(
