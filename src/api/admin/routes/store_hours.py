@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Form, HTTPException, File, UploadFile
 from src.api.admin.schemas.store import StoreCreate, StoreWithRole, Roles
-from src.api.admin.schemas.store_hours import StoreHours
+
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
+from src.core.models import StoreHours
 
 router = APIRouter(prefix="/stores/{store_id}/hours", tags=["Hours"])
 
