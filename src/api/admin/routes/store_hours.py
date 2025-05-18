@@ -5,6 +5,7 @@ from src.core.dependencies import GetStoreDep
 from src.core.models import StoreHours  # Modelo ORM SQLAlchemy
 from src.api.admin.schemas.store_hours import StoreHoursSchema  # Schema Pydantic
 
+
 router = APIRouter(prefix="/stores/{store_id}/hours", tags=["Hours"])
 
 
@@ -82,3 +83,20 @@ def patch_store_hour(
     db.commit()
     db.refresh(db_store_hour)
     return db_store_hour
+
+
+@router.delete("/{hour_id}", status_code=204)
+def delete_store_hour(
+    db: GetDBDep,
+    store: GetStoreDep,
+    hour_id: int,
+):
+    db_store_hour = db.query(StoreHours).filter(StoreHours.id == hour_id, StoreHours.store_id == store.id).first()
+    if not db_store_hour:
+        raise HTTPException(status_code=404, detail="Store hour not found")
+
+    db.delete(db_store_hour)
+    db.commit()
+    return  # Retorna um status 204 (No Content) em caso de sucesso
+
+
