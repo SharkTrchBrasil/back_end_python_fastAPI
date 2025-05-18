@@ -1,22 +1,22 @@
-from fastapi import APIRouter, Form, HTTPException, File, UploadFile
-from src.api.admin.schemas.store import StoreCreate, StoreWithRole, Roles
-
-from src.core.aws import upload_file, delete_file
+from fastapi import APIRouter, Form, HTTPException
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
-from src.core.models import StoreHours
+
+from src.core.models import StoreHours  # Modelo ORM SQLAlchemy
+from src.api.admin.schemas.store_hours import StoreHoursSchema  # Schema Pydantic
 
 router = APIRouter(prefix="/stores/{store_id}/hours", tags=["Hours"])
 
-@router.post("", response_model=StoreHours)
+
+@router.post("", response_model=StoreHoursSchema)
 def create_store_hour(
     db: GetDBDep,
     store: GetStoreDep,
-    day_of_week: int = Form(...),      # 0-domingo a 6-sábado
-    open_time: str = Form(...),        # formato 'HH:MM'
-    close_time: str = Form(...),       # formato 'HH:MM'
-    shift_number: int = Form(...),     # 1, 2, 3...
-    is_active: bool = Form(...),       # true ou false
+    day_of_week: int = Form(...),
+    open_time: str = Form(...),
+    close_time: str = Form(...),
+    shift_number: int = Form(...),
+    is_active: bool = Form(...),
 ):
     db_store_hour = StoreHours(
         day_of_week=day_of_week,
@@ -26,13 +26,13 @@ def create_store_hour(
         is_active=is_active,
         store_id=store.id,
     )
-
     db.add(db_store_hour)
     db.commit()
+    db.refresh(db_store_hour)  # importante para atualizar o objeto com id e outros campos
     return db_store_hour
 
 
-@router.get("", response_model=list[StoreHours])
+@router.get("", response_model=list[StoreHoursSchema])
 def get_store_hours(
     db: GetDBDep,
     store: GetStoreDep,
@@ -40,7 +40,8 @@ def get_store_hours(
     db_store_hours = db.query(StoreHours).filter(StoreHours.store_id == store.id).all()
     return db_store_hours
 
-@router.get("/{hour_id}", response_model=StoreHours)
+
+@router.get("/{hour_id}", response_model=StoreHoursSchema)
 def get_store_hour(
     db: GetDBDep,
     store: GetStoreDep,
@@ -51,7 +52,8 @@ def get_store_hour(
         raise HTTPException(status_code=404, detail="Store hour not found")
     return db_store_hour
 
-@router.patch("/{hour_id}", response_model=StoreHours)
+
+@router.patch("/{hour_id}", response_model=StoreHoursSchema)
 def patch_store_hour(
     db: GetDBDep,
     store: GetStoreDep,
@@ -78,4 +80,5 @@ def patch_store_hour(
         db_store_hour.is_active = is_active
 
     db.commit()
+    db.refresh(db_store_hour)
     return db_store_hour

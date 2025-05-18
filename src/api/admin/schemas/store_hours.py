@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from datetime import time
 from typing import List, Optional
 
-class StoreHours(BaseModel):
+class StoreHoursSchema(BaseModel):
     id: int
     store_id: int
     day_of_week: int
