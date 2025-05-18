@@ -3,11 +3,13 @@ from datetime import time
 from typing import List, Optional
 
 class StoreHours(BaseModel):
-    day_of_week: int  # 0 (Domingo) a 6 (Sábado)
-    opening_time: time
-    closing_time: time
+    id: int
+    store_id: int
+    day_of_week: int
+    open_time: str
+    close_time: str
     shift_number: int
-    is_active: bool = True
+    is_active: bool
 
-
-
+    class Config:
+        orm_mode = True

@@ -358,3 +358,16 @@ class StoreDeliveryConfiguration(Base, TimestampMixin):
     table_estimated_min: Mapped[int] = mapped_column(nullable=True)
     table_estimated_max: Mapped[int] = mapped_column(nullable=True)
     table_instructions: Mapped[str] = mapped_column(nullable=True)
+
+
+class StoreHours(Base, TimestampMixin):
+    __tablename__ = "store_hours"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
+
+    day_of_week: Mapped[int] = mapped_column()         # 0 - domingo, 6 - sábado
+    open_time: Mapped[str] = mapped_column()           # exemplo: '08:00'
+    close_time: Mapped[str] = mapped_column()          # exemplo: '18:00'
+    shift_number: Mapped[int] = mapped_column()
+    is_active: Mapped[bool] = mapped_column(default=True)
