@@ -15,7 +15,7 @@ router = APIRouter(prefix="/stores/{store_id}/products", tags=["Products"])
 from fastapi import UploadFile, File, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-@router.post("", response_model=Product)
+@router.post("", response_model=ProductCreate)
 async def create_product(
     db: Session = Depends(GetDBDep),
     store = Depends(GetStoreDep),
@@ -174,7 +174,7 @@ def get_product(
 
 
 
-@router.patch("/{product_id}", response_model=Product)
+@router.patch("/{product_id}", response_model=ProductUpdate)
 async def patch_product(
     product_id: int,
     db: Session = Depends(GetDBDep),
