@@ -165,12 +165,15 @@ class Product(Base, TimestampMixin):
 
     #new  20/05
     product_variant_links: Mapped[list["ProductVariantProduct"]] = relationship(back_populates="product")
+
+
     variants: Mapped[list["ProductVariant"]] = relationship(
         secondary="product_variants_products",
         back_populates="products"
     )
 
-   # variants: Mapped[list["ProductVariant"]] = relationship()
+
+    # variants: Mapped[list["ProductVariant"]] = relationship()
 
     ean: Mapped[str] = mapped_column(default="")
     code: Mapped[str] = mapped_column(default="")

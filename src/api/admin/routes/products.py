@@ -1,5 +1,5 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from sqlalchemy.orm import joinedload
+from fastapi import APIRouter
+
 
 from src.api.admin.schemas.product import Product, ProductCreate, ProductUpdate
 
@@ -20,7 +20,7 @@ async def create_product(
     db: Session = Depends(GetDBDep),
     store = Depends(GetStoreDep),
     image: UploadFile = File(...),
-    product_data: ProductCreate = Depends(ProductCreate.as_form),
+    product_data: ProductCreate = Depends(),
 ):
 
     # Validar categoria
@@ -58,12 +58,15 @@ async def create_product(
         location=product_data.location
     )
 
-    # Adicionar variantes se houver
+
     if product_data.variant_ids:
         variants = db.query(models.ProductVariant).filter(
             models.ProductVariant.id.in_(product_data.variant_ids)
         ).all()
-        db_product.variants = variants
+    else:
+        variants = []
+
+    db_product.variants = variants
 
     db.add(db_product)
     db.commit()
@@ -176,7 +179,7 @@ async def patch_product(
     product_id: int,
     db: Session = Depends(GetDBDep),
     db_product = Depends(GetProductDep),
-    product_data: ProductUpdate = Depends(ProductUpdate.as_form),
+    product_data: ProductUpdate = Depends(),
     image: UploadFile | None = File(None),
 ):
 
