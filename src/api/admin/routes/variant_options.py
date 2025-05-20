@@ -7,7 +7,7 @@ from src.core.database import GetDBDep
 from src.core.dependencies import GetVariantDep, GetVariantOptionDep
 
 router = APIRouter(tags=["Variant Options"],
-                   prefix='/stores/{store_id}/products/{product_id}/variants/{variant_id}/options')
+                   prefix='/stores/{store_id}/variants/{variant_id}/options')
 
 @router.post("", response_model=ProductVariantOption)
 def create_product_variant_option(
@@ -17,7 +17,7 @@ def create_product_variant_option(
 ):
     db_option = models.ProductVariantOption(
         **option.model_dump(),
-        product_id=variant.product_id,
+
         store_id=variant.store_id,
         product_variant_id=variant.id,
     )

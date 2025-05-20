@@ -5,7 +5,7 @@ from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetProductDep, GetVariantDep
 
-router = APIRouter(tags=["Variants"], prefix="/stores/{store_id}/products/{product_id}/variants")
+router = APIRouter(tags=["Variants"], prefix="/stores/{store_id}/variants")
 
 @router.post("", response_model=ProductVariant)
 def create_product_variant(
@@ -15,7 +15,7 @@ def create_product_variant(
 ):
     db_variant = models.ProductVariant(
         **variant.model_dump(),
-        product_id=product.id,
+
         store_id=product.store_id,
     )
 
