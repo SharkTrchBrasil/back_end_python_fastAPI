@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Form
+from fastapi import APIRouter
 
 from src.api.admin.schemas.product import ProductCreate, Product, ProductUpdate, ProductOut
 from src.core import models
@@ -18,29 +18,13 @@ def create_product(
     db: Session = Depends(GetDBDep),
     store = Depends(GetStoreDep),
     image: UploadFile = File(...),
-    name: str = Form(...),
-    description: str = Form(...),
-    base_price: int = Form(...),
-    cost_price: int = Form(0),
-    available: bool = Form(...),
-    category_id: int = Form(...),
+    # ***** AQUI ESTÁ A MUDANÇA PRINCIPAL *****
+    product_data: ProductCreate = Depends(), # Use ProductCreate como uma dependência de formulário
 
-    ean: str = Form(""),
-    code: str = Form(""),
-    auto_code: bool = Form(True),
-    extra_code: str = Form(""),
-    stock_quantity: int = Form(0),
-    control_stock: bool = Form(False),
-    min_stock: int = Form(0),
-    max_stock: int = Form(0),
-    unit: str = Form(""),
-    allow_fraction: bool = Form(False),
-    observation: str = Form(""),
-    location: str = Form(""),
 ):
 
     category = db.query(models.Category).filter(
-        models.Category.id == category_id,
+        models.Category.id == product_data.category_id, # Acesse o category_id de product_data
         models.Category.store_id == store.id
     ).first()
     if not category:
@@ -48,35 +32,17 @@ def create_product(
 
     file_key = upload_file(image)
 
-    db_product = models.Product(
-        name=name,
-        description=description,
-        base_price=base_price,
-        cost_price=cost_price,
-        available=available,
-        store_id=store.id,
-        category_id=category_id,
 
-        file_key=file_key,
-        ean=ean,
-        code=code,
-        auto_code=auto_code,
-        extra_code=extra_code,
-        stock_quantity=stock_quantity,
-        control_stock=control_stock,
-        min_stock=min_stock,
-        max_stock=max_stock,
-        unit=unit,
-        allow_fraction=allow_fraction,
-        observation=observation,
-        location=location
+    db_product = models.Product(
+        **product_data.model_dump(exclude_unset=True), # Isso popula todos os campos do ProductCreate
+        store_id=store.id, # O store_id ainda vem da dependência GetStoreDep
+        file_key=file_key # E o file_key vem do upload da imagem
     )
 
     db.add(db_product)
     db.commit()
     db.refresh(db_product)
     return db_product
-
 
 @router.get("", response_model=list[Product])
 def get_products(db: GetDBDep, store: GetStoreDep, skip: int = 0, limit: int = 50):
@@ -116,7 +82,7 @@ async def patch_product(
 ):
 
     # Atualizar os campos presentes
-    for field, value in product_data.dict(exclude_unset=True).items():
+    for field, value in product_data.model_dump(exclude_unset=True).items():
         setattr(db_product, field, value)
 
     # Validar categoria se foi alterada
