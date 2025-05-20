@@ -1,8 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Form
 
-
-from src.api.admin.schemas.product import Product, ProductCreate, ProductUpdate
-
+from src.api.admin.schemas.product import ProductCreate, Product, ProductUpdate
 from src.core import models
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
@@ -15,135 +13,69 @@ router = APIRouter(prefix="/stores/{store_id}/products", tags=["Products"])
 from fastapi import UploadFile, File, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-@router.post("", response_model=ProductCreate)
-async def create_product(
+@router.post("", response_model=Product)
+def create_product(
     db: Session = Depends(GetDBDep),
     store = Depends(GetStoreDep),
     image: UploadFile = File(...),
-    product_data: ProductCreate = Depends(),
+    name: str = Form(...),
+    description: str = Form(...),
+    base_price: int = Form(...),
+    cost_price: int = Form(0),
+    available: bool = Form(...),
+    category_id: int = Form(...),
+
+    ean: str = Form(""),
+    code: str = Form(""),
+    auto_code: bool = Form(True),
+    extra_code: str = Form(""),
+    stock_quantity: int = Form(0),
+    control_stock: bool = Form(False),
+    min_stock: int = Form(0),
+    max_stock: int = Form(0),
+    unit: str = Form(""),
+    allow_fraction: bool = Form(False),
+    observation: str = Form(""),
+    location: str = Form(""),
 ):
 
-    # Validar categoria
     category = db.query(models.Category).filter(
-        models.Category.id == product_data.category_id,
+        models.Category.id == category_id,
         models.Category.store_id == store.id
     ).first()
     if not category:
         raise HTTPException(status_code=400, detail="Category not found")
 
-    # Upload da imagem
     file_key = upload_file(image)
 
-    # Criar o produto
     db_product = models.Product(
-        name=product_data.name,
-        description=product_data.description,
-        base_price=product_data.base_price,
-        cost_price=product_data.cost_price,
-        available=product_data.available,
+        name=name,
+        description=description,
+        base_price=base_price,
+        cost_price=cost_price,
+        available=available,
         store_id=store.id,
-        category_id=product_data.category_id,
+        category_id=category_id,
+
         file_key=file_key,
-        ean=product_data.ean,
-        code=product_data.code,
-        auto_code=product_data.auto_code,
-        extra_code=product_data.extra_code,
-        stock_quantity=product_data.stock_quantity,
-        control_stock=product_data.control_stock,
-        min_stock=product_data.min_stock,
-        max_stock=product_data.max_stock,
-        unit=product_data.unit,
-        allow_fraction=product_data.allow_fraction,
-        observation=product_data.observation,
-        location=product_data.location
+        ean=ean,
+        code=code,
+        auto_code=auto_code,
+        extra_code=extra_code,
+        stock_quantity=stock_quantity,
+        control_stock=control_stock,
+        min_stock=min_stock,
+        max_stock=max_stock,
+        unit=unit,
+        allow_fraction=allow_fraction,
+        observation=observation,
+        location=location
     )
-
-
-    if product_data.variant_ids:
-        variants = db.query(models.ProductVariant).filter(
-            models.ProductVariant.id.in_(product_data.variant_ids)
-        ).all()
-    else:
-        variants = []
-
-    db_product.variants = variants
 
     db.add(db_product)
     db.commit()
     db.refresh(db_product)
-
     return db_product
-
-
-
-# @router.post("", response_model=Product)
-# def create_product(
-#         db: GetDBDep,
-#         store: GetStoreDep,
-#         image: UploadFile = File(...),
-#         name: str = Form(...),
-#         description: str = Form(...),
-#         base_price: int = Form(...),
-#         cost_price: int = Form(0),
-#         available: bool = Form(...),
-#         category_id: int = Form(...),
-#
-#
-#         ean: str = Form(""),
-#         code: str = Form(""),
-#         auto_code: bool = Form(True),
-#         extra_code: str = Form(""),
-#         stock_quantity: int = Form(0),
-#         control_stock: bool = Form(False),
-#         min_stock: int = Form(0),
-#         max_stock: int = Form(0),
-#         unit: str = Form(""),
-#         allow_fraction: bool = Form(False),
-#         observation: str = Form(""),
-#         location: str = Form(""),
-# ):
-#     category = db.query(models.Category).filter(
-#         models.Category.id == category_id,
-#         models.Category.store_id == store.id
-#     ).first()
-#
-#     if not category:
-#         raise HTTPException(status_code=400, detail="Category not found")
-#
-#
-#
-#
-#     file_key = upload_file(image)
-#     db_product = models.Product(
-#         name=name,
-#         description=description,
-#         base_price=base_price,
-#         cost_price=cost_price,
-#         available=available,
-#         store_id=store.id,
-#         category_id=category_id,
-#
-#         file_key=file_key,
-#         ean=ean,
-#         code=code,
-#         auto_code=auto_code,
-#         extra_code=extra_code,
-#         stock_quantity=stock_quantity,
-#         control_stock=control_stock,
-#         min_stock=min_stock,
-#         max_stock=max_stock,
-#         unit=unit,
-#         allow_fraction=allow_fraction,
-#         observation=observation,
-#         location=location
-#     )
-#
-#
-#     db.add(db_product)
-#     db.commit()
-#     return db_product
-#
-#
 
 
 @router.get("", response_model=list[Product])
