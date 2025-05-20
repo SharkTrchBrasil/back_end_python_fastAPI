@@ -1,5 +1,3 @@
-# src/utils/forms.py
-
 from fastapi import Form
 from pydantic import BaseModel
 from typing import get_type_hints
@@ -25,12 +23,15 @@ def as_form(cls):
         default = getattr(cls, field_name, ...)
 
         if default is ...:
-            default = Form(...)  # obrigatório no form
+            default = Form(...)  # obrigatório
         else:
-            default = Form(default)  # opcional com valor default
-
+            default = Form(default)  # opcional com valor padrão
 
         fields.append((field_name, default, field_type))
+
     cls.__signature__ = make_signature(fields)
-    cls.__init__ = lambda self, **data: BaseModel.__init__(self, **data)
+
+    # ❌ Remover essa linha:
+    # cls.__init__ = lambda self, **data: BaseModel.__init__(self, **data)
+
     return cls
