@@ -12,6 +12,12 @@ class Product(BaseModel):
     description: str
     base_price: int
     available: bool
+
+    promotion_price:int
+
+    features: bool
+    activate_promotion: bool
+
     category: Category
     variants: list[ProductVariant]
 

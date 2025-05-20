@@ -148,8 +148,16 @@ class Product(Base, TimestampMixin):
     name: Mapped[str] = mapped_column()
     description: Mapped[str] = mapped_column()
     base_price: Mapped[int] = mapped_column()
-    cost_price: Mapped[int] = mapped_column(default=0)  # Preço de custo
+    cost_price: Mapped[int] = mapped_column(default=0)
     available: Mapped[bool] = mapped_column()
+
+    promotion_price: Mapped[int] = mapped_column(default=0)
+
+    features: Mapped[bool] = mapped_column()
+    activate_promotion: Mapped[bool] = mapped_column()
+
+
+
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
     category: Mapped[Category] = relationship()

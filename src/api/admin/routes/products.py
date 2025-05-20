@@ -111,6 +111,16 @@ def patch_product(
         available: bool | None = Form(None),
         category_id: int | None = Form(None),
 
+        promotion_price: int | None = Form(None),
+
+        featured: bool | None = Form(None),
+
+
+        activate_promotion: bool | None = Form(None),
+
+
+
+
         ean: str | None = Form(None),
         code: str | None = Form(None),
         auto_code: bool | None = Form(None),
@@ -130,6 +140,11 @@ def patch_product(
     if base_price is not None: db_product.base_price = base_price
     if cost_price is not None: db_product.cost_price = cost_price
     if available is not None: db_product.available = available
+
+    if promotion_price is not None: db_product.promotion_price = promotion_price
+    if activate_promotion is not None: db_product.activate_promotion = activate_promotion
+    if featured is not None: db_product.featured = featured
+
     if category_id:
         category = db.query(models.Category).filter(
             models.Category.id == category_id,
