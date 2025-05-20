@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Form
 
-from src.api.admin.schemas.product import ProductCreate, Product, ProductUpdate
+from src.api.admin.schemas.product import ProductCreate, Product, ProductUpdate, ProductOut
 from src.core import models
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/stores/{store_id}/products", tags=["Products"])
 from fastapi import UploadFile, File, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-@router.post("", response_model=Product)
+@router.post("", response_model=ProductOut)
 def create_product(
     db: Session = Depends(GetDBDep),
     store = Depends(GetStoreDep),

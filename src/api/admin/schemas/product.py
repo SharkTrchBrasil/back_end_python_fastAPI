@@ -98,6 +98,19 @@ class ProductUpdate(BaseModel):
     featured: Optional[bool] = None
     variant_ids: Optional[List[int]] = None
 
+
+class ProductOut(ProductBase):
+    id: int
+    category: Category
+    variants: List[ProductVariant]
+
+    file_key: str = Field(exclude=True)
+
+    @computed_field
+    @property
+    def image_path(self) -> str:
+        return get_presigned_url(self.file_key)
+
 # from typing import Optional, List
 #
 # from pydantic import BaseModel, Field, computed_field
