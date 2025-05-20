@@ -162,7 +162,15 @@ class Product(Base, TimestampMixin):
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
     category: Mapped[Category] = relationship()
     file_key: Mapped[str] = mapped_column()
-    variants: Mapped[list["ProductVariant"]] = relationship()
+
+    #new  20/05
+    product_variant_links: Mapped[list["ProductVariantProduct"]] = relationship(back_populates="product")
+    variants: Mapped[list["ProductVariant"]] = relationship(
+        secondary="product_variants_products",
+        back_populates="products"
+    )
+
+   # variants: Mapped[list["ProductVariant"]] = relationship()
 
     ean: Mapped[str] = mapped_column(default="")
     code: Mapped[str] = mapped_column(default="")
@@ -196,9 +204,18 @@ class ProductVariant(Base, TimestampMixin):
     repeatable: Mapped[bool] = mapped_column()
 
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
 
-    options: Mapped[list["ProductVariantOption"]] = relationship()
+    # new 20/05
+   # product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    # new  20/05
+    #options: Mapped[list["ProductVariantOption"]] = relationship()
+
+    product_links: Mapped[list["ProductVariantProduct"]] = relationship(back_populates="variant")
+    products: Mapped[list["Product"]] = relationship(
+        secondary="product_variants_products",
+        back_populates="variants"
+    )
+
 
 class ProductVariantOption(Base, TimestampMixin):
     __tablename__ = "product_variant_options"
@@ -214,6 +231,16 @@ class ProductVariantOption(Base, TimestampMixin):
     product_variant_id: Mapped[int] = mapped_column(ForeignKey("product_variants.id"))
 
 
+ #new tablle 20/05
+class ProductVariantProduct(Base):
+    __tablename__ = "product_variants_products"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    variant_id: Mapped[int] = mapped_column(ForeignKey("product_variants.id"))
+
+    product: Mapped["Product"] = relationship(back_populates="product_variant_links")
+    variant: Mapped["ProductVariant"] = relationship(back_populates="product_links")
 
 class Coupon(Base, TimestampMixin):
     __tablename__ = "coupons"
