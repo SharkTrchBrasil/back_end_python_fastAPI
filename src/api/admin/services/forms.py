@@ -1,34 +1,39 @@
+from typing import get_type_hints, Optional, List, Union
 from fastapi import Form
 from pydantic import BaseModel
-from typing import get_type_hints
-from inspect import Parameter, Signature
-
-def make_signature(fields):
-    return Signature(
-        parameters=[
-            Parameter(
-                name=name,
-                kind=Parameter.POSITIONAL_OR_KEYWORD,
-                default=default,
-                annotation=field_type,
-            )
-            for name, default, field_type in fields
-        ]
-    )
+from inspect import signature, Parameter
 
 def as_form(cls):
-    hints = get_type_hints(cls)
-    fields = []
-    for field_name, field_type in hints.items():
+    new_params = []
+
+    for field_name, model_field in cls.__annotations__.items():
         default = getattr(cls, field_name, ...)
+        actual_type = model_field
 
-        if default is ...:
-            default = Form(...)  # obrigatório
+        if hasattr(actual_type, '__origin__') and actual_type.__origin__ in [list, List]:
+            item_type = actual_type.__args__[0]
+            new_params.append(
+                Parameter(
+                    field_name,
+                    Parameter.POSITIONAL_ONLY,
+                    default=Form(default if default is not None else None),
+                    annotation=List[item_type],
+                )
+            )
         else:
-            default = Form(default)  # opcional com valor padrão
+            new_params.append(
+                Parameter(
+                    field_name,
+                    Parameter.POSITIONAL_ONLY,
+                    default=Form(default),
+                    annotation=actual_type,
+                )
+            )
 
-        fields.append((field_name, default, field_type))
+    def as_form_func(*args, **kwargs):
+        return cls(*args, **kwargs)
 
-    cls.__signature__ = make_signature(fields)
-
+    sig = signature(as_form_func)
+    as_form_func.__signature__ = sig.replace(parameters=new_params)
+    setattr(cls, "as_form", classmethod(as_form_func))
     return cls

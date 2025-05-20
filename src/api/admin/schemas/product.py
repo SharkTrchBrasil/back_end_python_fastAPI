@@ -72,7 +72,7 @@ class ProductCreate(BaseModel):
     observation: str = ""
     location: str = ""
     #store_id: int
-    variant_ids: Annotated[Optional[List[int]], Form()] = None
+    variant_ids: Optional[List[int]] = None
 
 
 @as_form
