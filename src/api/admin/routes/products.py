@@ -19,7 +19,7 @@ def create_product(
     store = Depends(GetStoreDep),
     image: UploadFile = File(...),
     # ***** AQUI ESTÁ A MUDANÇA PRINCIPAL *****
-    product_data: ProductCreate = Depends(), # Use ProductCreate como uma dependência de formulário
+    product_data: ProductCreate = Depends(ProductCreate.as_form), # Use ProductCreate como uma dependência de formulário
 
 ):
 
