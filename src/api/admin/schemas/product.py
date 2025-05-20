@@ -69,7 +69,7 @@ class ProductCreate(BaseModel):
     allow_fraction: bool = False
     observation: str = ""
     location: str = ""
-    store_id: int
+    #store_id: int
     variant_ids: Optional[List[int]] = None
 
 
