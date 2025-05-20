@@ -153,7 +153,7 @@ class Product(Base, TimestampMixin):
 
     promotion_price: Mapped[int] = mapped_column(default=0)
 
-    features: Mapped[bool] = mapped_column()
+    featured: Mapped[bool] = mapped_column()
     activate_promotion: Mapped[bool] = mapped_column()
 
 
