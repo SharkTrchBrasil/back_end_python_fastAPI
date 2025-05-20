@@ -31,7 +31,4 @@ def as_form(cls):
 
     cls.__signature__ = make_signature(fields)
 
-    # ❌ Remover essa linha:
-    # cls.__init__ = lambda self, **data: BaseModel.__init__(self, **data)
-
     return cls
