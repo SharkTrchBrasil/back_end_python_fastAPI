@@ -229,8 +229,8 @@ class ProductVariantOption(Base, TimestampMixin):
     available: Mapped[bool] = mapped_column()
     price: Mapped[int] = mapped_column()
 
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+   # store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+   # product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
     product_variant_id: Mapped[int] = mapped_column(ForeignKey("product_variants.id"))
 
 
