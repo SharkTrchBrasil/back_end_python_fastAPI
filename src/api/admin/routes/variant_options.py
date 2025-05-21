@@ -1,11 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
-from src.api.admin.schemas.product_variant_option import VariantOption, VariantOptionCreate, \
+from src.api.admin.schemas.variant_option import VariantOption, VariantOptionCreate, \
     VariantOptionUpdate
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetVariantDep, GetVariantOptionDep
-from src.core.models import VariantOption
 
 router = APIRouter(tags=["Variant Options"],
                    prefix='/stores/{store_id}/variants/{variant_id}/options')
@@ -16,7 +15,7 @@ def create_product_variant_option(
         variant: GetVariantDep,
         option: VariantOptionCreate,
 ):
-    db_option = models.VariantOption(
+    db_option = models.VariantOptions(
         **option.model_dump(),
         variant_id=variant.id,
     )

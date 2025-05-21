@@ -196,14 +196,14 @@ class Variant(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     store: Mapped["Store"] = relationship()  # ou back_populates, se desejar
 
-    options: Mapped[list["VariantOption"]] = relationship(back_populates="variant")
+    options: Mapped[list["VariantOptions"]] = relationship(back_populates="variant")
 
     # ✅ relacionamento para acessar os produtos através da tabela associativa
     product_links: Mapped[list["ProductVariantProduct"]] = relationship(back_populates="variant")
 
 
 
-class VariantOption(Base, TimestampMixin):
+class VariantOptions(Base, TimestampMixin):
     __tablename__ = "variant_options"
 
     id: Mapped[int] = mapped_column(primary_key=True)
