@@ -4,7 +4,7 @@ from fastapi import Form
 from pydantic import BaseModel, Field, computed_field
 
 from src.api.admin.schemas.category import Category
-from src.api.admin.schemas.variant import ProductVariant
+from src.api.admin.schemas.variant import Variant
 from src.api.admin.services.forms import as_form
 from src.core.aws import get_presigned_url
 
@@ -41,7 +41,7 @@ class ProductBase(BaseModel):
 class Product(ProductBase):
     id: int
     category: Category
-    variants: list[ProductVariant]
+    variants: list[Variant]
 
     file_key: str = Field(exclude=True)
 
@@ -104,7 +104,7 @@ class ProductUpdate(BaseModel):
 class ProductOut(ProductBase):
     id: int
     category: Category
-    variants: List[ProductVariant]
+    variants: List[Variant]
 
     file_key: str = Field(exclude=True)
 

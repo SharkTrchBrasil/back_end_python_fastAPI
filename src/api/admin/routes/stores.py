@@ -112,7 +112,7 @@ def get_full_store(
         joinedload(models.Store.coupons).joinedload(models.Coupon.product),
         joinedload(models.Store.payment_methods),
         joinedload(models.Store.products).joinedload(models.Product.category),
-        joinedload(models.Store.products).joinedload(models.Product.variants).joinedload(models.ProductVariant.options),
+        joinedload(models.Store.products).joinedload(models.Product.variant_links).joinedload(models.Variant.options),
     ).first()
 
     if not store:

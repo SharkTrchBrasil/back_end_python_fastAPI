@@ -97,8 +97,8 @@ async def patch_product(
 
     # Atualizar variantes se vier
     if product_data.variant_ids is not None:
-        variants = db.query(models.ProductVariant).filter(
-            models.ProductVariant.id.in_(product_data.variant_ids)
+        variants = db.query(models.Variant).filter(
+            models.Variant.id.in_(product_data.variant_ids)
         ).all()
         db_product.variants = variants
 
