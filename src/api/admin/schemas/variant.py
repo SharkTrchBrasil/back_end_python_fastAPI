@@ -2,7 +2,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from src.api.admin.schemas.product_variant_option import ProductVariantOption
+from src.api.admin.schemas.product_variant_option import VariantOption
 
 
 class VariantBase(BaseModel):
@@ -16,7 +16,7 @@ class VariantBase(BaseModel):
 
 class Variant(VariantBase):
     id: int
-    options: list[ProductVariantOption]
+    options: list[VariantOption]
 
 
 class VariantCreate(VariantBase):
