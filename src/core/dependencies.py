@@ -85,16 +85,17 @@ GetProductDep = Annotated[models.Product, Depends(get_product)]
 
 def get_product_variant(
     db: GetDBDep,
-    product: GetProductDep,
+    store_id: int,
     variant_id: int,
 ):
     db_variant = db.query(models.ProductVariant).filter(
         models.ProductVariant.id == variant_id,
-        models.ProductVariant.product_id == product.id
+        models.ProductVariant.store_id == store_id
     ).first()
     if not db_variant:
         raise HTTPException(status_code=404, detail="Variant not found")
     return db_variant
+
 
 GetVariantDep = Annotated[models.ProductVariant, Depends(get_product_variant)]
 

@@ -156,24 +156,12 @@ class Product(Base, TimestampMixin):
     featured: Mapped[bool] = mapped_column()
     activate_promotion: Mapped[bool] = mapped_column()
 
-
-
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
     category: Mapped[Category] = relationship()
     file_key: Mapped[str] = mapped_column()
 
-    #new  20/05
     product_variant_links: Mapped[list["ProductVariantProduct"]] = relationship(back_populates="product")
-
-
-    variants: Mapped[list["ProductVariant"]] = relationship(
-        secondary="product_variants_products",
-        back_populates="products"
-    )
-
-
-    # variants: Mapped[list["ProductVariant"]] = relationship()
 
     ean: Mapped[str] = mapped_column(default="")
     code: Mapped[str] = mapped_column(default="")
@@ -201,23 +189,18 @@ class ProductVariant(Base, TimestampMixin):
     name: Mapped[str] = mapped_column()
     description: Mapped[str] = mapped_column()
     available: Mapped[bool] = mapped_column()
-
     min_quantity: Mapped[int] = mapped_column()
     max_quantity: Mapped[int] = mapped_column()
     repeatable: Mapped[bool] = mapped_column()
 
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+    store: Mapped["Store"] = relationship()  # ou back_populates, se desejar
 
-    # new 20/05
-   # product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
-    # new  20/05
-    #options: Mapped[list["ProductVariantOption"]] = relationship()
+    variant_options: Mapped[list["ProductVariantOption"]] = relationship(back_populates="variant")
 
+    # ✅ relacionamento para acessar os produtos através da tabela associativa
     product_links: Mapped[list["ProductVariantProduct"]] = relationship(back_populates="variant")
-    products: Mapped[list["Product"]] = relationship(
-        secondary="product_variants_products",
-        back_populates="variants"
-    )
+
 
 
 class ProductVariantOption(Base, TimestampMixin):
@@ -228,13 +211,11 @@ class ProductVariantOption(Base, TimestampMixin):
     description: Mapped[str] = mapped_column()
     available: Mapped[bool] = mapped_column()
     price: Mapped[int] = mapped_column()
-
-   # store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-   # product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
-    product_variant_id: Mapped[int] = mapped_column(ForeignKey("product_variants.id"))
+    variant: Mapped["ProductVariant"] = relationship(back_populates="variant_options")
 
 
- #new tablle 20/05
+
+
 class ProductVariantProduct(Base):
     __tablename__ = "product_variants_products"
 
