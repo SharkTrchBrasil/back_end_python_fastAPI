@@ -15,41 +15,121 @@ router = APIRouter(prefix="/stores/{store_id}/products", tags=["Products"])
 from fastapi import UploadFile, File, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-@router.post("", response_model=ProductOut)
+
+@router.post("/", response_model=ProductOut)
 def create_product(
-    db: Session = Depends(GetDBDep),
-    store = Depends(GetStoreDep),
-    image: UploadFile = File(...),
-    variant_ids: Optional[List[int]] = Form([]),
-    product_data: ProductCreate = Depends(ProductCreate),
+    db: GetDBDep,
+    name: str = Form(...),
+    description: str | None = Form(None),
+    base_price: int = Form(...),
+    cost_price: int | None = Form(None),
+    promotion_price: int | None = Form(None),
+    featured: bool = Form(False),
+    activate_promotion: bool = Form(False),
+    available: bool = Form(True),
+    category_id: int | None = Form(None),
+    ean: str | None = Form(None),
+    code: str | None = Form(None),
+    auto_code: bool = Form(True),
+    extra_code: str | None = Form(None),
+    stock_quantity: int | None = Form(None),
+    control_stock: bool = Form(False),
+    min_stock: int | None = Form(None),
+    max_stock: int | None = Form(None),
+    unit: str | None = Form(None),
+    allow_fraction: bool = Form(False),
+    observation: str | None = Form(None),
+    location: str | None = Form(None),
+    variant_ids: Optional[List[int]] = Form(None),
+    image: UploadFile | None = File(None),
 ):
-    # Valida categoria
-    category = db.query(models.Category).filter(
-        models.Category.id == product_data.category_id,
-        models.Category.store_id == store.id
-    ).first()
-    if not category:
-        raise HTTPException(status_code=400, detail="Category not found")
+    file_key = None
+    if image is not None:
+        file_key = upload_file(image)
 
-    # Upload da imagem
-    file_key = upload_file(image)
-
-    # Cria produto com dados do formulário e a chave da imagem
-    db_product = models.Product(
-        **product_data.model_dump(exclude_unset=True),
-        store_id=store.id,
-        file_key=file_key
+    new_product = models.Product(
+        name=name,
+        description=description,
+        base_price=base_price,
+        cost_price=cost_price,
+        promotion_price=promotion_price,
+        featured=featured,
+        activate_promotion=activate_promotion,
+        available=available,
+        category_id=category_id,
+        ean=ean,
+        code=code,
+        auto_code=auto_code,
+        extra_code=extra_code,
+        stock_quantity=stock_quantity,
+        control_stock=control_stock,
+        min_stock=min_stock,
+        max_stock=max_stock,
+        unit=unit,
+        allow_fraction=allow_fraction,
+        observation=observation,
+        location=location,
+        file_key=file_key,
     )
 
-    # Associa variantes ao produto (se houver)
     if variant_ids:
         variants = db.query(models.Variant).filter(models.Variant.id.in_(variant_ids)).all()
-        db_product.variants = variants
+        new_product.variants = variants
 
-    db.add(db_product)
+    db.add(new_product)
     db.commit()
-    db.refresh(db_product)
-    return db_product
+    db.refresh(new_product)
+    return new_product
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# @router.post("", response_model=ProductOut)
+# def create_product(
+#     db: Session = Depends(GetDBDep),
+#     store = Depends(GetStoreDep),
+#     image: UploadFile = File(...),
+#     variant_ids: Optional[List[int]] = Form([]),
+#     product_data: ProductCreate = Depends(ProductCreate),
+# ):
+#     # Valida categoria
+#     category = db.query(models.Category).filter(
+#         models.Category.id == product_data.category_id,
+#         models.Category.store_id == store.id
+#     ).first()
+#     if not category:
+#         raise HTTPException(status_code=400, detail="Category not found")
+#
+#     # Upload da imagem
+#     file_key = upload_file(image)
+#
+#     # Cria produto com dados do formulário e a chave da imagem
+#     db_product = models.Product(
+#         **product_data.model_dump(exclude_unset=True),
+#         store_id=store.id,
+#         file_key=file_key
+#     )
+#
+#     # Associa variantes ao produto (se houver)
+#     if variant_ids:
+#         variants = db.query(models.Variant).filter(models.Variant.id.in_(variant_ids)).all()
+#         db_product.variants = variants
+#
+#     db.add(db_product)
+#     db.commit()
+#     db.refresh(db_product)
+#     return db_product
 
 
 @router.get("", response_model=list[Product])
