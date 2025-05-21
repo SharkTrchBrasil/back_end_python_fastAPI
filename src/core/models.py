@@ -57,7 +57,7 @@ class Store(Base, TimestampMixin):
     products: Mapped[list["Product"]] = relationship()
     coupons: Mapped[list["Coupon"]] = relationship()
     product_variants: Mapped[list["ProductVariant"]] = relationship()
-    variant_options: Mapped[list["ProductVariantOption"]] = relationship()
+
     themes: Mapped[list["StoreTheme"]] = relationship()
     totem_authorizations: Mapped[list["TotemAuthorization"]] = relationship()
 
