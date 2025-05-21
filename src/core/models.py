@@ -214,7 +214,7 @@ class VariantOptions(Base, TimestampMixin):
     # Aqui está a chave estrangeira necessária
     variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id"))
 
-    variant: Mapped["Variant"] = relationship(back_populates="variant_options")
+    variant: Mapped["Variant"] = relationship(back_populates="options")
 
 
 
