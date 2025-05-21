@@ -19,6 +19,8 @@ from sqlalchemy.orm import Session
 @router.post("", response_model=ProductOut)
 def create_product(
     db: GetDBDep,
+
+    store: GetStoreDep,
     name: str = Form(...),
     description: str | None = Form(None),
     base_price: int = Form(...),
@@ -43,6 +45,15 @@ def create_product(
     variant_ids: Optional[List[int]] = Form(None),
     image: UploadFile | None = File(None),
 ):
+    category = db.query(models.Category).filter(
+        models.Category.id == category_id,
+        models.Category.store_id == store.id
+    ).first()
+
+    if not category:
+        raise HTTPException(status_code=400, detail="Category not found")
+
+
     file_key = None
     if image is not None:
         file_key = upload_file(image)
@@ -57,6 +68,7 @@ def create_product(
         activate_promotion=activate_promotion,
         available=available,
         category_id=category_id,
+        store_id=store.id,
         ean=ean,
         code=code,
         auto_code=auto_code,
@@ -73,7 +85,10 @@ def create_product(
     )
 
     if variant_ids:
-        variants = db.query(models.Variant).filter(models.Variant.id.in_(variant_ids)).all()
+        variants = db.query(models.Variant).filter(
+            models.Variant.id.in_(variant_ids),
+            models.Variant.store_id == store.id  # filtra pela loja
+        ).all()
         new_product.variants = variants
 
     db.add(new_product)
