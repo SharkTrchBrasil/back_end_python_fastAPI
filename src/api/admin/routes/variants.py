@@ -3,20 +3,21 @@ from fastapi import APIRouter, HTTPException
 from src.api.admin.schemas.variant import ProductVariantCreate, ProductVariant, ProductVariantUpdate
 from src.core import models
 from src.core.database import GetDBDep
-from src.core.dependencies import GetProductDep, GetVariantDep
+from src.core.dependencies import GetProductDep, GetVariantDep, GetStoreDep
 
 router = APIRouter(tags=["Variants"], prefix="/stores/{store_id}/variants")
 
 @router.post("", response_model=ProductVariant)
 def create_product_variant(
         db: GetDBDep,
-        product: GetProductDep,
+
+        store: GetStoreDep,
         variant: ProductVariantCreate,
 ):
     db_variant = models.ProductVariant(
         **variant.model_dump(),
 
-        store_id=product.store_id,
+        store_id=store.store_id,
     )
 
     db.add(db_variant)

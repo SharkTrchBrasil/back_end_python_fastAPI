@@ -17,8 +17,6 @@ def create_product_variant_option(
 ):
     db_option = models.ProductVariantOption(
         **option.model_dump(),
-
-        store_id=variant.store_id,
         product_variant_id=variant.id,
     )
 
