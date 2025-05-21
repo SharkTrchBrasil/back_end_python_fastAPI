@@ -30,7 +30,7 @@ def as_form(cls):
                 )
             )
 
-    def as_form_func(*args, **kwargs):
+    def as_form_func(cls, *args, **kwargs):  # <- Aqui está a correção
         return cls(*args, **kwargs)
 
     sig = signature(as_form_func)
