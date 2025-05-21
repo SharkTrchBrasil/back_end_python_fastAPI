@@ -105,11 +105,11 @@ def get_product_variant_option(
     variant: GetVariantDep,
     option_id: int,
 ):
-    option = db.query(models.VariantOption).filter(models.VariantOption.id == option_id
+    option = db.query(models.VariantOptions).filter(models.VariantOptions.id == option_id
                                                           ).first()
     if option is None:
         raise HTTPException(status_code=404, detail="Option not found")
     return option
 
 
-GetVariantOptionDep = Annotated[models.VariantOption, Depends(get_product_variant_option)]
+GetVariantOptionDep = Annotated[models.VariantOptions, Depends(get_product_variant_option)]
