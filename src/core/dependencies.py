@@ -88,16 +88,16 @@ def get_product_variant(
     store_id: int,
     variant_id: int,
 ):
-    db_variant = db.query(models.ProductVariant).filter(
-        models.ProductVariant.id == variant_id,
-        models.ProductVariant.store_id == store_id
+    db_variant = db.query(models.Variant).filter(
+        models.Variant.id == variant_id,
+        models.Variant.store_id == store_id
     ).first()
     if not db_variant:
         raise HTTPException(status_code=404, detail="Variant not found")
     return db_variant
 
 
-GetVariantDep = Annotated[models.ProductVariant, Depends(get_product_variant)]
+GetVariantDep = Annotated[models.Variant, Depends(get_product_variant)]
 
 
 def get_product_variant_option(
@@ -105,11 +105,11 @@ def get_product_variant_option(
     variant: GetVariantDep,
     option_id: int,
 ):
-    option = db.query(models.ProductVariantOption).filter(models.ProductVariantOption.id == option_id,
-                                                          models.ProductVariantOption.product_variant_id == variant.id).first()
+    option = db.query(models.VariantOption).filter(models.VariantOption.id == option_id
+                                                          ).first()
     if option is None:
         raise HTTPException(status_code=404, detail="Option not found")
     return option
 
 
-GetVariantOptionDep = Annotated[models.ProductVariantOption, Depends(get_product_variant_option)]
+GetVariantOptionDep = Annotated[models.VariantOption, Depends(get_product_variant_option)]

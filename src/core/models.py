@@ -56,7 +56,7 @@ class Store(Base, TimestampMixin):
     payment_methods: Mapped[list["StorePaymentMethods"]] = relationship()
     products: Mapped[list["Product"]] = relationship()
     coupons: Mapped[list["Coupon"]] = relationship()
-    product_variants: Mapped[list["Variant"]] = relationship()
+    variants: Mapped[list["Variant"]] = relationship()
 
     themes: Mapped[list["StoreTheme"]] = relationship()
     totem_authorizations: Mapped[list["TotemAuthorization"]] = relationship()
@@ -161,7 +161,7 @@ class Product(Base, TimestampMixin):
     category: Mapped[Category] = relationship()
     file_key: Mapped[str] = mapped_column()
 
-    product_variant_links: Mapped[list["ProductVariantProduct"]] = relationship(back_populates="product")
+    variant_links: Mapped[list["ProductVariantProduct"]] = relationship(back_populates="product")
 
     ean: Mapped[str] = mapped_column(default="")
     code: Mapped[str] = mapped_column(default="")
@@ -226,7 +226,7 @@ class ProductVariantProduct(Base):
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
     variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id"))
 
-    product: Mapped["Product"] = relationship(back_populates="product_variant_links")
+    product: Mapped["Product"] = relationship(back_populates="variant_links")
     variant: Mapped["Variant"] = relationship(back_populates="product_links")
 
 class Coupon(Base, TimestampMixin):
