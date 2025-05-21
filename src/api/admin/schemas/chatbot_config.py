@@ -21,5 +21,4 @@ class StoreChatbotConfig(StoreChatbotConfigBase):
     id: int
     store_id: int
 
-    class Config:
-        orm_mode = True
+

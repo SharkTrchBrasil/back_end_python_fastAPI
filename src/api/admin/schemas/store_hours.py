@@ -11,5 +11,3 @@ class StoreHoursSchema(BaseModel):
     shift_number: int
     is_active: bool
 
-    class Config:
-        orm_mode = True

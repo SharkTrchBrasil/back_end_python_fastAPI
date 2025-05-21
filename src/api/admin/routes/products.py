@@ -19,8 +19,8 @@ from sqlalchemy.orm import Session
 @router.post("", response_model=ProductOut)
 def create_product(
     db: GetDBDep,
-
     store: GetStoreDep,
+
     name: str = Form(...),
     description: str | None = Form(None),
     base_price: int = Form(...),
@@ -87,9 +87,11 @@ def create_product(
     if variant_ids:
         variants = db.query(models.Variant).filter(
             models.Variant.id.in_(variant_ids),
-            models.Variant.store_id == store.id  # filtra pela loja
+            models.Variant.store_id == store.id  # garante que são da loja certa
         ).all()
         new_product.variants = variants
+    else:
+        new_product.variants = []  # <- Isso evita o erro de validação
 
     db.add(new_product)
     db.commit()

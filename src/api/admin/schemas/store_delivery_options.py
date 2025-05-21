@@ -35,5 +35,4 @@ class StoreDeliveryConfig(StoreDeliveryConfigBase):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        orm_mode = True
+
