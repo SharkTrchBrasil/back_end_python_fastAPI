@@ -1,4 +1,6 @@
-from fastapi import APIRouter
+from typing import Optional, List
+
+from fastapi import APIRouter, Form
 
 from src.api.admin.schemas.product import ProductCreate, Product, ProductUpdate, ProductOut
 from src.core import models
@@ -18,31 +20,37 @@ def create_product(
     db: Session = Depends(GetDBDep),
     store = Depends(GetStoreDep),
     image: UploadFile = File(...),
-    # ***** AQUI ESTÁ A MUDANÇA PRINCIPAL *****
-    product_data: ProductCreate = Depends(ProductCreate.as_form), # Use ProductCreate como uma dependência de formulário
-
+    variant_ids: Optional[List[int]] = Form([]),
+    product_data: ProductCreate = Depends(ProductCreate.as_form),
 ):
-
+    # Valida categoria
     category = db.query(models.Category).filter(
-        models.Category.id == product_data.category_id, # Acesse o category_id de product_data
+        models.Category.id == product_data.category_id,
         models.Category.store_id == store.id
     ).first()
     if not category:
         raise HTTPException(status_code=400, detail="Category not found")
 
+    # Upload da imagem
     file_key = upload_file(image)
 
-
+    # Cria produto com dados do formulário e a chave da imagem
     db_product = models.Product(
-        **product_data.model_dump(exclude_unset=True), # Isso popula todos os campos do ProductCreate
-        store_id=store.id, # O store_id ainda vem da dependência GetStoreDep
-        file_key=file_key # E o file_key vem do upload da imagem
+        **product_data.model_dump(exclude_unset=True),
+        store_id=store.id,
+        file_key=file_key
     )
+
+    # Associa variantes ao produto (se houver)
+    if variant_ids:
+        variants = db.query(models.Variant).filter(models.Variant.id.in_(variant_ids)).all()
+        db_product.variants = variants
 
     db.add(db_product)
     db.commit()
     db.refresh(db_product)
     return db_product
+
 
 @router.get("", response_model=list[Product])
 def get_products(db: GetDBDep, store: GetStoreDep, skip: int = 0, limit: int = 50):
@@ -71,22 +79,21 @@ def get_product(
     return product
 
 
-
 @router.patch("/{product_id}", response_model=ProductUpdate)
 async def patch_product(
     product_id: int,
     db: Session = Depends(GetDBDep),
     db_product = Depends(GetProductDep),
+    variant_ids: Optional[List[int]] = Form(None),
     product_data: ProductUpdate = Depends(),
     image: UploadFile | None = File(None),
 ):
-
-    # Atualizar os campos presentes
+    # Atualizar os campos presentes, exceto variant_ids
     for field, value in product_data.model_dump(exclude_unset=True).items():
         setattr(db_product, field, value)
 
     # Validar categoria se foi alterada
-    if product_data.category_id:
+    if product_data.category_id is not None:
         category = db.query(models.Category).filter(
             models.Category.id == product_data.category_id,
             models.Category.store_id == db_product.store_id
@@ -95,10 +102,10 @@ async def patch_product(
             raise HTTPException(status_code=400, detail="Category not found")
         db_product.category_id = product_data.category_id
 
-    # Atualizar variantes se vier
-    if product_data.variant_ids is not None:
+    # Atualizar variantes usando o parâmetro variant_ids da rota
+    if variant_ids is not None:
         variants = db.query(models.Variant).filter(
-            models.Variant.id.in_(product_data.variant_ids)
+            models.Variant.id.in_(variant_ids)
         ).all()
         db_product.variants = variants
 
@@ -114,10 +121,6 @@ async def patch_product(
 
     db.refresh(db_product)
     return db_product
-
-
-
-
 
 @router.delete("/{product_id}", status_code=204)
 def delete_product(product_id: int, db: Session = Depends(GetDBDep), db_product = Depends(GetProductDep)):

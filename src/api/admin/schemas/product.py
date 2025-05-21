@@ -72,7 +72,7 @@ class ProductCreate(BaseModel):
     observation: str = ""
     location: str = ""
     #store_id: int
-    variant_ids: List[int] = Form(default=[])
+    #variant_ids: List[int] = Form(default=[])
 
 
 @as_form
@@ -98,7 +98,7 @@ class ProductUpdate(BaseModel):
     promotion_price: Optional[int] = None
     activate_promotion: Optional[bool] = None
     featured: Optional[bool] = None
-    variant_ids: Optional[List[int]] = None
+    #variant_ids: Optional[List[int]] = None
 
 
 class ProductOut(ProductBase):
