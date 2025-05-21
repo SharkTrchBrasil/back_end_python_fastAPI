@@ -16,7 +16,7 @@ from fastapi import UploadFile, File, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 
-@router.post("/", response_model=ProductOut)
+@router.post("", response_model=ProductOut)
 def create_product(
     db: GetDBDep,
     name: str = Form(...),
