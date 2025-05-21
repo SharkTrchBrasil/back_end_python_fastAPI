@@ -40,3 +40,10 @@ def patch_product_variant(
 
     db.commit()
     return variant
+
+
+
+@router.get("", response_model=list[Variant])
+def list_variants(store_id: int, db: GetDBDep, store: GetStoreDep):
+    variants = db.query(models.Variant).filter(models.Variant.store_id == store.id).all()
+    return variants
