@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from sqlalchemy.orm import joinedload
 
 from src.api.admin.schemas.variant import VariantCreate, Variant, VariantUpdate
 from src.core import models
@@ -45,5 +46,10 @@ def patch_product_variant(
 
 @router.get("", response_model=list[Variant])
 def list_variants(store_id: int, db: GetDBDep, store: GetStoreDep):
-    variants = db.query(models.Variant).filter(models.Variant.store_id == store.id).all()
+    variants = (
+        db.query(models.Variant)
+        .options(joinedload(models.Variant.options))  # <-- carrega as opções junto
+        .filter(models.Variant.store_id == store.id)
+        .all()
+    )
     return variants
