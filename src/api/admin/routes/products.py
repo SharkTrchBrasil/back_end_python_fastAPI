@@ -21,7 +21,7 @@ def create_product(
     store = Depends(GetStoreDep),
     image: UploadFile = File(...),
     variant_ids: Optional[List[int]] = Form([]),
-    product_data: ProductCreate = Depends(ProductCreate.as_form),
+    product_data: ProductCreate = Depends(ProductCreate),
 ):
     # Valida categoria
     category = db.query(models.Category).filter(
