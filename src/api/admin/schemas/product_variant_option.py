@@ -1,21 +1,21 @@
 from pydantic import BaseModel, ConfigDict
 
 
-class ProductVariantOptionBase(BaseModel):
+class VariantOptionBase(BaseModel):
     name: str
     description: str
     price: int
     available: bool
 
 
-class ProductVariantOptionCreate(ProductVariantOptionBase):
+class VariantOptionCreate(VariantOptionBase):
     model_config = ConfigDict(extra="forbid")
 
 
-class ProductVariantOption(ProductVariantOptionBase):
+class VariantOption(VariantOptionBase):
     id: int
 
-class ProductVariantOptionUpdate(BaseModel):
+class VariantOptionUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str | None = None

@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from src.api.admin.schemas.product_variant_option import ProductVariantOption
 
 
-class ProductVariantBase(BaseModel):
+class VariantBase(BaseModel):
     name: Annotated[str, Field(min_length=2, max_length=30, examples=["Variant ABC"])]
     description: Annotated[str, Field(min_length=0, max_length=30)]
     min_quantity: int
@@ -14,16 +14,16 @@ class ProductVariantBase(BaseModel):
     available: bool
 
 
-class ProductVariant(ProductVariantBase):
+class Variant(VariantBase):
     id: int
     options: list[ProductVariantOption]
 
 
-class ProductVariantCreate(ProductVariantBase):
+class VariantCreate(VariantBase):
     model_config = ConfigDict(extra="forbid")
 
 
-class ProductVariantUpdate(BaseModel):
+class VariantUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: Annotated[str | None, Field(min_length=2, max_length=30, examples=["Variant ABC"], default=None)]
