@@ -10,12 +10,12 @@ router = APIRouter(tags=["Variants"], prefix="/stores/{store_id}/variants")
 @router.post("", response_model=Variant)
 def create_product_variant(
         db: GetDBDep,
-        product: GetProductDep,
+        store: GetStoreDep,
         variant: VariantCreate,
 ):
     db_variant = models.Variant(
         **variant.model_dump(),
-        store_id=product.store_id,
+        store_id=store.id,
     )
 
     db.add(db_variant)
