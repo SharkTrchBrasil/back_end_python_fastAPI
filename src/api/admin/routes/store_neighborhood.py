@@ -40,12 +40,8 @@ def create_neighborhood(
 def list_neighborhoods(
     city_id: int,
     db: GetDBDep,
-    store: GetStoreDep,
+
 ):
-    # Só retorna bairros da cidades que pertencem à loja
-    city = db.query(StoreCity).filter(StoreCity.id == city_id, StoreCity.store_id == store.id).first()
-    if not city:
-        raise HTTPException(status_code=404, detail="City not found or does not belong to the store")
 
     neighborhoods = db.query(StoreNeighborhood).filter(StoreNeighborhood.city_id == city_id).all()
     return neighborhoods
@@ -56,7 +52,6 @@ def get_neighborhood(
     city_id: int,
     neighborhood_id: int,
     db: GetDBDep,
-    store: GetStoreDep,
 ):
     neighborhood = (
         db.query(StoreNeighborhood)
@@ -64,7 +59,6 @@ def get_neighborhood(
         .filter(
             StoreNeighborhood.id == neighborhood_id,
             StoreNeighborhood.city_id == city_id,
-            StoreCity.store_id == store.id,
         )
         .first()
     )
@@ -78,7 +72,6 @@ def update_neighborhood(
     city_id: int,
     neighborhood_id: int,
     db: GetDBDep,
-    store: GetStoreDep,
     name: str | None = Form(None),
     delivery_fee: int | None = Form(None),
     free_delivery: bool | None = Form(None),
@@ -90,7 +83,7 @@ def update_neighborhood(
         .filter(
             StoreNeighborhood.id == neighborhood_id,
             StoreNeighborhood.city_id == city_id,
-            StoreCity.store_id == store.id,
+
         )
         .first()
     )
@@ -116,7 +109,7 @@ def delete_neighborhood(
     city_id: int,
     neighborhood_id: int,
     db: GetDBDep,
-    store: GetStoreDep,
+
 ):
     neighborhood = (
         db.query(StoreNeighborhood)
@@ -124,7 +117,6 @@ def delete_neighborhood(
         .filter(
             StoreNeighborhood.id == neighborhood_id,
             StoreNeighborhood.city_id == city_id,
-            StoreCity.store_id == store.id,
         )
         .first()
     )
