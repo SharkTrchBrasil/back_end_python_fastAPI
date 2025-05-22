@@ -149,7 +149,7 @@ def create_product(
 #     return db_product
 
 
-@router.get("", response_model=list[Product])
+@router.get("", response_model=list[ProductOut])
 def get_products(db: GetDBDep, store: GetStoreDep, skip: int = 0, limit: int = 50):
     query = db.query(models.Product).filter(models.Product.store_id == store.id).options(
         joinedload(models.Product.category),
@@ -163,7 +163,7 @@ def get_products(db: GetDBDep, store: GetStoreDep, skip: int = 0, limit: int = 5
     return products
 
 
-@router.get("/{product_id}", response_model=Product)
+@router.get("/{product_id}", response_model=ProductOut)
 def get_product(
         product: GetProductDep
 ):
