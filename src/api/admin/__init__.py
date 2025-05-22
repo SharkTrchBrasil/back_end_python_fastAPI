@@ -12,7 +12,8 @@ from src.api.admin.routes.totems import router as totems_router
 from src.api.admin.routes.themes import router as themes_router
 from src.api.admin.routes.pix_configs import router as pix_configs_router
 from src.api.admin.routes.webhook import router as webhook_router
-
+from src.api.admin.routes.store_city import router as city_router
+from src.api.admin.routes.store_neighborhood import router as neighborhood_router
 
 
 
@@ -55,4 +56,5 @@ router.include_router(chatbot_router)
 
 router.include_router(delivery_options_router)
 
-
+router.include_router(city_router)
+router.include_router(neighborhood_router)
