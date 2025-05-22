@@ -153,7 +153,9 @@ def create_product(
 def get_products(db: GetDBDep, store: GetStoreDep, skip: int = 0, limit: int = 50):
     query = db.query(models.Product).filter(models.Product.store_id == store.id).options(
         joinedload(models.Product.category),
-        joinedload(models.Product.variant_links).joinedload(models.Variant.options)
+        joinedload(models.Product.variant_links)
+        .joinedload(models.ProductVariantProduct.variant)
+        .joinedload(models.Variant.options)
     )
     products = query.offset(skip).limit(limit).all()
     return products
