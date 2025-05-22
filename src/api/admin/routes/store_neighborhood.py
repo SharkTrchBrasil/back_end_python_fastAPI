@@ -11,8 +11,8 @@ router = APIRouter(prefix="/cities/{city_id}/neighborhoods", tags=["Neighborhood
 @router.post("", response_model=StoreNeighborhoodSchema)
 def create_neighborhood(
     city_id: int,
-    db: Session = Depends(GetDBDep),
-    store = Depends(GetStoreDep),
+    db: Session = GetDBDep,
+    store = GetStoreDep,
     name: str = Form(...),
     delivery_fee: int = Form(0),
     free_delivery: bool = Form(False),
