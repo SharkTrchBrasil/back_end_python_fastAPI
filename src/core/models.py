@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -401,3 +401,29 @@ class StoreHours(Base, TimestampMixin):
     close_time: Mapped[str] = mapped_column()          # exemplo: '18:00'
     shift_number: Mapped[int] = mapped_column()
     is_active: Mapped[bool] = mapped_column(default=True)
+
+
+class StoreCity(Base, TimestampMixin):
+    __tablename__ = "store_cities"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column()
+    delivery_fee: Mapped[float] = mapped_column(default=0.0)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
+    neighborhoods: Mapped[List["StoreNeighborhood"]] = relationship("StoreNeighborhood", back_populates="city",
+                                                                    cascade="all, delete")
+
+
+class StoreNeighborhood(Base, TimestampMixin):
+    __tablename__ = "store_neighborhoods"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column()
+
+    city_id: Mapped[int] = mapped_column(ForeignKey("store_cities.id", ondelete="CASCADE"))
+
+    delivery_fee: Mapped[float] = mapped_column(default=0.0)
+    free_delivery: Mapped[bool] = mapped_column(default=False)
+    is_active: Mapped[bool] = mapped_column(default=True)
+
+    city: Mapped["StoreCity"] = relationship("StoreCity", back_populates="neighborhoods")
