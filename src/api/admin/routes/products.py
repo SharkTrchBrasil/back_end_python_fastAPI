@@ -158,6 +158,8 @@ def get_products(db: GetDBDep, store: GetStoreDep, skip: int = 0, limit: int = 5
         .joinedload(models.Variant.options)
     )
     products = query.offset(skip).limit(limit).all()
+    for product in products:
+        product.variants = [link.variant for link in product.variant_links]
     return products
 
 
