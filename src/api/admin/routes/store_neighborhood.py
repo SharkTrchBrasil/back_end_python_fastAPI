@@ -14,7 +14,7 @@ def create_neighborhood(
     db: Session = Depends(GetDBDep),
     store = Depends(GetStoreDep),
     name: str = Form(...),
-    delivery_fee: float = Form(0.0),
+    delivery_fee: int = Form(0),
     free_delivery: bool = Form(False),
     is_active: bool = Form(True),
 ):
@@ -80,7 +80,7 @@ def update_neighborhood(
     db: Session = Depends(GetDBDep),
     store = Depends(GetStoreDep),
     name: str | None = Form(None),
-    delivery_fee: float | None = Form(None),
+    delivery_fee: int | None = Form(None),
     free_delivery: bool | None = Form(None),
     is_active: bool | None = Form(None),
 ):
