@@ -11,7 +11,7 @@ class Config(BaseSettings):
     AWS_BUCKET_NAME: str
     RESEND_API_KEY: str
 
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file="../.env")
 
 
 config = Config()

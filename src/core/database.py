@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from typing import Annotated
 
 from fastapi import Depends
@@ -19,6 +20,9 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+get_db_manager = contextmanager(get_db)
 
 
 GetDBDep = Annotated[Session, Depends(get_db)]

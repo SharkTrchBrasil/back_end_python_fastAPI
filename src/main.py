@@ -1,6 +1,9 @@
+import socketio
+import uvicorn
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
+from src.api.app.routes.realtime import sio
 from src.core import database
 from src.core.models import Base
 
@@ -9,11 +12,11 @@ from src.api.app import router as app_router
 
 Base.metadata.create_all(bind=database.engine)
 
-app = FastAPI(
-    title="TotemPRO API"
+fast_app = FastAPI(
+    title="PDVix API"
 )
 
-app.add_middleware(
+fast_app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
@@ -21,5 +24,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(admin_router)
-app.include_router(app_router)
+fast_app.include_router(admin_router)
+fast_app.include_router(app_router)
+
+app = socketio.ASGIApp(sio, fast_app)
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
