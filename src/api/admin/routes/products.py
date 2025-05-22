@@ -13,7 +13,7 @@ router = APIRouter(prefix="/stores/{store_id}/products", tags=["Products"])
 
 
 from fastapi import UploadFile, File, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 
 @router.post("", response_model=ProductOut)
@@ -151,22 +151,12 @@ def create_product(
 
 @router.get("", response_model=list[Product])
 def get_products(db: GetDBDep, store: GetStoreDep, skip: int = 0, limit: int = 50):
-    query = db.query(models.Product).filter(models.Product.store_id == store.id)
+    query = db.query(models.Product).filter(models.Product.store_id == store.id).options(
+        joinedload(models.Product.category),
+        joinedload(models.Product.variant_links).joinedload(models.Variant.options)
+    )
     products = query.offset(skip).limit(limit).all()
     return products
-
-
-
-
-# def get_products(
-#         db: GetDBDep,
-#         store: GetStoreDep,
-# ):
-#     db_products = db.query(models.Product).filter(models.Product.store_id == store.id).options(
-#         joinedload(models.Product.category),
-#         joinedload(models.Product.variants).joinedload(models.ProductVariant.options)
-#     ).all()
-#     return db_products
 
 
 @router.get("/{product_id}", response_model=Product)
