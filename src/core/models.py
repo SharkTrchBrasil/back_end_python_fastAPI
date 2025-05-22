@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary
+from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -161,7 +161,10 @@ class Product(Base, TimestampMixin):
     category: Mapped[Category] = relationship()
     file_key: Mapped[str] = mapped_column()
 
-    variant_links: Mapped[list["ProductVariantProduct"]] = relationship(back_populates="product")
+    variant_links: Mapped[list["ProductVariantProduct"]] = relationship(
+        back_populates="product",
+        cascade="all, delete-orphan"
+    )
 
     ean: Mapped[str] = mapped_column(default="")
     code: Mapped[str] = mapped_column(default="")
@@ -198,10 +201,10 @@ class Variant(Base, TimestampMixin):
 
     options: Mapped[list["VariantOptions"]] = relationship(back_populates="variant")
 
-    # ✅ relacionamento para acessar os produtos através da tabela associativa
-    product_links: Mapped[list["ProductVariantProduct"]] = relationship(back_populates="variant")
-
-
+    product_links: Mapped[list["ProductVariantProduct"]] = relationship(
+        back_populates="variant",
+        cascade="all, delete-orphan"
+    )
 
 class VariantOptions(Base, TimestampMixin):
     __tablename__ = "variant_options"
@@ -221,6 +224,9 @@ class VariantOptions(Base, TimestampMixin):
 
 class ProductVariantProduct(Base):
     __tablename__ = "product_variants_products"
+    __table_args__ = (
+        UniqueConstraint('product_id', 'variant_id', name='uix_product_variant'),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
