@@ -11,7 +11,7 @@ router = APIRouter(prefix="/stores/{store_id}/cities", tags=["Cities"])
 @router.post("", response_model=StoreCitySchema)
 def create_city(
     db: GetDBDep,
-    store = GetStoreDep,
+    store: GetStoreDep,
     name: str = Form(...),
     delivery_fee: int = Form(0),
     is_active: bool = Form(True),
