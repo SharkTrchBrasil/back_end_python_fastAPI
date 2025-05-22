@@ -39,8 +39,8 @@ def create_neighborhood(
 @router.get("", response_model=list[StoreNeighborhoodSchema])
 def list_neighborhoods(
     city_id: int,
-    db: Session = Depends(GetDBDep),
-    store = Depends(GetStoreDep),
+    db: GetDBDep,
+    store: GetStoreDep,
 ):
     # Só retorna bairros da cidades que pertencem à loja
     city = db.query(StoreCity).filter(StoreCity.id == city_id, StoreCity.store_id == store.id).first()
@@ -55,8 +55,8 @@ def list_neighborhoods(
 def get_neighborhood(
     city_id: int,
     neighborhood_id: int,
-    db: Session = Depends(GetDBDep),
-    store = Depends(GetStoreDep),
+    db: GetDBDep,
+    store: GetStoreDep,
 ):
     neighborhood = (
         db.query(StoreNeighborhood)
@@ -77,8 +77,8 @@ def get_neighborhood(
 def update_neighborhood(
     city_id: int,
     neighborhood_id: int,
-    db: Session = Depends(GetDBDep),
-    store = Depends(GetStoreDep),
+    db: GetDBDep,
+    store: GetStoreDep,
     name: str | None = Form(None),
     delivery_fee: int | None = Form(None),
     free_delivery: bool | None = Form(None),
@@ -115,8 +115,8 @@ def update_neighborhood(
 def delete_neighborhood(
     city_id: int,
     neighborhood_id: int,
-    db: Session = Depends(GetDBDep),
-    store = Depends(GetStoreDep),
+    db: GetDBDep,
+    store: GetStoreDep,
 ):
     neighborhood = (
         db.query(StoreNeighborhood)

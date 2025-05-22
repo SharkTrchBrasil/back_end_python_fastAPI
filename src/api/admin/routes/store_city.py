@@ -31,8 +31,8 @@ def create_city(
 
 @router.get("", response_model=list[StoreCitySchema])
 def list_cities(
-    db: Session = Depends(GetDBDep),
-    store = Depends(GetStoreDep),
+    db: GetDBDep,
+    store :GetStoreDep,
 ):
     cities = db.query(StoreCity).filter(StoreCity.store_id == store.id).all()
     return cities
@@ -41,8 +41,8 @@ def list_cities(
 @router.get("/{city_id}", response_model=StoreCitySchema)
 def get_city(
     city_id: int,
-    db: Session = Depends(GetDBDep),
-    store = Depends(GetStoreDep),
+    db: GetDBDep,
+    store: GetStoreDep,
 ):
     city = db.query(StoreCity).filter(StoreCity.id == city_id, StoreCity.store_id == store.id).first()
     if not city:
@@ -53,8 +53,8 @@ def get_city(
 @router.patch("/{city_id}", response_model=StoreCitySchema)
 def update_city(
     city_id: int,
-    db: Session = Depends(GetDBDep),
-    store = Depends(GetStoreDep),
+    db: GetDBDep,
+    store: GetStoreDep,
     name: str | None = Form(None),
     delivery_fee: int | None = Form(None),
     is_active: bool | None = Form(None),
@@ -79,8 +79,8 @@ def update_city(
 @router.delete("/{city_id}", status_code=204)
 def delete_city(
     city_id: int,
-    db: Session = Depends(GetDBDep),
-    store = Depends(GetStoreDep),
+    db: GetDBDep,
+    store: GetStoreDep,
 ):
     city = db.query(StoreCity).filter(StoreCity.id == city_id, StoreCity.store_id == store.id).first()
     if not city:
