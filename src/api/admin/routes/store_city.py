@@ -13,7 +13,7 @@ def create_city(
     db: Session = Depends(GetDBDep),
     store = Depends(GetStoreDep),
     name: str = Form(...),
-    delivery_fee: float = Form(0.0),
+    delivery_fee: int = Form(0),
 
 ):
     city = StoreCity(
