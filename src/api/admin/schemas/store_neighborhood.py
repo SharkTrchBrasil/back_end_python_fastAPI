@@ -4,7 +4,7 @@ from pydantic import BaseModel
 class StoreNeighborhoodBaseSchema(BaseModel):
     name: str
     city_id: int
-    delivery_fee: float = 0.0
+    delivery_fee: int = 0
     free_delivery: bool = False
     is_active: bool = True
 

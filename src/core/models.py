@@ -408,7 +408,7 @@ class StoreCity(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column()
-    delivery_fee: Mapped[float] = mapped_column(default=0.0)
+    delivery_fee: Mapped[int] = mapped_column(default=0)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
     neighborhoods: Mapped[List["StoreNeighborhood"]] = relationship("StoreNeighborhood", back_populates="city",
                                                                     cascade="all, delete")
@@ -422,7 +422,7 @@ class StoreNeighborhood(Base, TimestampMixin):
 
     city_id: Mapped[int] = mapped_column(ForeignKey("store_cities.id", ondelete="CASCADE"))
 
-    delivery_fee: Mapped[float] = mapped_column(default=0.0)
+    delivery_fee: Mapped[int] = mapped_column(default=0)
     free_delivery: Mapped[bool] = mapped_column(default=False)
     is_active: Mapped[bool] = mapped_column(default=True)
 
