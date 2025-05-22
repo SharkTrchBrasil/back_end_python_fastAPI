@@ -7,7 +7,7 @@ from src.core.aws import get_presigned_url
 
 
 # BASE SHARED MODEL
-class ProductBase(BaseModel):
+class Product(BaseModel):
     name: str
     description: str
     base_price: int
@@ -38,7 +38,7 @@ class ProductBase(BaseModel):
 
 
 # INPUT MODEL FOR CREATION
-class ProductCreate(ProductBase):
+class ProductCreate(Product):
     category_id: int
     store_id: int
     variant_ids: Optional[List[int]] = []
@@ -79,7 +79,7 @@ class ProductUpdate(BaseModel):
 
 
 # OUTPUT MODEL FOR API RESPONSE
-class ProductOut(ProductBase):
+class ProductOut(Product):
     id: int
     category: Category
     variants: List[Variant]
