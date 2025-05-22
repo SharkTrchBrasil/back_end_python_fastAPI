@@ -12,7 +12,7 @@ router = APIRouter(prefix="/cities/{city_id}/neighborhoods", tags=["Neighborhood
 def create_neighborhood(
     city_id: int,
     db: GetDBDep,
-    store = GetStoreDep,
+    store: GetStoreDep,
     name: str = Form(...),
     delivery_fee: int = Form(0),
     free_delivery: bool = Form(False),
