@@ -412,7 +412,7 @@ class StoreCity(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
     neighborhoods: Mapped[List["StoreNeighborhood"]] = relationship("StoreNeighborhood", back_populates="city",
                                                                     cascade="all, delete")
-
+    is_active: Mapped[bool] = mapped_column(default=True)
 
 class StoreNeighborhood(Base, TimestampMixin):
     __tablename__ = "store_neighborhoods"

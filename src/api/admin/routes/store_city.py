@@ -14,12 +14,14 @@ def create_city(
     store = Depends(GetStoreDep),
     name: str = Form(...),
     delivery_fee: int = Form(0),
+    is_active: bool = Form(True),
 
 ):
     city = StoreCity(
         name=name,
         delivery_fee=delivery_fee,
         store_id=store.id,
+        is_active=is_active,
     )
     db.add(city)
     db.commit()
@@ -54,7 +56,8 @@ def update_city(
     db: Session = Depends(GetDBDep),
     store = Depends(GetStoreDep),
     name: str | None = Form(None),
-    delivery_fee: float | None = Form(None),
+    delivery_fee: int | None = Form(None),
+    is_active: bool | None = Form(None),
 
 ):
     city = db.query(StoreCity).filter(StoreCity.id == city_id, StoreCity.store_id == store.id).first()
@@ -65,7 +68,8 @@ def update_city(
         city.name = name
     if delivery_fee is not None:
         city.delivery_fee = delivery_fee
-
+    if is_active is not None:
+        city.is_active = is_active
 
     db.commit()
     db.refresh(city)
