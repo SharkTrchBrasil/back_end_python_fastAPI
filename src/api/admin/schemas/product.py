@@ -1,14 +1,12 @@
-from typing import Optional, List, Annotated
-
-from fastapi import Form
+from typing import Optional, List
 from pydantic import BaseModel, Field, computed_field
 
 from src.api.admin.schemas.category import Category
 from src.api.admin.schemas.variant import Variant
-from src.api.admin.services.forms import as_form
 from src.core.aws import get_presigned_url
 
 
+# BASE SHARED MODEL
 class ProductBase(BaseModel):
     name: str
     description: str
@@ -35,72 +33,52 @@ class ProductBase(BaseModel):
     observation: str
     location: str
 
-    file_key: str
+    class Config:
+        orm_mode = True
 
 
-class Product(ProductBase):
-    id: int
-    category: Category
-    variants: list[Variant]
-
-    file_key: str = Field(exclude=True)
-
-    @computed_field
-    @property
-    def image_path(self) -> str:
-        return get_presigned_url(self.file_key)
-
-
-@as_form
-class ProductCreate(BaseModel):
-    name: str
-    description: str
-    base_price: int
-    cost_price: int = 0
-    available: bool
+# INPUT MODEL FOR CREATION
+class ProductCreate(ProductBase):
     category_id: int
-    ean: str = ""
-    code: str = ""
-    auto_code: bool = True
-    extra_code: str = ""
-    stock_quantity: int = 0
-    control_stock: bool = False
-    min_stock: int = 0
-    max_stock: int = 0
-    unit: str = ""
-    allow_fraction: bool = False
-    observation: str = ""
-    location: str = ""
-    #store_id: int
-    #variant_ids: List[int] = Form(default=[])
+    store_id: int
+    variant_ids: Optional[List[int]] = []
 
 
-@as_form
+# INPUT MODEL FOR UPDATE
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     base_price: Optional[int] = None
     cost_price: Optional[int] = None
     available: Optional[bool] = None
-    category_id: Optional[int] = None
+
+    promotion_price: Optional[int] = None
+    featured: Optional[bool] = None
+    activate_promotion: Optional[bool] = None
+
     ean: Optional[str] = None
     code: Optional[str] = None
     auto_code: Optional[bool] = None
     extra_code: Optional[str] = None
+
     stock_quantity: Optional[int] = None
     control_stock: Optional[bool] = None
     min_stock: Optional[int] = None
     max_stock: Optional[int] = None
+
     unit: Optional[str] = None
     allow_fraction: Optional[bool] = None
     observation: Optional[str] = None
     location: Optional[str] = None
-    promotion_price: Optional[int] = None
-    activate_promotion: Optional[bool] = None
-    featured: Optional[bool] = None
-    #variant_ids: Optional[List[int]] = None
+
+    category_id: Optional[int] = None
+    variant_ids: Optional[List[int]] = None
+
+    class Config:
+        orm_mode = True
 
 
+# OUTPUT MODEL FOR API RESPONSE
 class ProductOut(ProductBase):
     id: int
     category: Category
@@ -113,58 +91,32 @@ class ProductOut(ProductBase):
     def image_path(self) -> str:
         return get_presigned_url(self.file_key)
 
-# from typing import Optional, List
-#
-# from pydantic import BaseModel, Field, computed_field
-#
-# from src.api.admin.schemas.category import Category
-#
-# from src.api.admin.schemas.variant import ProductVariant
-# from src.core.aws import get_presigned_url
-#
-#
-# class Product(BaseModel):
-#     id: int
-#     name: str
-#     description: str
-#     base_price: int
-#     available: bool
-#
-#     promotion_price:int
-#
-#     features: bool
-#     activate_promotion: bool
-#
-#     category: Category
-#     variants: list[ProductVariant]
-#
-#
-#     ean: str
-#     code: str
-#     auto_code: bool
-#     extra_code: str
-#     cost_price: int
-#
-#
-#     stock_quantity: int
-#     control_stock: bool
-#     min_stock: int
-#     max_stock: int
-#
-#     unit: str
-#     allow_fraction: bool
-#     observation: str
-#     location: str
-#
-#     file_key: str = Field(exclude=True)
-#
-#     @computed_field
-#     @property
-#     def image_path(self) -> str:
-#         return get_presigned_url(self.file_key)
-#
-#
-# class ProductCreate(Product):
-#     category_id: int
-#     store_id: int
-#     variant_ids: Optional[List[int]] = []
+    @classmethod
+    def from_orm_obj(cls, orm_product) -> "ProductOut":
+        variants = [link.variant for link in orm_product.variant_links]
+        return cls(
+            id=orm_product.id,
+            name=orm_product.name,
+            description=orm_product.description,
+            base_price=orm_product.base_price,
+            available=orm_product.available,
+            promotion_price=orm_product.promotion_price,
+            featured=orm_product.featured,
+            activate_promotion=orm_product.activate_promotion,
+            ean=orm_product.ean,
+            code=orm_product.code,
+            auto_code=orm_product.auto_code,
+            extra_code=orm_product.extra_code,
+            cost_price=orm_product.cost_price,
+            stock_quantity=orm_product.stock_quantity,
+            control_stock=orm_product.control_stock,
+            min_stock=orm_product.min_stock,
+            max_stock=orm_product.max_stock,
+            unit=orm_product.unit,
+            allow_fraction=orm_product.allow_fraction,
+            observation=orm_product.observation,
+            location=orm_product.location,
+            file_key=orm_product.file_key,
+            category=orm_product.category,
+            variants=variants
+        )
