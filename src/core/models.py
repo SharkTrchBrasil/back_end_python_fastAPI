@@ -1,4 +1,5 @@
-from datetime import datetime
+import enum
+from datetime import datetime, date
 from typing import Optional, List
 
 from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint
@@ -61,6 +62,7 @@ class Store(Base, TimestampMixin):
     themes: Mapped[list["StoreTheme"]] = relationship()
     totem_authorizations: Mapped[list["TotemAuthorization"]] = relationship()
 
+    payables: Mapped[list["StorePayable"]] = relationship()
 
 
 
@@ -421,3 +423,38 @@ class StoreNeighborhood(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(default=True)
 
     city: Mapped["StoreCity"] = relationship("StoreCity", back_populates="neighborhoods")
+
+
+class PayableStatus(str, enum.Enum):
+    pending = "pending"
+    paid = "paid"
+    overdue = "overdue"
+    cancelled = "cancelled"
+
+class StorePayable(Base, TimestampMixin):
+    __tablename__ = "store_payables"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
+
+
+    title: Mapped[str] = mapped_column()
+    description: Mapped[str] = mapped_column( default="")
+
+    amount: Mapped[float] = mapped_column()                    # Valor original
+    discount: Mapped[float] = mapped_column(default=0.0)
+    addition: Mapped[float] = mapped_column(default=0.0)
+
+    due_date: Mapped[date] = mapped_column()
+    payment_date: Mapped[date] = mapped_column()
+
+    barcode: Mapped[str | None] = mapped_column( nullable=True)
+
+    status: Mapped[PayableStatus] = mapped_column(default=PayableStatus.pending)
+
+    is_recurring: Mapped[bool] = mapped_column(default=False)
+    notes: Mapped[str | None] = mapped_column(nullable=True)
+
+    # Relacionamentos
+    store: Mapped["Store"] = relationship(back_populates="payables")
