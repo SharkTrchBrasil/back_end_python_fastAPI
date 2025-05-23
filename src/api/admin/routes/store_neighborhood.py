@@ -12,16 +12,11 @@ router = APIRouter(prefix="/cities/{city_id}/neighborhoods", tags=["Neighborhood
 def create_neighborhood(
     city_id: int,
     db: GetDBDep,
-    store: GetStoreDep,
     name: str = Form(...),
     delivery_fee: int = Form(0),
     free_delivery: bool = Form(False),
     is_active: bool = Form(True),
 ):
-    # Verifica se a cidade pertence à loja do usuário
-    city = db.query(StoreCity).filter(StoreCity.id == city_id, StoreCity.store_id == store.id).first()
-    if not city:
-        raise HTTPException(status_code=404, detail="City not found or does not belong to the store")
 
     neighborhood = StoreNeighborhood(
         name=name,
