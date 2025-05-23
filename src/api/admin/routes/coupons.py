@@ -36,19 +36,6 @@ def create_coupon(
 
 
 
-@router.get("", response_model=list[Coupon])
-def get_coupons(
-        db: GetDBDep,
-        store: GetStoreDep,
-):
-    coupons = db.query(models.Coupon).filter(
-        models.Coupon.store_id == store.id,
-    ).all()
-
-    return coupons
-
-
-# # alterado do original para buscar o produto vinculado
 # @router.get("", response_model=list[Coupon])
 # def get_coupons(
 #         db: GetDBDep,
@@ -56,11 +43,30 @@ def get_coupons(
 # ):
 #     coupons = db.query(models.Coupon).filter(
 #         models.Coupon.store_id == store.id,
-#     ).options(
-#         joinedload(models.Coupon.product) # Carrega o produto e, dentro dele, a imagem
 #     ).all()
 #
 #     return coupons
+
+
+# alterado do original para buscar o produto vinculado
+@router.get("", response_model=list[Coupon])
+def get_coupons(
+        db: GetDBDep,
+        store: GetStoreDep,
+):
+    coupons = db.query(models.Coupon).filter(
+        models.Coupon.store_id == store.id,
+    ).options(
+        joinedload(models.Coupon.product)
+            .joinedload(models.Product.category),
+        joinedload(models.Coupon.product)
+            .joinedload(models.Product.variant_links)
+            .joinedload(models.ProductVariantProduct.variant),
+
+    ).all()
+
+
+    return coupons
 
 @router.get("/{coupon_id}", response_model=Coupon)
 def get_coupon(
