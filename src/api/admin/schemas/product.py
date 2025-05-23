@@ -18,9 +18,7 @@ class Product(BaseModel):
     activate_promotion: bool
 
     ean: str
-    code: str
-    auto_code: bool
-    extra_code: str
+
     cost_price: int
 
     stock_quantity: int
@@ -29,9 +27,6 @@ class Product(BaseModel):
     max_stock: int
 
     unit: str
-    allow_fraction: bool
-    observation: str
-    location: str
 
     class Config:
         orm_mode = True
@@ -57,9 +52,7 @@ class ProductUpdate(BaseModel):
     activate_promotion: Optional[bool] = None
 
     ean: Optional[str] = None
-    code: Optional[str] = None
-    auto_code: Optional[bool] = None
-    extra_code: Optional[str] = None
+
 
     stock_quantity: Optional[int] = None
     control_stock: Optional[bool] = None
@@ -67,9 +60,7 @@ class ProductUpdate(BaseModel):
     max_stock: Optional[int] = None
 
     unit: Optional[str] = None
-    allow_fraction: Optional[bool] = None
-    observation: Optional[str] = None
-    location: Optional[str] = None
+
 
     category_id: Optional[int] = None
     variant_ids: Optional[List[int]] = None
@@ -104,18 +95,14 @@ class ProductOut(Product):
             featured=orm_product.featured,
             activate_promotion=orm_product.activate_promotion,
             ean=orm_product.ean,
-            code=orm_product.code,
-            auto_code=orm_product.auto_code,
-            extra_code=orm_product.extra_code,
+
             cost_price=orm_product.cost_price,
             stock_quantity=orm_product.stock_quantity,
             control_stock=orm_product.control_stock,
             min_stock=orm_product.min_stock,
             max_stock=orm_product.max_stock,
             unit=orm_product.unit,
-            allow_fraction=orm_product.allow_fraction,
-            observation=orm_product.observation,
-            location=orm_product.location,
+
             file_key=orm_product.file_key,
             category=orm_product.category,
             variants=variants

@@ -2,12 +2,11 @@ from typing import Optional, List
 
 from fastapi import APIRouter, Form
 
-from src.api.admin.schemas.product import ProductCreate, Product, ProductUpdate, ProductOut
+from src.api.admin.schemas.product import ProductUpdate, ProductOut
 from src.core import models
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep, GetProductDep
-
 
 router = APIRouter(prefix="/stores/{store_id}/products", tags=["Products"])
 
@@ -31,17 +30,12 @@ def create_product(
     available: bool = Form(True),
     category_id: int | None = Form(None),
     ean: str | None = Form(None),
-    code: str | None = Form(None),
-    auto_code: bool = Form(True),
-    extra_code: str | None = Form(None),
+
     stock_quantity: int | None = Form(None),
     control_stock: bool = Form(False),
     min_stock: int | None = Form(None),
     max_stock: int | None = Form(None),
     unit: str | None = Form(None),
-    allow_fraction: bool = Form(False),
-    observation: str | None = Form(None),
-    location: str | None = Form(None),
     variant_ids: Optional[List[int]] = Form(None),
     image: UploadFile | None = File(None),
 ):
@@ -70,17 +64,13 @@ def create_product(
         category_id=category_id,
         store_id=store.id,
         ean=ean,
-        code=code,
-        auto_code=auto_code,
-        extra_code=extra_code,
+
         stock_quantity=stock_quantity,
         control_stock=control_stock,
         min_stock=min_stock,
         max_stock=max_stock,
         unit=unit,
-        allow_fraction=allow_fraction,
-        observation=observation,
-        location=location,
+
         file_key=file_key,
     )
 

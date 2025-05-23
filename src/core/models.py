@@ -167,9 +167,7 @@ class Product(Base, TimestampMixin):
     )
 
     ean: Mapped[str] = mapped_column(default="")
-    code: Mapped[str] = mapped_column(default="")
-    auto_code: Mapped[bool] = mapped_column(default=True)
-    extra_code: Mapped[str] = mapped_column(default="")
+
 
 
 
@@ -177,12 +175,8 @@ class Product(Base, TimestampMixin):
     control_stock: Mapped[bool] = mapped_column(default=False)
     min_stock: Mapped[int] = mapped_column(default=0)
     max_stock: Mapped[int] = mapped_column(default=0)
-
     unit: Mapped[str] = mapped_column(default="")
-    allow_fraction: Mapped[bool] = mapped_column(default=False)
 
-    observation: Mapped[str] = mapped_column(default="")
-    location: Mapped[str] = mapped_column(default="")
 
 
 class Variant(Base, TimestampMixin):
