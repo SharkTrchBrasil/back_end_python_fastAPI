@@ -73,7 +73,8 @@ class ProductUpdate(BaseModel):
 class ProductOut(Product):
     id: int
     category: Category
-    variants: List[Variant]
+    variants: List[Variant] = []
+
 
     file_key: str = Field(exclude=True)
 
@@ -84,7 +85,8 @@ class ProductOut(Product):
 
     @classmethod
     def from_orm_obj(cls, orm_product) -> "ProductOut":
-        variants = [link.variant for link in orm_product.variant_links]
+        variants = [link.variant for link in getattr(orm_product, "variant_links", []) or []]
+
         return cls(
             id=orm_product.id,
             name=orm_product.name,
