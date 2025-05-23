@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from src.api.admin.schemas.product import Product
+from src.api.admin.schemas.product import Product, ProductOut
 
 
 class CouponBase(BaseModel):
@@ -28,7 +28,7 @@ class CouponCreate(CouponBase):
 class Coupon(CouponBase):
     id: int
     used: int
-    product: Product | None = None
+    product: ProductOut | None = None
 
 
 class CouponUpdate(CouponBase):
