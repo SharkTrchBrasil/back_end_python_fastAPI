@@ -139,3 +139,24 @@ def update_payment_method(
 
     db.commit()
     return pm
+
+
+# ───────────────────────── DELETE ─────────────────────────
+@router.delete("/{pm_id}")
+def delete_payment_method(
+    db: GetDBDep,
+    store: GetStoreDep,
+    pm_id: int
+):
+    pm = (
+        db.query(models.StorePaymentMethods)
+          .filter(models.StorePaymentMethods.id == pm_id,
+                  models.StorePaymentMethods.store_id == store.id)
+          .first()
+    )
+    if not pm:
+        raise HTTPException(status_code=404, detail="Payment method not found")
+
+    db.delete(pm)
+    db.commit()
+    return {"detail": "Payment method deleted successfully"}
