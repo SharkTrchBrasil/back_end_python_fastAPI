@@ -160,37 +160,78 @@ def get_product(
     return product
 
 
-@router.patch("/{product_id}", response_model=ProductUpdate)
+@router.patch("/{product_id}", response_model=ProductOut)
 async def patch_product(
     product_id: int,
-    db: Session = Depends(GetDBDep),
-    db_product = Depends(GetProductDep),
+    db: GetDBDep,
+    store: GetStoreDep,
+    db_product: GetProductDep,
+
+    name: str | None = Form(None),
+    description: str | None = Form(None),
+    base_price: int | None = Form(None),
+    cost_price: int | None = Form(None),
+    promotion_price: int | None = Form(None),
+    featured: bool | None = Form(None),
+    activate_promotion: bool | None = Form(None),
+    available: bool | None = Form(None),
+    category_id: int | None = Form(None),
+    ean: str | None = Form(None),
+
+    stock_quantity: int | None = Form(None),
+    control_stock: bool | None = Form(None),
+    min_stock: int | None = Form(None),
+    max_stock: int | None = Form(None),
+    unit: str | None = Form(None),
     variant_ids: Optional[List[int]] = Form(None),
-    product_data: ProductUpdate = Depends(),
     image: UploadFile | None = File(None),
 ):
-    # Atualizar os campos presentes, exceto variant_ids
-    for field, value in product_data.model_dump(exclude_unset=True).items():
-        setattr(db_product, field, value)
+    # Atualizar campos presentes
+    if name is not None:
+        db_product.name = name
+    if description is not None:
+        db_product.description = description
+    if base_price is not None:
+        db_product.base_price = base_price
+    if cost_price is not None:
+        db_product.cost_price = cost_price
+    if promotion_price is not None:
+        db_product.promotion_price = promotion_price
+    if featured is not None:
+        db_product.featured = featured
+    if activate_promotion is not None:
+        db_product.activate_promotion = activate_promotion
+    if available is not None:
+        db_product.available = available
+    if ean is not None:
+        db_product.ean = ean
+    if stock_quantity is not None:
+        db_product.stock_quantity = stock_quantity
+    if control_stock is not None:
+        db_product.control_stock = control_stock
+    if min_stock is not None:
+        db_product.min_stock = min_stock
+    if max_stock is not None:
+        db_product.max_stock = max_stock
+    if unit is not None:
+        db_product.unit = unit
 
-    # Validar categoria se foi alterada
-    if product_data.category_id is not None:
+    if category_id is not None:
         category = db.query(models.Category).filter(
-            models.Category.id == product_data.category_id,
-            models.Category.store_id == db_product.store_id
+            models.Category.id == category_id,
+            models.Category.store_id == store.id
         ).first()
         if not category:
             raise HTTPException(status_code=400, detail="Category not found")
-        db_product.category_id = product_data.category_id
+        db_product.category_id = category_id
 
-    # Atualizar variantes usando o parâmetro variant_ids da rota
     if variant_ids is not None:
         variants = db.query(models.Variant).filter(
-            models.Variant.id.in_(variant_ids)
+            models.Variant.id.in_(variant_ids),
+            models.Variant.store_id == store.id
         ).all()
         db_product.variants = variants
 
-    # Upload de nova imagem e deletar a antiga
     if image:
         old_file_key = db_product.file_key
         new_file_key = upload_file(image)
@@ -202,6 +243,7 @@ async def patch_product(
 
     db.refresh(db_product)
     return db_product
+
 
 @router.delete("/{product_id}", status_code=204)
 def delete_product(product_id: int, db: Session = Depends(GetDBDep), db_product = Depends(GetProductDep)):
