@@ -9,6 +9,7 @@ class VariantOptionBase(BaseModel):
     max_quantity: int
 
     available: bool
+    is_free: bool
 
 
 class VariantOptionCreate(VariantOptionBase):
@@ -27,3 +28,4 @@ class VariantOptionUpdate(BaseModel):
     discount_price: int | None = None
     max_quantity: int | None = None
     available: bool | None = None
+    is_free: bool | None = None

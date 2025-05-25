@@ -206,6 +206,7 @@ class VariantOptions(Base, TimestampMixin):
     name: Mapped[str] = mapped_column()
     description: Mapped[str] = mapped_column()
     available: Mapped[bool] = mapped_column()
+    is_free: Mapped[bool] = mapped_column()
     price: Mapped[int] = mapped_column()
     discount_price: Mapped[int] = mapped_column()
     max_quantity: Mapped[int] = mapped_column()
