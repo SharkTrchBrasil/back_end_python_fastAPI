@@ -37,17 +37,16 @@ def create_store(
             payment_type=payment["payment_type"],
             custom_name=payment["custom_name"],
             custom_icon=payment.get("custom_icon"),
-            change_back=payment.get("change_back", False),
-            credit_in_account=False,
+
+
             is_active=True,
             active_on_delivery=True,
             active_on_pickup=True,
             active_on_counter=True,
             tax_rate=0.0,
-            days_to_receive=0,
-            has_fee=False,
+
             pix_key='',
-            pix_key_active=payment.get("pix_key_active", False)
+
         )
         db.add(db_payment)
 
