@@ -207,6 +207,8 @@ class VariantOptions(Base, TimestampMixin):
     description: Mapped[str] = mapped_column()
     available: Mapped[bool] = mapped_column()
     price: Mapped[int] = mapped_column()
+    discount_price: Mapped[int] = mapped_column()
+    max_quantity: Mapped[int] = mapped_column()
     # Aqui está a chave estrangeira necessária
     variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id"))
 
