@@ -1,19 +1,27 @@
+import os
 from logging.config import fileConfig
 
+from dotenv import load_dotenv
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
 
-from core.models import Base
+from src.core.models import Base
 
-
+# Carrega as variáveis do .env
+load_dotenv()
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
+
 config = context.config
-# conexão com banco de dados
-config.set_main_option("sqlalchemy.url", "postgresql://pdvix_user:PJ3FkBsIo0yPITpuSi2olQIVKBijvLM2@dpg-d05saiadbo4c7390l8l0-a.oregon-postgres.render.com/pdvix")
+
+config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL"))
+
+
+
+
 
 
 # Interpret the config file for Python logging.
