@@ -33,7 +33,7 @@ def create_store(
     # Cria as formas de pagamento
     for payment in default_payment_methods:
         db_payment = models.StorePaymentMethods(
-            store=db_store,
+            store_id=db_store.id,
             payment_type=payment["payment_type"],
             custom_name=payment["custom_name"],
             custom_icon=payment.get("custom_icon"),
