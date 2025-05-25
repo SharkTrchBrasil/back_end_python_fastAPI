@@ -120,8 +120,7 @@ class StorePaymentMethods(Base, TimestampMixin):
     custom_name:  Mapped[str]  = mapped_column()
     custom_icon: Mapped[str] = mapped_column(nullable=True)
 
-    change_back:        Mapped[bool] = mapped_column(default=False)
-    credit_in_account:  Mapped[bool] = mapped_column(default=False)
+
     is_active:          Mapped[bool] = mapped_column(default=True)
 
     active_on_delivery: Mapped[bool] = mapped_column(default=True)
@@ -129,8 +128,8 @@ class StorePaymentMethods(Base, TimestampMixin):
     active_on_counter:  Mapped[bool] = mapped_column(default=True)
 
     tax_rate:        Mapped[float] = mapped_column(default=0)
-    days_to_receive: Mapped[int]   = mapped_column(default=0)
-    has_fee:         Mapped[bool]  = mapped_column(default=False)
+
+
 
     pix_key:        Mapped[str]  = mapped_column(nullable=True)
     pix_key_active: Mapped[bool] = mapped_column(default=False)
