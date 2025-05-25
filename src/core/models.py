@@ -112,9 +112,7 @@ class StorePaymentMethods(Base, TimestampMixin):
     __tablename__ = "store_payment_methods"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    store: Mapped["Store"] = relationship()
     payment_type: Mapped[str] = mapped_column()  # 'Cash', 'Card', 'Pix', ...
 
     custom_name:  Mapped[str]  = mapped_column()
@@ -132,7 +130,7 @@ class StorePaymentMethods(Base, TimestampMixin):
 
 
     pix_key:        Mapped[str]  = mapped_column(nullable=True)
-    pix_key_active: Mapped[bool] = mapped_column(default=False)
+
 
 
 class StoreType(Base):

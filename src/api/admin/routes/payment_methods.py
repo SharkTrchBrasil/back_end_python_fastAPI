@@ -28,7 +28,6 @@ def create_payment_method(
     tax_rate: float = Form(0.0),
 
     pix_key: str | None = Form(None),
-    pix_key_active: bool = Form(False),
 ):
     pm = models.StorePaymentMethods(
         store_id=store.id,
@@ -43,7 +42,7 @@ def create_payment_method(
         active_on_counter=active_on_counter,
         tax_rate=tax_rate,
         pix_key=pix_key,
-        pix_key_active=pix_key_active
+
     )
 
     db.add(pm)
@@ -93,7 +92,7 @@ def update_payment_method(
     tax_rate: float | None = Form(None),
 
     pix_key: str | None = Form(None),
-    pix_key_active: bool | None = Form(None),
+
 ):
     pm = (
         db.query(models.StorePaymentMethods)
@@ -119,7 +118,7 @@ def update_payment_method(
 
 
     if pix_key is not None:            pm.pix_key = pix_key
-    if pix_key_active is not None:     pm.pix_key_active = pix_key_active
+
 
     db.commit()
     return pm
