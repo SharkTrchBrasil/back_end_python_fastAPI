@@ -68,7 +68,7 @@ def close_cash_register(id: int, db: GetDBDep, store: GetStoreDep):
 
     register.closed_at = datetime.utcnow()
     db.commit()
-    return {"detail": "Caixa fechado com sucesso"}
+    return register
 
 
 # ➕➖ Adicionar movimentação ao caixa
@@ -103,4 +103,4 @@ def add_cash_movement(
 
     db.add(movement)
     db.commit()
-    return {"detail": "Movimento registrado com sucesso"}
+    return movement
