@@ -2,7 +2,7 @@ import enum
 from datetime import datetime, date
 from typing import Optional, List
 
-from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint
+from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
