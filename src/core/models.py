@@ -458,3 +458,58 @@ class StorePayable(Base, TimestampMixin):
 
     # Relacionamentos
     store: Mapped["Store"] = relationship(back_populates="payables")
+
+
+# MODELOS SQLALCHEMY
+class CashRegister(Base, TimestampMixin):
+    __tablename__ = "cash_registers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
+    number: Mapped[int] = mapped_column()  # Número do caixa físico
+    name: Mapped[str] = mapped_column()
+    is_active: Mapped[bool] = mapped_column(default=True)
+
+    sessions = relationship("CashierSession", back_populates="cash_register", cascade="all, delete-orphan")
+
+
+class CashierSession(Base, TimestampMixin):
+    __tablename__ = "cashier_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    cash_register_id: Mapped[int] = mapped_column(ForeignKey("cash_registers.id", ondelete="CASCADE"))
+    user_opened_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_closed_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+    opened_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    closed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+
+    opening_amount: Mapped[float] = mapped_column()
+    cash_added: Mapped[float] = mapped_column(default=0.0)
+    cash_removed: Mapped[float] = mapped_column(default=0.0)
+    total_sales: Mapped[float] = mapped_column(default=0.0)
+    total_received: Mapped[float] = mapped_column(default=0.0)
+    closing_amount: Mapped[Optional[float]] = mapped_column(default=None)
+    gross_profit: Mapped[float] = mapped_column(default=0.0)
+    cash_difference: Mapped[float] = mapped_column(default=0.0)  # Quebra de caixa
+
+    status: Mapped[str] = mapped_column(default="open")
+    notes: Mapped[Optional[str]] = mapped_column(nullable=True)
+
+    cash_register = relationship("CashRegister", back_populates="sessions")
+    transactions = relationship("CashierTransaction", back_populates="cashier_session", cascade="all, delete-orphan")
+
+
+class CashierTransaction(Base, TimestampMixin):
+    __tablename__ = "cashier_transactions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    cashier_session_id: Mapped[int] = mapped_column(ForeignKey("cashier_sessions.id", ondelete="CASCADE"))
+
+    type: Mapped[str] = mapped_column()  # sale, refund, inflow, outflow, withdraw, sangria
+    amount: Mapped[float] = mapped_column()
+    description: Mapped[Optional[str]] = mapped_column(nullable=True)
+    payment_method: Mapped[str] = mapped_column()  # cash, credit_card, pix, etc.
+    related_order_id: Mapped[Optional[int]] = mapped_column(ForeignKey("orders.id"), nullable=True)
+
+    cashier_session = relationship("CashierSession", back_populates="transactions")
