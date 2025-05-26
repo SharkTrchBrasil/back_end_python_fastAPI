@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from datetime import datetime
 
 class CashRegisterBase(BaseModel):
-    store_id: int
+
     number: int
     name: str
     is_active: bool = True
@@ -20,5 +20,4 @@ class CashRegisterOut(CashRegisterBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        orm_mode = True
+
