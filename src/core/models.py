@@ -473,6 +473,9 @@ class CashRegister(Base):
     initial_balance: Mapped[float] = mapped_column(Numeric(10, 2))
     current_balance: Mapped[float] = mapped_column(Numeric(10, 2))
 
+    # ADICIONE ESTA LINHA:
+    sessions: Mapped[List["CashierSession"]] = relationship(back_populates="cash_register")
+
     store: Mapped["Store"] = relationship(back_populates="cash_registers")
     movements: Mapped[list["CashMovement"]] = relationship(back_populates="register")
 
