@@ -475,8 +475,8 @@ class CashRegister(Base, TimestampMixin): # Garanta que TimestampMixin está sen
 
     # --- ADICIONE ESTAS COLUNAS ---
     number: Mapped[int] = mapped_column(default=1) # Exemplo de valor padrão
-    name: Mapped[str] = mapped_column(String, default="Caixa Principal")
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    name: Mapped[str] = mapped_column(default="Caixa Principal")
+    is_active: Mapped[bool] = mapped_column(default=True)
     # -----------------------------
 
     store: Mapped["Store"] = relationship(back_populates="cash_registers")
