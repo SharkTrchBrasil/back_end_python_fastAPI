@@ -45,6 +45,9 @@ def open_cash_register(data: CashRegisterCreate, db: GetDBDep, store: GetStoreDe
         opened_at=datetime.utcnow(),
         initial_balance=data.initial_balance,
         current_balance=data.initial_balance,
+        number=data.number,  # ADICIONAR
+        name=data.name,  # ADICIONAR
+        is_active=data.is_active,  # Opcional
     )
     db.add(register)
     db.commit()
@@ -53,7 +56,7 @@ def open_cash_register(data: CashRegisterCreate, db: GetDBDep, store: GetStoreDe
 
 
 # 🧾 Fechar o caixa
-@router.post("/{id}/close")
+@router.post("/{id}/close", response_model=CashRegisterOut)
 def close_cash_register(id: int, db: GetDBDep, store: GetStoreDep):
     register = (
         db.query(CashRegister)
@@ -69,7 +72,7 @@ def close_cash_register(id: int, db: GetDBDep, store: GetStoreDep):
 
 
 # ➕➖ Adicionar movimentação ao caixa
-@router.post("/{id}/movement")
+@router.post("/{id}/movement", response_model=CashRegisterOut)
 def add_cash_movement(
         id: int,
         data: CashMovementCreate,
@@ -79,6 +82,9 @@ def add_cash_movement(
     register = db.query(CashRegister).filter_by(id=id, store_id=store.id).first()
     if not register or register.closed_at is not None:
         raise HTTPException(status_code=404, detail="Caixa não encontrado ou já fechado")
+
+    if data.type == "out" and register.current_balance < data.amount:
+        raise HTTPException(status_code=400, detail="Saldo insuficiente para retirada")
 
     movement = CashMovement(
         register_id=id,
