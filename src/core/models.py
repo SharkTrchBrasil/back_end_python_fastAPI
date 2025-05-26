@@ -461,18 +461,20 @@ class StorePayable(Base, TimestampMixin):
 
 
 # MODELOS SQLALCHEMY
-class CashRegister(Base, TimestampMixin):
+class CashRegister(Base):
     __tablename__ = "cash_registers"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
-    number: Mapped[int] = mapped_column()  # Número do caixa físico
-    name: Mapped[str] = mapped_column()
-    is_active: Mapped[bool] = mapped_column(default=True)
-    movements = relationship("CashMovement", back_populates="register")
 
-    sessions = relationship("CashierSession", back_populates="cash_register", cascade="all, delete-orphan")
+    opened_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    closed_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
+    initial_balance: Mapped[float] = mapped_column(Numeric(10, 2))
+    current_balance: Mapped[float] = mapped_column(Numeric(10, 2))
+
+    store: Mapped["Store"] = relationship(back_populates="cash_registers")
+    movements: Mapped[list["CashMovement"]] = relationship(back_populates="register")
 
 class CashierSession(Base, TimestampMixin):
     __tablename__ = "cashier_sessions"
