@@ -461,23 +461,28 @@ class StorePayable(Base, TimestampMixin):
 
 
 # MODELOS SQLALCHEMY
-class CashRegister(Base):
+class CashRegister(Base, TimestampMixin): # Garanta que TimestampMixin está sendo aplicado
     __tablename__ = "cash_registers"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
 
     opened_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    closed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    closed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True) # Pode ser nulo
 
     initial_balance: Mapped[float] = mapped_column(Numeric(10, 2))
     current_balance: Mapped[float] = mapped_column(Numeric(10, 2))
 
-    # ADICIONE ESTA LINHA:
-    sessions: Mapped[List["CashierSession"]] = relationship(back_populates="cash_register")
+    # --- ADICIONE ESTAS COLUNAS ---
+    number: Mapped[int] = mapped_column(default=1) # Exemplo de valor padrão
+    name: Mapped[str] = mapped_column(String, default="Caixa Principal")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # -----------------------------
 
     store: Mapped["Store"] = relationship(back_populates="cash_registers")
-    movements: Mapped[list["CashMovement"]] = relationship(back_populates="register")
+    sessions: Mapped[List["CashierSession"]] = relationship(back_populates="cash_register")
+    movements: Mapped[List["CashMovement"]] = relationship(back_populates="register")
+
 
 class CashierSession(Base, TimestampMixin):
     __tablename__ = "cashier_sessions"
