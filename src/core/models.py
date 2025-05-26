@@ -469,6 +469,7 @@ class CashRegister(Base, TimestampMixin):
     number: Mapped[int] = mapped_column()  # Número do caixa físico
     name: Mapped[str] = mapped_column()
     is_active: Mapped[bool] = mapped_column(default=True)
+    movements = relationship("CashMovement", back_populates="register")
 
     sessions = relationship("CashierSession", back_populates="cash_register", cascade="all, delete-orphan")
 
@@ -513,3 +514,20 @@ class CashierTransaction(Base, TimestampMixin):
    # related_order_id: Mapped[Optional[int]] = mapped_column(ForeignKey("orders.id"), nullable=True)
 
     cashier_session = relationship("CashierSession", back_populates="transactions")
+
+
+class CashMovement(Base, TimestampMixin):
+    __tablename__ = "cash_movements"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
+    register_id: Mapped[int] = mapped_column(ForeignKey("cash_registers.id", ondelete="CASCADE"))
+
+    type: Mapped[str] = mapped_column()  # "in" ou "out"
+    amount: Mapped[float] = mapped_column(Numeric(10, 2))
+    note: Mapped[str | None] = mapped_column(nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    register: Mapped["CashRegister"] = relationship("CashRegister", back_populates="movements")

@@ -1,48 +1,100 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from datetime import datetime
 
-from src.api.admin.schemas.cash_register import CashRegisterOut, CashRegisterCreate, CashRegisterUpdate
+from src.api.admin.schemas.cash_register import (
+    CashRegisterOut,
+    CashRegisterCreate,
+    CashRegisterUpdate,
+)
+from src.api.admin.schemas.cash_movement import CashMovementCreate
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
-from src.core.models import CashRegister
+from src.core.models import CashRegister, CashMovement
 
 router = APIRouter(prefix="/stores/{store_id}/cash_registers", tags=["Caixas"])
 
-@router.post("", response_model=CashRegisterOut)
-def create_cash_register(data: CashRegisterCreate, db: GetDBDep, store: GetStoreDep):
-    register = CashRegister(**data.model_dump(), store_id=store.id)
+
+# 🔄 Buscar caixa aberto
+@router.get("/open", response_model=CashRegisterOut)
+def get_open_cash_register(db: GetDBDep, store: GetStoreDep):
+    register = (
+        db.query(CashRegister)
+        .filter_by(store_id=store.id, closed_at=None)
+        .order_by(CashRegister.id.desc())
+        .first()
+    )
+    if not register:
+        raise HTTPException(status_code=404, detail="Nenhum caixa aberto")
+    return register
+
+
+# 📦 Abrir o caixa
+@router.post("/open", response_model=CashRegisterOut)
+def open_cash_register(data: CashRegisterCreate, db: GetDBDep, store: GetStoreDep):
+    existing_open = (
+        db.query(CashRegister)
+        .filter_by(store_id=store.id, closed_at=None)
+        .first()
+    )
+    if existing_open:
+        raise HTTPException(status_code=400, detail="Já existe um caixa aberto")
+
+    register = CashRegister(
+        store_id=store.id,
+        opened_at=datetime.utcnow(),
+        initial_balance=data.initial_balance,
+        current_balance=data.initial_balance,
+    )
     db.add(register)
     db.commit()
     db.refresh(register)
     return register
 
-@router.get("/{id}", response_model=CashRegisterOut)
-def get_cash_register(id: int, db: GetDBDep, store: GetStoreDep):
-    register = db.query(CashRegister).filter_by(id=id, store_id=store.id).first()
-    if not register:
-        raise HTTPException(status_code=404, detail="Caixa não encontrado")
-    return register
 
-@router.get("", response_model=list[CashRegisterOut])
-def list_cash_registers(db: GetDBDep, store: GetStoreDep):
-    return db.query(CashRegister).filter_by(store_id=store.id).all()
-
-@router.put("/{id}", response_model=CashRegisterOut)
-def update_cash_register(id: int, data: CashRegisterUpdate, db: GetDBDep, store: GetStoreDep):
-    register = db.query(CashRegister).filter_by(id=id, store_id=store.id).first()
+# 🧾 Fechar o caixa
+@router.post("/{id}/close")
+def close_cash_register(id: int, db: GetDBDep, store: GetStoreDep):
+    register = (
+        db.query(CashRegister)
+        .filter_by(id=id, store_id=store.id, closed_at=None)
+        .first()
+    )
     if not register:
-        raise HTTPException(status_code=404, detail="Caixa não encontrado")
-    for key, value in data.dict(exclude_unset=True).items():
-        setattr(register, key, value)
+        raise HTTPException(status_code=404, detail="Caixa não encontrado ou já fechado")
+
+    register.closed_at = datetime.utcnow()
     db.commit()
-    db.refresh(register)
-    return register
+    return {"detail": "Caixa fechado com sucesso"}
 
-@router.delete("/{id}")
-def delete_cash_register(id: int, db: GetDBDep, store: GetStoreDep):
+
+# ➕➖ Adicionar movimentação ao caixa
+@router.post("/{id}/movement")
+def add_cash_movement(
+        id: int,
+        data: CashMovementCreate,
+        db: GetDBDep,
+        store: GetStoreDep
+):
     register = db.query(CashRegister).filter_by(id=id, store_id=store.id).first()
-    if not register:
-        raise HTTPException(status_code=404, detail="Caixa não encontrado")
-    db.delete(register)
+    if not register or register.closed_at is not None:
+        raise HTTPException(status_code=404, detail="Caixa não encontrado ou já fechado")
+
+    movement = CashMovement(
+        register_id=id,
+        store_id=store.id,
+        type=data.type,
+        amount=data.amount,
+        note=data.note,
+        created_at=datetime.utcnow(),
+    )
+
+    # Atualiza saldo atual
+    if data.type == "in":
+        register.current_balance += data.amount
+    elif data.type == "out":
+        register.current_balance -= data.amount
+
+    db.add(movement)
     db.commit()
-    return {"detail": "Caixa removido com sucesso"}
+    return {"detail": "Movimento registrado com sucesso"}
