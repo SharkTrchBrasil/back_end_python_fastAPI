@@ -63,7 +63,7 @@ class Store(Base, TimestampMixin):
     totem_authorizations: Mapped[list["TotemAuthorization"]] = relationship()
 
     payables: Mapped[list["StorePayable"]] = relationship()
-
+    cash_registers: Mapped[List["CashRegister"]] = relationship(back_populates="store")
 
 
 class User(Base, TimestampMixin):
