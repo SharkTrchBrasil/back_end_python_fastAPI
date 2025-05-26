@@ -12,7 +12,7 @@ from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 from src.core.models import CashRegister, CashMovement
 
-router = APIRouter(prefix="/stores/{store_id}/cash_registers", tags=["Caixas"])
+router = APIRouter(prefix="/stores/{store_id}/cash_register", tags=["Caixas"])
 
 
 # 🔄 Buscar caixa aberto
