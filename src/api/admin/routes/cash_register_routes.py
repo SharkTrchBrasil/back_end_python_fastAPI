@@ -5,7 +5,7 @@ from datetime import datetime
 from src.api.admin.schemas.cash_register import (
     CashRegisterOut,
     CashRegisterCreate,
-    CashRegisterUpdate,
+    CashRegisterCreateUpdateBase,
 )
 from src.api.admin.schemas.cash_movement import CashMovementCreate
 from src.core.database import GetDBDep
