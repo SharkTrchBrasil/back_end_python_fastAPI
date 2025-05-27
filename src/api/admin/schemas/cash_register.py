@@ -18,16 +18,18 @@ class CashRegisterCreate(CashRegisterCreateUpdateBase):
 
 # --- Schema para Saída (o que o backend retorna) ---
 # Este schema define todos os campos que o backend *retorna* sobre um CashRegister
-class CashRegisterOut(BaseModel): # Use BaseModel diretamente ou herde de um Base genérico se tiver
+class CashRegisterOut(BaseModel):
     id: int
-    store_id: int # Retornado pelo backend
+    store_id: int
     opened_at: datetime
-    closed_at: Optional[datetime] = None # Pode ser nulo
-    initial_balance: float
-    current_balance: float
+    closed_at: Optional[datetime] = None
+    initial_balance: float # ou Decimal
+    current_balance: float # ou Decimal
     is_active: bool
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True # Antigo orm_mode = True no Pydantic v2
+    # --- NOVOS CAMPOS AQUI ---
+    total_in: float # ou Decimal
+    total_out: float # ou Decimal
+    # -------------------------

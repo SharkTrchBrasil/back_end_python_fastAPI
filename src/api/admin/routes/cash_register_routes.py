@@ -1,112 +1,59 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from datetime import datetime
-# No topo do seu arquivo cash_register_routes.py
+
+
+from fastapi import APIRouter, HTTPException
+
+from sqlalchemy import func
 from decimal import Decimal
 
-from src.api.admin.schemas.cash_register import (
-    CashRegisterOut,
-    CashRegisterCreate,
-    CashRegisterCreateUpdateBase,
-)
-from src.api.admin.schemas.cash_movement import CashMovementCreate, CashMovementOut
+from src.api.admin.schemas.cash_register import CashRegisterOut
 from src.core.database import GetDBDep
-from src.core.dependencies import GetStoreDep
+
 from src.core.models import CashRegister, CashMovement
 
-router = APIRouter(prefix="/stores/{store_id}/cash-register", tags=["Caixas"])
 
 
-# 🔄 Buscar caixa aberto
+
+router = APIRouter(prefix="/{store_id}/cash-register", tags=["Cash Register"])
+
+# Rota para obter o caixa aberto
 @router.get("/open", response_model=CashRegisterOut)
-def get_open_cash_register(db: GetDBDep, store: GetStoreDep):
-    register = (
-        db.query(CashRegister)
-        .filter_by(store_id=store.id, closed_at=None)
-        .order_by(CashRegister.id.desc())
-        .first()
-    )
-    if not register:
-        raise HTTPException(status_code=404, detail="Nenhum caixa aberto")
-    return register
+def get_open_cash_register(store_id: int, db: GetDBDep):
+    cash_register = db.query(CashRegister).filter(
+        CashRegister.store_id == store_id,
+        CashRegister.closed_at.is_(None)
+    ).first()
 
+    if not cash_register:
+        raise HTTPException(status_code=404, detail="Nenhum caixa aberto para esta loja.")
 
-# 📦 Abrir o caixa
-@router.post("/open", response_model=CashRegisterOut)
-def open_cash_register(data: CashRegisterCreate, db: GetDBDep, store: GetStoreDep):
-    existing_open = (
-        db.query(CashRegister)
-        .filter_by(store_id=store.id, closed_at=None)
-        .first()
-    )
-    if existing_open:
-        raise HTTPException(status_code=400, detail="Já existe um caixa aberto")
+    # --- CALCULAR TOTAIS DE ENTRADA E SAÍDA ---
+    # Soma dos movimentos de entrada
+    total_in_query = db.query(func.sum(CashMovement.amount)).filter(
+        CashMovement.register_id == cash_register.id,
+        CashMovement.type == 'in'
+    ).scalar() or Decimal('0.00') if isinstance(cash_register.initial_balance, Decimal) else 0.0
 
-    register = CashRegister(
-        store_id=store.id,
-        opened_at=datetime.utcnow(),
-        initial_balance=data.initial_balance,
-        current_balance=data.initial_balance,
-        is_active=data.is_active,  # Opcional
-    )
-    db.add(register)
-    db.commit()
-    db.refresh(register)
-    return register
+    # Soma dos movimentos de saída
+    total_out_query = db.query(func.sum(CashMovement.amount)).filter(
+        CashMovement.register_id == cash_register.id,
+        CashMovement.type == 'out'
+    ).scalar() or Decimal('0.00') if isinstance(cash_register.initial_balance, Decimal) else 0.0
 
-
-# 🧾 Fechar o caixa
-@router.post("/{id}/close", response_model=CashRegisterOut)
-def close_cash_register(id: int, db: GetDBDep, store: GetStoreDep):
-    register = (
-        db.query(CashRegister)
-        .filter_by(id=id, store_id=store.id, closed_at=None)
-        .first()
-    )
-    if not register:
-        raise HTTPException(status_code=404, detail="Caixa não encontrado ou já fechado")
-
-    register.closed_at = datetime.utcnow()
-    db.commit()
-    return register
-
-
-# ➕➖ Adicionar movimentação ao caixa
-@router.post("/{id}/movement", response_model=CashMovementOut)
-def add_cash_movement(
-        id: int,
-        data: CashMovementCreate,
-        db: GetDBDep,
-        store: GetStoreDep
-):
-    register = db.query(CashRegister).filter_by(id=id, store_id=store.id).first()
-    if not register or register.closed_at is not None:
-        raise HTTPException(status_code=404, detail="Caixa não encontrado ou já fechado")
-
-    if data.type == "out" and register.current_balance < data.amount:
-        raise HTTPException(status_code=400, detail="Saldo insuficiente para retirada")
-
-    # Converte o float recebido para Decimal ANTES de qualquer operação
-    amount_decimal = Decimal(str(data.amount)) # Use str() para evitar imprecisões do float na conversão
-
-    movement = CashMovement(
-        register_id=id,
-        store_id=store.id,
-        type=data.type,
-        amount=amount_decimal,
-        note=data.note,
-        created_at=datetime.utcnow(),
+    # Criar uma instância de CashRegisterOut com os totais
+    # O Pydantic irá lidar com a serialização dos campos diretamente do objeto ORM
+    # mas você precisa passar os campos calculados separadamente.
+    response_data = CashRegisterOut(
+        id=cash_register.id,
+        store_id=cash_register.store_id,
+        opened_at=cash_register.opened_at,
+        closed_at=cash_register.closed_at,
+        initial_balance=cash_register.initial_balance,
+        current_balance=cash_register.current_balance,
+        is_active=cash_register.is_active,
+        created_at=cash_register.created_at,
+        updated_at=cash_register.updated_at,
+        total_in=float(total_in_query) if isinstance(total_in_query, Decimal) else total_in_query, # Converte para float se for Decimal
+        total_out=float(total_out_query) if isinstance(total_out_query, Decimal) else total_out_query, # Converte para float se for Decimal
     )
 
-    # Atualiza o saldo atual do caixa usando Decimal
-    if data.type == 'in':
-        register.current_balance += amount_decimal # AGORA OS TIPOS SÃO COMPATÍVEIS!
-    elif data.type == 'out':
-        if register.current_balance < amount_decimal: # Comparação também com Decimal
-            raise HTTPException(status_code=400, detail="Saldo insuficiente para esta retirada.")
-        register.current_balance -= amount_decimal # AGORA OS TIPOS SÃO COMPATÍVEIS!
-
-
-    db.add(movement)
-    db.commit()
-    return movement
+    return response_data # Retorna o objeto CashRegisterOut preenchido
