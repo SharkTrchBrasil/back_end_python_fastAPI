@@ -1,7 +1,7 @@
 # SEUS SCHEMAS:
 from pydantic import BaseModel, Field
 from decimal import Decimal # Se você usa Decimal, mantenha
-from typing import Optional
+from typing import Optional, Dict
 from datetime import datetime
 
 # --- Schema Base para Campos Comuns de Criação/Atualização ---
@@ -33,3 +33,4 @@ class CashRegisterOut(BaseModel):
     total_in: float # ou Decimal
     total_out: float # ou Decimal
     # -------------------------
+    payment_summary: Dict[str, float]  # <- Aqui vem os totais por forma de pagamento

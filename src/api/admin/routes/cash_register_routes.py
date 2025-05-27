@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from datetime import datetime
@@ -5,7 +7,8 @@ from sqlalchemy import func
 from decimal import Decimal # Importar Decimal para lidar com precisão monetária
 
 # Importar seus modelos SQLAlchemy
-from src.core.models import CashRegister, CashMovement # Assumindo que CashMovement está no mesmo arquivo ou importável
+from src.core.models import CashRegister, CashMovement, \
+    CashierSession  # Assumindo que CashMovement está no mesmo arquivo ou importável
 
 # Importar seus schemas Pydantic
 from src.api.admin.schemas.cash_register import CashRegisterCreate, CashRegisterOut
@@ -155,6 +158,20 @@ def close_cash_register(cash_register_id: int, store: GetStoreDep, db: GetDBDep)
         CashMovement.type == 'out'
     ).scalar() or Decimal('0.00')
 
+    # 🔢 Totais por meio de pagamento (em transações de sessões desse caixa)
+    payment_summary = defaultdict(Decimal)
+
+    sessions = db.query(CashierSession).filter(
+        CashierSession.cash_register_id == cash_register.id
+    ).all()
+
+    for session in sessions:
+        for transaction in session.transactions:
+            payment_summary[transaction.payment_method] += Decimal(str(transaction.amount))
+
+    # Converte Decimal para float para retorno via Pydantic
+    payment_summary = {k: float(v) for k, v in payment_summary.items()}
+
     return CashRegisterOut(
         id=cash_register.id,
         store_id=cash_register.store_id,
@@ -167,6 +184,7 @@ def close_cash_register(cash_register_id: int, store: GetStoreDep, db: GetDBDep)
         updated_at=cash_register.updated_at,
         total_in=float(total_in_query),
         total_out=float(total_out_query),
+        payment_summary=payment_summary,
     )
 
 # ➕➖ Adicionar movimentação ao caixa

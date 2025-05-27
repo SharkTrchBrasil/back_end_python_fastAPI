@@ -2,9 +2,10 @@ import enum
 from datetime import datetime, date
 from typing import Optional, List
 
-from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric
+from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric, update, event, Enum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from src.core.helpers.enums import CashMovementType, PaymentMethod, CashierTransactionType
 
 
 class Base(DeclarativeBase):
@@ -64,6 +65,7 @@ class Store(Base, TimestampMixin):
 
     payables: Mapped[list["StorePayable"]] = relationship()
     cash_registers: Mapped[List["CashRegister"]] = relationship(back_populates="store")
+    orders: Mapped[List["Order"]] = relationship("Order", back_populates="store", cascade="all, delete-orphan")
 
 
 class User(Base, TimestampMixin):
@@ -480,6 +482,7 @@ class CashRegister(Base, TimestampMixin): # Garanta que TimestampMixin está sen
     store: Mapped["Store"] = relationship(back_populates="cash_registers")
     sessions: Mapped[List["CashierSession"]] = relationship(back_populates="cash_register")
     movements: Mapped[List["CashMovement"]] = relationship(back_populates="register")
+    orders: Mapped[List["Order"]] = relationship("Order", back_populates="register", cascade="all, delete-orphan")
 
 
 class CashierSession(Base, TimestampMixin):
@@ -515,12 +518,17 @@ class CashierTransaction(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     cashier_session_id: Mapped[int] = mapped_column(ForeignKey("cashier_sessions.id", ondelete="CASCADE"))
 
-    type: Mapped[str] = mapped_column()  # sale, refund, inflow, outflow, withdraw, sangria
+
+    type: Mapped[CashierTransactionType] = mapped_column(Enum(CashierTransactionType))
+
+
+    # sale, refund, inflow, outflow, withdraw, sangria
     amount: Mapped[float] = mapped_column()
     description: Mapped[Optional[str]] = mapped_column(nullable=True)
-    payment_method: Mapped[str] = mapped_column()  # cash, credit_card, pix, etc.
-   # related_order_id: Mapped[Optional[int]] = mapped_column(ForeignKey("orders.id"), nullable=True)
 
+    payment_method: Mapped[PaymentMethod] = mapped_column(Enum(PaymentMethod))
+
+    related_order = relationship("Order", back_populates="transactions", lazy="joined")
     cashier_session = relationship("CashierSession", back_populates="transactions")
 
 
@@ -532,10 +540,127 @@ class CashMovement(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
     register_id: Mapped[int] = mapped_column(ForeignKey("cash_registers.id", ondelete="CASCADE"))
 
-    type: Mapped[str] = mapped_column()  # "in" ou "out"
+    type: Mapped[CashMovementType] = mapped_column(Enum(CashMovementType))
+
     amount: Mapped[float] = mapped_column(Numeric(10, 2))
     note: Mapped[str | None] = mapped_column(nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    store: Mapped["Store"] = relationship("Store", back_populates="cash_movements")
 
     register: Mapped["CashRegister"] = relationship("CashRegister", back_populates="movements")
+
+class Order(Base, TimestampMixin):
+    __tablename__ = "orders"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
+    register_id: Mapped[int] = mapped_column(ForeignKey("cash_registers.id", ondelete="CASCADE"), nullable=True)
+
+    status: Mapped[str] = mapped_column(default="pending")  # Ex: pending, completed, cancelled
+    total: Mapped[float] = mapped_column(Numeric(10, 2))
+    payment_method: Mapped[PaymentMethod] = mapped_column(Enum(PaymentMethod))
+
+    note: Mapped[str | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    register: Mapped["CashRegister"] = relationship("CashRegister", back_populates="orders", lazy="joined")
+    store: Mapped["Store"] = relationship("Store", back_populates="orders", lazy="joined")
+    transactions: Mapped[List["CashierTransaction"]] = relationship("CashierTransaction", back_populates="related_order")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# INSERÇÃO — adiciona ou subtrai do saldo
+@event.listens_for(CashMovement, "after_insert")
+def after_insert_cash_movement(mapper, connection, target: CashMovement):
+    sign = 1 if target.type == "in" else -1
+    delta = sign * target.amount
+
+    stmt = (
+        update(CashRegister)
+        .where(CashRegister.id == target.register_id)
+        .values(current_balance=CashRegister.current_balance + delta)
+    )
+    connection.execute(stmt)
+
+
+# DELEÇÃO — reverte o movimento removido
+@event.listens_for(CashMovement, "after_delete")
+def after_delete_cash_movement(mapper, connection, target: CashMovement):
+    sign = 1 if target.type == "in" else -1
+    delta = -sign * target.amount  # inverso da inserção
+
+    stmt = (
+        update(CashRegister)
+        .where(CashRegister.id == target.register_id)
+        .values(current_balance=CashRegister.current_balance + delta)
+    )
+    connection.execute(stmt)
