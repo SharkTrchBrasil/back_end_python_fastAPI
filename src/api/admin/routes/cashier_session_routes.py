@@ -6,7 +6,7 @@ from sqlalchemy import func
 
 from src.api.admin.schemas.cash_session import (
     CashierSessionUpdate,
-    CashierSessionOut,
+    CashierSessionOut, CashierSessionCreate,
 
 )
 from src.api.admin.schemas.cash_transaction import CashierTransactionOut
@@ -18,9 +18,12 @@ from src.core.models import CashierSession, CashierTransaction
 router = APIRouter(prefix="/stores/{store_id}/cashier-sessions", tags=["Sessões de Caixa"])
 
 
-# Abrir uma nova sessão de caixa
 @router.post("", response_model=CashierSessionOut)
-def open_cash(db: GetDBDep, store: GetStoreDep):
+def open_cash(
+    payload: CashierSessionCreate,
+    db: GetDBDep,
+    store: GetStoreDep
+):
     existing = db.query(CashierSession).filter_by(store_id=store.id, status="open").first()
     if existing:
         raise HTTPException(status_code=400, detail="Já existe um caixa aberto")
@@ -29,8 +32,20 @@ def open_cash(db: GetDBDep, store: GetStoreDep):
     db.add(session)
     db.commit()
     db.refresh(session)
-    return session
 
+    if payload.initial_balance > 0:
+        movement = CashierTransaction(
+            store_id=store.id,
+            cashier_session_id=session.id,
+            type='in',
+            amount=payload.initial_balance,
+            note='Saldo inicial do caixa',
+            created_at=datetime.utcnow(),
+        )
+        db.add(movement)
+        db.commit()
+
+    return session
 @router.get("/{id}", response_model=CashierSessionOut)
 def get_session(id: int, db: GetDBDep, store: GetStoreDep):
     session = db.query(CashierSession).filter_by(id=id, store_id=store.id).first()
