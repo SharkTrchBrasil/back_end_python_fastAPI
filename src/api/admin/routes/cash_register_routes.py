@@ -45,8 +45,6 @@ def open_cash_register(data: CashRegisterCreate, db: GetDBDep, store: GetStoreDe
         opened_at=datetime.utcnow(),
         initial_balance=data.initial_balance,
         current_balance=data.initial_balance,
-        number=data.number,  # ADICIONAR
-        name=data.name,  # ADICIONAR
         is_active=data.is_active,  # Opcional
     )
     db.add(register)

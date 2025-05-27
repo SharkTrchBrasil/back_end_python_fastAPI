@@ -7,9 +7,7 @@ from datetime import datetime
 # --- Schema Base para Campos Comuns de Criação/Atualização ---
 # Este schema define os campos que o frontend envia para criar ou atualizar um CashRegister
 class CashRegisterCreateUpdateBase(BaseModel):
-    initial_balance: float = Field(..., gt=0) # O campo 'initial_balance' deve vir no body
-    number: int
-    name: str
+    initial_balance: float = Field(..., gt=0)# O campo 'initial_balance' deve vir no body
     is_active: bool = True
 
 # --- Schema para Criação de CashRegister ---
@@ -27,8 +25,6 @@ class CashRegisterOut(BaseModel): # Use BaseModel diretamente ou herde de um Bas
     closed_at: Optional[datetime] = None # Pode ser nulo
     initial_balance: float
     current_balance: float
-    number: int
-    name: str
     is_active: bool
     created_at: datetime
     updated_at: datetime

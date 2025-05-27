@@ -473,9 +473,7 @@ class CashRegister(Base, TimestampMixin): # Garanta que TimestampMixin está sen
     initial_balance: Mapped[float] = mapped_column(Numeric(10, 2))
     current_balance: Mapped[float] = mapped_column(Numeric(10, 2))
 
-    # --- ADICIONE ESTAS COLUNAS ---
-    number: Mapped[int] = mapped_column(default=1) # Exemplo de valor padrão
-    name: Mapped[str] = mapped_column(default="Caixa Principal")
+
     is_active: Mapped[bool] = mapped_column(default=True)
     # -----------------------------
 
