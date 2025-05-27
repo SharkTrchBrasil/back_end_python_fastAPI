@@ -10,7 +10,7 @@ from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 from src.core.models import CashierSession, CashRegister
 
-router = APIRouter(prefix="/stores/{store_id}/cashier_sessions", tags=["Sessões de Caixa"])
+router = APIRouter(prefix="/stores/{store_id}/cashier-sessions", tags=["Sessões de Caixa"])
 
 @router.post("", response_model=CashierSessionOut)
 def create_session(data: CashierSessionCreate, db: GetDBDep, store: GetStoreDep):
