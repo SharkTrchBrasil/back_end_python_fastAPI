@@ -17,6 +17,7 @@ from src.core.models import CashierSession, CashierTransaction
 
 router = APIRouter(prefix="/stores/{store_id}/cashier-sessions", tags=["Sessões de Caixa"])
 
+
 @router.get("/{id}", response_model=CashierSessionOut)
 def get_session(id: int, db: GetDBDep, store: GetStoreDep):
     session = db.query(CashierSession).filter_by(id=id, store_id=store.id).first()
@@ -78,7 +79,7 @@ def list_session_transactions(id: int, db: GetDBDep, store: GetStoreDep):
 
 # Abrir uma nova sessão de caixa
 @router.post("/open", response_model=CashierSessionOut)
-def open_cashier(db: GetDBDep, store: GetStoreDep):
+def open_cash(db: GetDBDep, store: GetStoreDep):
     existing = db.query(CashierSession).filter_by(store_id=store.id, status="open").first()
     if existing:
         raise HTTPException(status_code=400, detail="Já existe um caixa aberto")
@@ -91,7 +92,7 @@ def open_cashier(db: GetDBDep, store: GetStoreDep):
 
 # Fechar o caixa
 @router.post("/{id}/close", response_model=CashierSessionOut)
-def close_cashier(id: int, db: GetDBDep, store: GetStoreDep):
+def close_cash(id: int, db: GetDBDep, store: GetStoreDep):
     session = db.query(CashierSession).filter_by(id=id, store_id=store.id).first()
     if not session or session.status != "open":
         raise HTTPException(status_code=404, detail="Sessão não encontrada ou já está fechada")
@@ -151,3 +152,25 @@ def remove_cash(
     db.commit()
     db.refresh(transaction)
     return transaction
+
+
+@router.get("/{id}/payment-summary")
+def get_payment_summary(id: int, db: GetDBDep, store: GetStoreDep):
+    # Verifica se sessão existe
+    session = db.query(CashierSession).filter_by(id=id, store_id=store.id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+
+    # Consulta resumo por método de pagamento, soma valores IN
+    result = (
+        db.query(
+            CashierTransaction.payment_method,
+            func.coalesce(func.sum(CashierTransaction.amount), 0)
+        )
+        .filter_by(cashier_session_id=id, type=CashierTransactionType.INFLOW)
+        .group_by(CashierTransaction.payment_method)
+        .all()
+    )
+
+    summary = {payment_method.value: float(amount) for payment_method, amount in result}
+    return summary
