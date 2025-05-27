@@ -314,3 +314,17 @@ def list_cash_registers(store: GetStoreDep, db: GetDBDep):
         ))
     return response_list
 
+
+@router.get("/{cash_register_id}/payment-summary", summary="Resumo por formas de pagamento do caixa")
+def get_payment_summary(cash_register_id: int, store: GetStoreDep, db: GetDBDep):
+    sessions = db.query(CashierSession).filter(
+        CashierSession.cash_register_id == cash_register_id
+    ).all()
+
+    payment_summary = defaultdict(Decimal)
+
+    for session in sessions:
+        for transaction in session.transactions:
+            payment_summary[transaction.payment_method] += Decimal(str(transaction.amount))
+
+    return {k: float(v) for k, v in payment_summary.items()}
