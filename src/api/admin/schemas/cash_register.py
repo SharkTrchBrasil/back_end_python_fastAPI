@@ -33,4 +33,4 @@ class CashRegisterOut(BaseModel):
     total_in: float # ou Decimal
     total_out: float # ou Decimal
     # -------------------------
-    payment_summary: Dict[str, float]  # <- Aqui vem os totais por forma de pagamento
+    payment_summary: Optional[dict] = None  # <- Aqui vem os totais por forma de pagamento
