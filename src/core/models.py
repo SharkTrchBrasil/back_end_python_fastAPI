@@ -66,7 +66,7 @@ class Store(Base, TimestampMixin):
     payables: Mapped[list["StorePayable"]] = relationship()
     cash_registers: Mapped[List["CashRegister"]] = relationship(back_populates="store")
     orders: Mapped[List["Order"]] = relationship("Order", back_populates="store", cascade="all, delete-orphan")
-
+    cash_movements = relationship("CashMovement", back_populates="store")
 
 class User(Base, TimestampMixin):
     __tablename__ = "users"
