@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
+# No topo do seu arquivo cash_register_routes.py
+from decimal import Decimal
 
 from src.api.admin.schemas.cash_register import (
     CashRegisterOut,
@@ -84,20 +86,26 @@ def add_cash_movement(
     if data.type == "out" and register.current_balance < data.amount:
         raise HTTPException(status_code=400, detail="Saldo insuficiente para retirada")
 
+    # Converte o float recebido para Decimal ANTES de qualquer operação
+    amount_decimal = Decimal(str(data.amount)) # Use str() para evitar imprecisões do float na conversão
+
     movement = CashMovement(
         register_id=id,
         store_id=store.id,
         type=data.type,
-        amount=data.amount,
+        amount=amount_decimal,
         note=data.note,
         created_at=datetime.utcnow(),
     )
 
-    # Atualiza saldo atual
-    if data.type == "in":
-        register.current_balance += data.amount
-    elif data.type == "out":
-        register.current_balance -= data.amount
+    # Atualiza o saldo atual do caixa usando Decimal
+    if data.type == 'in':
+        register.current_balance += amount_decimal # AGORA OS TIPOS SÃO COMPATÍVEIS!
+    elif data.type == 'out':
+        if register.current_balance < amount_decimal: # Comparação também com Decimal
+            raise HTTPException(status_code=400, detail="Saldo insuficiente para esta retirada.")
+        register.current_balance -= amount_decimal # AGORA OS TIPOS SÃO COMPATÍVEIS!
+
 
     db.add(movement)
     db.commit()
