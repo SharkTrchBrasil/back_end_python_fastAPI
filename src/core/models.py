@@ -115,7 +115,7 @@ class StorePaymentMethods(Base, TimestampMixin):
 
     custom_name:  Mapped[str]  = mapped_column()
     custom_icon: Mapped[str] = mapped_column(nullable=True)
-
+    orders = relationship("Order", back_populates="payment_method")
 
     is_active:          Mapped[bool] = mapped_column(default=True)
 
@@ -534,6 +534,7 @@ class Order(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(default="pending")  # Ex: pending, completed, cancelled
     total: Mapped[float] = mapped_column(Numeric(10, 2))
     payment_method_id: Mapped[int] = mapped_column(ForeignKey("store_payment_methods.id"))
+
 
     payment_method: Mapped["StorePaymentMethods"] = relationship("StorePaymentMethods", back_populates="orders")
 
