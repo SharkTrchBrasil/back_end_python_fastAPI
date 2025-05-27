@@ -519,7 +519,7 @@ class Order(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
 
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
-    register_id: Mapped[int] = mapped_column(ForeignKey("cash_registers.id", ondelete="CASCADE"), nullable=True)
+
 
     status: Mapped[str] = mapped_column(default="pending")  # Ex: pending, completed, cancelled
     total: Mapped[float] = mapped_column(Numeric(10, 2))

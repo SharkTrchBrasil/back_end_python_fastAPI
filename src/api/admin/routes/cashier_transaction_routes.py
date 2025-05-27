@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session, joinedload
+from fastapi import APIRouter, HTTPException
+
 
 from src.api.admin.schemas.cash_transaction import (
     CashierTransactionOut,
@@ -21,14 +21,9 @@ def create_transaction(
     db: GetDBDep,
     store: GetStoreDep,
 ):
-    # Verifica se a sessão pertence à loja (através do caixa)
-    session = (
-        db.query(CashierSession)
-        .options(joinedload(CashierSession.cash_register))
-        .filter(CashierSession.id == data.cashier_session_id)
-        .first()
-    )
-    if not session or session.cash_register.store_id != store.id:
+    # Verifica se a sessão pertence à loja (sem cash_register agora)
+    session = db.query(CashierSession).filter_by(id=data.cashier_session_id, store_id=store.id).first()
+    if not session:
         raise HTTPException(status_code=404, detail="Sessão não encontrada ou não pertence à loja")
 
     transaction = CashierTransaction(**data.dict())
@@ -37,38 +32,39 @@ def create_transaction(
     db.refresh(transaction)
     return transaction
 
+
 @router.get("/{id}", response_model=CashierTransactionOut)
 def get_transaction(id: int, db: GetDBDep, store: GetStoreDep):
     transaction = (
         db.query(CashierTransaction)
-        .options(joinedload(CashierTransaction.cashier_session).joinedload(CashierSession.cash_register))
-        .filter(CashierTransaction.id == id)
+        .join(CashierTransaction.cashier_session)
+        .filter(CashierTransaction.id == id, CashierSession.store_id == store.id)
         .first()
     )
-    if not transaction or transaction.cashier_session.cash_register.store_id != store.id:
+    if not transaction:
         raise HTTPException(status_code=404, detail="Movimentação não encontrada ou não pertence à loja")
-
     return transaction
+
 
 @router.get("/", response_model=list[CashierTransactionOut])
 def list_transactions(db: GetDBDep, store: GetStoreDep):
     return (
         db.query(CashierTransaction)
         .join(CashierTransaction.cashier_session)
-        .join(CashierSession.cash_register)
-        .filter(CashierSession.cash_register.has(store_id=store.id))
+        .filter(CashierSession.store_id == store.id)
         .all()
     )
+
 
 @router.put("/{id}", response_model=CashierTransactionOut)
 def update_transaction(id: int, data: CashierTransactionUpdate, db: GetDBDep, store: GetStoreDep):
     transaction = (
         db.query(CashierTransaction)
-        .options(joinedload(CashierTransaction.cashier_session).joinedload(CashierSession.cash_register))
-        .filter(CashierTransaction.id == id)
+        .join(CashierTransaction.cashier_session)
+        .filter(CashierTransaction.id == id, CashierSession.store_id == store.id)
         .first()
     )
-    if not transaction or transaction.cashier_session.cash_register.store_id != store.id:
+    if not transaction:
         raise HTTPException(status_code=404, detail="Movimentação não encontrada ou não pertence à loja")
 
     for key, value in data.dict(exclude_unset=True).items():
@@ -77,15 +73,16 @@ def update_transaction(id: int, data: CashierTransactionUpdate, db: GetDBDep, st
     db.refresh(transaction)
     return transaction
 
+
 @router.delete("/{id}")
 def delete_transaction(id: int, db: GetDBDep, store: GetStoreDep):
     transaction = (
         db.query(CashierTransaction)
-        .options(joinedload(CashierTransaction.cashier_session).joinedload(CashierSession.cash_register))
-        .filter(CashierTransaction.id == id)
+        .join(CashierTransaction.cashier_session)
+        .filter(CashierTransaction.id == id, CashierSession.store_id == store.id)
         .first()
     )
-    if not transaction or transaction.cashier_session.cash_register.store_id != store.id:
+    if not transaction:
         raise HTTPException(status_code=404, detail="Movimentação não encontrada ou não pertence à loja")
 
     db.delete(transaction)

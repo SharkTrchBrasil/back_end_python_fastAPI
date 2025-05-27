@@ -1,29 +1,21 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy import func
+
 
 from src.api.admin.schemas.cash_session import (
     CashierSessionUpdate,
     CashierSessionOut,
-    CashierSessionCreate,
+
 )
+from src.api.admin.schemas.cash_transaction import CashierTransactionOut
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
-from src.core.models import CashierSession
+from src.core.helpers.enums import CashierTransactionType, PaymentMethod
+from src.core.models import CashierSession, CashierTransaction
 
 router = APIRouter(prefix="/stores/{store_id}/cashier-sessions", tags=["Sessões de Caixa"])
-
-@router.post("", response_model=CashierSessionOut)
-def create_session(data: CashierSessionCreate, db: GetDBDep, store: GetStoreDep):
-    # Verifica se já existe uma sessão aberta para a loja
-    session_open = db.query(CashierSession).filter_by(store_id=store.id, status="open").first()
-    if session_open:
-        raise HTTPException(status_code=400, detail="Já existe uma sessão de caixa aberta para esta loja")
-
-    session = CashierSession(**data.dict(), store_id=store.id, status="open")
-    db.add(session)
-    db.commit()
-    db.refresh(session)
-    return session
 
 @router.get("/{id}", response_model=CashierSessionOut)
 def get_session(id: int, db: GetDBDep, store: GetStoreDep):
@@ -57,3 +49,105 @@ def delete_session(id: int, db: GetDBDep, store: GetStoreDep):
     db.delete(session)
     db.commit()
     return {"detail": "Sessão removida com sucesso"}
+
+
+@router.get("/{id}/balance")
+def get_session_balance(id: int, db: GetDBDep, store: GetStoreDep):
+    session = db.query(CashierSession).filter_by(id=id, store_id=store.id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+
+    in_total = db.query(CashierTransaction).filter_by(cashier_session_id=id, movement_type="IN").with_entities(
+        func.coalesce(func.sum(CashierTransaction.amount), 0)).scalar()
+
+    out_total = db.query(CashierTransaction).filter_by(cashier_session_id=id, movement_type="OUT").with_entities(
+        func.coalesce(func.sum(CashierTransaction.amount), 0)).scalar()
+
+    balance = float(in_total) - float(out_total)
+    return {"balance": balance}
+
+
+@router.get("/{id}/transactions", response_model=list[CashierTransactionOut])
+def list_session_transactions(id: int, db: GetDBDep, store: GetStoreDep):
+    session = db.query(CashierSession).filter_by(id=id, store_id=store.id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+
+    return db.query(CashierTransaction).filter_by(cashier_session_id=id).all()
+
+
+# Abrir uma nova sessão de caixa
+@router.post("/open", response_model=CashierSessionOut)
+def open_cashier(db: GetDBDep, store: GetStoreDep):
+    existing = db.query(CashierSession).filter_by(store_id=store.id, status="open").first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Já existe um caixa aberto")
+
+    session = CashierSession(store_id=store.id, status="open", opened_at=datetime.utcnow())
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return session
+
+# Fechar o caixa
+@router.post("/{id}/close", response_model=CashierSessionOut)
+def close_cashier(id: int, db: GetDBDep, store: GetStoreDep):
+    session = db.query(CashierSession).filter_by(id=id, store_id=store.id).first()
+    if not session or session.status != "open":
+        raise HTTPException(status_code=404, detail="Sessão não encontrada ou já está fechada")
+
+    session.status = "closed"
+    session.closed_at = datetime.utcnow()
+    db.commit()
+    db.refresh(session)
+    return session
+
+# Adicionar dinheiro no caixa (ex: reforço)
+@router.post("/{id}/add-cash", response_model=CashierTransactionOut)
+def add_cash(
+    id: int,
+    amount: float,
+    description: str = "Entrada de dinheiro manual",
+    db: GetDBDep = Depends(GetDBDep),
+    store: GetStoreDep = Depends(GetStoreDep)
+):
+    session = db.query(CashierSession).filter_by(id=id, store_id=store.id, status="open").first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada ou já está fechada")
+
+    transaction = CashierTransaction(
+        cashier_session_id=id,
+        type=CashierTransactionType.INFLOW,
+        amount=amount,
+        description=description,
+        payment_method=PaymentMethod.CASH
+    )
+    db.add(transaction)
+    db.commit()
+    db.refresh(transaction)
+    return transaction
+
+# Remover dinheiro do caixa (ex: sangria)
+@router.post("/{id}/remove-cash", response_model=CashierTransactionOut)
+def remove_cash(
+    id: int,
+    amount: float,
+    description: str = "Saída de dinheiro manual",
+    db: GetDBDep = Depends(GetDBDep),
+    store: GetStoreDep = Depends(GetStoreDep)
+):
+    session = db.query(CashierSession).filter_by(id=id, store_id=store.id, status="open").first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada ou já está fechada")
+
+    transaction = CashierTransaction(
+        cashier_session_id=id,
+        type=CashierTransactionType.OUTFLOW,
+        amount=amount,
+        description=description,
+        payment_method=PaymentMethod.CASH
+    )
+    db.add(transaction)
+    db.commit()
+    db.refresh(transaction)
+    return transaction
