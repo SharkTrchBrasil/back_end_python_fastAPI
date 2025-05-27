@@ -128,9 +128,9 @@ def close_cash(id: int, db: GetDBDep, store: GetStoreDep):
 def add_cash(
     id: int,
     amount: float,
-    description: str = "Entrada de dinheiro manual",
-    db: GetDBDep = Depends(GetDBDep),
-    store: GetStoreDep = Depends(GetStoreDep)
+    description: str,
+    db: GetDBDep,
+    store: GetStoreDep
 ):
     session = db.query(CashierSession).filter_by(id=id, store_id=store.id, status="open").first()
     if not session:
@@ -153,9 +153,9 @@ def add_cash(
 def remove_cash(
     id: int,
     amount: float,
-    description: str = "Saída de dinheiro manual",
-    db: GetDBDep = Depends(GetDBDep),
-    store: GetStoreDep = Depends(GetStoreDep)
+    description: str,
+    db: GetDBDep,
+    store: GetStoreDep
 ):
     session = db.query(CashierSession).filter_by(id=id, store_id=store.id, status="open").first()
     if not session:
