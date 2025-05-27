@@ -5,7 +5,6 @@ from pydantic import BaseModel
 class CashierSessionBase(BaseModel):
     cash_register_id: int
     user_opened_id: int
-    opening_amount: float  # <- Usando este como o valor de abertura
     notes: str | None = None
 
 
