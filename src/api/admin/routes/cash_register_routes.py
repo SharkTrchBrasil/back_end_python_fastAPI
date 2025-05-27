@@ -7,7 +7,7 @@ from src.api.admin.schemas.cash_register import (
     CashRegisterCreate,
     CashRegisterCreateUpdateBase,
 )
-from src.api.admin.schemas.cash_movement import CashMovementCreate
+from src.api.admin.schemas.cash_movement import CashMovementCreate, CashMovementOut
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 from src.core.models import CashRegister, CashMovement
@@ -70,7 +70,7 @@ def close_cash_register(id: int, db: GetDBDep, store: GetStoreDep):
 
 
 # ➕➖ Adicionar movimentação ao caixa
-@router.post("/{id}/movement", response_model=CashRegisterOut)
+@router.post("/{id}/movement", response_model=CashMovementOut)
 def add_cash_movement(
         id: int,
         data: CashMovementCreate,
