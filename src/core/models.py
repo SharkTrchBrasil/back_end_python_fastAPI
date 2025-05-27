@@ -11,12 +11,9 @@ from src.core.helpers.enums import CashMovementType, PaymentMethod, CashierTrans
 class Base(DeclarativeBase):
     pass
 
-
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
-
-
 
 class Store(Base, TimestampMixin):
     __tablename__ = "stores"
@@ -79,7 +76,6 @@ class User(Base, TimestampMixin):
     is_email_verified: Mapped[bool] = mapped_column(default=False)
     verification_code: Mapped[Optional[str]] = mapped_column(nullable=True)
 
-
 class Role(Base, TimestampMixin):
     __tablename__ = "roles"
 
@@ -133,14 +129,11 @@ class StorePaymentMethods(Base, TimestampMixin):
 
     pix_key:        Mapped[str]  = mapped_column(nullable=True)
 
-
-
 class StoreType(Base):
     __tablename__ = "segments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(unique=True, nullable=False)
-
 
 class Product(Base, TimestampMixin):
     __tablename__ = "products"
@@ -178,8 +171,6 @@ class Product(Base, TimestampMixin):
     max_stock: Mapped[int] = mapped_column(default=0)
     unit: Mapped[str] = mapped_column(default="")
 
-
-
 class Variant(Base, TimestampMixin):
     __tablename__ = "variants"
 
@@ -216,9 +207,6 @@ class VariantOptions(Base, TimestampMixin):
     variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id"))
 
     variant: Mapped["Variant"] = relationship(back_populates="options")
-
-
-
 
 class ProductVariantProduct(Base):
     __tablename__ = "product_variants_products"
@@ -264,7 +252,6 @@ class Coupon(Base, TimestampMixin):
 
     onlyNewCustomers: Mapped[bool] = mapped_column(default=False)
 
-
 class TotemAuthorization(Base, TimestampMixin):
     __tablename__ = "totem_authorizations"
 
@@ -279,9 +266,6 @@ class TotemAuthorization(Base, TimestampMixin):
     granted_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
 
     sid: Mapped[str | None] = mapped_column(unique=True)
-
-
-
 
 class StoreTheme(Base, TimestampMixin):
     __tablename__ = "store_themes"
@@ -303,7 +287,6 @@ class StoreTheme(Base, TimestampMixin):
 
     font_family: Mapped[str] = mapped_column()
 
-
 class StorePixConfig(Base, TimestampMixin):
     __tablename__ = "store_pix_configs"
 
@@ -318,7 +301,6 @@ class StorePixConfig(Base, TimestampMixin):
 
     hmac_key: Mapped[str] = mapped_column(unique=True)
 
-
 class Charge(Base, TimestampMixin):
     __tablename__ = "charges"
 
@@ -332,7 +314,6 @@ class Charge(Base, TimestampMixin):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     e2e_id: Mapped[str | None] = mapped_column()
 
-
 class PixDevolution(Base, TimestampMixin):
     __tablename__ = "pix_devolutions"
 
@@ -343,8 +324,6 @@ class PixDevolution(Base, TimestampMixin):
     amount: Mapped[int] = mapped_column()
     e2e_id: Mapped[str] = mapped_column()
     reason: Mapped[str | None] = mapped_column()
-
-
 
 class StoreChatbotConfig(Base, TimestampMixin):
     __tablename__ = "store_chatbot_configs"
@@ -359,7 +338,6 @@ class StoreChatbotConfig(Base, TimestampMixin):
     last_qr_code: Mapped[str] = mapped_column(nullable=True)  # pode salvar o base64/texto do QR
     last_connected_at: Mapped[datetime] = mapped_column(nullable=True)
     session_path: Mapped[str] = mapped_column(nullable=True)  # caminho local ou info da sessão
-
 
 class StoreDeliveryConfiguration(Base, TimestampMixin):
     __tablename__ = "store_delivery_options"
@@ -387,7 +365,6 @@ class StoreDeliveryConfiguration(Base, TimestampMixin):
     table_estimated_max: Mapped[int] = mapped_column(nullable=True)
     table_instructions: Mapped[str] = mapped_column(nullable=True)
 
-
 class StoreHours(Base, TimestampMixin):
     __tablename__ = "store_hours"
 
@@ -399,7 +376,6 @@ class StoreHours(Base, TimestampMixin):
     close_time: Mapped[str] = mapped_column()          # exemplo: '18:00'
     shift_number: Mapped[int] = mapped_column()
     is_active: Mapped[bool] = mapped_column(default=True)
-
 
 class StoreCity(Base, TimestampMixin):
     __tablename__ = "store_cities"
@@ -425,7 +401,6 @@ class StoreNeighborhood(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(default=True)
 
     city: Mapped["StoreCity"] = relationship("StoreCity", back_populates="neighborhoods")
-
 
 class PayableStatus(str, enum.Enum):
     pending = "pending"
@@ -461,8 +436,6 @@ class StorePayable(Base, TimestampMixin):
     # Relacionamentos
     store: Mapped["Store"] = relationship(back_populates="payables")
 
-
-# MODELOS SQLALCHEMY
 class CashRegister(Base, TimestampMixin): # Garanta que TimestampMixin está sendo aplicado
     __tablename__ = "cash_registers"
 
@@ -483,7 +456,6 @@ class CashRegister(Base, TimestampMixin): # Garanta que TimestampMixin está sen
     sessions: Mapped[List["CashierSession"]] = relationship(back_populates="cash_register")
     movements: Mapped[List["CashMovement"]] = relationship(back_populates="register")
     orders: Mapped[List["Order"]] = relationship("Order", back_populates="register", cascade="all, delete-orphan")
-
 
 class CashierSession(Base, TimestampMixin):
     __tablename__ = "cashier_sessions"
@@ -510,7 +482,6 @@ class CashierSession(Base, TimestampMixin):
 
     cash_register = relationship("CashRegister", back_populates="sessions")
     transactions = relationship("CashierTransaction", back_populates="cashier_session", cascade="all, delete-orphan")
-
 
 class CashierTransaction(Base, TimestampMixin):
     __tablename__ = "cashier_transactions"
@@ -564,7 +535,7 @@ class Order(Base, TimestampMixin):
     total: Mapped[float] = mapped_column(Numeric(10, 2))
     payment_method_id: Mapped[int] = mapped_column(ForeignKey("store_payment_methods.id"))
 
-    payment_method: Mapped["StorePaymentMethods"] = relationship("StorePaymentMethod", back_populates="orders")
+    payment_method: Mapped["StorePaymentMethods"] = relationship("StorePaymentMethods", back_populates="orders")
 
     note: Mapped[str | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
