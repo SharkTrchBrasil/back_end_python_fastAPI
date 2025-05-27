@@ -11,7 +11,7 @@ from src.api.admin.schemas.cash_session import (
 )
 from src.api.admin.schemas.cash_transaction import CashierTransactionOut
 from src.core.database import GetDBDep
-from src.core.dependencies import GetStoreDep
+from src.core.dependencies import GetStoreDep, GetCurrentUserDep
 from src.core.helpers.enums import CashierTransactionType, PaymentMethod
 from src.core.models import CashierSession, CashierTransaction
 
@@ -22,7 +22,8 @@ router = APIRouter(prefix="/stores/{store_id}/cashier-sessions", tags=["Sessões
 def open_cash(
     payload: CashierSessionCreate,
     db: GetDBDep,
-    store: GetStoreDep
+    store: GetStoreDep,
+    user: GetCurrentUserDep
 ):
     existing = db.query(CashierSession).filter_by(store_id=store.id, status="open").first()
     if existing:
@@ -30,7 +31,7 @@ def open_cash(
 
     session = CashierSession(
         store_id=store.id,
-        user_opened_id=store.user_id,  # Pega do contexto
+        user_opened_id=user.id,  # Pega do contexto
         opening_amount=payload.initial_balance,
         opened_at=datetime.utcnow(),
         status="open",
