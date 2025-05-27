@@ -61,9 +61,14 @@ class Store(Base, TimestampMixin):
     totem_authorizations: Mapped[list["TotemAuthorization"]] = relationship()
 
     payables: Mapped[list["StorePayable"]] = relationship()
-    cash_registers: Mapped[List["CashRegister"]] = relationship(back_populates="store")
+
     orders: Mapped[List["Order"]] = relationship("Order", back_populates="store", cascade="all, delete-orphan")
     cash_movements = relationship("CashMovement", back_populates="store")
+
+    cashier_sessions: Mapped[List["CashierSession"]] = relationship(
+        "CashierSession", back_populates="store", cascade="all, delete-orphan"
+    )
+
 
 class User(Base, TimestampMixin):
     __tablename__ = "users"
@@ -436,32 +441,13 @@ class StorePayable(Base, TimestampMixin):
     # Relacionamentos
     store: Mapped["Store"] = relationship(back_populates="payables")
 
-class CashRegister(Base, TimestampMixin): # Garanta que TimestampMixin está sendo aplicado
-    __tablename__ = "cash_registers"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
-
-    opened_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    closed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True) # Pode ser nulo
-
-    initial_balance: Mapped[float] = mapped_column(Numeric(10, 2))
-    current_balance: Mapped[float] = mapped_column(Numeric(10, 2))
-
-
-    is_active: Mapped[bool] = mapped_column(default=True)
-    # -----------------------------
-
-    store: Mapped["Store"] = relationship(back_populates="cash_registers")
-    sessions: Mapped[List["CashierSession"]] = relationship(back_populates="cash_register")
-    movements: Mapped[List["CashMovement"]] = relationship(back_populates="register")
-    orders: Mapped[List["Order"]] = relationship("Order", back_populates="register", cascade="all, delete-orphan")
 
 class CashierSession(Base, TimestampMixin):
     __tablename__ = "cashier_sessions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    cash_register_id: Mapped[int] = mapped_column(ForeignKey("cash_registers.id", ondelete="CASCADE"))
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     user_opened_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     user_closed_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
 
@@ -473,15 +459,19 @@ class CashierSession(Base, TimestampMixin):
     cash_removed: Mapped[float] = mapped_column(default=0.0)
     total_sales: Mapped[float] = mapped_column(default=0.0)
     total_received: Mapped[float] = mapped_column(default=0.0)
-    closing_amount: Mapped[Optional[float]] = mapped_column(default=None)
+    closing_amount: Mapped[Optional[float]] = mapped_column(nullable=True)
     gross_profit: Mapped[float] = mapped_column(default=0.0)
-    cash_difference: Mapped[float] = mapped_column(default=0.0)  # Quebra de caixa
+    cash_difference: Mapped[float] = mapped_column(default=0.0)
 
     status: Mapped[str] = mapped_column(default="open")
     notes: Mapped[Optional[str]] = mapped_column(nullable=True)
 
-    cash_register = relationship("CashRegister", back_populates="sessions")
-    transactions = relationship("CashierTransaction", back_populates="cashier_session", cascade="all, delete-orphan")
+    store: Mapped["Store"] = relationship("Store", back_populates="cashier_sessions")
+    transactions: Mapped[List["CashierTransaction"]] = relationship(
+        "CashierTransaction", back_populates="cashier_session", cascade="all, delete-orphan"
+    )
+
+
 
 class CashierTransaction(Base, TimestampMixin):
     __tablename__ = "cashier_transactions"
@@ -511,7 +501,7 @@ class CashMovement(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
 
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
-    register_id: Mapped[int] = mapped_column(ForeignKey("cash_registers.id", ondelete="CASCADE"))
+
 
     type: Mapped[CashMovementType] = mapped_column(Enum(CashMovementType))
 
@@ -521,7 +511,7 @@ class CashMovement(Base, TimestampMixin):
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     store: Mapped["Store"] = relationship("Store", back_populates="cash_movements")
 
-    register: Mapped["CashRegister"] = relationship("CashRegister", back_populates="movements")
+
 
 class Order(Base, TimestampMixin):
     __tablename__ = "orders"
@@ -541,7 +531,7 @@ class Order(Base, TimestampMixin):
     note: Mapped[str | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
-    register: Mapped["CashRegister"] = relationship("CashRegister", back_populates="orders", lazy="joined")
+
     store: Mapped["Store"] = relationship("Store", back_populates="orders", lazy="joined")
     transactions: Mapped[List["CashierTransaction"]] = relationship("CashierTransaction", back_populates="related_order")
 
@@ -613,30 +603,3 @@ class Order(Base, TimestampMixin):
 
 
 
-
-# INSERÇÃO — adiciona ou subtrai do saldo
-@event.listens_for(CashMovement, "after_insert")
-def after_insert_cash_movement(mapper, connection, target: CashMovement):
-    sign = 1 if target.type == "in" else -1
-    delta = sign * target.amount
-
-    stmt = (
-        update(CashRegister)
-        .where(CashRegister.id == target.register_id)
-        .values(current_balance=CashRegister.current_balance + delta)
-    )
-    connection.execute(stmt)
-
-
-# DELEÇÃO — reverte o movimento removido
-@event.listens_for(CashMovement, "after_delete")
-def after_delete_cash_movement(mapper, connection, target: CashMovement):
-    sign = 1 if target.type == "in" else -1
-    delta = -sign * target.amount  # inverso da inserção
-
-    stmt = (
-        update(CashRegister)
-        .where(CashRegister.id == target.register_id)
-        .values(current_balance=CashRegister.current_balance + delta)
-    )
-    connection.execute(stmt)
