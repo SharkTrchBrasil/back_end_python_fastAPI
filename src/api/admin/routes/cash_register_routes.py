@@ -16,7 +16,7 @@ from src.api.admin.schemas.cash_movement import CashMovementCreate, CashMovement
 
 # Importar suas dependências
 from src.core.database import GetDBDep # Dependência para obter a sessão do DB
-from src.core.dependencies import GetStoreDep # Dependência para obter a loja (store_id)
+from src.core.dependencies import GetStoreDep, GetCurrentUserDep  # Dependência para obter a loja (store_id)
 
 # Cria o roteador para as rotas de caixa
 router = APIRouter(prefix="/stores/{store_id}/cash-register", tags=["Caixas"])
@@ -68,50 +68,47 @@ def get_open_cash_register(store: GetStoreDep, db: GetDBDep):
     )
 
 # 📦 Abrir o caixa
+# 📦 Abrir o caixa
 @router.post("/open", response_model=CashRegisterOut, summary="Abre um novo caixa para a loja")
-def open_cash_register(data: CashRegisterCreate, store: GetStoreDep, db: GetDBDep):
-    """
-    Abre um novo caixa para a loja especificada.
-    Requer apenas o saldo inicial. O número do caixa será o ID do banco.
-    """
+def open_cash_register(
+    data: CashRegisterCreate,
+    store: GetStoreDep,
+    db: GetDBDep,
+    user: GetCurrentUserDep,  # <- aqui obtemos o usuário logado (atendente)
+):
     existing_open = db.query(CashRegister).filter(
         CashRegister.store_id == store.id,
         CashRegister.closed_at.is_(None)
     ).first()
 
     if existing_open:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Já existe um caixa aberto para esta loja.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Já existe um caixa aberto para esta loja."
+        )
 
-    # Cria o objeto CashRegister com os campos essenciais e padrões
-    # 'number' será definido após o ID ser gerado pelo banco
     register = CashRegister(
         store_id=store.id,
         opened_at=datetime.utcnow(),
-        initial_balance=Decimal(str(data.initial_balance)), # Converte para Decimal para precisão
-        current_balance=Decimal(str(data.initial_balance)), # Saldo inicial é igual ao saldo atual
-        is_active=True, # Ativo por padrão
+        initial_balance=Decimal(str(data.initial_balance)),
+        current_balance=Decimal(str(data.initial_balance)),
+        is_active=True,
     )
 
     db.add(register)
-    db.commit()      # Primeiro commit para gerar o ID do registro
-    db.refresh(register) # Refresha para carregar o ID gerado
+    db.commit()
+    db.refresh(register)
 
-    # Define o número do caixa como o ID gerado pelo banco e um nome padrão
-    # Garanta que seu modelo CashRegister no SQLAlchemy não tem mais as colunas 'number' e 'name'
-    # se você não as quer persistidas. Se as tiver, esta parte não seria necessária.
-    # Se você removeu as colunas 'number' e 'name' do modelo ORM e schema OUT,
-    # esta parte não é necessária e pode ser removida.
-    # register.number = register.id # Se 'number' ainda existisse e fosse para ser o ID
-    # register.name = "Caixa Principal" # Se 'name' ainda existisse
+    # ✅ Criação da cashier_session ao abrir o caixa
+    session = CashierSession(
+        cash_register_id=register.id,
+        user_id=user.id,
+        started_at=datetime.utcnow()
+    )
+    db.add(session)
+    db.commit()
 
-    # db.add(register) # Re-adiciona para salvar as mudanças de number/name (se aplicável)
-    # db.commit()      # Segundo commit para persistir number/name (se aplicável)
-    # db.refresh(register) # Segundo refresh para ter o objeto totalmente atualizado (se aplicável)
-
-    # Recalcula totais para a resposta (inicialmente 0)
-    total_in_query = Decimal('0.00')
-    total_out_query = Decimal('0.00')
-
+    # Retorno
     return CashRegisterOut(
         id=register.id,
         store_id=register.store_id,
@@ -122,8 +119,8 @@ def open_cash_register(data: CashRegisterCreate, store: GetStoreDep, db: GetDBDe
         is_active=register.is_active,
         created_at=register.created_at,
         updated_at=register.updated_at,
-        total_in=float(total_in_query),
-        total_out=float(total_out_query),
+        total_in=0.00,
+        total_out=0.00,
     )
 
 # 🧾 Fechar o caixa
