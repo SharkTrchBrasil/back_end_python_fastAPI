@@ -43,7 +43,6 @@ def open_cash(
 
     if payload.initial_balance > 0:
         movement = CashierTransaction(
-            store_id=store.id,
             cashier_session_id=session.id,
             type='in',
             amount=payload.initial_balance,
