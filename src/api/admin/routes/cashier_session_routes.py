@@ -30,10 +30,11 @@ def open_cash(
 
     session = CashierSession(
         store_id=store.id,
-        user_opened_id=store.user_id,  # Exemplo, pegue do contexto
+        user_opened_id=store.user_id,  # Pega do contexto
         opening_amount=payload.initial_balance,
         opened_at=datetime.utcnow(),
         status="open",
+        notes=payload.notes
     )
     db.add(session)
     db.commit()
@@ -52,6 +53,7 @@ def open_cash(
         db.commit()
 
     return session
+
 
 
 @router.get("/{id}", response_model=CashierSessionOut)

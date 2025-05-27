@@ -3,14 +3,13 @@ from pydantic import BaseModel
 
 
 class CashierSessionBase(BaseModel):
-    cash_register_id: int
     user_opened_id: int
     notes: str | None = None
 
 
-class CashierSessionCreate(CashierSessionBase):
-    pass
-
+class CashierSessionCreate(BaseModel):
+    initial_balance: float = 0.0
+    notes: str | None = None
 
 class CashierSessionUpdate(BaseModel):
     user_closed_id: int | None = None
