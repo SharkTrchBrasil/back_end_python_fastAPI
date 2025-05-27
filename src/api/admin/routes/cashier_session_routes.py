@@ -18,6 +18,19 @@ from src.core.models import CashierSession, CashierTransaction
 router = APIRouter(prefix="/stores/{store_id}/cashier-sessions", tags=["Sessões de Caixa"])
 
 
+# Abrir uma nova sessão de caixa
+@router.post("", response_model=CashierSessionOut)
+def open_cash(db: GetDBDep, store: GetStoreDep):
+    existing = db.query(CashierSession).filter_by(store_id=store.id, status="open").first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Já existe um caixa aberto")
+
+    session = CashierSession(store_id=store.id, status="open", opened_at=datetime.utcnow())
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return session
+
 @router.get("/{id}", response_model=CashierSessionOut)
 def get_session(id: int, db: GetDBDep, store: GetStoreDep):
     session = db.query(CashierSession).filter_by(id=id, store_id=store.id).first()
@@ -77,18 +90,7 @@ def list_session_transactions(id: int, db: GetDBDep, store: GetStoreDep):
     return db.query(CashierTransaction).filter_by(cashier_session_id=id).all()
 
 
-# Abrir uma nova sessão de caixa
-@router.post("/open", response_model=CashierSessionOut)
-def open_cash(db: GetDBDep, store: GetStoreDep):
-    existing = db.query(CashierSession).filter_by(store_id=store.id, status="open").first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Já existe um caixa aberto")
 
-    session = CashierSession(store_id=store.id, status="open", opened_at=datetime.utcnow())
-    db.add(session)
-    db.commit()
-    db.refresh(session)
-    return session
 
 # Fechar o caixa
 @router.post("/{id}/close", response_model=CashierSessionOut)
