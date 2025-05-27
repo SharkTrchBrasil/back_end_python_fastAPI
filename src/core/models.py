@@ -560,7 +560,9 @@ class Order(Base, TimestampMixin):
 
     status: Mapped[str] = mapped_column(default="pending")  # Ex: pending, completed, cancelled
     total: Mapped[float] = mapped_column(Numeric(10, 2))
-    payment_method: Mapped[PaymentMethod] = mapped_column(Enum(PaymentMethod))
+    payment_method_id: Mapped[int] = mapped_column(ForeignKey("store_payment_methods.id"))
+
+    payment_method: Mapped["StorePaymentMethods"] = relationship("StorePaymentMethod", back_populates="orders")
 
     note: Mapped[str | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
