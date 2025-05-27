@@ -19,28 +19,32 @@ router = APIRouter(prefix="/stores/{store_id}/cashier-sessions", tags=["Sessões
 
 
 @router.post("", response_model=CashierSessionOut)
-def open_cash(payload: CashierSessionCreate, db: GetDBDep, store: GetStoreDep):
+def open_cash(
+    payload: CashierSessionCreate,
+    db: GetDBDep,
+    store: GetStoreDep
+):
     existing = db.query(CashierSession).filter_by(store_id=store.id, status="open").first()
     if existing:
         raise HTTPException(status_code=400, detail="Já existe um caixa aberto")
 
     session = CashierSession(
         store_id=store.id,
-        user_opened_id=payload.user_opened_id,
-        opening_amount=payload.opening_amount,
+        user_opened_id=store.user_id,  # Exemplo, pegue do contexto
+        opening_amount=payload.initial_balance,
+        opened_at=datetime.utcnow(),
         status="open",
-        opened_at=datetime.utcnow()
     )
     db.add(session)
     db.commit()
     db.refresh(session)
 
-    if payload.opening_amount > 0:
+    if payload.initial_balance > 0:
         movement = CashierTransaction(
             store_id=store.id,
             cashier_session_id=session.id,
             type='in',
-            amount=payload.opening_amount,
+            amount=payload.initial_balance,
             note='Saldo inicial do caixa',
             created_at=datetime.utcnow(),
         )
@@ -48,6 +52,7 @@ def open_cash(payload: CashierSessionCreate, db: GetDBDep, store: GetStoreDep):
         db.commit()
 
     return session
+
 
 @router.get("/{id}", response_model=CashierSessionOut)
 def get_session(id: int, db: GetDBDep, store: GetStoreDep):
