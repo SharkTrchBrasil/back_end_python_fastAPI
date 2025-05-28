@@ -220,10 +220,11 @@ def get_payment_summary(id: int, db: GetDBDep, store: GetStoreDep):
             CashierTransaction.payment_method,
             func.coalesce(func.sum(CashierTransaction.amount), 0)
         )
-        .filter_by(cashier_session_id=id, type=CashierTransactionType.INFLOW.value)
+        .filter_by(cashier_session_id=id, type=CashierTransactionType.INFLOW)
         .group_by(CashierTransaction.payment_method)
         .all()
     )
+    print(CashierTransactionType.INFLOW.value)  # deve imprimir 'inflow'
 
     summary = {payment_method.value: float(amount) for payment_method, amount in result}
     return summary
