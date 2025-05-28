@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -26,4 +28,5 @@ class CashierTransactionOut(BaseModel):
     payment_method: str | None = None
     description: str | None = None
     order_id: int | None = None  # <--- Recomendo manter aqui
-
+    created_at: datetime # <--- Adicione este campo
+    updated_at: datetime # <--- Adicione este campo
