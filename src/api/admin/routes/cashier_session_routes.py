@@ -47,7 +47,7 @@ def open_cash(
     session = CashierSession(
         store_id=store.id,
         user_opened_id=user.id,  # Pega do contexto
-        opening_amount=payload.initial_balance,
+        opening_amount=payload.opening_amount,
         opened_at=datetime.utcnow(),
         status="open",
         notes=payload.notes
@@ -57,11 +57,11 @@ def open_cash(
     db.refresh(session)
 
 
-    if payload.initial_balance > 0:
+    if payload.opening_amount > 0:
         movement = CashierTransaction(
             cashier_session_id=session.id,
             type=CashMovementType.IN.value,
-            amount=payload.initial_balance,
+            amount=payload.opening_amount,
             description='Saldo inicial do caixa',
             created_at=datetime.utcnow(),
             order_id=None,
