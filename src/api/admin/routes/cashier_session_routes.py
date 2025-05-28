@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, cast, String
 
 from src.api.admin.schemas.cash_session import (
     CashierSessionUpdate,
@@ -206,57 +206,50 @@ def remove_cash(
     return transaction
 
 
-
 @router.get("/{id}/payment-summary")
 def get_payment_summary(id: int, db: GetDBDep, store: GetStoreDep):
-    # Verify session existence
-    session = db.query(CashierSession).filter_by(id=id, store_id=store.id).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+    # ... (código de verificação da sessão) ...
 
-    # --- MODIFIED QUERY ---
+    # Primeiro, obtenha os custom_names para os payment_types desta loja
+    payment_methods_map = {
+        pm.payment_type: pm.custom_name
+        for pm in db.query(StorePaymentMethods)
+                    .filter(StorePaymentMethods.store_id == store.id)
+                    .all()
+    }
+
     result = (
         db.query(
-            StorePaymentMethods.custom_name, # <--- Select the custom_name
+            StorePaymentMethods.custom_name,
             func.coalesce(func.sum(CashierTransaction.amount), 0)
         )
         .join(
             StorePaymentMethods,
-            # Join CashierTransaction with StorePaymentMethods
-            # on the condition that CashierTransaction.payment_method
-            # matches StorePaymentMethods.payment_type
-            # AND StorePaymentMethods.store_id matches the current store
-            (CashierTransaction.payment_method == StorePaymentMethods.payment_type) &
-            (StorePaymentMethods.store_id == store.id) # IMPORTANT: Filter payment methods by store
+            # AQUI ESTÁ A CHAVE: converta o ENUM do CashierTransaction para STRING
+            (cast(CashierTransaction.payment_method, String) == StorePaymentMethods.payment_type) &
+            (StorePaymentMethods.store_id == store.id)
         )
         .filter(
             CashierTransaction.cashier_session_id == id,
             CashierTransaction.type == CashierTransactionType.INFLOW
         )
         .group_by(
-            StorePaymentMethods.custom_name # <--- Group by custom_name for the summary
-            # Note: If two *different* payment types (e.g., "Cash" and "OnlinePay") happened to have the same custom_name ("Payment"),
-            # they would be summed together. If you need absolute uniqueness for the key,
-            # you might need to group by StorePaymentMethods.id and then use custom_name.
-            # For distinct custom names, grouping by custom_name is typically fine.
+            StorePaymentMethods.custom_name
         )
         .all()
     )
 
-    summary = {str(custom_name): float(amount) for custom_name, amount in result}
-
-    # You might want to get all active payment methods for the store
-    # and initialize their sums to 0 if no transactions occurred for them,
-    # then update with actual transaction sums.
-    all_active_payment_methods = db.query(StorePaymentMethods).filter(
-        StorePaymentMethods.store_id == store.id,
-        StorePaymentMethods.is_active == True,
-        # Consider active_on_counter as well if this is for counter sales
-        StorePaymentMethods.active_on_counter == True
-    ).all()
+    # ... (o resto do seu código para construir final_summary) ...
 
     final_summary = {}
-    for pm in all_active_payment_methods:
-        final_summary[pm.custom_name] = summary.get(pm.custom_name, 0.0) # Initialize with 0 or the sum from transactions
+    for pm in db.query(StorePaymentMethods).filter(
+        StorePaymentMethods.store_id == store.id,
+        StorePaymentMethods.is_active == True,
+        StorePaymentMethods.active_on_counter == True
+    ).all():
+        # Usa next() com um valor padrão para evitar erros se a chave não existir
+        final_summary[pm.custom_name] = next(
+            (float(amount) for name, amount in result if name == pm.custom_name), 0.0
+        )
 
     return final_summary
