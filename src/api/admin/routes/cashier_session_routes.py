@@ -33,6 +33,10 @@ def get_current_cashier_session(
         raise HTTPException(status_code=404, detail="Nenhuma sessão de caixa aberta encontrada.")
 
     return session
+
+
+
+
 @router.post("", response_model=CashierSessionOut)
 def open_cash(
     payload: CashierSessionCreate,
@@ -46,7 +50,7 @@ def open_cash(
 
     session = CashierSession(
         store_id=store.id,
-        user_opened_id=user.id,  # Pega do contexto
+        user_opened_id=user.id,
         opening_amount=payload.opening_amount,
         opened_at=datetime.now(timezone.utc),
         status="open",
@@ -56,16 +60,23 @@ def open_cash(
     db.commit()
     db.refresh(session)
 
-
     if payload.opening_amount > 0:
+        # ✅ Validação do método de pagamento
+        payment_method = db.query(StorePaymentMethods).filter_by(
+            id=payload.payment_method_id,
+            store_id=store.id
+        ).first()
+
+        if not payment_method:
+            raise HTTPException(status_code=400, detail="Método de pagamento inválido para esta loja")
+
         movement = CashierTransaction(
             cashier_session_id=session.id,
             type=CashierTransactionType.INFLOW,
             amount=payload.opening_amount,
             description='Saldo inicial do caixa',
-            created_at=datetime.now(timezone.utc),
-            order_id=None,
-            payment_method=PaymentMethod.CASH,
+            payment_method_id=payload.payment_method_id,
+            created_at=datetime.now(timezone.utc)
         )
         db.add(movement)
         db.commit()
@@ -154,6 +165,8 @@ def close_cash(id: int, db: GetDBDep, store: GetStoreDep):
 class AddCashRequest(BaseModel):
     amount: float
     description: str
+    payment_method_id: int
+
 
 @router.post("/{id}/add-cash", response_model=CashierTransactionOut)
 def add_cash(
@@ -171,7 +184,7 @@ def add_cash(
         type=CashierTransactionType.INFLOW,
         amount=req.amount,
         description=req.description,
-        payment_method=PaymentMethod.CASH
+        payment_method_id=req.payment_method_id
     )
     db.add(transaction)
     db.commit()
@@ -198,7 +211,7 @@ def remove_cash(
         type=CashierTransactionType.OUTFLOW,
         amount=req.amount,
         description=req.description,
-        payment_method=PaymentMethod.CASH
+        payment_method_id=req.payment_method_id
     )
     db.add(transaction)
     db.commit()
