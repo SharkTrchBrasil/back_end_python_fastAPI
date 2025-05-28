@@ -185,8 +185,7 @@ def add_cash(
 @router.post("/{id}/remove-cash", response_model=CashierTransactionOut)
 def remove_cash(
     id: int,
-    amount: float,
-    description: str,
+    req: AddCashRequest,
     db: GetDBDep,
     store: GetStoreDep
 ):
@@ -196,10 +195,10 @@ def remove_cash(
 
     transaction = CashierTransaction(
         cashier_session_id=id,
-        type=CashierTransactionType.OUTFLOW.value,
-        amount=amount,
-        description=description,
-        payment_method=PaymentMethod.CASH.value
+        type=CashierTransactionType.OUTFLOW,
+        amount=req.amount,
+        description=req.description,
+        payment_method=PaymentMethod.CASH
     )
     db.add(transaction)
     db.commit()
