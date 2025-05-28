@@ -7,7 +7,7 @@ class CashierTransactionBase(BaseModel):
     amount: float
     payment_method: str
     description: str | None = None
-    related_order_id: int | None = None
+    order_id: int | None = None
 
 class CashierTransactionCreate(CashierTransactionBase):
     pass
@@ -17,7 +17,7 @@ class CashierTransactionUpdate(BaseModel):
     amount: float | None = None
     payment_method: str | None = None
     description: str | None = None
-    related_order_id: int | None = None
+    order_id: int | None = None
 
 class CashierTransactionOut(CashierTransactionBase):
     id: int
