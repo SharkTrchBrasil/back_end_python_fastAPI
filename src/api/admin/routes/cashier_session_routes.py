@@ -168,10 +168,10 @@ def add_cash(
 
     transaction = CashierTransaction(
         cashier_session_id=id,
-        type=CashierTransactionType.INFLOW.value,
+        type=CashierTransactionType.INFLOW,
         amount=req.amount,
         description=req.description,
-        payment_method=PaymentMethod.CASH.value
+        payment_method=PaymentMethod.CASH
     )
     db.add(transaction)
     db.commit()
