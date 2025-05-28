@@ -168,7 +168,7 @@ def add_cash(
 
     transaction = CashierTransaction(
         cashier_session_id=id,
-        type=CashierTransactionType.INFLOW,
+        type=CashierTransactionType.INFLOW.value,
         amount=req.amount,
         description=req.description,
         payment_method=PaymentMethod.CASH
@@ -196,7 +196,7 @@ def remove_cash(
 
     transaction = CashierTransaction(
         cashier_session_id=id,
-        type=CashierTransactionType.OUTFLOW,
+        type=CashierTransactionType.OUTFLOW.value,
         amount=amount,
         description=description,
         payment_method=PaymentMethod.CASH
@@ -220,7 +220,7 @@ def get_payment_summary(id: int, db: GetDBDep, store: GetStoreDep):
             CashierTransaction.payment_method,
             func.coalesce(func.sum(CashierTransaction.amount), 0)
         )
-        .filter_by(cashier_session_id=id, type=CashierTransactionType.INFLOW)
+        .filter_by(cashier_session_id=id, type=CashierTransactionType.INFLOW.value)
         .group_by(CashierTransaction.payment_method)
         .all()
     )
