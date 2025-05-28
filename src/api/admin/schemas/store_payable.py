@@ -59,8 +59,6 @@ class StorePayableUpdate(BaseModel):
 class StorePayableOut(StorePayableBase):
     id: int
     store_id: int
-    created_at: date
-    updated_at: date
 
     class Config:
         orm_mode = True

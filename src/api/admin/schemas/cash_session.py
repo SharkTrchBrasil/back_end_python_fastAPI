@@ -38,8 +38,6 @@ class CashierSessionOut(CashierSessionBase):
     gross_profit: float | None = None
     cash_difference: float | None = None
     status: str
-    created_at: datetime
-    updated_at: datetime
     opening_amount: float = 0.0
 
     class Config:

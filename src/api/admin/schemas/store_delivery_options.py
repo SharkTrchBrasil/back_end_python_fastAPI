@@ -32,7 +32,6 @@ class StoreDeliveryConfigUpdate(StoreDeliveryConfigBase):
 class StoreDeliveryConfig(StoreDeliveryConfigBase):
     id: int
     store_id: int
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+
 
 

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -48,7 +48,7 @@ def open_cash(
         store_id=store.id,
         user_opened_id=user.id,  # Pega do contexto
         opening_amount=payload.opening_amount,
-        opened_at=datetime.utcnow(),
+        opened_at=datetime.now(timezone.utc),
         status="open",
         notes=payload.notes
     )
@@ -63,7 +63,7 @@ def open_cash(
             type=CashierTransactionType.INFLOW,
             amount=payload.opening_amount,
             description='Saldo inicial do caixa',
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             order_id=None,
             payment_method=PaymentMethod.CASH,
         )
@@ -143,7 +143,7 @@ def close_cash(id: int, db: GetDBDep, store: GetStoreDep):
         raise HTTPException(status_code=404, detail="Sessão não encontrada ou já está fechada")
 
     session.status = "closed"
-    session.closed_at = datetime.utcnow()
+    session.closed_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(session)
     return session

@@ -21,7 +21,7 @@ class OrderUpdate(BaseModel):
 
 class OrderInDBBase(OrderBase):
     id: int
-    created_at: datetime
+
 
     class Config:
         orm_mode = True

@@ -1,5 +1,5 @@
 import enum
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, List
 
 from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric, update, event, Enum
@@ -450,7 +450,7 @@ class CashierSession(Base, TimestampMixin):
     user_opened_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     user_closed_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
 
-    opened_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    opened_at: Mapped[datetime] = mapped_column(default=datetime.now(timezone.utc),)
     closed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
     opening_amount: Mapped[float] = mapped_column()
@@ -512,7 +512,7 @@ class Order(Base, TimestampMixin):
     payment_method: Mapped["StorePaymentMethods"] = relationship("StorePaymentMethods", back_populates="orders")
 
     note: Mapped[str | None] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
 
 
     store: Mapped["Store"] = relationship("Store", back_populates="orders", lazy="joined")
