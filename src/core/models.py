@@ -486,7 +486,10 @@ class CashierTransaction(Base, TimestampMixin):
     amount: Mapped[float] = mapped_column()
     description: Mapped[Optional[str]] = mapped_column(nullable=True)
 
-    payment_method: Mapped[PaymentMethod] = mapped_column(Enum(PaymentMethod))
+    payment_method_id: Mapped[int] = mapped_column(
+        ForeignKey("store_payment_methods.id"),
+        nullable=False
+    )
 
     related_order = relationship("Order", back_populates="transactions", lazy="joined")
     cashier_session = relationship("CashierSession", back_populates="transactions")

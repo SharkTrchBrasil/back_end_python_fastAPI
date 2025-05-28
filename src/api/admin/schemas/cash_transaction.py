@@ -1,13 +1,11 @@
 from datetime import datetime
-
 from pydantic import BaseModel
-
 
 class CashierTransactionBase(BaseModel):
     cashier_session_id: int
-    type: str  # entrada, saida, venda, sangria, etc.
+    type: str  # ex: 'INFLOW', 'OUTFLOW', 'SALE', 'REFUND', etc.
     amount: float
-    payment_method: str
+    payment_method_id: int
     description: str | None = None
     order_id: int | None = None
 
@@ -17,16 +15,20 @@ class CashierTransactionCreate(CashierTransactionBase):
 class CashierTransactionUpdate(BaseModel):
     type: str | None = None
     amount: float | None = None
-    payment_method: str | None = None
+    payment_method_id: int | None = None
     description: str | None = None
-   # order_id: int | None = None
+    order_id: int | None = None  # 👍 pode deixar aqui para updates também
 
 class CashierTransactionOut(BaseModel):
     id: int
-    type: str | None = None
-    amount: float | None = None
-    payment_method: str | None = None
+    cashier_session_id: int
+    type: str
+    amount: float
+    payment_method_id: int
     description: str | None = None
-    order_id: int | None = None  # <--- Recomendo manter aqui
-    created_at: datetime # <--- Adicione este campo
-    updated_at: datetime # <--- Adicione este campo
+    order_id: int | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True  # ✅ importante para conversão automática via ORM
