@@ -11,7 +11,7 @@ from src.api.admin.schemas.cash_session import (
 from src.api.admin.schemas.cash_transaction import CashierTransactionOut
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep, GetCurrentUserDep
-from src.core.helpers.enums import CashierTransactionType, PaymentMethod
+from src.core.helpers.enums import CashierTransactionType, PaymentMethod, CashMovementType
 from src.core.models import CashierSession, CashierTransaction
 
 router = APIRouter(prefix="/stores/{store_id}/cashier-sessions", tags=["Sessões de Caixa"])
@@ -58,7 +58,7 @@ def open_cash(
     if payload.initial_balance > 0:
         movement = CashierTransaction(
             cashier_session_id=session.id,
-            type='in',
+            type=CashMovementType.IN,
             amount=payload.initial_balance,
             description='Saldo inicial do caixa',
             created_at=datetime.utcnow(),
