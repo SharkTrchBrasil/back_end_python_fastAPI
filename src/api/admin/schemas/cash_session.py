@@ -8,7 +8,7 @@ class CashierSessionBase(BaseModel):
 
 
 class CashierSessionCreate(BaseModel):
-    initial_balance: float = 0.0
+    opening_amount: float = 0.0
     notes: str | None = None
 
 class CashierSessionUpdate(BaseModel):
@@ -40,6 +40,7 @@ class CashierSessionOut(CashierSessionBase):
     status: str
     created_at: datetime
     updated_at: datetime
+    opening_amount: float = 0.0
 
     class Config:
         orm_mode = True
