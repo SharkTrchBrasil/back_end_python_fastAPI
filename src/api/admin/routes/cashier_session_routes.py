@@ -62,6 +62,7 @@ def open_cash(
             amount=payload.initial_balance,
             description='Saldo inicial do caixa',
             created_at=datetime.utcnow(),
+            related_order_id=None
         )
         db.add(movement)
         db.commit()

@@ -493,7 +493,7 @@ class CashierTransaction(Base, TimestampMixin):
     cashier_session = relationship("CashierSession", back_populates="transactions")
 
 
-    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"))
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"),nullable=True)
 
 class CashMovement(Base, TimestampMixin):
     __tablename__ = "cash_movements"
