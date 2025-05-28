@@ -209,23 +209,22 @@ def remove_cash(
 
 @router.get("/{id}/payment-summary")
 def get_payment_summary(id: int, db: GetDBDep, store: GetStoreDep):
+    # Verifica se sessão existe
     session = db.query(CashierSession).filter_by(id=id, store_id=store.id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Sessão não encontrada")
 
+    # Consulta resumo por método de pagamento, soma valores IN
     result = (
         db.query(
             CashierTransaction.payment_method,
             func.coalesce(func.sum(CashierTransaction.amount), 0)
         )
-        .filter(
-            CashierTransaction.cashier_session_id == id,
-            CashierTransaction.type == 'inflow'
-        )
+        .filter_by(cashier_session_id=id, type=CashierTransactionType.INFLOW)
         .group_by(CashierTransaction.payment_method)
         .all()
     )
+    print(CashierTransactionType.INFLOW.value)  # deve imprimir 'inflow'
 
-    summary = {payment_method: float(amount) for payment_method, amount in result}
+    summary = {payment_method.value: float(amount) for payment_method, amount in result}
     return summary
-
