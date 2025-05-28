@@ -19,6 +19,11 @@ class CashierTransactionUpdate(BaseModel):
     description: str | None = None
    # order_id: int | None = None
 
-class CashierTransactionOut(CashierTransactionBase):
+class CashierTransactionOut(BaseModel):
     id: int
+    type: str | None = None
+    amount: float | None = None
+    payment_method: str | None = None
+    description: str | None = None
+    order_id: int | None = None  # <--- Recomendo manter aqui
 
