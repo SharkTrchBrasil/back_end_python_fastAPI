@@ -5,7 +5,7 @@ from typing import Optional, List
 from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric, update, event, Enum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from src.core.helpers.enums import CashMovementType, PaymentMethod, CashierTransactionType
+from src.core.helpers.enums import PaymentMethod, CashierTransactionType
 
 
 class Base(DeclarativeBase):
@@ -63,7 +63,6 @@ class Store(Base, TimestampMixin):
     payables: Mapped[list["StorePayable"]] = relationship()
 
     orders: Mapped[List["Order"]] = relationship("Order", back_populates="store", cascade="all, delete-orphan")
-    cash_movements = relationship("CashMovement", back_populates="store")
 
     cashier_sessions: Mapped[List["CashierSession"]] = relationship(
         "CashierSession", back_populates="store", cascade="all, delete-orphan"
@@ -494,22 +493,6 @@ class CashierTransaction(Base, TimestampMixin):
 
 
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"),nullable=True)
-
-class CashMovement(Base, TimestampMixin):
-    __tablename__ = "cash_movements"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
-
-
-    type: Mapped[CashMovementType] = mapped_column(Enum(CashMovementType))
-
-    amount: Mapped[float] = mapped_column(Numeric(10, 2))
-    note: Mapped[str | None] = mapped_column(nullable=True)
-
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    store: Mapped["Store"] = relationship("Store", back_populates="cash_movements")
 
 
 

@@ -1,10 +1,5 @@
 from enum import Enum
 
-class CashMovementType(str, Enum):
-    IN = "in"
-    OUT = "out"
-
-
 
 
 class CashierTransactionType(str, Enum):
