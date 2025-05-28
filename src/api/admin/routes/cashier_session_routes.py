@@ -60,12 +60,12 @@ def open_cash(
     if payload.initial_balance > 0:
         movement = CashierTransaction(
             cashier_session_id=session.id,
-            type=CashMovementType.IN,
+            type=CashMovementType.IN.value,
             amount=payload.initial_balance,
             description='Saldo inicial do caixa',
             created_at=datetime.utcnow(),
             order_id=None,
-            payment_method=PaymentMethod.CASH,
+            payment_method=PaymentMethod.CASH.value,
         )
         db.add(movement)
         db.commit()
@@ -171,7 +171,7 @@ def add_cash(
         type=CashierTransactionType.INFLOW.value,
         amount=req.amount,
         description=req.description,
-        payment_method=PaymentMethod.CASH
+        payment_method=PaymentMethod.CASH.value
     )
     db.add(transaction)
     db.commit()
@@ -199,7 +199,7 @@ def remove_cash(
         type=CashierTransactionType.OUTFLOW.value,
         amount=amount,
         description=description,
-        payment_method=PaymentMethod.CASH
+        payment_method=PaymentMethod.CASH.value
     )
     db.add(transaction)
     db.commit()
