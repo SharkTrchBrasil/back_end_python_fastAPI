@@ -60,7 +60,7 @@ def open_cash(
             cashier_session_id=session.id,
             type='in',
             amount=payload.initial_balance,
-            note='Saldo inicial do caixa',
+            description='Saldo inicial do caixa',
             created_at=datetime.utcnow(),
         )
         db.add(movement)
