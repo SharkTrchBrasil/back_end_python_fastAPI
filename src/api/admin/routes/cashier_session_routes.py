@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import func, and_
 
 from src.api.admin.schemas.cash_session import (
@@ -146,13 +147,20 @@ def close_cash(id: int, db: GetDBDep, store: GetStoreDep):
     db.commit()
     db.refresh(session)
     return session
+
+
+
+
+class AddCashRequest(BaseModel):
+    amount: float
+    description: str
+
 @router.post("/{id}/add-cash", response_model=CashierTransactionOut)
 def add_cash(
     id: int,
+    req: AddCashRequest,
     db: GetDBDep,
     store: GetStoreDep,
-    amount: float = Query(...),
-    description: str = Query(...),
 ):
     session = db.query(CashierSession).filter_by(id=id, store_id=store.id, status="open").first()
     if not session:
@@ -161,14 +169,17 @@ def add_cash(
     transaction = CashierTransaction(
         cashier_session_id=id,
         type=CashierTransactionType.INFLOW,
-        amount=amount,
-        description=description,
+        amount=req.amount,
+        description=req.description,
         payment_method=PaymentMethod.CASH
     )
     db.add(transaction)
     db.commit()
     db.refresh(transaction)
     return transaction
+
+
+
 
 # Remover dinheiro do caixa (ex: sangria)
 @router.post("/{id}/remove-cash", response_model=CashierTransactionOut)
