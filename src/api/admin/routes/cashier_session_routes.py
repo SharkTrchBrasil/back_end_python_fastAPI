@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, and_
 
 from src.api.admin.schemas.cash_session import (
@@ -146,15 +146,13 @@ def close_cash(id: int, db: GetDBDep, store: GetStoreDep):
     db.commit()
     db.refresh(session)
     return session
-
-# Adicionar dinheiro no caixa (ex: reforço)
 @router.post("/{id}/add-cash", response_model=CashierTransactionOut)
 def add_cash(
     id: int,
-    amount: float,
-    description: str,
     db: GetDBDep,
-    store: GetStoreDep
+    store: GetStoreDep,
+    amount: float = Query(...),
+    description: str = Query(...),
 ):
     session = db.query(CashierSession).filter_by(id=id, store_id=store.id, status="open").first()
     if not session:
