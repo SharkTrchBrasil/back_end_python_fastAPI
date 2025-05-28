@@ -206,24 +206,57 @@ def remove_cash(
     return transaction
 
 
+
 @router.get("/{id}/payment-summary")
 def get_payment_summary(id: int, db: GetDBDep, store: GetStoreDep):
-    # Verifica se sessão existe
+    # Verify session existence
     session = db.query(CashierSession).filter_by(id=id, store_id=store.id).first()
     if not session:
-        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+        raise HTTPException(status_code=404, detail="Session not found")
 
-    # Consulta resumo por método de pagamento, soma valores IN
+    # --- MODIFIED QUERY ---
     result = (
         db.query(
-            CashierTransaction.payment_method,
+            StorePaymentMethods.custom_name, # <--- Select the custom_name
             func.coalesce(func.sum(CashierTransaction.amount), 0)
         )
-        .filter_by(cashier_session_id=id, type=CashierTransactionType.INFLOW)
-        .group_by(CashierTransaction.payment_method)
+        .join(
+            StorePaymentMethods,
+            # Join CashierTransaction with StorePaymentMethods
+            # on the condition that CashierTransaction.payment_method
+            # matches StorePaymentMethods.payment_type
+            # AND StorePaymentMethods.store_id matches the current store
+            (CashierTransaction.payment_method == StorePaymentMethods.payment_type) &
+            (StorePaymentMethods.store_id == store.id) # IMPORTANT: Filter payment methods by store
+        )
+        .filter(
+            CashierTransaction.cashier_session_id == id,
+            CashierTransaction.type == CashierTransactionType.INFLOW
+        )
+        .group_by(
+            StorePaymentMethods.custom_name # <--- Group by custom_name for the summary
+            # Note: If two *different* payment types (e.g., "Cash" and "OnlinePay") happened to have the same custom_name ("Payment"),
+            # they would be summed together. If you need absolute uniqueness for the key,
+            # you might need to group by StorePaymentMethods.id and then use custom_name.
+            # For distinct custom names, grouping by custom_name is typically fine.
+        )
         .all()
     )
-    print(CashierTransactionType.INFLOW.value)  # deve imprimir 'inflow'
 
-    summary = {payment_method.value: float(amount) for payment_method, amount in result}
-    return summary
+    summary = {str(custom_name): float(amount) for custom_name, amount in result}
+
+    # You might want to get all active payment methods for the store
+    # and initialize their sums to 0 if no transactions occurred for them,
+    # then update with actual transaction sums.
+    all_active_payment_methods = db.query(StorePaymentMethods).filter(
+        StorePaymentMethods.store_id == store.id,
+        StorePaymentMethods.is_active == True,
+        # Consider active_on_counter as well if this is for counter sales
+        StorePaymentMethods.active_on_counter == True
+    ).all()
+
+    final_summary = {}
+    for pm in all_active_payment_methods:
+        final_summary[pm.custom_name] = summary.get(pm.custom_name, 0.0) # Initialize with 0 or the sum from transactions
+
+    return final_summary
