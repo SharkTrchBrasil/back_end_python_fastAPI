@@ -1,8 +1,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
-
+from sqlalchemy import func, and_
 
 from src.api.admin.schemas.cash_session import (
     CashierSessionUpdate,
@@ -17,7 +16,22 @@ from src.core.models import CashierSession, CashierTransaction
 
 router = APIRouter(prefix="/stores/{store_id}/cashier-sessions", tags=["Sessões de Caixa"])
 
+@router.get("/current", response_model=CashierSessionOut)
+def get_current_cashier_session(
+    db: GetDBDep,
+    store: GetStoreDep
+):
+    session = db.query(CashierSession).filter(
+        and_(
+            CashierSession.store_id == store.id,
+            CashierSession.status == 'open'
+        )
+    ).first()
 
+    if not session:
+        raise HTTPException(status_code=404, detail="Nenhuma sessão de caixa aberta encontrada.")
+
+    return session
 @router.post("", response_model=CashierSessionOut)
 def open_cash(
     payload: CashierSessionCreate,
