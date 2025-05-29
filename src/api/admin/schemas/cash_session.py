@@ -41,7 +41,6 @@ class CashierSessionOut(CashierSessionBase):
     cash_difference: float | None = None
     status: str
     opening_amount: float = 0.0
-    available_cash: float
     total_cash_sales: float | None = 0.0
 
     class Config:
