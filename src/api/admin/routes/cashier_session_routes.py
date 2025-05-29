@@ -77,27 +77,6 @@ def open_cash(
     db.commit()
     db.refresh(session)
 
-    if payload.opening_amount > 0:
-        # ✅ Validação do método de pagamento
-        payment_method = db.query(StorePaymentMethods).filter_by(
-            id=payload.payment_method_id,
-            store_id=store.id
-        ).first()
-
-        if not payment_method:
-            raise HTTPException(status_code=400, detail="Método de pagamento inválido para esta loja")
-
-        movement = CashierTransaction(
-            cashier_session_id=session.id,
-            type=CashierTransactionType.INFLOW,
-            amount=payload.opening_amount,
-            description='Saldo inicial do caixa',
-            payment_method_id=payload.payment_method_id,
-            created_at=datetime.now(timezone.utc)
-        )
-        db.add(movement)
-        db.commit()
-
     return session
 
 
