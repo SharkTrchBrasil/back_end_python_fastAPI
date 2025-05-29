@@ -16,8 +16,6 @@ class CashierSessionCreate(BaseModel):
 class CashierSessionUpdate(BaseModel):
     user_closed_id: int | None = None
     closed_at: datetime | None = None
-    cash_added: float | None = None
-    cash_removed: float | None = None
     total_sales: float | None = None
     total_received: float | None = None
     closing_amount: float | None = None
@@ -25,6 +23,8 @@ class CashierSessionUpdate(BaseModel):
     cash_difference: float | None = None
     status: str | None = None
     notes: str | None = None
+    cash_added: float | None = None
+    cash_removed: float | None = None
 
 
 class CashierSessionOut(CashierSessionBase):

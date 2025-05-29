@@ -186,6 +186,10 @@ def add_cash(
         description=req.description,
         payment_method_id=req.payment_method_id
     )
+
+    # Atualiza valor em caixa
+    session.cash_added += req.amount
+
     db.add(transaction)
     db.commit()
     db.refresh(transaction)
@@ -213,10 +217,15 @@ def remove_cash(
         description=req.description,
         payment_method_id=req.payment_method_id
     )
+
+    # Atualiza valor em caixa
+    session.cash_removed += req.amount
+
     db.add(transaction)
     db.commit()
     db.refresh(transaction)
     return transaction
+
 
 @router.get("/{id}/payment-summary")
 def get_payment_summary(id: int, db: GetDBDep, store: GetStoreDep):

@@ -1,9 +1,12 @@
 from datetime import datetime
 from pydantic import BaseModel
 
+from src.core.helpers.enums import CashierTransactionType
+
+
 class CashierTransactionBase(BaseModel):
     cashier_session_id: int
-    type: str  # ex: 'INFLOW', 'OUTFLOW', 'SALE', 'REFUND', etc.
+    type: CashierTransactionType
     amount: float
     payment_method_id: int
     description: str | None = None

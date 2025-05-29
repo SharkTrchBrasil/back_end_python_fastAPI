@@ -470,6 +470,15 @@ class CashierSession(Base, TimestampMixin):
         "CashierTransaction", back_populates="cashier_session", cascade="all, delete-orphan"
     )
 
+    def add_cash(self, amount: float):
+        if amount <= 0:
+            raise ValueError("O valor a adicionar deve ser positivo.")
+        self.cash_added += amount
+
+    def remove_cash(self, amount: float):
+        if amount <= 0:
+            raise ValueError("O valor a remover deve ser positivo.")
+        self.cash_removed += amount
 
 
 class CashierTransaction(Base, TimestampMixin):
