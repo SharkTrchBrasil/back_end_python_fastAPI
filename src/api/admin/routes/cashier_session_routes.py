@@ -32,8 +32,25 @@ def get_current_cashier_session(
     if not session:
         raise HTTPException(status_code=404, detail="Nenhuma sessão de caixa aberta encontrada.")
 
-    return session
+    # 🔎 Buscar total de vendas EM DINHEIRO
+    total_cash_sales = db.query(func.sum(CashierTransaction.amount)).filter(
+        CashierTransaction.cashier_session_id == session.id,
+        CashierTransaction.type == CashierTransactionType.SALE,  # ou Enum, se estiver usando
+        CashierTransaction.payment_method_id == 1  # 1 = ID do dinheiro (ajuste se for diferente)
+    ).scalar() or 0.0
 
+    # 🧮 Calcular saldo real disponível
+    session.available_cash = (
+        (session.opening_amount or 0) +
+        (session.cash_added or 0) +
+        total_cash_sales -
+        (session.cash_removed or 0)
+    )
+
+    # Adicionar ao objeto (mesmo que não esteja no banco, o FastAPI envia junto se estiver no schema)
+    session.total_cash_sales = total_cash_sales
+
+    return session
 
 
 
