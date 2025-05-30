@@ -69,10 +69,10 @@ def open_cash(
         store_id=store.id,
         user_opened_id=user.id,
         opening_amount=payload.opening_amount,
-        payment_method_id=payload.payment_method_id,
+
         opened_at=datetime.now(timezone.utc),
         status="open",
-        notes=payload.notes
+
     )
     db.add(session)
     db.commit()
