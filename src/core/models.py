@@ -449,27 +449,19 @@ class CashierSession(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     user_opened_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     user_closed_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
-
     opened_at: Mapped[datetime] = mapped_column(default=datetime.now(timezone.utc),)
     closed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-
     opening_amount: Mapped[float] = mapped_column()
-    payment_method_id: Mapped[int] = mapped_column(
-        ForeignKey("store_payment_methods.id"),
-        nullable=False
-    )
     cash_added: Mapped[float] = mapped_column(default=0.0)
     cash_removed: Mapped[float] = mapped_column(default=0.0)
-    total_sales: Mapped[float] = mapped_column(default=0.0)
-    total_received: Mapped[float] = mapped_column(default=0.0)
-    closing_amount: Mapped[Optional[float]] = mapped_column(nullable=True)
-    gross_profit: Mapped[float] = mapped_column(default=0.0)
+
+
     cash_difference: Mapped[float] = mapped_column(default=0.0)
     expected_amount: Mapped[float] = mapped_column(default=0.0)
     informed_amount: Mapped[float] = mapped_column(default=0.0)
 
     status: Mapped[str] = mapped_column(default="open")
-    notes: Mapped[Optional[str]] = mapped_column(nullable=True)
+
 
     store: Mapped["Store"] = relationship("Store", back_populates="cashier_sessions")
 
