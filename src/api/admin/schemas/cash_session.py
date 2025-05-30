@@ -45,6 +45,7 @@ class CashierSessionOut(CashierSessionBase):
     status: str
     opening_amount: float = 0.0
     total_cash_sales: float | None = 0.0
+    payment_method_id: int
 
     class Config:
         orm_mode = True
