@@ -145,13 +145,17 @@ def list_session_transactions(id: int, db: GetDBDep, store: GetStoreDep):
 
 # Fechar o caixa
 @router.post("/{id}/close", response_model=CashierSessionOut)
-def close_cash(id: int, db: GetDBDep, store: GetStoreDep):
+def close_cash(id: int, data:CashierSessionUpdate,  db: GetDBDep, store: GetStoreDep, user: GetCurrentUserDep):
     session = db.query(CashierSession).filter_by(id=id, store_id=store.id).first()
     if not session or session.status != "open":
         raise HTTPException(status_code=404, detail="Sessão não encontrada ou já está fechada")
 
     session.status = "closed"
+    session.user_closed_id = user.id
     session.closed_at = datetime.now(timezone.utc)
+    session.expected_amount = data.expected_amount
+    session.informed_amount = data.informed_amount
+    session.cash_difference = data.cash_difference
     db.commit()
     db.refresh(session)
     return session
@@ -171,6 +175,7 @@ def add_cash(
     req: AddCashRequest,
     db: GetDBDep,
     store: GetStoreDep,
+    user: GetCurrentUserDep
 ):
     session = db.query(CashierSession).filter_by(id=id, store_id=store.id, status="open").first()
     if not session:
@@ -180,6 +185,7 @@ def add_cash(
         cashier_session_id=id,
         type=CashierTransactionType.INFLOW,
         amount=req.amount,
+        user_id=user.id,
         description=req.description,
         payment_method_id=req.payment_method_id
     )
@@ -201,7 +207,8 @@ def remove_cash(
     id: int,
     req: AddCashRequest,
     db: GetDBDep,
-    store: GetStoreDep
+    store: GetStoreDep,
+    user: GetCurrentUserDep
 ):
     session = db.query(CashierSession).filter_by(id=id, store_id=store.id, status="open").first()
     if not session:
@@ -211,6 +218,7 @@ def remove_cash(
         cashier_session_id=id,
         type=CashierTransactionType.OUTFLOW,
         amount=req.amount,
+        user_id=user.id,
         description=req.description,
         payment_method_id=req.payment_method_id
     )

@@ -22,6 +22,8 @@ class CashierSessionUpdate(BaseModel):
     closing_amount: float | None = None
     gross_profit: float | None = None
     cash_difference: float | None = None
+    expected_amount: float  # quanto o sistema esperava
+    informed_amount: float  # quanto o operador contou
     status: str | None = None
     notes: str | None = None
     cash_added: float | None = None

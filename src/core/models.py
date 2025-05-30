@@ -465,6 +465,8 @@ class CashierSession(Base, TimestampMixin):
     closing_amount: Mapped[Optional[float]] = mapped_column(nullable=True)
     gross_profit: Mapped[float] = mapped_column(default=0.0)
     cash_difference: Mapped[float] = mapped_column(default=0.0)
+    expected_amount: Mapped[float] = mapped_column(default=0.0)
+    informed_amount: Mapped[float] = mapped_column(default=0.0)
 
     status: Mapped[str] = mapped_column(default="open")
     notes: Mapped[Optional[str]] = mapped_column(nullable=True)
