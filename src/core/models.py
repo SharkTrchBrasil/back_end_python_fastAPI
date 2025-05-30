@@ -497,6 +497,7 @@ class CashierTransaction(Base, TimestampMixin):
     description: Mapped[Optional[str]] = mapped_column()
     order_id: Mapped[Optional[int]] = mapped_column(ForeignKey("orders.id"), nullable=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))  # Novo campo recomendado
+    order: Mapped[Optional["Order"]] = relationship("Order", back_populates="transactions")
 
     cashier_session: Mapped["CashierSession"] = relationship("CashierSession", back_populates="transactions")
     user: Mapped["User"] = relationship("User")
@@ -522,7 +523,7 @@ class Order(Base, TimestampMixin):
 
 
     store: Mapped["Store"] = relationship("Store", back_populates="orders", lazy="joined")
-    transactions: Mapped[List["CashierTransaction"]] = relationship("CashierTransaction", back_populates="related_order")
+    transactions: Mapped[List["CashierTransaction"]] = relationship("CashierTransaction", back_populates="order")
 
 
 
