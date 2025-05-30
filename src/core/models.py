@@ -470,6 +470,7 @@ class CashierSession(Base, TimestampMixin):
     notes: Mapped[Optional[str]] = mapped_column(nullable=True)
 
     store: Mapped["Store"] = relationship("Store", back_populates="cashier_sessions")
+
     transactions: Mapped[List["CashierTransaction"]] = relationship(
         "CashierTransaction", back_populates="cashier_session", cascade="all, delete-orphan"
     )
@@ -499,7 +500,7 @@ class CashierTransaction(Base, TimestampMixin):
 
     cashier_session: Mapped["CashierSession"] = relationship("CashierSession", back_populates="transactions")
     user: Mapped["User"] = relationship("User")
-    payment_method: Mapped["StorePaymentMethods"] = relationship("StorePaymentMethod")
+    payment_method: Mapped["StorePaymentMethods"] = relationship("StorePaymentMethods")
 
 class Order(Base, TimestampMixin):
     __tablename__ = "orders"
