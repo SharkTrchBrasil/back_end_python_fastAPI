@@ -8,10 +8,11 @@ class CashierSessionBase(BaseModel):
 
 
 
+
 class CashierSessionCreate(BaseModel):
     opening_amount: float = 0.0
     notes: str | None = None
-    payment_method_id: int  # ✅ adicionar esse campo
+    payment_method_id: int
 
 class CashierSessionUpdate(BaseModel):
     user_closed_id: int | None = None

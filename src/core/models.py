@@ -454,6 +454,10 @@ class CashierSession(Base, TimestampMixin):
     closed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
     opening_amount: Mapped[float] = mapped_column()
+    payment_method_id: Mapped[int] = mapped_column(
+        ForeignKey("store_payment_methods.id"),
+        nullable=False
+    )
     cash_added: Mapped[float] = mapped_column(default=0.0)
     cash_removed: Mapped[float] = mapped_column(default=0.0)
     total_sales: Mapped[float] = mapped_column(default=0.0)
@@ -485,28 +489,17 @@ class CashierTransaction(Base, TimestampMixin):
     __tablename__ = "cashier_transactions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    cashier_session_id: Mapped[int] = mapped_column(ForeignKey("cashier_sessions.id", ondelete="CASCADE"))
-
-
-    type: Mapped[CashierTransactionType] = mapped_column(Enum(CashierTransactionType))
-
-
-    # sale, refund, inflow, outflow, withdraw, sangria
+    cashier_session_id: Mapped[int] = mapped_column(ForeignKey("cashier_sessions.id"))
+    type: Mapped[str] = mapped_column()  # inflow ou outflow
     amount: Mapped[float] = mapped_column()
-    description: Mapped[Optional[str]] = mapped_column(nullable=True)
+    payment_method_id: Mapped[int] = mapped_column(ForeignKey("store_payment_methods.id"))
+    description: Mapped[Optional[str]] = mapped_column()
+    order_id: Mapped[Optional[int]] = mapped_column(ForeignKey("orders.id"), nullable=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))  # Novo campo recomendado
 
-    payment_method_id: Mapped[int] = mapped_column(
-        ForeignKey("store_payment_methods.id"),
-        nullable=False
-    )
-
-    related_order = relationship("Order", back_populates="transactions", lazy="joined")
-    cashier_session = relationship("CashierSession", back_populates="transactions")
-
-
-    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"),nullable=True)
-
-
+    cashier_session: Mapped["CashierSession"] = relationship("CashierSession", back_populates="transactions")
+    user: Mapped["User"] = relationship("User")
+    payment_method: Mapped["StorePaymentMethods"] = relationship("StorePaymentMethod")
 
 class Order(Base, TimestampMixin):
     __tablename__ = "orders"
