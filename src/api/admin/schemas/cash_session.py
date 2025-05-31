@@ -30,6 +30,8 @@ class CashierSessionOut(CashierSessionBase):
     cash_difference: float | None = None
     status: str
     opening_amount: float = 0.0
+    expected_amount: float  # quanto o sistema esperava
+    informed_amount: float  # quanto o operador contou
 
 
     class Config:
