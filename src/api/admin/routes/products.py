@@ -246,7 +246,7 @@ async def patch_product(
 
 
 @router.delete("/{product_id}", status_code=204)
-def delete_product(product_id: int, db: GetDBDep, db_product =GetProductDep):
+def delete_product(product_id: int, db: GetDBDep, db_product: GetProductDep):
     old_file_key = db_product.file_key
     db.delete(db_product)
     db.commit()
