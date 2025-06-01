@@ -53,3 +53,12 @@ def list_variants(store_id: int, db: GetDBDep, store: GetStoreDep):
         .all()
     )
     return variants
+
+
+@router.delete("/{variant_id}", status_code=204)
+def delete_product_variant(
+    db: GetDBDep,
+    variant: GetVariantDep,
+):
+    db.delete(variant)
+    db.commit()

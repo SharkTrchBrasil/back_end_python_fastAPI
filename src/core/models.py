@@ -195,12 +195,18 @@ class Variant(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     store: Mapped["Store"] = relationship()  # ou back_populates, se desejar
 
-    options: Mapped[list["VariantOptions"]] = relationship(back_populates="variant")
+
+
+    options: Mapped[list["VariantOptions"]] = relationship(
+        back_populates="variant",
+        cascade="all, delete-orphan"
+    )
 
     product_links: Mapped[list["ProductVariantProduct"]] = relationship(
         back_populates="variant",
         cascade="all, delete-orphan"
     )
+
 
 class VariantOptions(Base, TimestampMixin):
     __tablename__ = "variant_options"
@@ -213,10 +219,8 @@ class VariantOptions(Base, TimestampMixin):
     price: Mapped[int] = mapped_column()
     discount_price: Mapped[int] = mapped_column()
     max_quantity: Mapped[int] = mapped_column()
-    # Aqui está a chave estrangeira necessária
-    variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id"))
+    variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id", ondelete="CASCADE"))
 
-    variant: Mapped["Variant"] = relationship(back_populates="options")
 
 class ProductVariantProduct(Base):
     __tablename__ = "product_variants_products"
@@ -225,11 +229,14 @@ class ProductVariantProduct(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
-    variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id"))
+    variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id", ondelete="CASCADE"))
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"))
 
     product: Mapped["Product"] = relationship(back_populates="variant_links")
     variant: Mapped["Variant"] = relationship(back_populates="product_links")
+
+
+
 
 class Coupon(Base, TimestampMixin):
     __tablename__ = "coupons"
