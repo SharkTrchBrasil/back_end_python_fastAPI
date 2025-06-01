@@ -96,8 +96,12 @@ def delete_category(
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
 
+    # Deletar os arquivos dos produtos da categoria
+    for product in category.products:
+        if product.file_key:
+            delete_file(product.file_key)
+
     db.delete(category)
     db.commit()
-
 
 
