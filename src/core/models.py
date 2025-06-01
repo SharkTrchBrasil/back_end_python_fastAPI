@@ -109,6 +109,47 @@ class Category(Base, TimestampMixin):
     file_key: Mapped[str] = mapped_column()
     is_active: Mapped[bool] = mapped_column(default=True)
     store: Mapped[Store] = relationship()
+    products: Mapped[list["Product"]] = relationship(
+        back_populates="category",
+        cascade="all, delete-orphan"
+    )
+
+class Product(Base, TimestampMixin):
+    __tablename__ = "products"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column()
+    description: Mapped[str] = mapped_column()
+    base_price: Mapped[int] = mapped_column()
+    cost_price: Mapped[int] = mapped_column(default=0)
+    available: Mapped[bool] = mapped_column()
+
+    promotion_price: Mapped[int] = mapped_column(default=0)
+
+    featured: Mapped[bool] = mapped_column()
+    activate_promotion: Mapped[bool] = mapped_column()
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
+    category: Mapped[Category] = relationship(back_populates="products")
+    file_key: Mapped[str] = mapped_column()
+
+    variant_links: Mapped[list["ProductVariantProduct"]] = relationship(
+        back_populates="product",
+        cascade="all, delete-orphan"
+    )
+
+    ean: Mapped[str] = mapped_column(default="")
+
+
+
+
+    stock_quantity: Mapped[int] = mapped_column(default=0)
+    control_stock: Mapped[bool] = mapped_column(default=False)
+    min_stock: Mapped[int] = mapped_column(default=0)
+    max_stock: Mapped[int] = mapped_column(default=0)
+    unit: Mapped[str] = mapped_column(default="")
+
 
 class StorePaymentMethods(Base, TimestampMixin):
     __tablename__ = "store_payment_methods"
@@ -139,41 +180,6 @@ class StoreType(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(unique=True, nullable=False)
 
-class Product(Base, TimestampMixin):
-    __tablename__ = "products"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column()
-    description: Mapped[str] = mapped_column()
-    base_price: Mapped[int] = mapped_column()
-    cost_price: Mapped[int] = mapped_column(default=0)
-    available: Mapped[bool] = mapped_column()
-
-    promotion_price: Mapped[int] = mapped_column(default=0)
-
-    featured: Mapped[bool] = mapped_column()
-    activate_promotion: Mapped[bool] = mapped_column()
-
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
-    category: Mapped[Category] = relationship()
-    file_key: Mapped[str] = mapped_column()
-
-    variant_links: Mapped[list["ProductVariantProduct"]] = relationship(
-        back_populates="product",
-        cascade="all, delete-orphan"
-    )
-
-    ean: Mapped[str] = mapped_column(default="")
-
-
-
-
-    stock_quantity: Mapped[int] = mapped_column(default=0)
-    control_stock: Mapped[bool] = mapped_column(default=False)
-    min_stock: Mapped[int] = mapped_column(default=0)
-    max_stock: Mapped[int] = mapped_column(default=0)
-    unit: Mapped[str] = mapped_column(default="")
 
 class Variant(Base, TimestampMixin):
     __tablename__ = "variants"
