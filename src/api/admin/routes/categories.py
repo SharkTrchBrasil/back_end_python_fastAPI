@@ -80,3 +80,24 @@ def patch_category(
         delete_file(file_key_to_delete)
 
     return db_category
+
+
+@router.delete("/{category_id}", status_code=204)
+def delete_category(
+    category_id: int,
+    db: GetDBDep,
+    store: GetStoreDep,
+):
+    category = db.query(models.Category).filter(
+        models.Category.id == category_id,
+        models.Category.store_id == store.id
+    ).first()
+
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    db.delete(category)
+    db.commit()
+
+
+
