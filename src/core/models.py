@@ -180,7 +180,6 @@ class StoreType(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(unique=True, nullable=False)
 
-
 class Variant(Base, TimestampMixin):
     __tablename__ = "variants"
 
@@ -193,9 +192,7 @@ class Variant(Base, TimestampMixin):
     repeatable: Mapped[bool] = mapped_column()
 
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    store: Mapped["Store"] = relationship()  # ou back_populates, se desejar
-
-
+    store: Mapped["Store"] = relationship()
 
     options: Mapped[list["VariantOptions"]] = relationship(
         back_populates="variant",
@@ -219,8 +216,9 @@ class VariantOptions(Base, TimestampMixin):
     price: Mapped[int] = mapped_column()
     discount_price: Mapped[int] = mapped_column()
     max_quantity: Mapped[int] = mapped_column()
-    variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id", ondelete="CASCADE"))
 
+    variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id", ondelete="CASCADE"))
+    variant: Mapped["Variant"] = relationship(back_populates="options")
 
 class ProductVariantProduct(Base):
     __tablename__ = "product_variants_products"
