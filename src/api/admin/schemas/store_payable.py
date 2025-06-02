@@ -11,21 +11,11 @@ class PayableStatus(str, Enum):
 class StorePayableBase(BaseModel):
     title: str
     description: str | None = None
-
     amount: float
-    discount: float = 0.0
-    addition: float = 0.0
-
     due_date: date
     payment_date: date | None = None
-
     barcode: str | None = None
-
     status: PayableStatus = PayableStatus.pending
-
-    is_recurring: bool = False
-    notes: str | None = None
-
 
 
 
@@ -40,8 +30,6 @@ class StorePayableUpdate(BaseModel):
     description: str | None = None
 
     amount: float | None = None
-    discount: float | None = None
-    addition: float | None = None
 
     due_date: date | None = None
     payment_date: date | None = None
@@ -49,8 +37,6 @@ class StorePayableUpdate(BaseModel):
     barcode: str | None = None
     status: PayableStatus | None = None
 
-    is_recurring: bool | None = None
-    notes: str | None = None
 
 
 

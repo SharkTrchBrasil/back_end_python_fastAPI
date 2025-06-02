@@ -439,7 +439,7 @@ class StorePayable(Base, TimestampMixin):
     addition: Mapped[float] = mapped_column(default=0.0)
 
     due_date: Mapped[date] = mapped_column()
-    payment_date: Mapped[date] = mapped_column()
+    payment_date = Mapped[date] = mapped_column(nullable=True)
 
     barcode: Mapped[str | None] = mapped_column( nullable=True)
 

@@ -18,7 +18,7 @@ def create_payable(
     db: GetDBDep,
     store: GetStoreDep,
 ):
-    payable = StorePayable(**payload.dict(), store_id=store.id)
+    payable = StorePayable(**payload.model_dump(), store_id=store.id)
     db.add(payable)
     db.commit()
     db.refresh(payable)
