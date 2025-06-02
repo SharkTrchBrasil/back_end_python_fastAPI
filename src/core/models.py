@@ -280,6 +280,8 @@ class TotemAuthorization(Base, TimestampMixin):
     granted: Mapped[bool] = mapped_column(default=False)
     granted_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
 
+    store: Mapped[Store] = relationship()
+
     sid: Mapped[str | None] = mapped_column(unique=True)
 
 class StoreTheme(Base, TimestampMixin):
