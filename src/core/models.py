@@ -284,6 +284,8 @@ class TotemAuthorization(Base, TimestampMixin):
 
     sid: Mapped[str | None] = mapped_column(unique=True)
 
+    store_url: Mapped[str] = mapped_column(unique=True, nullable=False)
+
 class StoreTheme(Base, TimestampMixin):
     __tablename__ = "store_themes"
 

@@ -1,8 +1,10 @@
 # src/api/admin/routes/store.py
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, Form
 from fastapi.params import File
+from slugify import slugify
 from sqlalchemy.orm import joinedload
 
 from src.api.admin.schemas.full_store import FullStoreData
@@ -71,6 +73,18 @@ def create_store(
     )
     db.add(db_delivery_settings)
 
+    # Cria o token e slug do totem
+    totem_token = str(uuid.uuid4())
+    url_slug = slugify(store_create.name)  # Pode usar o nome que chegou
+
+    totem_auth = models.TotemAuthorization(
+        store_id=db_store.id,
+        totem_token=totem_token,
+        granted=True,
+        store_url=url_slug
+    )
+    db.add(totem_auth)
+
     # Cria vínculo do usuário com a loja como dono
     db_role = db.query(models.Role).filter(models.Role.machine_name == "owner").first()
     db_store_access = models.StoreAccess(user=user, role=db_role, store=db_store)
@@ -79,8 +93,6 @@ def create_store(
     # Comita tudo junto
     db.commit()
     return db_store_access
-
-
 
 
 @router.get("", response_model=list[StoreWithRole])

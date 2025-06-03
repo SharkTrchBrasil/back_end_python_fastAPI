@@ -24,26 +24,24 @@ async def refresh_product_list(db, store_id, sid: str | None = None):
 
 @sio.event
 async def connect(sid, environ):
-    print('connect ', sid)
-
     token = environ.get('HTTP_TOTEM_TOKEN')
 
     with get_db_manager() as db:
-        totem = db.query(models.TotemAuthorization).filter(models.TotemAuthorization.totem_token == token,
-                                                    models.TotemAuthorization.granted.is_(True)).first()
+        totem = db.query(models.TotemAuthorization).filter(
+            models.TotemAuthorization.totem_token == token,
+            models.TotemAuthorization.granted.is_(True)
+        ).first()
+
         if not totem:
-            print('REJECT CONNECTION')
             raise ConnectionRefusedError('Authentication failed')
 
         totem.sid = sid
         db.commit()
 
         await sio.enter_room(sid, f"store_{totem.store_id}")
-
         await sio.emit('store_updated', Store.model_validate(totem.store).model_dump(), to=sid)
 
         theme = db.query(models.StoreTheme).filter(models.StoreTheme.store_id == totem.store_id).first()
-
         if theme:
             await sio.emit('theme_updated', StoreTheme.model_validate(theme).model_dump(), to=sid)
 
