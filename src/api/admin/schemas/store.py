@@ -36,6 +36,8 @@ class StoreBase(BaseModel):
     # Imagem é opcional
     file_key: Optional[str] = None
 
+    store_url: str
+
     @computed_field
     @property
     def image_path(self) -> str:
@@ -74,7 +76,7 @@ class StoreUpdate(BaseModel):
     tiktok: Optional[str]
     plan_type: Optional[str]
     file_key: Optional[str]
-
+    store_url: Optional[str]
 
     @computed_field
     @property

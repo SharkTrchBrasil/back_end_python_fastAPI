@@ -1,13 +1,55 @@
 import uuid
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException
+from pydantic import BaseModel
+from starlette import status
 
 from src.api.app.schemas.auth import TotemAuth, TotemCheckTokenResponse
 from src.core import models
 from src.core.database import GetDBDep
+from src.core.models import TotemAuthorization
 
 router = APIRouter(tags=["Totem Auth"], prefix="/auth")
+
+
+# Crie um schema para o corpo da requisição de autenticação por URL
+# Exemplo:
+class AuthenticateByUrlRequest(BaseModel):
+    store_url: str
+    totem_token: str | None = None # O totem_token enviado pelo app
+
+@router.post("/authenticate-by-url", response_model=TotemAuth)
+def authenticate_by_url(
+    db: GetDBDep,
+    request_body: AuthenticateByUrlRequest # Recebe o corpo da requisição
+):
+    # Procura a autorização do totem usando a store_url
+    totem_auth = db.query(TotemAuthorization).filter(
+        TotemAuthorization.store_url == request_body.store_url, # <-- BUSCA PELA store_url
+        TotemAuthorization.granted == True # Apenas totens/cardápios autorizados
+    ).first()
+
+    if not totem_auth:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Totem authorization not found or not granted for this URL."
+        )
+
+    # Opcional: Você pode querer verificar o totem_token recebido aqui se for para manter a sessão
+    # Ou simplesmente assumir que, se a store_url é válida e granted=True, a sessão é válida
+    # Para o seu caso, o foco é na store_url para identificar. O totem_token será retornado.
+
+    # Atualiza o SID (Session ID) para marcar a sessão ativa
+    totem_auth.sid = str(uuid.uuid4())
+    totem_auth.updated_at = datetime.utcnow()
+    db.add(totem_auth)
+    db.commit()
+    db.refresh(totem_auth)
+
+    return totem_auth # Retorna o objeto TotemAuthorization completo
+
 
 @router.post("/start", response_model=TotemCheckTokenResponse)
 def start_auth(

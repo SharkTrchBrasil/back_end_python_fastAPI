@@ -73,15 +73,17 @@ def create_store(
     )
     db.add(db_delivery_settings)
 
-    # Cria o token e slug do totem
+
     totem_token = str(uuid.uuid4())
-    url_slug = slugify(store_create.name)  # Pode usar o nome que chegou
+    url_slug = slugify(store_create.name)
+    url_slug_no_dashes = url_slug.replace('-', '')
 
     totem_auth = models.TotemAuthorization(
         store_id=db_store.id,
         totem_token=totem_token,
+        totem_name = db_store.name,
         granted=True,
-        store_url=url_slug
+        store_url=url_slug_no_dashes
     )
     db.add(totem_auth)
 

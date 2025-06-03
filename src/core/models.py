@@ -24,7 +24,7 @@ class Store(Base, TimestampMixin):
 
     # Ativação
     is_active: Mapped[bool] = mapped_column(default=False, nullable=False)
-
+    store_url: Mapped[str] = mapped_column(unique=True, nullable=False)
     # Endereço
     zip_code: Mapped[Optional[str]] = mapped_column(nullable=True)
     street: Mapped[Optional[str]] = mapped_column(nullable=True)
