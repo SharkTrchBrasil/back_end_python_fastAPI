@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, computed_field, ConfigDict
 
+from src.api.admin.schemas.product_variant_product import ProductVariantProductSchema
 from src.api.app.schemas.category import Category
 from src.core.aws import get_presigned_url
 from src.core.models import ProductVariantProduct
@@ -23,7 +24,7 @@ class ProductVariant(BaseModel):
     min_quantity: int
     max_quantity: int
     repeatable: bool
-    variant_links: list[ProductVariantProduct]
+    variant_links: list[ProductVariantProductSchema]
 
 
 class Product(BaseModel):
@@ -34,7 +35,7 @@ class Product(BaseModel):
     description: str
     base_price: int
     category: Category
-    variant_links: list[ProductVariantProduct]
+    variant_links: list[ProductVariantProductSchema]
 
     file_key: str = Field(exclude=True)
 
@@ -42,3 +43,4 @@ class Product(BaseModel):
     @property
     def image_path(self) -> str:
         return get_presigned_url(self.file_key)
+
