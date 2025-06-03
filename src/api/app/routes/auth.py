@@ -6,7 +6,8 @@ from fastapi import APIRouter, Body, HTTPException
 from pydantic import BaseModel
 from starlette import status
 
-from src.api.app.schemas.auth import TotemAuth, TotemCheckTokenResponse
+from src.api.app.schemas.auth import TotemAuth, TotemAuthorizationResponse, TotemCheckTokenResponse, \
+    AuthenticateByUrlRequest
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.models import TotemAuthorization
@@ -14,18 +15,13 @@ from src.core.models import TotemAuthorization
 router = APIRouter(tags=["Totem Auth"], prefix="/auth")
 
 
-# Crie um schema para o corpo da requisição de autenticação por URL
-# Exemplo:
-class AuthenticateByUrlRequest(BaseModel):
-    store_url: str
-    totem_token: str | None = None # O totem_token enviado pelo app
 
-@router.post("/authenticate-by-url", response_model=TotemAuth)
+@router.post("/authenticate-by-url", response_model=TotemAuthorizationResponse)
 def authenticate_by_url(
     db: GetDBDep,
     request_body: AuthenticateByUrlRequest # Recebe o corpo da requisição
 ):
-    # Procura a autorização do totem usando a store_url
+
     totem_auth = db.query(TotemAuthorization).filter(
         TotemAuthorization.store_url == request_body.store_url, # <-- BUSCA PELA store_url
         TotemAuthorization.granted == True # Apenas totens/cardápios autorizados
