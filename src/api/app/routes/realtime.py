@@ -1,3 +1,5 @@
+from urllib.parse import parse_qs
+
 import socketio
 
 from src.api.app.schemas.product import Product
@@ -24,7 +26,11 @@ async def refresh_product_list(db, store_id, sid: str | None = None):
 
 @sio.event
 async def connect(sid, environ):
-    token = environ.get('HTTP_TOTEM_TOKEN')
+    query = parse_qs(environ.get('QUERY_STRING', ''))
+    token = query.get('totem_token', [None])[0]
+
+    if not token:
+        raise ConnectionRefusedError('Missing token')
 
     with get_db_manager() as db:
         totem = db.query(models.TotemAuthorization).filter(
@@ -32,20 +38,32 @@ async def connect(sid, environ):
             models.TotemAuthorization.granted.is_(True)
         ).first()
 
-        if not totem:
-            raise ConnectionRefusedError('Authentication failed')
+        if not totem or not totem.store:
+            raise ConnectionRefusedError('Invalid or unauthorized token')
 
         totem.sid = sid
         db.commit()
 
-        await sio.enter_room(sid, f"store_{totem.store_id}")
+        room_name = f"store_{totem.store_id}"
+        await sio.enter_room(sid, room_name)
+
+        # Emitir informações da loja
         await sio.emit('store_updated', Store.model_validate(totem.store).model_dump(), to=sid)
 
-        theme = db.query(models.StoreTheme).filter(models.StoreTheme.store_id == totem.store_id).first()
+        # Emitir tema, se houver
+        theme = db.query(models.StoreTheme).filter(
+            models.StoreTheme.store_id == totem.store_id
+        ).first()
+
         if theme:
             await sio.emit('theme_updated', StoreTheme.model_validate(theme).model_dump(), to=sid)
 
+        # Atualizar a lista de produtos
         await refresh_product_list(db, totem.store_id, sid)
+
+
+
+
 
 
 @sio.event
