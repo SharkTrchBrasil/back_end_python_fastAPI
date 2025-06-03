@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field, computed_field, ConfigDict
 
 from src.api.app.schemas.category import Category
 from src.core.aws import get_presigned_url
+from src.core.models import ProductVariantProduct
 
 
 class ProductVariantOption(BaseModel):
@@ -22,7 +23,7 @@ class ProductVariant(BaseModel):
     min_quantity: int
     max_quantity: int
     repeatable: bool
-    available_options: list[ProductVariantOption]
+    variant_links: list[ProductVariantProduct]
 
 
 class Product(BaseModel):
@@ -33,7 +34,7 @@ class Product(BaseModel):
     description: str
     base_price: int
     category: Category
-    available_variants: list[ProductVariant]
+    variant_links: list[ProductVariantProduct]
 
     file_key: str = Field(exclude=True)
 
