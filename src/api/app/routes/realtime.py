@@ -1,8 +1,7 @@
 import socketio
 
-from src.api.admin.schemas.product import Product
-from src.api.admin.schemas.store import Store
-from src.api.admin.schemas.store_theme import StoreTheme
+from src.api.app.schemas.product import Product
+from src.api.app.schemas.store import Store, StoreTheme
 from src.core import models
 from src.core.database import get_db_manager
 
