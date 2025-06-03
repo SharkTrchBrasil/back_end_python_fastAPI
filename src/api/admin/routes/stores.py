@@ -81,8 +81,10 @@ def create_store(
     totem_auth = models.TotemAuthorization(
         store_id=db_store.id,
         totem_token=totem_token,
+        public_key = totem_token,
         totem_name = db_store.name,
         granted=True,
+        granted_by_id= user.id,
         store_url=url_slug_no_dashes
     )
     db.add(totem_auth)
