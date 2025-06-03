@@ -2,10 +2,10 @@ import enum
 from datetime import datetime, date, timezone
 from typing import Optional, List
 
-from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric, update, event, Enum
+from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from src.core.helpers.enums import PaymentMethod, CashierTransactionType
+
 
 
 class Base(DeclarativeBase):
@@ -24,7 +24,7 @@ class Store(Base, TimestampMixin):
 
     # Ativação
     is_active: Mapped[bool] = mapped_column(default=False, nullable=False)
-    store_url: Mapped[str] = mapped_column(unique=True, nullable=False)
+   # store_url: Mapped[str] = mapped_column(unique=True, nullable=False)
     # Endereço
     zip_code: Mapped[Optional[str]] = mapped_column(nullable=True)
     street: Mapped[Optional[str]] = mapped_column(nullable=True)
