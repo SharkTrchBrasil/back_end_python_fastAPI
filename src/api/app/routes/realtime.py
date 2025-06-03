@@ -7,14 +7,13 @@ from src.api.app.schemas.product import Product
 from src.api.app.schemas.store import Store, StoreTheme
 from src.core import models
 from src.core.database import get_db_manager
+from src.core.models import ProductVariantProduct, Variant
 
 sio = socketio.AsyncServer(cors_allowed_origins='*', logger=True, engineio_logger=True, async_mode="asgi")
 
 
 async def refresh_product_list(db, store_id, sid: str | None = None):
-    products = db.query(models.Product).options(
-        joinedload(models.Product.variant_links).joinedload(models.ProductVariantProduct.variant)
-    ).filter_by(store_id=store_id, available=True).all()
+    products = db.query(models.Product).filter_by(store_id=store_id, available=True).all()
 
     if sid:
         await sio.emit('products_updated', [Product.model_validate(product).model_dump() for product in products], to=sid)
