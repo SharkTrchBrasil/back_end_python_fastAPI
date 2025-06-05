@@ -4,7 +4,7 @@ import socketio
 from sqlalchemy.orm import joinedload
 
 from src.api.app.schemas.store_details import StoreDetails
-from src.api.shared_schemas.product import Product
+from src.api.shared_schemas.product import Product, ProductOut
 from src.api.shared_schemas.store_theme import StoreTheme
 from src.core import models
 from src.core.database import get_db_manager
@@ -18,7 +18,7 @@ async def refresh_product_list(db, store_id, sid: str | None = None):
         .joinedload(models.Variant.options)
     ).filter_by(store_id=store_id, available=True).all()
 
-    payload = [Product.model_validate(product).model_dump() for product in products]
+    payload = [ProductOut.from_orm_obj(product).model_dump(exclude_unset=True) for product in products]
 
     if sid:
         await sio.emit('products_updated', payload, to=sid)
