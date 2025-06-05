@@ -25,6 +25,7 @@ class ProductVariant(BaseModel):
     max_quantity: int
     repeatable: bool
     variant_links: list[ProductVariantProductSchema]
+    options: list[ProductVariantOption]  # se quiser já trazer junto
 
 
 class Product(BaseModel):
@@ -36,7 +37,7 @@ class Product(BaseModel):
     base_price: int
     category: Category
     variant_links: list[ProductVariantProductSchema]
-
+    options: list[ProductVariantOption]  # se quiser já trazer junto
     file_key: str = Field(exclude=True)
 
     @computed_field

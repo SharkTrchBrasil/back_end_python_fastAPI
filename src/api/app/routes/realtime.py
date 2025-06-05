@@ -13,7 +13,13 @@ sio = socketio.AsyncServer(cors_allowed_origins='*', logger=True, engineio_logge
 
 
 async def refresh_product_list(db, store_id, sid: str | None = None):
-    products = db.query(models.Product).filter_by(store_id=store_id, available=True).all()
+    from sqlalchemy.orm import joinedload
+
+    products = db.query(models.Product).options(
+        joinedload(models.Product.variant_links)
+        .joinedload(models.ProductVariantProduct.variant)
+        .joinedload(models.Variant.options)  # ⬅️ traz as opções da variante
+    ).filter_by(store_id=store_id, available=True).all()
 
     if sid:
         await sio.emit('products_updated', [Product.model_validate(product).model_dump() for product in products], to=sid)
