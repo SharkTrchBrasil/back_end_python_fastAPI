@@ -68,6 +68,21 @@ class Store(Base, TimestampMixin):
         "CashierSession", back_populates="store", cascade="all, delete-orphan"
     )
 
+    # Configurações de entrega (relacionamento 1:1)
+    delivery_config: Mapped[Optional["StoreDeliveryConfiguration"]] = relationship(
+        back_populates="store", uselist=False, cascade="all, delete-orphan"
+    )
+
+    # Horários de funcionamento (relacionamento 1:N)
+    hours: Mapped[List["StoreHours"]] = relationship(
+        back_populates="store", cascade="all, delete-orphan"
+    )
+
+    # Cidades de entrega (relacionamento 1:N)
+    cities: Mapped[List["StoreCity"]] = relationship(
+        back_populates="store", cascade="all, delete-orphan"
+    )
+
 
 class User(Base, TimestampMixin):
     __tablename__ = "users"
@@ -151,34 +166,8 @@ class Product(Base, TimestampMixin):
     unit: Mapped[str] = mapped_column(default="")
 
 
-class StorePaymentMethods(Base, TimestampMixin):
-    __tablename__ = "store_payment_methods"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    payment_type: Mapped[str] = mapped_column()  # 'Cash', 'Card', 'Pix', ...
-
-    custom_name:  Mapped[str]  = mapped_column()
-    custom_icon: Mapped[str] = mapped_column(nullable=True)
-    orders = relationship("Order", back_populates="payment_method")
-
-    is_active:          Mapped[bool] = mapped_column(default=True)
-
-    active_on_delivery: Mapped[bool] = mapped_column(default=True)
-    active_on_pickup:   Mapped[bool] = mapped_column(default=True)
-    active_on_counter:  Mapped[bool] = mapped_column(default=True)
-
-    tax_rate:        Mapped[float] = mapped_column(default=0)
 
 
-
-    pix_key:        Mapped[str]  = mapped_column(nullable=True)
-
-class StoreType(Base):
-    __tablename__ = "segments"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(unique=True, nullable=False)
 
 class Variant(Base, TimestampMixin):
     __tablename__ = "variants"
@@ -358,6 +347,31 @@ class StoreChatbotConfig(Base, TimestampMixin):
     last_connected_at: Mapped[datetime] = mapped_column(nullable=True)
     session_path: Mapped[str] = mapped_column(nullable=True)  # caminho local ou info da sessão
 
+
+
+class StorePaymentMethods(Base, TimestampMixin):
+    __tablename__ = "store_payment_methods"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+    payment_type: Mapped[str] = mapped_column()  # 'Cash', 'Card', 'Pix', ...
+
+    custom_name:  Mapped[str]  = mapped_column()
+    custom_icon: Mapped[str] = mapped_column(nullable=True)
+    orders = relationship("Order", back_populates="payment_method")
+
+    is_active:          Mapped[bool] = mapped_column(default=True)
+
+    active_on_delivery: Mapped[bool] = mapped_column(default=True)
+    active_on_pickup:   Mapped[bool] = mapped_column(default=True)
+    active_on_counter:  Mapped[bool] = mapped_column(default=True)
+
+    tax_rate:        Mapped[float] = mapped_column(default=0)
+
+
+
+    pix_key:        Mapped[str]  = mapped_column(nullable=True)
+
 class StoreDeliveryConfiguration(Base, TimestampMixin):
     __tablename__ = "store_delivery_options"
 
@@ -384,6 +398,8 @@ class StoreDeliveryConfiguration(Base, TimestampMixin):
     table_estimated_max: Mapped[int] = mapped_column(nullable=True)
     table_instructions: Mapped[str] = mapped_column(nullable=True)
 
+    store: Mapped["Store"] = relationship(back_populates="delivery_config")
+
 class StoreHours(Base, TimestampMixin):
     __tablename__ = "store_hours"
 
@@ -396,6 +412,8 @@ class StoreHours(Base, TimestampMixin):
     shift_number: Mapped[int] = mapped_column()
     is_active: Mapped[bool] = mapped_column(default=True)
 
+    store: Mapped["Store"] = relationship(back_populates="hours")
+
 class StoreCity(Base, TimestampMixin):
     __tablename__ = "store_cities"
 
@@ -406,6 +424,7 @@ class StoreCity(Base, TimestampMixin):
     neighborhoods: Mapped[List["StoreNeighborhood"]] = relationship("StoreNeighborhood", back_populates="city",
                                                                     cascade="all, delete")
     is_active: Mapped[bool] = mapped_column(default=True)
+    store: Mapped["Store"] = relationship(back_populates="cities")
 
 class StoreNeighborhood(Base, TimestampMixin):
     __tablename__ = "store_neighborhoods"
@@ -420,6 +439,14 @@ class StoreNeighborhood(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(default=True)
 
     city: Mapped["StoreCity"] = relationship("StoreCity", back_populates="neighborhoods")
+
+
+
+
+
+
+
+
 
 class PayableStatus(str, enum.Enum):
     pending = "pending"
