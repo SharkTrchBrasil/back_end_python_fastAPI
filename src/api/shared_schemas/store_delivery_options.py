@@ -23,8 +23,8 @@ class StoreDeliveryConfigBase(BaseModel):
     table_estimated_max: Optional[int] = None
     table_instructions: Optional[str] = None
 
-model_config = {
-        "from_attributes": True
+    model_config = {
+            "from_attributes": True
     }
 class StoreDeliveryConfigCreate(StoreDeliveryConfigBase):
     pass
