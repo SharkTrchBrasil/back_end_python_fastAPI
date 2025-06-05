@@ -59,7 +59,7 @@ async def connect(sid, environ):
         ).filter_by(id=totem.store_id).first()
 
         if store:
-            await sio.emit('store_updated', StoreDetails.model_validate(store).model_dump(), to=sid)
+            await sio.emit('store_updated', StoreDetails.model_validate(totem.store).model_dump(), to=sid)
 
             # Emitir tema, se houver
             theme = db.query(models.StoreTheme).filter(
