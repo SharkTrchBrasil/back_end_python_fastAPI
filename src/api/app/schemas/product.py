@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field, computed_field, ConfigDict
 
 from src.api.admin.schemas.product_variant_product import ProductVariantProductSchema
 from src.api.app.schemas.category import Category
+from src.api.app.schemas.variants import VariantOption
 from src.core.aws import get_presigned_url
 from src.core.models import ProductVariantProduct
 
@@ -25,7 +26,7 @@ class ProductVariant(BaseModel):
     max_quantity: int
     repeatable: bool
     variant_links: list[ProductVariantProductSchema]
-    options: list[ProductVariantOption]  # se quiser já trazer junto
+    options: list[VariantOption]  # se quiser já trazer junto
 
 
 class Product(BaseModel):
@@ -37,7 +38,7 @@ class Product(BaseModel):
     base_price: int
     category: Category
     variant_links: list[ProductVariantProductSchema]
-    options: list[ProductVariantOption]  # se quiser já trazer junto
+    options: list[VariantOption]  # se quiser já trazer junto
     file_key: str = Field(exclude=True)
 
     @computed_field
