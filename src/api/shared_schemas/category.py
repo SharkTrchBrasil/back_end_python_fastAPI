@@ -10,6 +10,10 @@ class Category(BaseModel):
     file_key: str = Field(exclude=True)
     is_active: bool
 
+    model_config = {
+        "from_attributes": True  # Fundamental para aceitar objetos ORM
+    }
+
     @computed_field
     @property
     def image_path(self) -> str:

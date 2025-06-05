@@ -108,6 +108,9 @@ class ProductOut(Product):
             unit=orm_product.unit,
 
             file_key=orm_product.file_key,
-            category=orm_product.category,
+
+            # CONVERSÃO CORRETA AQUI:
+            category=Category.model_validate(orm_product.category),
+
             variants=variants
         )
