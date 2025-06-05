@@ -28,8 +28,6 @@ class Product(BaseModel):
 
     unit: str
 
-    class Config:
-        orm_mode = True
 
     model_config = {
         "from_attributes": True
@@ -68,8 +66,9 @@ class ProductUpdate(BaseModel):
     category_id: Optional[int] = None
     variant_ids: Optional[List[int]] = None
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }
 
 
 # OUTPUT MODEL FOR API RESPONSE
