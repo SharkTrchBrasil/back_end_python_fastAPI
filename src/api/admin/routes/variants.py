@@ -1,6 +1,9 @@
+import asyncio
+
 from fastapi import APIRouter, HTTPException
 from sqlalchemy.orm import joinedload
 
+from src.api.app.routes.realtime import refresh_product_list
 from src.api.shared_schemas.variant import VariantCreate, Variant, VariantUpdate
 from src.core import models
 from src.core.database import GetDBDep
@@ -21,6 +24,7 @@ def create_product_variant(
 
     db.add(db_variant)
     db.commit()
+    asyncio.create_task(refresh_product_list(db, store.id))
     return db_variant
 
 
@@ -34,12 +38,14 @@ def get_product_variant(
 def patch_product_variant(
     db: GetDBDep,
     variant: GetVariantDep,
+    store: GetStoreDep,
     variant_update: VariantUpdate,
 ):
     for field, value in variant_update.model_dump(exclude_unset=True).items():
         setattr(variant, field, value)
 
     db.commit()
+    asyncio.create_task(refresh_product_list(db, store.id))
     return variant
 
 
@@ -58,7 +64,9 @@ def list_variants(store_id: int, db: GetDBDep, store: GetStoreDep):
 @router.delete("/{variant_id}", status_code=204)
 def delete_product_variant(
     db: GetDBDep,
+    store: GetStoreDep,
     variant: GetVariantDep,
 ):
     db.delete(variant)
     db.commit()
+    asyncio.create_task(refresh_product_list(db, store.id))

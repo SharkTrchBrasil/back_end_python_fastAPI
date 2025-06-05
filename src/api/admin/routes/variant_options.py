@@ -1,5 +1,8 @@
+import asyncio
+
 from fastapi import APIRouter
 
+from src.api.app.routes.realtime import refresh_product_list
 from src.api.shared_schemas.variant import VariantOption
 from src.api.shared_schemas.variant_option import VariantOptionCreate, VariantOptionUpdate
 from src.core import models
@@ -22,6 +25,9 @@ def create_product_variant_option(
 
     db.add(db_option)
     db.commit()
+
+
+
     return db_option
 
 @router.get("/{option_id}", response_model=VariantOption)

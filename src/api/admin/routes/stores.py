@@ -1,4 +1,5 @@
 # src/api/admin/routes/store.py
+import asyncio
 import uuid
 from typing import Annotated
 
@@ -9,6 +10,7 @@ from sqlalchemy.orm import joinedload
 
 
 from src.api.admin.schemas.store_access import StoreAccess
+from src.api.app.events.socketio_emitters import emit_store_updated
 from src.api.shared_schemas.store import StoreWithRole, StoreCreate, Store, Roles
 from src.core import models
 from src.core.aws import upload_file, delete_file
@@ -218,6 +220,8 @@ def patch_store(
     # Se a logo foi alterada, exclua a antiga
     if file_key_to_delete:
         delete_file(file_key_to_delete)
+
+    asyncio.create_task(emit_store_updated(store))
 
     return store
 

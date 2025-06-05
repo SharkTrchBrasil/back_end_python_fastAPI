@@ -1,7 +1,9 @@
+import asyncio
 from typing import Optional, List
 
 from fastapi import APIRouter, Form
 
+from src.api.app.routes.realtime import refresh_product_list
 from src.api.shared_schemas.product import ProductOut
 from src.core import models
 from src.core.aws import upload_file, delete_file
@@ -86,6 +88,9 @@ def create_product(
     db.add(new_product)
     db.commit()
     db.refresh(new_product)
+
+    asyncio.create_task(refresh_product_list(db, store.id))
+
     return new_product
 
 
@@ -242,15 +247,17 @@ async def patch_product(
         db.commit()
 
     db.refresh(db_product)
+    asyncio.create_task(refresh_product_list(db, store.id))
     return db_product
 
 
 @router.delete("/{product_id}", status_code=204)
-def delete_product(product_id: int, db: GetDBDep, db_product: GetProductDep):
+def delete_product(product_id: int,  store: GetStoreDep, db: GetDBDep, db_product: GetProductDep):
     old_file_key = db_product.file_key
     db.delete(db_product)
     db.commit()
     delete_file(old_file_key)
+    asyncio.create_task(refresh_product_list(db, store.id))
     return
 
 # @router.patch("/{product_id}", response_model=Product)

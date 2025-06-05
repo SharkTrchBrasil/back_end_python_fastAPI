@@ -1,4 +1,8 @@
+import asyncio
+
 from fastapi import APIRouter, Form, HTTPException
+
+from src.api.app.events.socketio_emitters import emit_store_updated
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 
@@ -30,6 +34,9 @@ def create_store_hour(
     db.add(db_store_hour)
     db.commit()
     db.refresh(db_store_hour)  # importante para atualizar o objeto com id e outros campos
+
+    asyncio.create_task(emit_store_updated(store.id))
+
     return db_store_hour
 
 
@@ -82,6 +89,9 @@ def patch_store_hour(
 
     db.commit()
     db.refresh(db_store_hour)
+
+    asyncio.create_task(emit_store_updated(store.id))
+
     return db_store_hour
 
 
@@ -97,6 +107,9 @@ def delete_store_hour(
 
     db.delete(db_store_hour)
     db.commit()
+
+    asyncio.create_task(emit_store_updated(store.id))
+
     return  # Retorna um status 204 (No Content) em caso de sucesso
 
 

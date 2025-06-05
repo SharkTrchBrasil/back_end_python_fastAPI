@@ -1,4 +1,8 @@
+import asyncio
+
 from fastapi import APIRouter, Form, HTTPException
+
+from src.api.app.events.socketio_emitters import emit_store_updated
 from src.api.shared_schemas.store_delivery_options import StoreDeliveryConfig
 from src.core import models
 from src.core.database import GetDBDep
@@ -78,5 +82,6 @@ def update_delivery_config(
 
     db.commit()
     db.refresh(config)
+    asyncio.create_task(emit_store_updated(store.id))
 
     return config

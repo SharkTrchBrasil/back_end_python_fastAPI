@@ -1,4 +1,8 @@
+import asyncio
+
 from fastapi import APIRouter, Form, HTTPException
+
+from src.api.app.events.socketio_emitters import emit_store_updated
 from src.api.shared_schemas.payment_method import StorePaymentMethods
 from src.core import models
 from src.core.database import GetDBDep
@@ -48,6 +52,7 @@ def create_payment_method(
     db.add(pm)
     db.commit()
     db.refresh(pm)
+    asyncio.create_task(emit_store_updated(store.id))
     return pm
 
 # ───────────────────────── LIST ─────────────────────────
@@ -121,6 +126,7 @@ def update_payment_method(
 
 
     db.commit()
+    asyncio.create_task(emit_store_updated(store.id))
     return pm
 
 
@@ -142,4 +148,5 @@ def delete_payment_method(
 
     db.delete(pm)
     db.commit()
+    asyncio.create_task(emit_store_updated(store.id))
     return {"detail": "Payment method deleted successfully"}

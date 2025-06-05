@@ -1,7 +1,9 @@
+import asyncio
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
+from src.api.app.events.socketio_emitters import emit_theme_updated
 from src.api.shared_schemas.store import Roles
 from src.api.shared_schemas.store_theme import StoreTheme
 from src.core import models
@@ -34,4 +36,7 @@ def update_store_theme(
         store_theme = models.StoreTheme(**theme.model_dump(), store_id=store.id)
         db.add(store_theme)
     db.commit()
+
+    asyncio.create_task(emit_theme_updated(theme))
+
     return store_theme

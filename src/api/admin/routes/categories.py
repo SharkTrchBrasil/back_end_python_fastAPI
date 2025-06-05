@@ -1,5 +1,8 @@
+import asyncio
+
 from fastapi import APIRouter, Form, HTTPException, File, UploadFile
 
+from src.api.app.routes.realtime import refresh_product_list
 from src.api.shared_schemas.category import Category
 from src.core import models
 from src.core.aws import upload_file, get_presigned_url, delete_file
@@ -25,6 +28,8 @@ def create_category(
 
     db.add(db_category)
     db.commit()
+    asyncio.create_task(refresh_product_list(db, store.id))
+
     return db_category
 
 @router.get("", response_model=list[Category])
@@ -78,7 +83,7 @@ def patch_category(
 
     if file_key_to_delete:
         delete_file(file_key_to_delete)
-
+    asyncio.create_task(refresh_product_list(db, store.id))
     return db_category
 
 
@@ -104,4 +109,4 @@ def delete_category(
     db.delete(category)
     db.commit()
 
-
+    asyncio.create_task(refresh_product_list(db, store.id))

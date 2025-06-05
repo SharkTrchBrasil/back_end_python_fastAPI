@@ -1,4 +1,8 @@
+import asyncio
+
 from fastapi import APIRouter, Form, HTTPException
+
+from src.api.app.events.socketio_emitters import emit_store_updated
 from src.core.database import GetDBDep
 from src.core.models import StoreNeighborhood, StoreCity
 from src.api.shared_schemas.store_neighborhood import StoreNeighborhoodSchema
@@ -26,6 +30,8 @@ def create_neighborhood(
     db.add(neighborhood)
     db.commit()
     db.refresh(neighborhood)
+    asyncio.create_task(emit_store_updated(store.id))
+
     return neighborhood
 
 
@@ -94,6 +100,8 @@ def update_neighborhood(
 
     db.commit()
     db.refresh(neighborhood)
+    asyncio.create_task(emit_store_updated(store.id))
+
     return neighborhood
 
 
@@ -118,3 +126,6 @@ def delete_neighborhood(
 
     db.delete(neighborhood)
     db.commit()
+
+    asyncio.create_task(emit_store_updated(store.id))
+
