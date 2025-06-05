@@ -31,6 +31,9 @@ class Product(BaseModel):
     class Config:
         orm_mode = True
 
+    model_config = {
+        "from_attributes": True
+    }
 
 # INPUT MODEL FOR CREATION
 class ProductCreate(Product):
