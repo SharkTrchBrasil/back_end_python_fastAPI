@@ -15,7 +15,7 @@ router = APIRouter(
 
 # ───────────────────────── CREATE ─────────────────────────
 @router.post("", response_model=StorePaymentMethods)
-def create_payment_method(
+async def create_payment_method(
     db: GetDBDep,
     store: GetStoreDep,
 
@@ -52,7 +52,7 @@ def create_payment_method(
     db.add(pm)
     db.commit()
     db.refresh(pm)
-    asyncio.create_task(emit_store_updated(store.id))
+    await asyncio.create_task(emit_store_updated(store))
     return pm
 
 # ───────────────────────── LIST ─────────────────────────
@@ -79,7 +79,7 @@ def get_payment_method(db: GetDBDep, store: GetStoreDep, pm_id: int):
 
 # ───────────────────────── UPDATE/PATCH ─────────────────────────
 @router.patch("/{pm_id}", response_model=StorePaymentMethods)
-def update_payment_method(
+async def update_payment_method(
     db: GetDBDep,
     store: GetStoreDep,
     pm_id: int,
@@ -126,13 +126,13 @@ def update_payment_method(
 
 
     db.commit()
-    asyncio.create_task(emit_store_updated(store.id))
+    await asyncio.create_task(emit_store_updated(store))
     return pm
 
 
 # ───────────────────────── DELETE ─────────────────────────
 @router.delete("/{pm_id}")
-def delete_payment_method(
+async def delete_payment_method(
     db: GetDBDep,
     store: GetStoreDep,
     pm_id: int
@@ -148,5 +148,5 @@ def delete_payment_method(
 
     db.delete(pm)
     db.commit()
-    asyncio.create_task(emit_store_updated(store.id))
+    await asyncio.create_task(emit_store_updated(store))
     return {"detail": "Payment method deleted successfully"}
