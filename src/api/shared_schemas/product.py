@@ -8,6 +8,7 @@ from src.core.aws import get_presigned_url
 
 # BASE SHARED MODEL
 class Product(BaseModel):
+    id: int
     name: str
     description: str
     base_price: int
