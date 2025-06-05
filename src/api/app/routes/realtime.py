@@ -1,12 +1,14 @@
 from urllib.parse import parse_qs
 
 import socketio
-from sqlalchemy.orm import selectinload, joinedload
 
 
+from src.api.shared_schemas.product import Product
+from src.api.shared_schemas.store import Store
+from src.api.shared_schemas.store_theme import StoreTheme
 from src.core import models
 from src.core.database import get_db_manager
-from src.core.models import ProductVariantProduct, Variant
+
 
 sio = socketio.AsyncServer(cors_allowed_origins='*', logger=True, engineio_logger=True, async_mode="asgi")
 
