@@ -35,7 +35,7 @@ async def create_store_hour(
     db.commit()
     db.refresh(db_store_hour)  # importante para atualizar o objeto com id e outros campos
 
-    await asyncio.create_task(emit_store_updated(store.id))
+    await asyncio.create_task(emit_store_updated(store))
 
     return db_store_hour
 
@@ -90,7 +90,7 @@ async def patch_store_hour(
     db.commit()
     db.refresh(db_store_hour)
 
-    await asyncio.create_task(emit_store_updated(store.id))
+    await asyncio.create_task(emit_store_updated(store))
 
     return db_store_hour
 
@@ -108,7 +108,7 @@ async def delete_store_hour(
     db.delete(db_store_hour)
     db.commit()
 
-    await asyncio.create_task(emit_store_updated(store.id))
+    await asyncio.create_task(emit_store_updated(store))
 
     return  # Retorna um status 204 (No Content) em caso de sucesso
 

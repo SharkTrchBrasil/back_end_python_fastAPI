@@ -82,6 +82,6 @@ async def update_delivery_config(
 
     db.commit()
     db.refresh(config)
-    await asyncio.create_task(emit_store_updated(store.id))
+    await asyncio.create_task(emit_store_updated(store))
 
     return config
