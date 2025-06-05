@@ -68,3 +68,6 @@ class VariantOptionUpdate(BaseModel):
     max_quantity: int | None = None
     available: bool | None = None
     is_free: bool | None = None
+
+
+Variant.model_rebuild()

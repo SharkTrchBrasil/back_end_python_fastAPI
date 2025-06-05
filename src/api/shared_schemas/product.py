@@ -87,7 +87,10 @@ class ProductOut(Product):
 
     @classmethod
     def from_orm_obj(cls, orm_product) -> "ProductOut":
-        variants = [link.variant for link in getattr(orm_product, "variant_links", []) or []]
+        variants = [
+            Variant.model_validate(link.variant)
+            for link in getattr(orm_product, "variant_links", []) or []
+        ]
 
         return cls(
             id=orm_product.id,
