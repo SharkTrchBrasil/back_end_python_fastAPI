@@ -14,7 +14,7 @@ router = APIRouter(prefix="/stores/{store_id}/hours", tags=["Hours"])
 
 
 @router.post("", response_model=StoreHoursSchema)
-def create_store_hour(
+async def create_store_hour(
     db: GetDBDep,
     store: GetStoreDep,
     day_of_week: int = Form(...),
@@ -35,7 +35,7 @@ def create_store_hour(
     db.commit()
     db.refresh(db_store_hour)  # importante para atualizar o objeto com id e outros campos
 
-    asyncio.create_task(emit_store_updated(store.id))
+    await asyncio.create_task(emit_store_updated(store.id))
 
     return db_store_hour
 
@@ -62,7 +62,7 @@ def get_store_hour(
 
 
 @router.patch("/{hour_id}", response_model=StoreHoursSchema)
-def patch_store_hour(
+async def patch_store_hour(
     db: GetDBDep,
     store: GetStoreDep,
     hour_id: int,
@@ -90,13 +90,13 @@ def patch_store_hour(
     db.commit()
     db.refresh(db_store_hour)
 
-    asyncio.create_task(emit_store_updated(store.id))
+    await asyncio.create_task(emit_store_updated(store.id))
 
     return db_store_hour
 
 
 @router.delete("/{hour_id}", status_code=204)
-def delete_store_hour(
+async def delete_store_hour(
     db: GetDBDep,
     store: GetStoreDep,
     hour_id: int,
@@ -108,7 +108,7 @@ def delete_store_hour(
     db.delete(db_store_hour)
     db.commit()
 
-    asyncio.create_task(emit_store_updated(store.id))
+    await asyncio.create_task(emit_store_updated(store.id))
 
     return  # Retorna um status 204 (No Content) em caso de sucesso
 
