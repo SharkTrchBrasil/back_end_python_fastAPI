@@ -2,8 +2,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from src.api.admin.schemas.store import Roles
-from src.api.admin.schemas.store_theme import StoreTheme
+from src.api.shared_schemas.store import Roles
+from src.api.shared_schemas.store_theme import StoreTheme
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep, GetStore

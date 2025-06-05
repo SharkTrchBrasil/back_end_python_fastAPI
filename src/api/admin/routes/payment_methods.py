@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Form, HTTPException
-from src.api.admin.schemas.payment_method import StorePaymentMethods
+from src.api.shared_schemas.payment_method import StorePaymentMethods
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep

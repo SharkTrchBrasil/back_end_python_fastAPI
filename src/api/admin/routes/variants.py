@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from sqlalchemy.orm import joinedload
 
-from src.api.admin.schemas.variant import VariantCreate, Variant, VariantUpdate
+from src.api.shared_schemas.variant import VariantCreate, Variant, VariantUpdate
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetProductDep, GetVariantDep, GetStoreDep

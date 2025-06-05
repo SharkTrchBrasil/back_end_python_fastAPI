@@ -3,8 +3,7 @@ from urllib.parse import parse_qs
 import socketio
 from sqlalchemy.orm import selectinload, joinedload
 
-from src.api.app.schemas.product import Product
-from src.api.app.schemas.store import Store, StoreTheme
+
 from src.core import models
 from src.core.database import get_db_manager
 from src.core.models import ProductVariantProduct, Variant

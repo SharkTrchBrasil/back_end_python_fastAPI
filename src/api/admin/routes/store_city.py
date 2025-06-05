@@ -1,9 +1,8 @@
-from fastapi import APIRouter, Form, HTTPException, Depends
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Form, HTTPException
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 from src.core.models import StoreCity
-from src.api.admin.schemas.store_city import StoreCitySchema
+from src.api.shared_schemas.store_city import StoreCitySchema
 
 router = APIRouter(prefix="/stores/{store_id}/cities", tags=["Cities"])
 

@@ -3,7 +3,7 @@ from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 
 from src.core.models import StoreHours  # Modelo ORM SQLAlchemy
-from src.api.admin.schemas.store_hours import StoreHoursSchema  # Schema Pydantic
+from src.api.shared_schemas.store_hours import StoreHoursSchema  # Schema Pydantic
 
 
 router = APIRouter(prefix="/stores/{store_id}/hours", tags=["Hours"])

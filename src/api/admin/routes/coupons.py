@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from sqlalchemy.orm import joinedload
 
-from src.api.admin.schemas.coupon import CouponCreate, Coupon, CouponUpdate
+from src.api.shared_schemas.coupon import CouponCreate, Coupon, CouponUpdate
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep

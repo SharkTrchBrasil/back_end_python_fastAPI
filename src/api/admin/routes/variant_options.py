@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from src.api.admin.schemas.variant_option import VariantOption, VariantOptionCreate, \
-    VariantOptionUpdate
+from src.api.shared_schemas.variant import VariantOption
+from src.api.shared_schemas.variant_option import VariantOptionCreate, VariantOptionUpdate
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetVariantDep, GetVariantOptionDep

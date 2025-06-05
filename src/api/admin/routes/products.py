@@ -2,7 +2,7 @@ from typing import Optional, List
 
 from fastapi import APIRouter, Form
 
-from src.api.admin.schemas.product import ProductUpdate, ProductOut
+from src.api.shared_schemas.product import ProductOut
 from src.core import models
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep

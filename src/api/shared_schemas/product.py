@@ -1,8 +1,8 @@
 from typing import Optional, List
 from pydantic import BaseModel, Field, computed_field
 
-from src.api.admin.schemas.category import Category
-from src.api.admin.schemas.variant import Variant
+from src.api.shared_schemas.category import Category
+from src.api.shared_schemas.variant import Variant
 from src.core.aws import get_presigned_url
 
 

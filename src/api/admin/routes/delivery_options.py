@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Form, HTTPException
-from src.api.admin.schemas.store_delivery_options import StoreDeliveryConfig
+from src.api.shared_schemas.store_delivery_options import StoreDeliveryConfig
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep

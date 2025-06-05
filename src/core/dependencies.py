@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 
-from src.api.admin.schemas.store import Roles
+from src.api.shared_schemas.store import Roles
 from src.core import models
 from src.core.database import GetDBDep
 from src.api.admin.services.auth import oauth2_scheme, verify_access_token

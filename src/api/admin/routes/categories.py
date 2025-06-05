@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Form, HTTPException, File, UploadFile
 
-from src.api.admin.schemas.category import Category
+from src.api.shared_schemas.category import Category
 from src.core import models
 from src.core.aws import upload_file, get_presigned_url, delete_file
 from src.core.database import GetDBDep
