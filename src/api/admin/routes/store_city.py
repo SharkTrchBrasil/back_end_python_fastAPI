@@ -12,7 +12,7 @@ router = APIRouter(prefix="/stores/{store_id}/cities", tags=["Cities"])
 
 
 @router.post("", response_model=StoreCitySchema)
-def create_city(
+async def create_city(
     db: GetDBDep,
     store: GetStoreDep,
     name: str = Form(...),
@@ -29,7 +29,7 @@ def create_city(
     db.add(city)
     db.commit()
     db.refresh(city)
-    asyncio.create_task(emit_store_updated(store.id))
+    await asyncio.create_task(emit_store_updated(store.id))
 
     return city
 
@@ -56,7 +56,7 @@ def get_city(
 
 
 @router.patch("/{city_id}", response_model=StoreCitySchema)
-def update_city(
+async def update_city(
     city_id: int,
     db: GetDBDep,
     store: GetStoreDep,
@@ -78,13 +78,13 @@ def update_city(
 
     db.commit()
     db.refresh(city)
-    asyncio.create_task(emit_store_updated(store.id))
+    await asyncio.create_task(emit_store_updated(store.id))
 
     return city
 
 
 @router.delete("/{city_id}", status_code=204)
-def delete_city(
+async def delete_city(
     city_id: int,
     db: GetDBDep,
     store: GetStoreDep,
@@ -96,5 +96,5 @@ def delete_city(
     db.delete(city)
     db.commit()
 
-    asyncio.create_task(emit_store_updated(store.id))
+    await asyncio.create_task(emit_store_updated(store.id))
 

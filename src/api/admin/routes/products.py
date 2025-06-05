@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, joinedload
 
 
 @router.post("", response_model=ProductOut)
-def create_product(
+async def create_product(
     db: GetDBDep,
     store: GetStoreDep,
 
@@ -89,7 +89,7 @@ def create_product(
     db.commit()
     db.refresh(new_product)
 
-    asyncio.create_task(refresh_product_list(db, store.id))
+    await asyncio.create_task(refresh_product_list(db, store.id))
 
     return new_product
 
@@ -247,17 +247,17 @@ async def patch_product(
         db.commit()
 
     db.refresh(db_product)
-    asyncio.create_task(refresh_product_list(db, store.id))
+    await asyncio.create_task(refresh_product_list(db, store.id))
     return db_product
 
 
 @router.delete("/{product_id}", status_code=204)
-def delete_product(product_id: int,  store: GetStoreDep, db: GetDBDep, db_product: GetProductDep):
+async def delete_product(product_id: int,  store: GetStoreDep, db: GetDBDep, db_product: GetProductDep):
     old_file_key = db_product.file_key
     db.delete(db_product)
     db.commit()
     delete_file(old_file_key)
-    asyncio.create_task(refresh_product_list(db, store.id))
+    await asyncio.create_task(refresh_product_list(db, store.id))
     return
 
 # @router.patch("/{product_id}", response_model=Product)

@@ -29,7 +29,7 @@ def get_delivery_config(
 
 
 @router.put("", response_model=StoreDeliveryConfig)
-def update_delivery_config(
+async def update_delivery_config(
     db: GetDBDep,
     store: GetStoreDep,
 
@@ -82,6 +82,6 @@ def update_delivery_config(
 
     db.commit()
     db.refresh(config)
-    asyncio.create_task(emit_store_updated(store.id))
+    await asyncio.create_task(emit_store_updated(store.id))
 
     return config

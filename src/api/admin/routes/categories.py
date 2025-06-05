@@ -13,7 +13,7 @@ router = APIRouter(tags=["Categories"], prefix="/stores/{store_id}/categories")
 
 
 @router.post("", response_model=Category)
-def create_category(
+async def create_category(
     db: GetDBDep,
     store: GetStoreDep,
     name: str = Form(...),
@@ -28,7 +28,7 @@ def create_category(
 
     db.add(db_category)
     db.commit()
-    asyncio.create_task(refresh_product_list(db, store.id))
+    await asyncio.create_task(refresh_product_list(db, store.id))
 
     return db_category
 
@@ -52,7 +52,7 @@ def get_category(
     return db_category
 
 @router.patch("/{category_id}", response_model=Category)
-def patch_category(
+async def patch_category(
     db: GetDBDep,
     store: GetStoreDep,
     category_id: int,
@@ -83,12 +83,12 @@ def patch_category(
 
     if file_key_to_delete:
         delete_file(file_key_to_delete)
-    asyncio.create_task(refresh_product_list(db, store.id))
+    await asyncio.create_task(refresh_product_list(db, store.id))
     return db_category
 
 
 @router.delete("/{category_id}", status_code=204)
-def delete_category(
+async def delete_category(
     category_id: int,
     db: GetDBDep,
     store: GetStoreDep,
@@ -109,4 +109,4 @@ def delete_category(
     db.delete(category)
     db.commit()
 
-    asyncio.create_task(refresh_product_list(db, store.id))
+    await asyncio.create_task(refresh_product_list(db, store.id))

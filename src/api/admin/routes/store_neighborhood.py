@@ -1,8 +1,8 @@
 import asyncio
-
 from fastapi import APIRouter, Form, HTTPException
 
 from src.api.app.events.socketio_emitters import emit_store_updated
+from src.api.shared_schemas.store import Store
 from src.core.database import GetDBDep
 from src.core.models import StoreNeighborhood, StoreCity
 from src.api.shared_schemas.store_neighborhood import StoreNeighborhoodSchema
@@ -10,8 +10,19 @@ from src.api.shared_schemas.store_neighborhood import StoreNeighborhoodSchema
 router = APIRouter(prefix="/cities/{city_id}/neighborhoods", tags=["Neighborhoods"])
 
 
+def get_store_from_city(db, city_id: int) -> Store:
+    city = db.query(StoreCity).filter(StoreCity.id == city_id).first()
+    if not city:
+        raise HTTPException(status_code=404, detail="City not found")
+
+    store = db.query(Store).filter(Store.id == city.store_id).first()
+    if not store:
+        raise HTTPException(status_code=404, detail="Store not found")
+
+    return store
+
 @router.post("", response_model=StoreNeighborhoodSchema)
-def create_neighborhood(
+async def create_neighborhood(
     city_id: int,
     db: GetDBDep,
     name: str = Form(...),
@@ -19,7 +30,6 @@ def create_neighborhood(
     free_delivery: bool = Form(False),
     is_active: bool = Form(True),
 ):
-
     neighborhood = StoreNeighborhood(
         name=name,
         city_id=city_id,
@@ -30,28 +40,21 @@ def create_neighborhood(
     db.add(neighborhood)
     db.commit()
     db.refresh(neighborhood)
-    asyncio.create_task(emit_store_updated(store.id))
+
+    store = get_store_from_city(db, city_id)
+    await asyncio.create_task(emit_store_updated(store))
 
     return neighborhood
 
 
 @router.get("", response_model=list[StoreNeighborhoodSchema])
-def list_neighborhoods(
-    city_id: int,
-    db: GetDBDep,
-
-):
-
+def list_neighborhoods(city_id: int, db: GetDBDep):
     neighborhoods = db.query(StoreNeighborhood).filter(StoreNeighborhood.city_id == city_id).all()
     return neighborhoods
 
 
 @router.get("/{neighborhood_id}", response_model=StoreNeighborhoodSchema)
-def get_neighborhood(
-    city_id: int,
-    neighborhood_id: int,
-    db: GetDBDep,
-):
+def get_neighborhood(city_id: int, neighborhood_id: int, db: GetDBDep):
     neighborhood = (
         db.query(StoreNeighborhood)
         .join(StoreCity, StoreNeighborhood.city_id == StoreCity.id)
@@ -67,7 +70,7 @@ def get_neighborhood(
 
 
 @router.patch("/{neighborhood_id}", response_model=StoreNeighborhoodSchema)
-def update_neighborhood(
+async def update_neighborhood(
     city_id: int,
     neighborhood_id: int,
     db: GetDBDep,
@@ -82,7 +85,6 @@ def update_neighborhood(
         .filter(
             StoreNeighborhood.id == neighborhood_id,
             StoreNeighborhood.city_id == city_id,
-
         )
         .first()
     )
@@ -100,18 +102,14 @@ def update_neighborhood(
 
     db.commit()
     db.refresh(neighborhood)
-    asyncio.create_task(emit_store_updated(store.id))
+    store = get_store_from_city(db, city_id)
+    await asyncio.create_task(emit_store_updated(store))
 
     return neighborhood
 
 
 @router.delete("/{neighborhood_id}", status_code=204)
-def delete_neighborhood(
-    city_id: int,
-    neighborhood_id: int,
-    db: GetDBDep,
-
-):
+async def delete_neighborhood(city_id: int, neighborhood_id: int, db: GetDBDep):
     neighborhood = (
         db.query(StoreNeighborhood)
         .join(StoreCity, StoreNeighborhood.city_id == StoreCity.id)
@@ -127,5 +125,5 @@ def delete_neighborhood(
     db.delete(neighborhood)
     db.commit()
 
-    asyncio.create_task(emit_store_updated(store.id))
-
+    store = get_store_from_city(db, city_id)
+    await asyncio.create_task(emit_store_updated(store))

@@ -12,7 +12,7 @@ from src.core.dependencies import GetProductDep, GetVariantDep, GetStoreDep
 router = APIRouter(tags=["Variants"], prefix="/stores/{store_id}/variants")
 
 @router.post("", response_model=Variant)
-def create_product_variant(
+async def create_product_variant(
         db: GetDBDep,
         store: GetStoreDep,
         variant: VariantCreate,
@@ -24,7 +24,7 @@ def create_product_variant(
 
     db.add(db_variant)
     db.commit()
-    asyncio.create_task(refresh_product_list(db, store.id))
+    await asyncio.create_task(refresh_product_list(db, store.id))
     return db_variant
 
 
@@ -35,7 +35,7 @@ def get_product_variant(
     return variant
 
 @router.patch("/{variant_id}", response_model=Variant)
-def patch_product_variant(
+async def patch_product_variant(
     db: GetDBDep,
     variant: GetVariantDep,
     store: GetStoreDep,
@@ -45,7 +45,7 @@ def patch_product_variant(
         setattr(variant, field, value)
 
     db.commit()
-    asyncio.create_task(refresh_product_list(db, store.id))
+    await asyncio.create_task(refresh_product_list(db, store.id))
     return variant
 
 
@@ -62,11 +62,11 @@ def list_variants(store_id: int, db: GetDBDep, store: GetStoreDep):
 
 
 @router.delete("/{variant_id}", status_code=204)
-def delete_product_variant(
+async def delete_product_variant(
     db: GetDBDep,
     store: GetStoreDep,
     variant: GetVariantDep,
 ):
     db.delete(variant)
     db.commit()
-    asyncio.create_task(refresh_product_list(db, store.id))
+    await asyncio.create_task(refresh_product_list(db, store.id))
