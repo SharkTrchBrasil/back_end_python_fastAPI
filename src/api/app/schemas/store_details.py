@@ -13,3 +13,8 @@ class StoreDetails(StoreBase):
     delivery_config: StoreDeliveryConfigBase | None = None
     hours: list[StoreHoursSchema] = []
     cities: list[StoreCityBaseSchema] = []
+
+
+model_config = {
+    "from_attributes": True
+}

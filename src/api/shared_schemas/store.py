@@ -43,6 +43,11 @@ class StoreBase(BaseModel):
     def image_path(self) -> str:
         return get_presigned_url(self.file_key) if self.file_key else ""
 
+
+    model_config = {
+        "from_attributes": True
+    }
+
 class Store(StoreBase):
     id: int
 
