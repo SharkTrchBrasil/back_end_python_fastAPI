@@ -11,3 +11,6 @@ class StoreHoursSchema(BaseModel):
     shift_number: int
     is_active: bool
 
+model_config = {
+        "from_attributes": True
+    }

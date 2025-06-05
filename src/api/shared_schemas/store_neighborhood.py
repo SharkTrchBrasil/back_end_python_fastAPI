@@ -8,7 +8,9 @@ class StoreNeighborhoodBaseSchema(BaseModel):
     free_delivery: bool = False
     is_active: bool = True
 
-
+model_config = {
+        "from_attributes": True
+    }
 class StoreNeighborhoodSchema(StoreNeighborhoodBaseSchema):
     id: int
 

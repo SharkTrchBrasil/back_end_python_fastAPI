@@ -17,4 +17,6 @@ class StorePaymentMethods(BaseModel):
     pix_key: Optional[str]
 
 
-
+model_config = {
+        "from_attributes": True
+    }
