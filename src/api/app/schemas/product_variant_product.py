@@ -1,0 +1,12 @@
+from pydantic import BaseModel, ConfigDict
+
+from src.api.app.schemas.variants import Variant
+
+
+class ProductVariantProductSchemaApp(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    variant_id: int
+    product_id: int
+    variant: Variant  # ⬅️ inclui a variante completa com opções
