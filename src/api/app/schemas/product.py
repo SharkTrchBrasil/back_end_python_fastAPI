@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field, computed_field, ConfigDict
 
 from src.api.app.schemas.category import Category
 from src.api.app.schemas.product_variant_product import ProductVariantProductSchemaApp
-from src.api.app.schemas.variants import VariantOption
+from src.api.app.schemas.variant import VariantOption
 from src.core.aws import get_presigned_url
 
 
