@@ -3,7 +3,7 @@ from pydantic import BaseModel, ConfigDict
 from src.api.app.schemas.variant import Variant
 
 
-class ProductVariantProductSchemaApp(BaseModel):
+class ProductVariantProductSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int

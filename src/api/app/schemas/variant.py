@@ -3,8 +3,7 @@
 from pydantic import BaseModel, Field, ConfigDict
 
 from src.api.app.schemas.variant_option import VariantOption
-from src.api.app.schemas.product_variant_product import ProductVariantProductSchemaApp
-
+from src.api.shared_schemas.product_variant_product import ProductVariantProductSchema
 
 
 class Variant(BaseModel):
@@ -15,5 +14,5 @@ class Variant(BaseModel):
     min_quantity: int
     max_quantity: int
     repeatable: bool
-    variant_links: list[ProductVariantProductSchemaApp]
+    variant_links: list[ProductVariantProductSchema]
     options: list[VariantOption]

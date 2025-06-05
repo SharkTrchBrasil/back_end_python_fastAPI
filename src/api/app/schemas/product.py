@@ -2,8 +2,9 @@ from pydantic import BaseModel, Field, computed_field, ConfigDict
 
 
 from src.api.app.schemas.category import Category
-from src.api.app.schemas.product_variant_product import ProductVariantProductSchemaApp
+
 from src.api.app.schemas.variant import VariantOption
+from src.api.shared_schemas.product_variant_product import ProductVariantProductSchema
 from src.core.aws import get_presigned_url
 
 
@@ -17,7 +18,7 @@ class Product(BaseModel):
     description: str
     base_price: int
     category: Category
-    variant_links: list[ProductVariantProductSchemaApp]
+    variant_links: list[ProductVariantProductSchema]
     options: list[VariantOption]  # se quiser já trazer junto
     file_key: str = Field(exclude=True)
 
