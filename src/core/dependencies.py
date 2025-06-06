@@ -5,8 +5,9 @@ from sqlalchemy.orm import Session, joinedload
 
 from src.api.shared_schemas.store import Roles
 from src.core import models
+from src.core.auth_utils import verify_access_token
 from src.core.database import GetDBDep
-from src.api.admin.services.auth import oauth2_scheme, verify_access_token
+from src.api.admin.services.auth import oauth2_scheme
 
 
 def get_user_from_token(token: str, db: Session):
@@ -114,42 +115,42 @@ def get_product_variant_option(
 
 GetVariantOptionDep = Annotated[models.VariantOptions, Depends(get_product_variant_option)]
 
-#
-#
-# class GetStoreByStoreURLDep:
-#     def __call__(self, store_url: str, db: GetDBDep):
-#         totem_auth = (
-#             db.query(models.TotemAuthorization)
-#             .filter(models.TotemAuthorization.store_url == store_url)
-#             .first()
-#         )
-#         if not totem_auth:
-#             raise HTTPException(
-#                 status_code=404,
-#                 detail=f"Loja com URL '{store_url}' não encontrada",
-#             )
-#         return totem_auth.store_id
-#
-# # --------------------------------------------------------------------------
-# # NOVA DEPENDÊNCIA PARA PRODUTOS EM ROTAS PÚBLICAS (COMPARTILHAMENTO)
-# # --------------------------------------------------------------------------
-# def get_public_product(
-#     db: GetDBDep,
-#     product_id: int,
-#     store_id: GetStoreByStoreURLDep,
-# ):
-#     db_product = db.query(models.Product).options(
-#         joinedload(models.Product.category),
-#         joinedload(models.Product.variant_links)
-#         .joinedload(models.ProductVariantProduct.variant)
-#         .joinedload(models.Variant.options)
-#     ).filter(
-#         models.Product.id == product_id,
-#         models.Product.store_id == store_id # Usa o store_id resolvido pela dependência
-#     ).first()
-#
-#     if not db_product:
-#         raise HTTPException(status_code=404, detail="Produto não encontrado para esta loja ou ID inválido")
-#     return db_product
-#
-# GetPublicProductDep = Annotated[models.Product, Depends(get_public_product)]
+
+
+class GetStoreByStoreURLDep:
+    def __call__(self, store_url: str, db: GetDBDep):
+        totem_auth = (
+            db.query(models.TotemAuthorization)
+            .filter(models.TotemAuthorization.store_url == store_url)
+            .first()
+        )
+        if not totem_auth:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Loja com URL '{store_url}' não encontrada",
+            )
+        return totem_auth.store_id
+
+# --------------------------------------------------------------------------
+# NOVA DEPENDÊNCIA PARA PRODUTOS EM ROTAS PÚBLICAS (COMPARTILHAMENTO)
+# --------------------------------------------------------------------------
+def get_public_product(
+    db: GetDBDep,
+    product_id: int,
+    store_id: GetStoreByStoreURLDep,
+):
+    db_product = db.query(models.Product).options(
+        joinedload(models.Product.category),
+        joinedload(models.Product.variant_links)
+        .joinedload(models.ProductVariantProduct.variant)
+        .joinedload(models.Variant.options)
+    ).filter(
+        models.Product.id == product_id,
+        models.Product.store_id == store_id # Usa o store_id resolvido pela dependência
+    ).first()
+
+    if not db_product:
+        raise HTTPException(status_code=404, detail="Produto não encontrado para esta loja ou ID inválido")
+    return db_product
+
+GetPublicProductDep = Annotated[models.Product, Depends(get_public_product)]

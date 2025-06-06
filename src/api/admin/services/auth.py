@@ -60,13 +60,6 @@ def create_refresh_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
-def verify_access_token(token: str):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email = payload.get("sub")
-        return email
-    except InvalidTokenError as e:
-        return None
 
 def verify_refresh_token(token: str):
     try:
