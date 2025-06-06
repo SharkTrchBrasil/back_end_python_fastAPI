@@ -15,4 +15,5 @@ class Config(BaseSettings):
     AWS_BUCKET_NAME: str
     RESEND_API_KEY: str
 
+
 config = Config()

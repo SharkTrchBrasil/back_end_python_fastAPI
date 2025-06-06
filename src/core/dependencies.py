@@ -5,9 +5,10 @@ from sqlalchemy.orm import Session, joinedload
 
 from src.api.shared_schemas.store import Roles
 from src.core import models
-from src.core.auth_utils import verify_access_token
+
 from src.core.database import GetDBDep
 from src.api.admin.services.auth import oauth2_scheme
+from src.core.security import verify_access_token
 
 
 def get_user_from_token(token: str, db: Session):
@@ -29,8 +30,8 @@ def get_current_user(
     return get_user_from_token(token, db)
 
 
-def get_optional_user(db: GetDBDep, authorizatio: Annotated[str | None, Header()] = None):
-    token = authorizatio
+def get_optional_user(db: GetDBDep, authorization: Annotated[str | None, Header()] = None):
+    token = authorization
     if not token:
         return None
     try:
