@@ -18,7 +18,7 @@ from src.core.database import GetDBDep
 from src.core.defaults.delivery_methods import default_delivery_settings
 from src.core.defaults.payment_methods import default_payment_methods
 from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetStore
-
+from src.core.security import generate_unique_slug
 
 router = APIRouter(prefix="/stores", tags=["Stores"])
 
@@ -77,8 +77,12 @@ def create_store(
 
 
     totem_token = str(uuid.uuid4())
-    url_slug = slugify(store_create.name)
-    url_slug_no_dashes = url_slug.replace('-', '')
+
+    base_slug = slugify(store_create.name)
+
+    # Garante que seja único
+    unique_slug = generate_unique_slug(db, base_slug)
+
 
     totem_auth = models.TotemAuthorization(
         store_id=db_store.id,
@@ -87,7 +91,7 @@ def create_store(
         totem_name = db_store.name,
         granted=True,
         granted_by_id= user.id,
-        store_url=url_slug_no_dashes
+        store_url=unique_slug,
     )
     db.add(totem_auth)
 

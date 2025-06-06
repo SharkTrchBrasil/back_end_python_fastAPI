@@ -3,6 +3,8 @@ from passlib.context import CryptContext
 import jwt
 from jwt import InvalidTokenError
 from datetime import timedelta, datetime, timezone
+
+from src.core import models
 from src.core.config import config
 import random
 
@@ -54,3 +56,12 @@ def verify_refresh_token(token: str):
         return payload.get("sub")
     except InvalidTokenError:
         return None
+
+
+def generate_unique_slug(db, base_slug: str) -> str:
+    slug = base_slug
+    i = 1
+    while db.query(models.TotemAuthorization).filter_by(store_url=slug.replace('-', '')).first():
+        slug = f"{base_slug}-{i}"
+        i += 1
+    return slug.replace('-', '')

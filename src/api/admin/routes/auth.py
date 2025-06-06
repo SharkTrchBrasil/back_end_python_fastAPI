@@ -4,12 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi.security import OAuth2PasswordRequestForm
 
 from src.api.admin.schemas.auth import TokenResponse
+from src.api.admin.services.auth import authenticate_user
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetCurrentUserDep
 from src.api.admin.schemas.user import ChangePasswordData
-from src.api.admin.services.auth import authenticate_user, create_access_token, create_refresh_token, verify_refresh_token, \
-    get_password_hash
+from src.core.security import create_access_token, create_refresh_token, verify_refresh_token, get_password_hash
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
