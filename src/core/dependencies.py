@@ -131,7 +131,7 @@ class GetStoreByStoreURLDep:
                 status_code=404,
                 detail=f"Loja com URL '{store_url}' não encontrada",
             )
-        return totem_auth.store_id
+        return totem_auth.store  # Retorna o objeto store inteiro
 
 # --------------------------------------------------------------------------
 # NOVA DEPENDÊNCIA PARA PRODUTOS EM ROTAS PÚBLICAS (COMPARTILHAMENTO)
@@ -148,7 +148,7 @@ def get_public_product(
         .joinedload(models.Variant.options)
     ).filter(
         models.Product.id == product_id,
-        models.Product.store_id == store_id # Usa o store_id resolvido pela dependência
+        models.Product.store_id == store_id.id
     ).first()
 
     if not db_product:
