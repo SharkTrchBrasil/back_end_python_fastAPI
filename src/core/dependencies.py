@@ -136,9 +136,7 @@ class GetStoreByStoreURLDep:
 def get_public_product(
     db: GetDBDep,
     product_id: int,
-    # Esta é a dependência que resolve o store_id a partir da store_url na rota
-    # Não precisa de GetStoreDep nem de GetCurrentUserDep
-    store_id: Annotated[int, Depends(GetStoreByStoreURLDep)],
+    store_id: GetStoreByStoreURLDep,
 ):
     db_product = db.query(models.Product).options(
         joinedload(models.Product.category),
