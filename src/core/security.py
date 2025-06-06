@@ -1,4 +1,4 @@
-
+from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 import jwt
 from jwt import InvalidTokenError
@@ -14,7 +14,7 @@ def generate_verification_code() -> str:
     return f"{random.randint(100000, 999999)}"
 
 
-
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/admin/auth/login")
 
 SECRET_KEY = config.SECRET_KEY
 REFRESH_SECRET_KEY = config.REFRESH_SECRET_KEY
