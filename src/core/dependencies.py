@@ -148,7 +148,7 @@ def get_public_product(
         .joinedload(models.Variant.options)
     ).filter(
         models.Product.id == product_id,
-        models.Product.store_id == store_id # Usa o store_id resolvido pela dependência
+        models.Product.store_id == store_id.id # Usa o store_id resolvido pela dependência
     ).first()
 
     if not db_product:
