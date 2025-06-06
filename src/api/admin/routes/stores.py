@@ -18,7 +18,7 @@ from src.core.database import GetDBDep
 from src.core.defaults.delivery_methods import default_delivery_settings
 from src.core.defaults.payment_methods import default_payment_methods
 from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetStore
-from src.core.security import generate_unique_slug
+from src.core.utils.unique_slug import generate_unique_slug
 
 router = APIRouter(prefix="/stores", tags=["Stores"])
 
