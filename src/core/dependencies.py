@@ -118,20 +118,22 @@ def get_product_variant_option(
 GetVariantOptionDep = Annotated[models.VariantOptions, Depends(get_product_variant_option)]
 
 
-
-class GetStoreByStoreURLDep:
-    def __call__(self, store_url: str, db: GetDBDep):
-        totem_auth = (
-            db.query(models.TotemAuthorization)
-            .filter(models.TotemAuthorization.store_url == store_url)
-            .first()
+# Remova a classe GetStoreByStoreURLDep e crie uma função
+def get_store_by_store_url_dependency(store_url: str, db: GetDBDep):
+    totem_auth = (
+        db.query(models.TotemAuthorization)
+        .filter(models.TotemAuthorization.store_url == store_url)
+        .first()
+    )
+    if not totem_auth:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Loja com URL '{store_url}' não encontrada",
         )
-        if not totem_auth:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Loja com URL '{store_url}' não encontrada",
-            )
-        return totem_auth.store  # Retorna o objeto store inteiro
+    return totem_auth.store  # Retorna o objeto store inteiro
+
+# Use esta função como sua dependência
+GetStoreByStoreURLDep = Annotated[models.Store, Depends(get_store_by_store_url_dependency)]
 
 # --------------------------------------------------------------------------
 # NOVA DEPENDÊNCIA PARA PRODUTOS EM ROTAS PÚBLICAS (COMPARTILHAMENTO)
@@ -139,7 +141,8 @@ class GetStoreByStoreURLDep:
 def get_public_product(
     db: GetDBDep,
     product_id: int,
-    store_id =Depends(GetStoreByStoreURLDep)
+    # Agora 'store' será diretamente o objeto models.Store retornado pela dependência
+    store: GetStoreByStoreURLDep
 ):
     db_product = db.query(models.Product).options(
         joinedload(models.Product.category),
@@ -148,7 +151,8 @@ def get_public_product(
         .joinedload(models.Variant.options)
     ).filter(
         models.Product.id == product_id,
-        models.Product.store_id == store_id.id
+        # Agora você pode acessar store.id diretamente
+        models.Product.store_id == store.id
     ).first()
 
     if not db_product:
