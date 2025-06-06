@@ -139,7 +139,7 @@ class GetStoreByStoreURLDep:
 def get_public_product(
     db: GetDBDep,
     product_id: int,
-    store_id: GetStoreByStoreURLDep,
+    store_id =Depends(GetStoreByStoreURLDep)
 ):
     db_product = db.query(models.Product).options(
         joinedload(models.Product.category),
