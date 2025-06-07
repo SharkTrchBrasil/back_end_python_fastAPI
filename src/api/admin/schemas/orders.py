@@ -42,3 +42,6 @@ class CashierTransactionSchema(BaseModel):
 
 class OrderWithTransactions(Order):
     transactions: List[CashierTransactionSchema] = []
+
+
+

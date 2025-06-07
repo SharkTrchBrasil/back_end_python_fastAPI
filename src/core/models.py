@@ -2,7 +2,7 @@ import enum
 from datetime import datetime, date, timezone
 from typing import Optional, List
 
-from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric
+from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -585,7 +585,27 @@ class Order(Base, TimestampMixin):
 
 
 
+class Customer(Base):
+    __tablename__ = "customers"
 
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    email: Mapped[str] = mapped_column(String(150), unique=True, nullable=False)
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    customers_addresses: Mapped[list["Address"]] = relationship("Address", back_populates="customer", cascade="all, delete-orphan")
+
+class Address(Base):
+    __tablename__ = "customers_addresses"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"), nullable=False)
+    street: Mapped[str] = mapped_column(String(200), nullable=False)
+    city: Mapped[str] = mapped_column(String(100), nullable=False)
+    state: Mapped[str] = mapped_column(String(50), nullable=True)
+    postal_code: Mapped[str] = mapped_column(String(20), nullable=True)
+
+    customer: Mapped["Customer"] = relationship("Customer", back_populates="customers_addresses")
 
 
 
