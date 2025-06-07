@@ -18,7 +18,9 @@ def get_store_theme(
     db: GetDBDep,
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))]
 ):
-    store_theme = db.query(models.StoreTheme).filter(models.StoreTheme.store_id == store.id).first()
+    store_theme = db.query(models.StoreTheme).filter(
+        models.StoreTheme.store_id == store.id
+    ).first()
     return store_theme
 
 
@@ -28,15 +30,20 @@ async def update_store_theme(
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
     theme: StoreTheme,
 ):
-    store_theme = db.query(models.StoreTheme).filter(models.StoreTheme.store_id == store.id).first()
+    store_theme = db.query(models.StoreTheme).filter(
+        models.StoreTheme.store_id == store.id
+    ).first()
+
     if store_theme:
         for key, value in theme.model_dump().items():
             setattr(store_theme, key, value)
     else:
         store_theme = models.StoreTheme(**theme.model_dump(), store_id=store.id)
         db.add(store_theme)
-    db.commit()
 
-    await asyncio.create_task(emit_theme_updated(theme))
+    db.commit()
+    db.refresh(store_theme)  # 🟢 importante para garantir que os dados retornados estejam atualizados
+
+    await emit_theme_updated(StoreTheme.model_validate(store_theme))
 
     return store_theme
