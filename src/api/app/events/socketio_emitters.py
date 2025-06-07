@@ -1,7 +1,7 @@
 from src.api.app.routes.realtime import sio
 from src.core import models
 from src.core.database import get_db_manager
-from src.api.shared_schemas.store_theme import StoreTheme
+from src.api.shared_schemas.store_theme import StoreThemeOut
 from src.api.app.schemas.store_details import StoreDetails
 from src.api.shared_schemas.product import ProductOut
 from sqlalchemy.orm import joinedload
@@ -15,9 +15,11 @@ async def emit_store_updated(store: models.Store):
     )
 
 async def emit_theme_updated(theme: models.StoreTheme):
+    # Converte ORM para Pydantic para emitir JSON correto
+    pydantic_theme = StoreThemeOut.model_validate(theme).model_dump()
     await sio.emit(
         'theme_updated',
-        StoreTheme.model_validate(theme).model_dump(),
+        pydantic_theme,
         to=f'store_{theme.store_id}'
     )
 

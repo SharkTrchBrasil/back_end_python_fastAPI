@@ -45,7 +45,8 @@ async def update_store_theme(
     db.commit()
     db.refresh(store_theme)
 
-    # Passa o ORM aqui, e não o Pydantic
+    # Passa o ORM para emitir evento
     await emit_theme_updated(store_theme)
 
-    return store_theme
+    return store_theme  # FastAPI converte automaticamente para StoreThemeOut
+
