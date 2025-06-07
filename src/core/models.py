@@ -315,6 +315,18 @@ class StoreTheme(Base, TimestampMixin):
     inactive_color: Mapped[str] = mapped_column()
     on_inactive_color: Mapped[str] = mapped_column()
 
+    # Novas cores personalizadas
+    sidebar_background_color: Mapped[str] = mapped_column()
+    sidebar_text_color: Mapped[str] = mapped_column()
+    sidebar_icon_color: Mapped[str] = mapped_column()
+    category_background_color: Mapped[str] = mapped_column()
+    category_text_color: Mapped[str] = mapped_column()
+    product_background_color: Mapped[str] = mapped_column()
+    product_text_color: Mapped[str] = mapped_column()
+    price_text_color: Mapped[str] = mapped_column()
+    cart_background_color: Mapped[str] = mapped_column()
+    cart_text_color: Mapped[str] = mapped_column()
+
     font_family: Mapped[str] = mapped_column()
 
 class StorePixConfig(Base, TimestampMixin):

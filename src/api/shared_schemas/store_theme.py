@@ -14,6 +14,18 @@ class StoreThemeIn(BaseModel):
     on_inactive_color: str
     font_family: str
 
+    # Novas cores personalizadas
+    sidebar_background_color: str
+    sidebar_text_color: str
+    sidebar_icon_color: str
+    category_background_color: str
+    category_text_color: str
+    product_background_color: str
+    product_text_color: str
+    price_text_color: str
+    cart_background_color: str
+    cart_text_color: str
+
 class StoreThemeOut(StoreThemeIn):
     store_id: int
 
