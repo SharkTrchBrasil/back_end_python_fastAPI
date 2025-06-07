@@ -3,7 +3,7 @@ from pydantic import BaseModel, ConfigDict
 
 class StoreTheme(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
-
+    store_id: int
     primary_color: str
     secondary_color: str
     background_color: str
