@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends
 
 from src.api.app.events.socketio_emitters import emit_theme_updated
 from src.api.shared_schemas.store import Roles
-from src.api.shared_schemas.store_theme import StoreTheme
+from src.api.shared_schemas.store_theme import StoreThemeOut, StoreThemeIn
+
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep, GetStore
@@ -13,7 +14,7 @@ from src.core.models import Store
 
 router = APIRouter(prefix="/stores/{store_id}/theme", tags=["Theme"])
 
-@router.get("", response_model=StoreTheme | None)
+@router.get("", response_model=StoreThemeOut | None)
 def get_store_theme(
     db: GetDBDep,
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))]
@@ -24,11 +25,11 @@ def get_store_theme(
     return store_theme
 
 
-@router.put("", response_model=StoreTheme)
+@router.put("", response_model=StoreThemeOut)
 async def update_store_theme(
     db: GetDBDep,
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
-    theme: StoreTheme,
+    theme: StoreThemeIn,
 ):
     store_theme = db.query(models.StoreTheme).filter(
         models.StoreTheme.store_id == store.id
@@ -42,8 +43,9 @@ async def update_store_theme(
         db.add(store_theme)
 
     db.commit()
-    db.refresh(store_theme)  # 🟢 importante para garantir que os dados retornados estejam atualizados
+    db.refresh(store_theme)
 
-    await emit_theme_updated(StoreTheme.model_validate(store_theme))
+    # Passa o ORM aqui, e não o Pydantic
+    await emit_theme_updated(store_theme)
 
     return store_theme
