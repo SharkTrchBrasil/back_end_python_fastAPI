@@ -592,6 +592,7 @@ class Customer(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(150), unique=True, nullable=False)
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    photo: Mapped[str | None] = mapped_column(nullable=True)
 
     customers_addresses: Mapped[list["Address"]] = relationship("Address", back_populates="customer", cascade="all, delete-orphan")
 

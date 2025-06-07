@@ -17,6 +17,7 @@ class CustomerBase(BaseModel):
     name: str
     email: EmailStr
     phone: Optional[str] = None
+    photo: Optional[str] = None
 
 class CustomerCreate(CustomerBase):
     addresses: List[AddressCreate] = []
