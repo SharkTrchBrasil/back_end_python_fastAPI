@@ -23,7 +23,7 @@ def get_store_theme(
 
 
 @router.put("", response_model=StoreTheme)
-def update_store_theme(
+async def update_store_theme(
     db: GetDBDep,
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
     theme: StoreTheme,
@@ -37,6 +37,6 @@ def update_store_theme(
         db.add(store_theme)
     db.commit()
 
-    asyncio.create_task(emit_theme_updated(theme))
+    await asyncio.create_task(emit_theme_updated(theme))
 
     return store_theme

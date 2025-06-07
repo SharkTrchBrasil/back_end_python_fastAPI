@@ -15,3 +15,5 @@ class StoreTheme(BaseModel):
     inactive_color: str
     on_inactive_color: str
     font_family: str
+
+

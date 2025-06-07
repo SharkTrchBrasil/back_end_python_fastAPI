@@ -4,28 +4,37 @@ import socketio
 from sqlalchemy.orm import joinedload
 
 from src.api.app.schemas.store_details import StoreDetails
-from src.api.shared_schemas.product import Product, ProductOut
+from src.api.shared_schemas.product import ProductOut
 from src.api.shared_schemas.store_theme import StoreTheme
 from src.core import models
 from src.core.database import get_db_manager
 
-sio = socketio.AsyncServer(cors_allowed_origins='*', logger=True, engineio_logger=True, async_mode="asgi")
+# Configura o servidor Socket.IO
+sio = socketio.AsyncServer(
+    cors_allowed_origins='*',
+    logger=True,
+    engineio_logger=True,
+    async_mode="asgi"
+)
 
-async def refresh_product_list(db, store_id, sid: str | None = None):
+# Função para emitir a lista de produtos atualizada
+async def refresh_product_list(db, store_id: int, sid: str | None = None):
     products = db.query(models.Product).options(
         joinedload(models.Product.variant_links)
-        .joinedload(models.ProductVariantProduct.variant)
-        .joinedload(models.Variant.options)
+            .joinedload(models.ProductVariantProduct.variant)
+            .joinedload(models.Variant.options)
     ).filter_by(store_id=store_id, available=True).all()
 
-    payload = [ProductOut.from_orm_obj(product).model_dump(exclude_unset=True) for product in products]
+    payload = [
+        ProductOut.model_validate(product).model_dump(exclude_unset=True)
+        for product in products
+    ]
 
-    if sid:
-        await sio.emit('products_updated', payload, to=sid)
-    else:
-        await sio.emit('products_updated', payload, to=f"store_{store_id}")
+    target = sid if sid else f"store_{store_id}"
+    await sio.emit('products_updated', payload, to=target)
 
 
+# Evento de conexão do Socket.IO
 @sio.event
 async def connect(sid, environ):
     query = parse_qs(environ.get('QUERY_STRING', ''))
@@ -43,14 +52,14 @@ async def connect(sid, environ):
         if not totem or not totem.store:
             raise ConnectionRefusedError('Invalid or unauthorized token')
 
-        # Atualiza o socket ID no banco
+        # Atualiza o SID do totem
         totem.sid = sid
         db.commit()
 
         room_name = f"store_{totem.store_id}"
         await sio.enter_room(sid, room_name)
 
-        # Carrega a loja com todos os dados necessários
+        # Carrega dados completos da loja
         store = db.query(models.Store).options(
             joinedload(models.Store.payment_methods),
             joinedload(models.Store.delivery_config),
@@ -59,26 +68,33 @@ async def connect(sid, environ):
         ).filter_by(id=totem.store_id).first()
 
         if store:
-            await sio.emit('store_updated', StoreDetails.model_validate(totem.store).model_dump(), to=sid)
+            # Envia dados da loja
+            await sio.emit(
+                'store_updated',
+                StoreDetails.model_validate(store).model_dump(),
+                to=sid
+            )
 
-            # Emitir tema, se houver
-            theme = db.query(models.StoreTheme).filter(
-                models.StoreTheme.store_id == totem.store_id
-            ).first()
-
+            # Envia tema da loja (se houver)
+            theme = db.query(models.StoreTheme).filter_by(store_id=totem.store_id).first()
             if theme:
-                await sio.emit('theme_updated', StoreTheme.model_validate(theme).model_dump(), to=sid)
+                await sio.emit(
+                    'theme_updated',
+                    StoreTheme.model_validate(theme).model_dump(),
+                    to=sid
+                )
 
-            # Atualiza produtos
+            # Envia lista de produtos
             await refresh_product_list(db, totem.store_id, sid)
 
 
+# Evento de desconexão do Socket.IO
 @sio.event
 async def disconnect(sid, reason):
     print('disconnect', sid, reason)
 
     with get_db_manager() as db:
-        totem = db.query(models.TotemAuthorization).filter(models.TotemAuthorization.sid == sid).first()
+        totem = db.query(models.TotemAuthorization).filter_by(sid=sid).first()
         if totem:
             await sio.leave_room(sid, f"store_{totem.store_id}")
             totem.sid = None
