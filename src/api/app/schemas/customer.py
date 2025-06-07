@@ -7,7 +7,7 @@ class AddressCreate(BaseModel):
     state: Optional[str] = None
     postal_code: Optional[str] = None
 
-class Address(AddressCreate):
+class AddressOut(AddressCreate):
     id: int
 
     class Config:
@@ -21,17 +21,9 @@ class CustomerBase(BaseModel):
 class CustomerCreate(CustomerBase):
     addresses: List[AddressCreate] = []
 
-class Customer(CustomerBase):
-    id: int
-    addresses: List[Address] = []
-
-    class Config:
-        orm_mode = True
-
-
 class CustomerOut(CustomerBase):
     id: int
-    addresses: List[Address]
+    addresses: List[AddressOut] = []
 
     class Config:
         orm_mode = True
