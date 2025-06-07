@@ -5,7 +5,8 @@ from sqlalchemy.orm import joinedload
 
 from src.api.app.schemas.store_details import StoreDetails
 from src.api.shared_schemas.product import ProductOut
-from src.api.shared_schemas.store_theme import StoreTheme
+from src.api.shared_schemas.store_theme import StoreThemeOut
+
 from src.core import models
 from src.core.database import get_db_manager
 
@@ -75,12 +76,13 @@ async def connect(sid, environ):
                 to=sid
             )
 
-            # Envia tema da loja (se houver)
             theme = db.query(models.StoreTheme).filter_by(store_id=totem.store_id).first()
             if theme:
-                await sio.emit('theme_updated', StoreTheme.model_validate(theme, from_attributes=True).model_dump(),
-                               to=sid)
-
+                await sio.emit(
+                    'theme_updated',
+                    StoreThemeOut.model_validate(theme).model_dump(),
+                    to=sid
+                )
             # Envia lista de produtos
             await refresh_product_list(db, totem.store_id, sid)
 
