@@ -78,11 +78,8 @@ async def connect(sid, environ):
             # Envia tema da loja (se houver)
             theme = db.query(models.StoreTheme).filter_by(store_id=totem.store_id).first()
             if theme:
-                await sio.emit(
-                    'theme_updated',
-                    StoreTheme.model_validate(theme).model_dump(),
-                    to=sid
-                )
+                await sio.emit('theme_updated', StoreTheme.model_validate(theme, from_attributes=True).model_dump(),
+                               to=sid)
 
             # Envia lista de produtos
             await refresh_product_list(db, totem.store_id, sid)
