@@ -26,6 +26,11 @@ class StoreThemeIn(BaseModel):
     cart_background_color: str
     cart_text_color: str
 
+    # Novos campos para layout e tema
+    category_layout: str
+    product_layout: str
+    theme_name: str
+
 class StoreThemeOut(StoreThemeIn):
     store_id: int
 

@@ -329,6 +329,11 @@ class StoreTheme(Base, TimestampMixin):
 
     font_family: Mapped[str] = mapped_column()
 
+    category_layout:  Mapped[str] = mapped_column()
+    product_layout:  Mapped[str] = mapped_column()
+    theme_name:  Mapped[str] = mapped_column()
+
+
 class StorePixConfig(Base, TimestampMixin):
     __tablename__ = "store_pix_configs"
 
