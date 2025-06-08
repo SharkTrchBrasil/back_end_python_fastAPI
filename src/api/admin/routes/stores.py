@@ -162,7 +162,7 @@ def get_store(
 
 
 @router.patch("/{store_id}", response_model=Store)
-def patch_store(
+async def patch_store(
     db: GetDBDep,
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
     name: str | None = Form(None),
@@ -225,7 +225,7 @@ def patch_store(
     if file_key_to_delete:
         delete_file(file_key_to_delete)
 
-    asyncio.create_task(emit_store_updated(store))
+    await asyncio.create_task(emit_store_updated(store))
 
     return store
 
