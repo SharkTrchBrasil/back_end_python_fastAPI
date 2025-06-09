@@ -1,60 +1,61 @@
 from datetime import datetime
-
 from sqlalchemy.orm import Session
-
 from src.core.database import SessionLocal
 from src.core.models import Coupon, Banner
 
 
 def verificar_cupons_e_banners():
-    db: Session = SessionLocal()  # <--- aqui você instancia
+    agora = datetime.now()  # Use UTC para evitar problemas de timezone
 
-    agora = datetime.now()
+    db: Session = SessionLocal()  # Abre sessão com o banco
 
     try:
-        # CUPONS
+        # Cupons que devem estar disponíveis agora
         cupons_ativos = db.query(Coupon).filter(
             Coupon.start_date <= agora,
             Coupon.end_date >= agora,
             Coupon.available == False
         ).all()
 
+        # Cupons expirados que ainda estão marcados como disponíveis
         cupons_expirados = db.query(Coupon).filter(
             Coupon.end_date < agora,
             Coupon.available == True
         ).all()
 
-        for c in cupons_ativos:
-            c.available = True
+        for cupom in cupons_ativos:
+            cupom.available = True
 
-        for c in cupons_expirados:
-            c.available = False
+        for cupom in cupons_expirados:
+            cupom.available = False
 
-        # BANNERS
+        # Banners que devem estar ativos agora
         banners_ativos = db.query(Banner).filter(
             Banner.start_date <= agora,
             Banner.end_date >= agora,
             Banner.is_active == False
         ).all()
 
+        # Banners expirados que ainda estão ativos
         banners_expirados = db.query(Banner).filter(
             Banner.end_date < agora,
             Banner.is_active == True
         ).all()
 
-        for b in banners_ativos:
-            b.is_active = True
+        for banner in banners_ativos:
+            banner.is_active = True
 
-        for b in banners_expirados:
-            b.is_active = False
+        for banner in banners_expirados:
+            banner.is_active = False
 
         db.commit()
-        print(f"Cupons ativados: {len(cupons_ativos)}, expirados: {len(cupons_expirados)}")
-        print(f"Banners ativados: {len(banners_ativos)}, expirados: {len(banners_expirados)}")
+
+        print(f"[{agora.isoformat()}] Cupons ativados: {len(cupons_ativos)}, expirados: {len(cupons_expirados)}")
+        print(f"[{agora.isoformat()}] Banners ativados: {len(banners_ativos)}, expirados: {len(banners_expirados)}")
 
     except Exception as e:
         db.rollback()
-        print("Erro ao verificar cupons/banners:", e)
+        print(f"[{agora.isoformat()}] Erro ao verificar cupons/banners: {e}")
 
     finally:
         db.close()
