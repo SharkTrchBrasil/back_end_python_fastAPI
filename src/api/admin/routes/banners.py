@@ -23,8 +23,9 @@ async def create_banner(
     is_active: bool = Form(True),
     position: int | None = Form(None),
     link_url: Optional[str] = Form(None),
-    start_date: datetime = Form(...),
-    end_date: datetime = Form(...)
+    start_date: Optional[datetime] = Form(None),
+    end_date: Optional[datetime] = Form(None),
+
 ):
     file_key = upload_file(image)  # usa o mesmo nome do parâmetro
 
