@@ -1,3 +1,6 @@
+from datetime import datetime
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import joinedload
 
@@ -14,13 +17,16 @@ router = APIRouter(tags=["Banners"], prefix="/stores/{store_id}/banners")
 async def create_banner(
     db: GetDBDep,
     store: GetStoreDep,
-    image: UploadFile = File(...),
+    image: UploadFile = File(...),  # este é o arquivo vindo do Flutter como "file"
     product_id: int | None = Form(None),
     category_id: int | None = Form(None),
     is_active: bool = Form(True),
     position: int | None = Form(None),
+    link_url: Optional[str] = Form(None),
+    start_date: datetime = Form(...),
+    end_date: datetime = Form(...)
 ):
-    file_key = upload_file(image)
+    file_key = upload_file(image)  # usa o mesmo nome do parâmetro
 
     banner = models.Banner(
         store_id=store.id,
@@ -29,6 +35,9 @@ async def create_banner(
         category_id=category_id,
         is_active=is_active,
         position=position,
+        link_url=link_url,
+        start_date=start_date,
+        end_date=end_date,
     )
 
     db.add(banner)
@@ -36,6 +45,7 @@ async def create_banner(
     db.refresh(banner)
 
     return banner
+
 
 
 
@@ -73,11 +83,14 @@ async def update_banner(
     banner_id: int,
     db: GetDBDep,
     store: GetStoreDep,
-    image: UploadFile | None = File(None),
+    image: UploadFile | None = File(None),  # aqui trocamos "image" por "file"
     product_id: int | None = Form(None),
     category_id: int | None = Form(None),
     is_active: bool | None = Form(None),
     position: int | None = Form(None),
+    link_url: str | None = Form(None),
+    start_date: datetime | None = Form(None),
+    end_date: datetime | None = Form(None),
 ):
     banner = db.query(models.Banner).filter(
         models.Banner.id == banner_id,
@@ -97,6 +110,12 @@ async def update_banner(
         banner.is_active = is_active
     if position is not None:
         banner.position = position
+    if link_url is not None:
+        banner.link_url = link_url
+    if start_date is not None:
+        banner.start_date = start_date
+    if end_date is not None:
+        banner.end_date = end_date
     if image:
         old_file_key = banner.file_key
         banner.file_key = upload_file(image)
@@ -108,6 +127,7 @@ async def update_banner(
         delete_file(old_file_key)
 
     return banner
+
 
 
 @router.delete("/{banner_id}", status_code=204)

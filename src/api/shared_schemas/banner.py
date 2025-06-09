@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field, computed_field
 
@@ -5,11 +6,13 @@ from src.core.aws import get_presigned_url
 
 
 class BannerBase(BaseModel):
-    store_id: int
     product_id: Optional[int] = None
     category_id: Optional[int] = None
-    is_active: bool = True
+    is_active: Optional[bool] = True
     position: Optional[int] = None
+    link_url: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
 
 
 class BannerIn(BannerBase):
@@ -19,6 +22,7 @@ class BannerIn(BannerBase):
 class BannerOut(BannerBase):
     id: int
 
+    # Isso será excluído da resposta
     file_key: str = Field(exclude=True)
 
     @computed_field

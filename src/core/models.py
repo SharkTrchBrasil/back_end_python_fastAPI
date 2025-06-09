@@ -616,11 +616,14 @@ class Banner(Base, TimestampMixin):
 
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
 
-
+    link_url: Mapped[str] = mapped_column()
     file_key: Mapped[str] = mapped_column()
 
     product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"))
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
+
+    start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
     # Relacionamentos
     product: Mapped[Product | None] = relationship()
