@@ -163,7 +163,8 @@ class Product(Base, TimestampMixin):
     control_stock: Mapped[bool] = mapped_column(default=False)
     min_stock: Mapped[int] = mapped_column(default=0)
     max_stock: Mapped[int] = mapped_column(default=0)
-    unit: Mapped[str] = mapped_column(default="")
+    unit: Mapped[str] = mapped_column(default="Unidade")
+    tag: Mapped[str] = mapped_column()
 
 
 
@@ -257,26 +258,7 @@ class Coupon(Base, TimestampMixin):
     onlyNewCustomers: Mapped[bool] = mapped_column(default=False)
 
 
-class Banner(Base, TimestampMixin):
-    __tablename__ = "banners"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-
-
-    file_key: Mapped[str] = mapped_column()
-
-    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"))
-    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
-
-    # Relacionamentos
-    product: Mapped[Product | None] = relationship()
-    category: Mapped[Category | None] = relationship()
-    store: Mapped[Store] = relationship()
-
-    is_active: Mapped[bool] = mapped_column(default=True)
-    position: Mapped[int | None] = mapped_column(nullable=True)
 
 class TotemAuthorization(Base, TimestampMixin):
     __tablename__ = "totem_authorizations"
@@ -627,7 +609,26 @@ class Address(Base):
 
 
 
+class Banner(Base, TimestampMixin):
+    __tablename__ = "banners"
 
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+
+
+    file_key: Mapped[str] = mapped_column()
+
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"))
+    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
+
+    # Relacionamentos
+    product: Mapped[Product | None] = relationship()
+    category: Mapped[Category | None] = relationship()
+    store: Mapped[Store] = relationship()
+
+    is_active: Mapped[bool] = mapped_column(default=True)
+    position: Mapped[int | None] = mapped_column(nullable=True)
 
 
 
