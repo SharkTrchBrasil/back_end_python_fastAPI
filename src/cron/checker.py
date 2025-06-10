@@ -5,21 +5,23 @@ from src.core.models import Coupon, Banner
 
 
 def verificar_cupons_e_banners():
-    agora = datetime.now()  # Use UTC para evitar problemas de timezone
+    agora = datetime.now()  # Idealmente use datetime.utcnow() se seu banco salva em UTC
 
-    db: Session = SessionLocal()  # Abre sessão com o banco
+    db: Session = SessionLocal()
 
     try:
-        # Cupons que devem estar disponíveis agora
+        # Ativar cupons válidos dentro do intervalo
         cupons_ativos = db.query(Coupon).filter(
             Coupon.start_date <= agora,
             Coupon.end_date >= agora,
+            Coupon.end_date > Coupon.start_date,
             Coupon.available == False
         ).all()
 
-        # Cupons expirados que ainda estão marcados como disponíveis
+        # Desativar cupons expirados (após o fim)
         cupons_expirados = db.query(Coupon).filter(
             Coupon.end_date < agora,
+            Coupon.end_date > Coupon.start_date,
             Coupon.available == True
         ).all()
 
@@ -29,16 +31,18 @@ def verificar_cupons_e_banners():
         for cupom in cupons_expirados:
             cupom.available = False
 
-        # Banners que devem estar ativos agora
+        # Ativar banners válidos dentro do intervalo
         banners_ativos = db.query(Banner).filter(
             Banner.start_date <= agora,
             Banner.end_date >= agora,
+            Banner.end_date > Banner.start_date,
             Banner.is_active == False
         ).all()
 
-        # Banners expirados que ainda estão ativos
+        # Desativar banners expirados (após o fim)
         banners_expirados = db.query(Banner).filter(
             Banner.end_date < agora,
+            Banner.end_date > Banner.start_date,
             Banner.is_active == True
         ).all()
 
