@@ -24,7 +24,7 @@ async def create_product_variant(
 
     db.add(db_variant)
     db.commit()
-    await asyncio.create_task(refresh_product_list(db, store.id))
+    await refresh_product_list(db, db_variant.store_id)
     return db_variant
 
 
@@ -45,7 +45,7 @@ async def patch_product_variant(
         setattr(variant, field, value)
 
     db.commit()
-    await asyncio.create_task(refresh_product_list(db, store.id))
+    await refresh_product_list(db, variant.store_id)
     return variant
 
 
@@ -69,4 +69,4 @@ async def delete_product_variant(
 ):
     db.delete(variant)
     db.commit()
-    await asyncio.create_task(refresh_product_list(db, store.id))
+    await refresh_product_list(db, variant.store_id)

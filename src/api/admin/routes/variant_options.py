@@ -13,7 +13,7 @@ router = APIRouter(tags=["Variant Options"],
                    prefix='/stores/{store_id}/variants/{variant_id}/options')
 
 @router.post("", response_model=VariantOption)
-def create_product_variant_option(
+async def create_product_variant_option(
         db: GetDBDep,
         variant: GetVariantDep,
         option: VariantOptionCreate,
@@ -26,7 +26,7 @@ def create_product_variant_option(
     db.add(db_option)
     db.commit()
 
-
+    await refresh_product_list(db, db_option.store_id)
 
     return db_option
 
@@ -38,7 +38,7 @@ def get_product_variant_option(
 
 
 @router.patch("/{option_id}", response_model=VariantOption)
-def patch_product_variant_option(
+async def patch_product_variant_option(
     db: GetDBDep,
     option: GetVariantOptionDep,
     variant_update: VariantOptionUpdate,
@@ -47,4 +47,5 @@ def patch_product_variant_option(
         setattr(option, field, value)
 
     db.commit()
+    await refresh_product_list(db, option.store_id)
     return option
