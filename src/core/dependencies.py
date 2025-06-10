@@ -144,16 +144,13 @@ def get_public_product(
     # Agora 'store' será diretamente o objeto models.Store retornado pela dependência
     store: GetStoreByStoreURLDep
 ):
+
     db_product = db.query(models.Product).options(
-        joinedload(models.Product.category),
         joinedload(models.Product.variant_links)
         .joinedload(models.ProductVariantProduct.variant)
         .joinedload(models.Variant.options)
-    ).filter(
-        models.Product.id == product_id,
-        # Agora você pode acessar store.id diretamente
-        models.Product.store_id == store.id
-    ).first()
+    ).filter_by(  models.Product.id == product_id, models.Product.store_id == store.id, available=True).first()
+
 
     if not db_product:
         raise HTTPException(status_code=404, detail="Produto não encontrado para esta loja ou ID inválido")
