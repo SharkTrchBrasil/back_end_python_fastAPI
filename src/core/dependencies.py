@@ -149,7 +149,11 @@ def get_public_product(
         joinedload(models.Product.variant_links)
         .joinedload(models.ProductVariantProduct.variant)
         .joinedload(models.Variant.options)
-    ).filter_by(  models.Product.id == product_id, models.Product.store_id == store.id, available=True).first()
+    ).filter(
+        models.Product.id == product_id,
+        models.Product.store_id == store.id,
+        models.Product.available == True
+    ).first()
 
 
     if not db_product:
