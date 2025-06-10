@@ -21,6 +21,7 @@ async def create_product_variant_option(
     db_option = models.VariantOptions(
         **option.model_dump(),
         variant_id=variant.id,
+        store_id=variant.store_id,
     )
 
     db.add(db_option)
