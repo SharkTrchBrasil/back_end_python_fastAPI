@@ -18,18 +18,18 @@ sio = socketio.AsyncServer(
     async_mode="asgi"
 )
 
+
 async def refresh_product_list(db, store_id: int, sid: str | None = None):
     products = db.query(models.Product).options(
         joinedload(models.Product.variant_links)
-            .joinedload(models.ProductVariantProduct.variant)
-            .joinedload(models.Variant.options)
+        .joinedload(models.ProductVariantProduct.variant)
+        .joinedload(models.Variant.options)
     ).filter_by(store_id=store_id, available=True).all()
 
     payload = [ProductOut.from_orm_obj(product).model_dump(exclude_unset=True) for product in products]
 
     target = sid if sid else f"store_{store_id}"
     await sio.emit('products_updated', payload, to=target)
-
 
 
 # Evento de conexão do Socket.IO
@@ -82,6 +82,13 @@ async def connect(sid, environ):
                 )
             # Envia lista de produtos
             await refresh_product_list(db, totem.store_id, sid)
+
+            # Envia os banners da loja
+            banners = db.query(models.Banner).filter_by(store_id=totem.store_id).all()
+            if banners:
+                from src.api.shared_schemas.banner import BannerOut
+                banner_payload = [BannerOut.model_validate(b).model_dump() for b in banners]
+                await sio.emit('banners_updated', banner_payload, to=sid)
 
 
 # Evento de desconexão do Socket.IO

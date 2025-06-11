@@ -51,47 +51,6 @@ def authenticate_by_url(
 
 
 
-#
-# @router.get("/subdomain", response_model=TotemTokenBySubdomainResponse)
-# def get_token_by_host(request: Request, db: GetDBDep):
-#     # Extrai o host do cabeçalho
-#     host = request.headers.get("host")  # Ex: loja123.zapdelivery.app
-#     print(f"HOST HEADER: {host}")
-#
-#     if not host or '.' not in host:
-#         raise HTTPException(status_code=400, detail="Host inválido")
-#
-#     subdomain = host.split('.')[0]  # Pega o primeiro trecho, ex: 'loja123'
-#
-#     totem_auth = db.query(models.TotemAuthorization).filter_by(
-#         store_url=subdomain,
-#         granted=True
-#     ).first()
-#
-#     if not totem_auth:
-#         raise HTTPException(status_code=404, detail="Totem não encontrado ou não autorizado")
-#
-#     return TotemTokenBySubdomainResponse(
-#         token=totem_auth.totem_token,
-#         store_id=totem_auth.store_id,
-#         totem_name=totem_auth.totem_name,
-#         store_url=totem_auth.store_url
-#     )
-#
-#
-#
-#
-
-
-
-
-
-
-
-
-
-
-
 @router.post("/start", response_model=TotemCheckTokenResponse)
 def start_auth(
     db: GetDBDep,
