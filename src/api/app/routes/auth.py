@@ -58,6 +58,8 @@ router = APIRouter(tags=["Totem Auth"], prefix="/auth")
 def get_token_by_host(request: Request, db: GetDBDep):
     # Extrai o host do cabeçalho
     host = request.headers.get("host")  # Ex: loja123.zapdelivery.app
+    print(f"HOST HEADER: {host}")
+
     if not host or '.' not in host:
         raise HTTPException(status_code=400, detail="Host inválido")
 
