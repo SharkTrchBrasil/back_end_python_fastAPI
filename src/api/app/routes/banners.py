@@ -5,7 +5,7 @@ from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep, GetStoreFromTotemTokenDep
 
-router = APIRouter(tags=["Banners APP"], prefix="/stores/{store_id}/banners")
+router = APIRouter(tags=["Banners APP"], prefix="/banners")
 
 
 @router.get("", response_model=list[BannerOut])
