@@ -85,33 +85,4 @@ def check_token(
 
 
 
-@router.post("/customer/google", response_model=CustomerOut)
-async def customer_login_google(customer_in: CustomerCreate, db: GetDBDep):
-    result = await db.execute(select(Customer).filter(Customer.email == customer_in.email))
-    customer = result.scalars().first()
-
-    if customer:
-        customer.name = customer_in.name
-        customer.phone = customer_in.phone
-        customer.photo = customer_in.photo
-        await db.commit()
-        await db.refresh(customer)
-        return customer
-
-    customer = Customer(
-        name=customer_in.name,
-        email=customer_in.email,
-        phone=customer_in.phone,
-        photo=customer_in.photo,
-        addresses=[Address(**addr.model_dump()) for addr in customer_in.addresses],
-    )
-    db.add(customer)
-    try:
-        await db.commit()
-        await db.refresh(customer)
-        return customer
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(status_code=400, detail="Email já cadastrado")
-
 
