@@ -32,7 +32,7 @@ def customer_login_google(customer_in: CustomerCreate, db: GetDBDep):
         email=customer_in.email,
         phone=customer_in.phone,
         photo=customer_in.photo,
-        addresses=[Address(**addr.model_dump()) for addr in customer_in.addresses],
+        customers_addresses=[Address(**addr.model_dump()) for addr in customer_in.addresses],
     )
     db.add(customer)
     try:
