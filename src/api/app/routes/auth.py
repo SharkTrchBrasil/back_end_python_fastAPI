@@ -38,9 +38,7 @@ def authenticate_by_url(
             detail="Totem authorization not found or not granted for this URL."
         )
 
-    # Opcional: Você pode querer verificar o totem_token recebido aqui se for para manter a sessão
-    # Ou simplesmente assumir que, se a store_url é válida e granted=True, a sessão é válida
-    # Para o seu caso, o foco é na store_url para identificar. O totem_token será retornado.
+
 
     # Atualiza o SID (Session ID) para marcar a sessão ativa
     totem_auth.sid = str(uuid.uuid4())
