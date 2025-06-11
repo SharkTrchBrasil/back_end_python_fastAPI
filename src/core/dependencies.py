@@ -9,6 +9,8 @@ from src.core import models
 
 from src.core.database import GetDBDep
 
+from fastapi import Request
+
 from src.core.security import verify_access_token, oauth2_scheme
 
 
@@ -118,33 +120,35 @@ def get_product_variant_option(
 GetVariantOptionDep = Annotated[models.VariantOptions, Depends(get_product_variant_option)]
 
 
-# Remova a classe GetStoreByStoreURLDep e crie uma função
-def get_store_by_store_url_dependency(store_url: str, db: GetDBDep):
-    totem_auth = (
-        db.query(models.TotemAuthorization)
-        .filter(models.TotemAuthorization.store_url == store_url)
-        .first()
-    )
-    if not totem_auth:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Loja com URL '{store_url}' não encontrada",
-        )
-    return totem_auth.store  # Retorna o objeto store inteiro
 
-# Use esta função como sua dependência
-GetStoreByStoreURLDep = Annotated[models.Store, Depends(get_store_by_store_url_dependency)]
+def get_subdomain(request: Request) -> str | None:
+    return request.scope.get("subdomain")
 
-# --------------------------------------------------------------------------
-# NOVA DEPENDÊNCIA PARA PRODUTOS EM ROTAS PÚBLICAS (COMPARTILHAMENTO)
-# --------------------------------------------------------------------------
-def get_public_product(
+def get_store_by_subdomain(
+    subdomain: Annotated[str | None, Depends(get_subdomain)],
     db: GetDBDep,
-    product_id: int,
-    # Agora 'store' será diretamente o objeto models.Store retornado pela dependência
-    store: GetStoreByStoreURLDep
-):
 
+):
+    if not subdomain:
+        raise HTTPException(status_code=400, detail="Subdomain missing")
+
+    totem_auth = db.query(models.TotemAuthorization).filter(
+        models.TotemAuthorization.store_url == subdomain
+    ).first()
+
+    if not totem_auth:
+        raise HTTPException(status_code=404, detail=f"Loja com URL '{subdomain}' não encontrada")
+
+    return totem_auth.store
+
+
+
+
+def get_public_product(
+    db:GetDBDep,
+    product_id: int,
+    store: models.Store = Depends(get_store_by_subdomain)
+):
     db_product = db.query(models.Product).options(
         joinedload(models.Product.variant_links)
         .joinedload(models.ProductVariantProduct.variant)
@@ -155,9 +159,31 @@ def get_public_product(
         models.Product.available == True
     ).first()
 
-
     if not db_product:
         raise HTTPException(status_code=404, detail="Produto não encontrado para esta loja ou ID inválido")
+
     return db_product
 
 GetPublicProductDep = Annotated[models.Product, Depends(get_public_product)]
+
+
+
+def get_store_from_token(
+    db: GetDBDep,
+    token: Annotated[str | None, Header(alias="Totem-Token")] = None
+) -> models.Store:
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing Totem token")
+
+    totem = db.query(models.TotemAuthorization).filter(
+        models.TotemAuthorization.totem_token == token,
+        models.TotemAuthorization.granted.is_(True)
+    ).first()
+
+    if not totem or not totem.store:
+        raise HTTPException(status_code=401, detail="Invalid or unauthorized token")
+
+    return totem.store
+
+
+GetStoreFromTotemTokenDep = Annotated[models.Store, Depends(get_store_from_token)]
