@@ -4,7 +4,7 @@ from sqlite3 import IntegrityError
 from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException
-from pydantic import BaseModel
+
 from sqlalchemy import select, and_
 from starlette import status
 
@@ -115,31 +115,3 @@ async def customer_login_google(customer_in: CustomerCreate, db: GetDBDep):
         raise HTTPException(status_code=400, detail="Email já cadastrado")
 
 
-@router.post("/customer/{customer_id}/addresses", response_model=AddressOut)
-async def add_address(customer_id: int, address_in: AddressCreate, db: GetDBDep):
-    result = await db.execute(select(Customer).where(Customer.id == customer_id))
-    customer = result.scalars().first()
-
-    if not customer:
-        raise HTTPException(status_code=404, detail="Cliente não encontrado")
-
-    address = Address(**address_in.model_dump(), customer_id=customer_id)
-    db.add(address)
-    await db.commit()
-    await db.refresh(address)
-    return address
-
-
-@router.delete("/customer/{customer_id}/addresses/{address_id}", status_code=204)
-async def delete_address(customer_id: int, address_id: int, db: GetDBDep):
-    result = await db.execute(
-        select(Address).where(and_(Address.id == address_id, Address.customer_id == customer_id))
-    )
-    address = result.scalars().first()
-
-    if not address:
-        raise HTTPException(status_code=404, detail="Endereço não encontrado")
-
-    await db.delete(address)
-    await db.commit()
-    return None  # Retorno explícito para 204 No Content
