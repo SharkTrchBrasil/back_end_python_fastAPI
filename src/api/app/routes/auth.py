@@ -15,7 +15,7 @@ from src.core import models
 from src.core.database import GetDBDep
 from src.core.models import TotemAuthorization, Customer, Address
 
-router = APIRouter(tags=["Totem Auth"], prefix="/auth")
+router = APIRouter(tags=["Totem Auth"], prefix="/totem/auth")
 
 
 
