@@ -54,7 +54,7 @@ router = APIRouter(tags=["Totem Auth"], prefix="/auth")
 
 
 
-@router.get("/auth/by-subdomain", response_model=TotemTokenBySubdomainResponse)
+@router.get("/by-subdomain", response_model=TotemTokenBySubdomainResponse)
 def get_token_by_host(request: Request, db: GetDBDep):
     # Extrai o host do cabeçalho
     host = request.headers.get("host")  # Ex: loja123.zapdelivery.app
