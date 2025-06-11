@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Path
 from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 
@@ -6,7 +6,7 @@ from src.api.app.schemas.customer import (
     CustomerCreate,
     CustomerOut,
     AddressCreate,
-    AddressOut,
+    AddressOut, CustomerUpdate,
 )
 from src.core.database import GetDBDep
 from src.core.models import Customer, Address
@@ -77,3 +77,23 @@ def delete_address(customer_id: int, address_id: int, db: GetDBDep):
     db.delete(address)
     db.commit()
     return None
+
+
+@router.patch("/{customer_id}", response_model=CustomerOut)
+def update_customer_info(
+    customer_id: int,
+    customer_update: CustomerUpdate,
+    db: GetDBDep
+):
+    result = db.execute(select(Customer).where(Customer.id == customer_id))
+    customer = result.scalars().first()
+
+    if not customer:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+
+    customer.name = customer_update.name
+    customer.phone = customer_update.phone
+    db.commit()
+    db.refresh(customer)
+
+    return customer

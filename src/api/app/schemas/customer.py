@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 
 class AddressCreate(BaseModel):
@@ -28,3 +28,8 @@ class CustomerOut(CustomerBase):
 
     class Config:
         orm_mode = True
+
+
+class CustomerUpdate(BaseModel):
+    name: str = Field(..., min_length=2)
+    phone: str = Field(..., min_length=8)
