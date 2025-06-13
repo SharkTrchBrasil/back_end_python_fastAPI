@@ -2,6 +2,7 @@ import socketio
 import uvicorn
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
+from starlette.templating import Jinja2Templates
 
 from src.api.app.routes.realtime import sio
 from src.core import database
@@ -28,7 +29,7 @@ fast_app.add_middleware(
 )
 
 
-
+templates = Jinja2Templates(directory="src/templates")
 
 fast_app.include_router(admin_router)
 fast_app.include_router(app_router)
