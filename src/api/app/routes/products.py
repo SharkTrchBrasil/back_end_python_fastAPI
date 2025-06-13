@@ -1,6 +1,7 @@
 
 
 from fastapi import APIRouter, HTTPException
+from sqlalchemy.orm import joinedload
 
 from src.api.shared_schemas.product import ProductOut
 from src.core import models
@@ -29,12 +30,18 @@ def get_product_by_subdomain(
     if not totem_auth:
         raise HTTPException(status_code=404, detail=f"Loja '{subdomain}' não encontrada ou não autorizada")
 
-    # Busca produto da loja que está disponível
-    product = db.query(models.Product).filter(
+
+    product = db.query(models.Product).options(
+        joinedload(models.Product.variant_links)
+        .joinedload(models.ProductVariantProduct.variant)
+        .joinedload(models.Variant.options)
+    ).filter(
         models.Product.id == product_id,
         models.Product.store_id == totem_auth.store.id,
         models.Product.available == True
     ).first()
+
+
 
     if not product:
         raise HTTPException(status_code=404, detail="Produto não encontrado ou indisponível")

@@ -9,7 +9,7 @@ from src.core.models import Base
 
 from src.api.admin import router as admin_router
 from src.api.app import router as app_router
-from src.midd.midllewar import SubdomainMid
+
 
 Base.metadata.create_all(bind=database.engine)
 
@@ -28,7 +28,7 @@ fast_app.add_middleware(
 )
 
 
-fast_app.add_middleware(SubdomainMid)
+
 
 fast_app.include_router(admin_router)
 fast_app.include_router(app_router)

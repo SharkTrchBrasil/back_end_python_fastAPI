@@ -121,52 +121,6 @@ GetVariantOptionDep = Annotated[models.VariantOptions, Depends(get_product_varia
 
 
 
-def get_subdomain(request: Request) -> str | None:
-    return request.scope.get("subdomain")
-
-
-def get_store_by_subdomain(
-    subdomain: Annotated[str | None, Depends(get_subdomain)],
-    db: GetDBDep,
-
-):
-    if not subdomain:
-        raise HTTPException(status_code=400, detail="Subdomain missing")
-
-    totem_auth = db.query(models.TotemAuthorization).filter(
-        models.TotemAuthorization.store_url == subdomain
-    ).first()
-
-    if not totem_auth:
-        raise HTTPException(status_code=404, detail=f"Loja com URL '{subdomain}' não encontrada")
-
-    return totem_auth.store
-
-
-
-
-def get_public_product(
-    db:GetDBDep,
-    product_id: int,
-    store: models.Store = Depends(get_store_by_subdomain)
-):
-    db_product = db.query(models.Product).options(
-        joinedload(models.Product.variant_links)
-        .joinedload(models.ProductVariantProduct.variant)
-        .joinedload(models.Variant.options)
-    ).filter(
-        models.Product.id == product_id,
-        models.Product.store_id == store.id,
-        models.Product.available == True
-    ).first()
-
-    if not db_product:
-        raise HTTPException(status_code=404, detail="Produto não encontrado para esta loja ou ID inválido")
-
-    return db_product
-
-GetPublicProductDep = Annotated[models.Product, Depends(get_public_product)]
-
 
 
 def get_store_from_token(
