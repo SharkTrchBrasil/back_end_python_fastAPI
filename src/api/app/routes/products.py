@@ -1,15 +1,10 @@
 from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy.orm import joinedload
-
-
-from src import templates
-
+from fastapi.responses import JSONResponse, HTMLResponse
+from src.api.shared_schemas.product import ProductOut
 from src.core import models
 from src.core.database import GetDBDep
-
-from fastapi.responses import HTMLResponse
-
-
+from src import templates
 
 
 router = APIRouter(prefix="/products", tags=["Products"])
@@ -21,7 +16,7 @@ def get_product_by_subdomain(
     product_id: int,
     db: GetDBDep,
 ):
-    # Busca loja autorizada pelo subdomínio
+    # Verifica loja autorizada pelo subdomínio
     totem_auth = db.query(models.TotemAuthorization).filter(
         models.TotemAuthorization.store_url == subdomain,
         models.TotemAuthorization.granted == True
@@ -32,6 +27,7 @@ def get_product_by_subdomain(
 
     store = totem_auth.store
 
+    # Busca o produto com joins
     product = db.query(models.Product).options(
         joinedload(models.Product.variant_links)
         .joinedload(models.ProductVariantProduct.variant)
@@ -45,6 +41,14 @@ def get_product_by_subdomain(
     if not product:
         raise HTTPException(status_code=404, detail="Produto não encontrado ou indisponível")
 
+    # Verifica se o client quer JSON
+    accept_header = request.headers.get("accept", "")
+    if "application/json" in accept_header:
+        return product
+
+
+
+
     return templates.TemplateResponse(
         "product_meta.html",
         {
@@ -56,4 +60,3 @@ def get_product_by_subdomain(
             "full_url": str(request.url),
         }
     )
-
