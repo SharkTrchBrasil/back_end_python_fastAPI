@@ -6,7 +6,6 @@ from sqlalchemy.orm import joinedload
 from src.api.shared_schemas.product import ProductOut
 from src.core import models
 from src.core.database import GetDBDep
-from src.core.dependencies import GetPublicProductDep
 
 from fastapi import APIRouter, HTTPException
 from src.core.database import GetDBDep
