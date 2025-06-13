@@ -44,8 +44,7 @@ def get_product_by_subdomain(
     # Verifica se o client quer JSON
     accept_header = request.headers.get("accept", "")
     if "application/json" in accept_header:
-        return product
-
+        return ProductOut.model_config(product)
 
 
 
