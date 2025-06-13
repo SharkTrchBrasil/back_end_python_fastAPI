@@ -1,23 +1,116 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <title>{{ product_name }} | {{ store_name }}</title>
-  <meta name="description" content="{{ product_description }}">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- Open Graph / WhatsApp -->
   <meta property="og:title" content="{{ product_name }} | {{ store_name }}">
   <meta property="og:description" content="{{ product_description }}">
   <meta property="og:image" content="{{ product_image }}">
   <meta property="og:url" content="{{ full_url }}">
-  <meta property="og:type" content="product">
+  <meta name="twitter:card" content="summary_large_image">
 
-  <!-- Redireciona pro Flutter -->
-  <script>
-    window.location.href = "/";
-  </script>
+  <meta name="description" content="{{ product_description }}">
+  <meta name="keywords" content="pedido online, cardápio, {{ store_name }}">
+  <meta name="author" content="Zap Delivery">
+
+  <title>{{ product_name }} | {{ store_name }}</title>
+
+  <base href="/" />
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Zap Delivery">
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    #loading-container {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      height: 100vh;
+      background-color: rgba(255, 255, 255, 0.9);
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 9999;
+    }
+    #loading-gif {
+      width: 250px;
+      height: 250px;
+      object-fit: contain;
+    }
+    .flutter-view {
+      opacity: 0;
+      transition: opacity 0.5s ease-in-out;
+    }
+    .flutter-view.show {
+      opacity: 1;
+    }
+  </style>
 </head>
-<body>
 
+<body>
+  <div id="loading-container">
+    <img id="loading-gif" src="assets/load.gif" alt="Carregando...">
+  </div>
+
+  <div id="flutter_app_container" class="flutter-view"></div>
+
+  <script>
+    window.addEventListener('flutter_ready', function () {
+      const loadingContainer = document.getElementById('loading-container');
+      if (loadingContainer) loadingContainer.style.display = 'none';
+
+      const flutterAppContainer = document.getElementById('flutter_app_container');
+      if (flutterAppContainer) flutterAppContainer.classList.add('show');
+    });
+
+    window.addEventListener('load', function () {
+      _flutter_bootstrap.loadEntrypoint({
+        onEntrypointLoaded: function (engineInitializer) {
+          engineInitializer.initializeEngine().then(function (appRunner) {
+            appRunner.runApp({
+              targetElement: document.getElementById('flutter_app_container')
+            });
+          });
+        }
+      });
+    });
+  </script>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAvI8rSa8mgZcg4IJAqJOgMIQEF7IwtDt8",
+      authDomain: "pdvix-c69fe.firebaseapp.com",
+      projectId: "pdvix-c69fe",
+      storageBucket: "pdvix-c69fe.appspot.com",
+      messagingSenderId: "209909701330",
+      appId: "1:209909701330:web:03ea9f309ce422c35e6b0b",
+      measurementId: "G-R2QQ42E9T7"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+  </script>
+
+  <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

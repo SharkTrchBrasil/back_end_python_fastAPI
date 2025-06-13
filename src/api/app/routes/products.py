@@ -51,7 +51,7 @@ def get_product_by_subdomain(
             "request": request,
             "product_name": product.name,
             "product_description": product.description,
-            "product_image": product.image_url,
+
             "store_name": store.name,
             "full_url": str(request.url),
         }
