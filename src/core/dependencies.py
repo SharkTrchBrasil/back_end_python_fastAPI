@@ -124,6 +124,7 @@ GetVariantOptionDep = Annotated[models.VariantOptions, Depends(get_product_varia
 def get_subdomain(request: Request) -> str | None:
     return request.scope.get("subdomain")
 
+
 def get_store_by_subdomain(
     subdomain: Annotated[str | None, Depends(get_subdomain)],
     db: GetDBDep,
