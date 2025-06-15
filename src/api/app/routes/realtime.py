@@ -8,6 +8,7 @@ from src.api.app.schemas.store_details import StoreDetails
 from src.api.app.services.rating import get_ratings_summary
 
 from src.api.shared_schemas.product import ProductOut
+from src.api.shared_schemas.rating import RatingsSummaryOut
 from src.api.shared_schemas.store_theme import StoreThemeOut
 
 from src.core import models
@@ -29,10 +30,24 @@ async def refresh_product_list(db, store_id: int, sid: str | None = None):
         .joinedload(models.Variant.options)
     ).filter_by(store_id=store_id, available=True).all()
 
-    payload = [ProductOut.from_orm_obj(product).model_dump(exclude_unset=True) for product in products_l]
+    # Pega avaliações dos produtos
+    product_ratings = {
+        product.id: get_ratings_summary(db, product_id=product.id)
+        for product in products_l
+    }
+
+    # Junta dados do produto + avaliações
+    payload = [
+        {
+            **ProductOut.from_orm_obj(product).model_dump(exclude_unset=True),
+            "rating": product_ratings.get(product.id)
+        }
+        for product in products_l
+    ]
 
     target = sid if sid else f"store_{store_id}"
     await sio.emit('products_updated', payload, to=target)
+
 
 
 # Evento de conexão do Socket.IO
@@ -70,11 +85,11 @@ async def connect(sid, environ):
 
         if store:
             # Envia dados da loja
-            await sio.emit(
-                'store_updated',
-                StoreDetails.model_validate(store).model_dump(),
-                to=sid
-            )
+            store_schema = StoreDetails.model_validate(store)
+            store_schema.ratingsSummary = RatingsSummaryOut(**get_ratings_summary(db, store_id=store.id))
+            store_payload = store_schema.model_dump()
+            await sio.emit('store_updated', store_payload, to=sid)
+
 
             theme = db.query(models.StoreTheme).filter_by(store_id=totem.store_id).first()
             if theme:
@@ -93,22 +108,6 @@ async def connect(sid, environ):
                 banner_payload = [BannerOut.model_validate(b).model_dump() for b in banners]
                 await sio.emit('banners_updated', banner_payload, to=sid)
 
-    # --- Envia avaliações da loja ---
-    store_ratings_summary = get_ratings_summary(db, store_id=totem.store_id)
-
-    print("--- store_ratings_summary enviado ---")
-    print(store_ratings_summary)  # Adicione este print
-
-
-    await sio.emit('store_ratings_updated', store_ratings_summary, to=sid)
-
-    # --- Envia avaliações dos produtos ---
-    products_r = db.query(models.Product).filter_by(store_id=totem.store_id, available=True).all()
-    product_ratings = {}
-    for product in products_r:
-        product_ratings[product.id] = get_ratings_summary(db, product_id=product.id)
-
-    await sio.emit('product_ratings_updated', product_ratings, to=sid)
 
 # Evento de desconexão do Socket.IO
 @sio.event
