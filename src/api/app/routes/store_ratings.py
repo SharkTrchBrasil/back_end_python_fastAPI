@@ -13,9 +13,10 @@ router = APIRouter(prefix="/stores/{store_id}/ratings", tags=["Ratings"])
 @router.post("/", response_model=StoreRatingOut)
 def create_rating(
     store_id: int,
+    db: GetDBDep,
     rating_in: StoreRatingCreate,
     user_id: int = Query(..., description="ID do usuário que está avaliando"),
-    db: GetDBDep = Depends(),
+
 ):
     rating = StoreRating(
         store_id=store_id,

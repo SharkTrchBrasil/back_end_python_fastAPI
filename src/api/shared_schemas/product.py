@@ -117,3 +117,21 @@ class ProductOut(Product):
 
             variants=variants
         )
+
+
+
+class ProductRatingBase(BaseModel):
+    rating: int = Field(..., ge=1, le=5)
+    comment: Optional[str]
+
+class ProductRatingCreate(ProductRatingBase):
+    pass  # usado para criar, herda rating e comment
+
+class ProductRatingOut(ProductRatingBase):
+    id: int
+    product_id: int
+    customer_id: int
+
+
+    class Config:
+        orm_mode = True

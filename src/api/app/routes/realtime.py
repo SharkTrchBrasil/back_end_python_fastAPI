@@ -3,7 +3,9 @@ from urllib.parse import parse_qs
 import socketio
 from sqlalchemy.orm import joinedload
 
+from src.api.app.routes import products
 from src.api.app.schemas.store_details import StoreDetails
+from src.api.app.serices.rating_service import get_store_ratings_summary, get_product_ratings_summary
 from src.api.shared_schemas.product import ProductOut
 from src.api.shared_schemas.store_theme import StoreThemeOut
 
@@ -90,6 +92,20 @@ async def connect(sid, environ):
                 banner_payload = [BannerOut.model_validate(b).model_dump() for b in banners]
                 await sio.emit('banners_updated', banner_payload, to=sid)
 
+
+
+    # --- NOVO: Envia avaliações da loja ---
+    store_ratings_summary =  get_store_ratings_summary(db, totem.store_id)
+    await sio.emit('store_ratings_updated', store_ratings_summary, to=sid)
+
+    # --- NOVO: Envia avaliações dos produtos ---
+    products_rating = db.query(models.Product).filter_by(store_id=totem.store_id, available=True).all()
+    product_ids = [p.id for p in products_rating]
+    product_ratings = {}
+    for pid in product_ids:
+        product_ratings[pid] = get_product_ratings_summary(db, pid)
+
+    await sio.emit('product_ratings_updated', product_ratings, to=sid)
 
 # Evento de desconexão do Socket.IO
 @sio.event

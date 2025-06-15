@@ -651,7 +651,17 @@ class StoreRating(Base, TimestampMixin):
 
 
 
+class ProductRating(Base, TimestampMixin):
+    __tablename__ = "product_ratings"
 
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True)
+    rating: Mapped[int] = mapped_column(nullable=False)
+    comment: Mapped[str | None] = mapped_column(nullable=True)
+
+    product: Mapped["Product"] = relationship("Product", back_populates="ratings")
+    customer: Mapped["Customer"] = relationship("Customer")
 
 
 
