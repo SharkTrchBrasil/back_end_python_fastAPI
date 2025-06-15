@@ -23,13 +23,13 @@ sio = socketio.AsyncServer(
 
 
 async def refresh_product_list(db, store_id: int, sid: str | None = None):
-    products = db.query(models.Product).options(
+    products_l = db.query(models.Product).options(
         joinedload(models.Product.variant_links)
         .joinedload(models.ProductVariantProduct.variant)
         .joinedload(models.Variant.options)
     ).filter_by(store_id=store_id, available=True).all()
 
-    payload = [ProductOut.from_orm_obj(product).model_dump(exclude_unset=True) for product in products]
+    payload = [ProductOut.from_orm_obj(product).model_dump(exclude_unset=True) for product in products_l]
 
     target = sid if sid else f"store_{store_id}"
     await sio.emit('products_updated', payload, to=target)

@@ -30,7 +30,7 @@ def get_ratings_summary(db: Session, *, store_id: int | None = None, product_id:
     ratings_list = query.order_by(models.Rating.created_at.desc()).all()
 
     return {
-        "average_rating": round(avg, 1),
+        "average_rating": float(round(avg, 1)),
         "total_ratings": count,
         "distribution": full_dist,
         "ratings": [
