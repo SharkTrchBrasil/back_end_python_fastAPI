@@ -83,6 +83,8 @@ class Store(Base, TimestampMixin):
         back_populates="store", cascade="all, delete-orphan"
     )
 
+    # RELAÇÃO COM AVALIAÇÕES
+    ratings = relationship("StoreRating", back_populates="store", cascade="all, delete-orphan")
 
 class User(Base, TimestampMixin):
     __tablename__ = "users"
@@ -165,6 +167,7 @@ class Product(Base, TimestampMixin):
     max_stock: Mapped[int] = mapped_column(default=0)
     unit: Mapped[str] = mapped_column(default="Unidade")
     tag: Mapped[str] = mapped_column()
+    ratings = relationship("ProductRating", back_populates="product", cascade="all, delete-orphan")
 
 
 
