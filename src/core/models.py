@@ -638,6 +638,14 @@ class Banner(Base, TimestampMixin):
 
 
 
+class StoreRating(Base, TimestampMixin):
+    __tablename__ = "store_ratings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), nullable=False)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), nullable=True)
+    rating: Mapped[int] = mapped_column(nullable=False)
+    comment: Mapped[str | None] = mapped_column(nullable=True)
 
 
 
