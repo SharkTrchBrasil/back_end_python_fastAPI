@@ -83,8 +83,8 @@ class Store(Base, TimestampMixin):
         back_populates="store", cascade="all, delete-orphan"
     )
 
-    # RELAÇÃO COM AVALIAÇÕES
-    ratings = relationship("StoreRating", back_populates="store", cascade="all, delete-orphan")
+    # Em Store
+    ratings = relationship("Rating", back_populates="store", cascade="all, delete-orphan")
 
 class User(Base, TimestampMixin):
     __tablename__ = "users"
@@ -167,7 +167,9 @@ class Product(Base, TimestampMixin):
     max_stock: Mapped[int] = mapped_column(default=0)
     unit: Mapped[str] = mapped_column(default="Unidade")
     tag: Mapped[str] = mapped_column()
-    ratings = relationship("ProductRating", back_populates="product", cascade="all, delete-orphan")
+
+    # Em Product
+    ratings = relationship("Rating", back_populates="product", cascade="all, delete-orphan")
 
 
 
@@ -600,6 +602,8 @@ class Customer(Base):
     photo: Mapped[str | None] = mapped_column(nullable=True)
 
     customers_addresses: Mapped[list["Address"]] = relationship("Address", back_populates="customer", cascade="all, delete-orphan")
+    # Em Customer
+    ratings = relationship("Rating", back_populates="customer", cascade="all, delete-orphan")
 
 class Address(Base):
     __tablename__ = "customers_addresses"
@@ -639,40 +643,29 @@ class Banner(Base, TimestampMixin):
     store: Mapped[Store] = relationship()
 
 
+class Rating(Base, TimestampMixin):
+    __tablename__ = "ratings"
 
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    stars: Mapped[int] = mapped_column(nullable=False)
+    comment: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
-class StoreRating(Base, TimestampMixin):
-    __tablename__ = "store_ratings"
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), nullable=False)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), nullable=False)
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), nullable=False)
-    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), nullable=True)
-    rating: Mapped[int] = mapped_column(nullable=False)
-    comment: Mapped[str | None] = mapped_column(nullable=True)
+    store_id: Mapped[int | None] = mapped_column(ForeignKey("stores.id"), nullable=True)
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), nullable=True)
 
+    # Relacionamentos
+    customer: Mapped["Customer"] = relationship(back_populates="ratings")
+    order: Mapped["Order"] = relationship()
+    store: Mapped["Store"] = relationship(back_populates="ratings")
+    product: Mapped["Product"] = relationship(back_populates="ratings")
 
-
-
-
-class ProductRating(Base, TimestampMixin):
-    __tablename__ = "product_ratings"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
-    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True)
-    rating: Mapped[int] = mapped_column(nullable=False)
-    comment: Mapped[str | None] = mapped_column(nullable=True)
-
-    product: Mapped["Product"] = relationship("Product", back_populates="ratings")
-    customer: Mapped["Customer"] = relationship("Customer")
-
-
-
-
-
-
-
-
+    __table_args__ = (
+        UniqueConstraint("customer_id", "order_id", "store_id", name="uq_customer_order_store_rating"),
+        UniqueConstraint("customer_id", "order_id", "product_id", name="uq_customer_order_product_rating"),
+    )
 
 
 

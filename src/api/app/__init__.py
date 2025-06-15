@@ -4,7 +4,7 @@ from src.api.app.routes.auth import router as auth_router
 from src.api.app.routes.products import router as products_router
 from src.api.app.routes.customers import  router as customers_router
 from src.api.app.routes.banners import router as banners_router
-from src.api.app.routes.store_ratings import router as store_ratings_router
+from src.api.app.routes.ratings import router as store_ratings_router
 
 router = APIRouter(prefix="/app")
 
