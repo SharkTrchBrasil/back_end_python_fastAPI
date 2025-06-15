@@ -95,6 +95,11 @@ async def connect(sid, environ):
 
     # --- Envia avaliações da loja ---
     store_ratings_summary = get_ratings_summary(db, store_id=totem.store_id)
+
+    print("--- store_ratings_summary enviado ---")
+    print(store_ratings_summary)  # Adicione este print
+
+
     await sio.emit('store_ratings_updated', store_ratings_summary, to=sid)
 
     # --- Envia avaliações dos produtos ---
