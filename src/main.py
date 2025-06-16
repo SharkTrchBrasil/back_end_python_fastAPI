@@ -12,7 +12,7 @@ from src.api.admin import router as admin_router
 from src.api.app import router as app_router
 
 
-Base.metadata.create_all(bind=database.engine)
+#Base.metadata.create_all(bind=database.engine)
 
 fast_app = FastAPI(
     title="PDVix API"

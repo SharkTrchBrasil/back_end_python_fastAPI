@@ -32,19 +32,18 @@ class RatingOut(BaseModel):
     owner_reply: Optional[str]
     created_at: Optional[str] = None
     created_since: Optional[str] = None
+
+
     class Config:
         from_attributes = True
 
-
-
-
-    @model_validator(mode='before')
+    @model_validator(mode='after')
     def set_created_since(cls, values):
-        created = values.get("created_at")
+        created = values.created_at
         if created:
             dt = datetime.fromisoformat(created)
             delta = relativedelta(datetime.now(), dt)
-            values["created_since"] = f"{delta.days} dias atrás"
+            values.created_since = f"{delta.days} dias atrás"
         return values
 
 

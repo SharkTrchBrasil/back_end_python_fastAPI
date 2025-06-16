@@ -33,6 +33,7 @@ def get_store_ratings_summary(db: Session, *, store_id: int) -> dict:
                 "customer_name": r.customer.name if r.customer else None,
                 "stars": r.stars,
                 "comment": r.comment,
+                "owner_reply": r.owner_reply,
                 "created_at": r.created_at.isoformat() if r.created_at else None,
             }
             for r in ratings_list
@@ -73,6 +74,7 @@ def get_product_ratings_summary(db: Session, *, product_id: int) -> dict:
                 "customer_name": r.customer.name if r.customer else None,
                 "stars": r.stars,
                 "comment": r.comment,
+                "owner_reply": r.owner_reply,
                 "created_at": r.created_at.isoformat() if r.created_at else None,
             }
             for r in ratings_list
