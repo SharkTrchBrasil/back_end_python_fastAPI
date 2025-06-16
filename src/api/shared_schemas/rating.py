@@ -38,15 +38,13 @@ class RatingOut(BaseModel):
         from_attributes = True
 
     @model_validator(mode='after')
-    def set_created_since(self, values):
-        created = values.created_at
-        if created:
-            dt = datetime.fromisoformat(created)
+    def set_created_since(self):
+        if self.created_at:
+            dt = datetime.fromisoformat(self.created_at)
             now = datetime.now(tz=dt.tzinfo)
             delta = relativedelta(now, dt)
-            values.created_since = f"{delta.days} dias atrás"
-        return values
-
+            self.created_since = f"{delta.days} dias atrás"
+        return self
 
 class RatingsSummaryOut(BaseModel):
     average_rating: float = Field(..., alias="average_rating")
