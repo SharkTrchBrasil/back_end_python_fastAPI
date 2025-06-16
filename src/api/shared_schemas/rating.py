@@ -25,7 +25,9 @@ class RatingOut(BaseModel):
     id: int
     customer_name: Optional[str] = None # Certifique-se que seu get_ratings_summary popula isso
     stars: int
+    is_active: bool
     comment: Optional[str]
+    owner_reply: Optional[str]
     created_at: Optional[str] = None # Para garantir que o timestamp seja serializado
 
     class Config:

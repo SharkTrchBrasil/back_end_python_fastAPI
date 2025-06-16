@@ -655,7 +655,9 @@ class Rating(Base, TimestampMixin):
 
     store_id: Mapped[int | None] = mapped_column(ForeignKey("stores.id"), nullable=True)
     product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), nullable=True)
+    is_active: Mapped[bool] = mapped_column(default=False)
 
+    owner_reply: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # Relacionamentos
     customer: Mapped["Customer"] = relationship(back_populates="ratings")
     order: Mapped["Order"] = relationship()
