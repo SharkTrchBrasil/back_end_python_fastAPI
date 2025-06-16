@@ -38,11 +38,12 @@ class RatingOut(BaseModel):
         from_attributes = True
 
     @model_validator(mode='after')
-    def set_created_since(cls, values):
+    def set_created_since(self, values):
         created = values.created_at
         if created:
             dt = datetime.fromisoformat(created)
-            delta = relativedelta(datetime.now(), dt)
+            now = datetime.now(tz=dt.tzinfo)
+            delta = relativedelta(now, dt)
             values.created_since = f"{delta.days} dias atrás"
         return values
 
