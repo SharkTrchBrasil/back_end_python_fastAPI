@@ -1,37 +1,52 @@
+from datetime import datetime
+
+from dateutil.relativedelta import relativedelta
 from pydantic import BaseModel, Field, model_validator
 from typing import Optional
 
-class RatingCreate(BaseModel):
+
+class StoreRatingCreate(BaseModel):
     stars: int = Field(..., ge=1, le=5)
     comment: Optional[str] = None
-    store_id: Optional[int] = None
-    product_id: Optional[int] = None
+    store_id: int
     order_id: int
 
-    @classmethod
-    @model_validator(mode='before')  # valida antes da criação do objeto
-    def check_only_one_entity(cls, values):
-        store_id = values.get("store_id")
-        product_id = values.get("product_id")
 
-        if store_id is None and product_id is None:
-            raise ValueError("Você deve informar store_id ou product_id.")
-        if store_id is not None and product_id is not None:
-            raise ValueError("Avalie apenas a loja ou o produto, nunca os dois.")
-        return values
+
+
+class ProductRatingCreate(BaseModel):
+    stars: int = Field(..., ge=1, le=5)
+    comment: Optional[str] = None
+    product_id: int
+    order_id: int
+
+
 
 
 class RatingOut(BaseModel):
     id: int
-    customer_name: Optional[str] = None # Certifique-se que seu get_ratings_summary popula isso
+    customer_name: Optional[str] = None
     stars: int
     is_active: bool
     comment: Optional[str]
     owner_reply: Optional[str]
-    created_at: Optional[str] = None # Para garantir que o timestamp seja serializado
-
+    created_at: Optional[str] = None
+    created_since: Optional[str] = None
     class Config:
-        from_attributes = True # Pydantic v2+
+        from_attributes = True
+
+
+
+
+    @model_validator(mode='before')
+    def set_created_since(cls, values):
+        created = values.get("created_at")
+        if created:
+            dt = datetime.fromisoformat(created)
+            delta = relativedelta(datetime.now(), dt)
+            values["created_since"] = f"{delta.days} dias atrás"
+        return values
+
 
 class RatingsSummaryOut(BaseModel):
     average_rating: float = Field(..., alias="average_rating")
@@ -40,5 +55,6 @@ class RatingsSummaryOut(BaseModel):
     ratings: list[RatingOut]
 
     class Config:
-        from_attributes = True # Pydantic v2+
-        populate_by_name = True # Permite mapear 'average_rating' do JSON para 'average_rating' no campo
+        from_attributes = True
+        populate_by_name = True
+

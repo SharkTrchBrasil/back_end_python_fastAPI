@@ -83,8 +83,8 @@ class Store(Base, TimestampMixin):
         back_populates="store", cascade="all, delete-orphan"
     )
 
-    # Em Store
-    ratings = relationship("Rating", back_populates="store", cascade="all, delete-orphan")
+    store_ratings: Mapped[List["StoreRating"]] = relationship(back_populates="store")
+
 
 class User(Base, TimestampMixin):
     __tablename__ = "users"
@@ -168,11 +168,7 @@ class Product(Base, TimestampMixin):
     unit: Mapped[str] = mapped_column(default="Unidade")
     tag: Mapped[str] = mapped_column()
 
-    # Em Product
-    ratings = relationship("Rating", back_populates="product", cascade="all, delete-orphan")
-
-
-
+    product_ratings: Mapped[List["ProductRating"]] = relationship(back_populates="product")
 
 
 class Variant(Base, TimestampMixin):
@@ -602,8 +598,10 @@ class Customer(Base):
     photo: Mapped[str | None] = mapped_column(nullable=True)
 
     customers_addresses: Mapped[list["Address"]] = relationship("Address", back_populates="customer", cascade="all, delete-orphan")
-    # Em Customer
-    ratings = relationship("Rating", back_populates="customer", cascade="all, delete-orphan")
+
+    store_ratings: Mapped[List["StoreRating"]] = relationship(back_populates="customer")
+    product_ratings: Mapped[List["ProductRating"]] = relationship(back_populates="customer")
+
 
 class Address(Base):
     __tablename__ = "customers_addresses"
@@ -642,9 +640,8 @@ class Banner(Base, TimestampMixin):
     category: Mapped[Category | None] = relationship()
     store: Mapped[Store] = relationship()
 
-
-class Rating(Base, TimestampMixin):
-    __tablename__ = "ratings"
+class StoreRating(Base, TimestampMixin):
+    __tablename__ = "store_rating"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     stars: Mapped[int] = mapped_column(nullable=False)
@@ -652,26 +649,43 @@ class Rating(Base, TimestampMixin):
 
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), nullable=False)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), nullable=False)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), nullable=False)
 
-    store_id: Mapped[int | None] = mapped_column(ForeignKey("stores.id"), nullable=True)
-    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), nullable=True)
-    is_active: Mapped[bool] = mapped_column(default=False)
-
+    is_active: Mapped[bool] = mapped_column(default=True)
     owner_reply: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
     # Relacionamentos
-    customer: Mapped["Customer"] = relationship(back_populates="ratings")
+    customer: Mapped["Customer"] = relationship(back_populates="store_ratings")
     order: Mapped["Order"] = relationship()
-    store: Mapped["Store"] = relationship(back_populates="ratings")
-    product: Mapped["Product"] = relationship(back_populates="ratings")
+    store: Mapped["Store"] = relationship(back_populates="store_ratings")
 
     __table_args__ = (
         UniqueConstraint("customer_id", "order_id", "store_id", name="uq_customer_order_store_rating"),
-        UniqueConstraint("customer_id", "order_id", "product_id", name="uq_customer_order_product_rating"),
     )
 
 
+class ProductRating(Base, TimestampMixin):
+    __tablename__ = "product_rating"
 
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    stars: Mapped[int] = mapped_column(nullable=False)
+    comment: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), nullable=False)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), nullable=False)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False)
+
+    is_active: Mapped[bool] = mapped_column(default=True)
+    owner_reply: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Relacionamentos
+    customer: Mapped["Customer"] = relationship(back_populates="product_ratings")
+    order: Mapped["Order"] = relationship()
+    product: Mapped["Product"] = relationship(back_populates="product_ratings")
+
+    __table_args__ = (
+        UniqueConstraint("customer_id", "order_id", "product_id", name="uq_customer_order_product_rating"),
+    )
 
 
 

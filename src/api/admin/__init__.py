@@ -29,6 +29,7 @@ from src.api.admin.routes.delivery_options import router as delivery_options_rou
 from src.api.admin.routes.cashier_session_routes import router as cashier_session_routes
 from src.api.admin.routes.cashier_transaction_routes import router as  cashier_transaction_routes
 from src.api.admin.routes.banners import router as banners_router
+from src.api.admin.routes.store_ratings import router as store_ratings_router
 
 
 router = APIRouter(prefix="/admin")
@@ -45,6 +46,7 @@ router.include_router(totems_router)
 router.include_router(themes_router)
 router.include_router(pix_configs_router)
 router.include_router(webhook_router)
+
 
 
 
@@ -70,3 +72,4 @@ router.include_router(payables_router)
 router.include_router(cashier_session_routes)
 router.include_router(cashier_transaction_routes)
 router.include_router(banners_router)
+router.include_router(store_ratings_router)
