@@ -166,7 +166,7 @@ class Product(Base, TimestampMixin):
     min_stock: Mapped[int] = mapped_column(default=0)
     max_stock: Mapped[int] = mapped_column(default=0)
     unit: Mapped[str] = mapped_column(default="Unidade")
-    tag: Mapped[str] = mapped_column()
+    tag: Mapped[str] = mapped_column(default="")
 
     product_ratings: Mapped[List["ProductRating"]] = relationship(back_populates="product")
 
@@ -577,14 +577,14 @@ class Customer(Base):
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     photo: Mapped[str | None] = mapped_column(nullable=True)
 
-    customers_addresses: Mapped[list["Address"]] = relationship("Address", back_populates="customer", cascade="all, delete-orphan")
+    customer_addresses: Mapped[list["Address"]] = relationship("Address", back_populates="customer", cascade="all, delete-orphan")
 
     store_ratings: Mapped[List["StoreRating"]] = relationship(back_populates="customer")
     product_ratings: Mapped[List["ProductRating"]] = relationship(back_populates="customer")
 
 
 class Address(Base):
-    __tablename__ = "customers_addresses"
+    __tablename__ = "customer_addresses"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"), nullable=False)
@@ -593,7 +593,7 @@ class Address(Base):
     state: Mapped[str] = mapped_column(String(50), nullable=True)
     postal_code: Mapped[str] = mapped_column(String(20), nullable=True)
 
-    customer: Mapped["Customer"] = relationship("Customer", back_populates="customers_addresses")
+    customer: Mapped["Customer"] = relationship("Customer", back_populates="customer_addresses")
 
 
 
@@ -661,7 +661,9 @@ class Order(Base, TimestampMixin):
 
     products: Mapped[list["OrderProduct"]] = relationship(backref="order")
 
-    payment_method_id = Column(Integer, ForeignKey('store_payment_methods.id'))
+
+    payment_method_id: Mapped[int] = mapped_column(ForeignKey("store_payment_methods.id"), nullable=False)
+
     payment_method = relationship('StorePaymentMethods', back_populates='orders')
 
     needs_change: Mapped[bool] = mapped_column(default=False)  # precisa de troco?
