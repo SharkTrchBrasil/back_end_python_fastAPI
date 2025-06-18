@@ -667,6 +667,10 @@ class Order(Base, TimestampMixin):
 
 
 
+
+    store = relationship("Store", back_populates="orders")
+
+
 class OrderProduct(Base, TimestampMixin):
     __tablename__ = "order_products"
 
