@@ -396,7 +396,9 @@ class StorePaymentMethods(Base, TimestampMixin):
 
     pix_key:        Mapped[str]  = mapped_column(nullable=True)
 
-    orders = relationship("Order", back_populates="store_payment_method")
+    orders = relationship('Order', back_populates='payment_method')
+
+
 class StoreDeliveryConfiguration(Base, TimestampMixin):
     __tablename__ = "store_delivery_options"
 
@@ -659,10 +661,8 @@ class Order(Base, TimestampMixin):
 
     products: Mapped[list["OrderProduct"]] = relationship(backref="order")
 
-    payment_method_id = mapped_column(ForeignKey("store_payment_methods.id"), nullable=False)
-
-    payment_method = relationship('StorePaymentMethods')
-
+    payment_method_id = Column(Integer, ForeignKey('store_payment_methods.id'))
+    payment_method = relationship('StorePaymentMethods', back_populates='orders')
 
     needs_change: Mapped[bool] = mapped_column(default=False)  # precisa de troco?
     change_amount: Mapped[float | None] = mapped_column(nullable=True)  # valor que cliente vai entregar (dinheiro em espécie)
