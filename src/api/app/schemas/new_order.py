@@ -4,22 +4,22 @@ from pydantic import BaseModel, Field
 from pydantic.v1 import root_validator
 
 
-class NewOrderProductVariantOption(BaseModel):
+class NewOrderVariantOption(BaseModel):
     variant_option_id: int
     quantity: Annotated[int, Field(gt=0)]
     price: int
 
 
-class NewOrderProductVariant(BaseModel):
+class NewOrderVariant(BaseModel):
     variant_id: int
-    options: list[NewOrderProductVariantOption]
+    options: list[NewOrderVariantOption]
 
 
 class NewOrderProduct(BaseModel):
     product_id: int
     price: int
     quantity: Annotated[int, Field(gt=0)]
-    variants: list[NewOrderProductVariant]
+    variants: list[NewOrderVariant]
     note: str = ''  # ➕ Adicionado aqui
 
 

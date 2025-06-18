@@ -204,10 +204,10 @@ def send_order(sid, data):
 
                 for order_variant in order_product.variants:
                     variant = next(v for v in product.variants if v.id == order_variant.variant_id)
-                    db_variant = models.OrderProductVariant(
+                    db_variant = models.OrderVariant(
                         order_product=db_product,
                         store_id=totem.store_id,
-                        product_variant_id=variant.id,
+                        variant_id=variant.id,
                         name=variant.name,
                     )
                     db_product.variants.append(db_variant)
@@ -218,10 +218,10 @@ def send_order(sid, data):
                         option = next(o for o in variant.options if o.id == order_option.variant_option_id)
                         if option.price != order_option.price:
                             raise Exception(f"Invalid price for option {option.id} in variant {variant.id}")
-                        db_option = models.OrderProductVariantOption(
-                            order_product_variant=db_variant,
+                        db_option = models.OrderVariantOption(
+                            order_variant=db_variant,
                             store_id=totem.store_id,
-                            product_variant_option_id=option.id,
+                            variant_option_id=option.id,
                             name=option.name,
                             price=option.price,
                             quantity=order_option.quantity
