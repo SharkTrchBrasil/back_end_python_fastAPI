@@ -1,9 +1,12 @@
+from datetime import datetime
 from urllib.parse import parse_qs
 
 import socketio
 from sqlalchemy.orm import joinedload
 
+from src.api.admin.services.order_code import generate_unique_public_id, gerar_sequencial_do_dia
 from src.api.app.routes import products
+from src.api.app.schemas.new_order import NewOrder
 from src.api.app.schemas.store_details import StoreDetails
 from src.api.app.services.rating import (
     get_store_ratings_summary,
@@ -15,6 +18,9 @@ from src.api.shared_schemas.store_theme import StoreThemeOut
 
 from src.core import models
 from src.core.database import get_db_manager
+from dateutil import parser
+from src.api.app.services import payment as payment_services
+from src.api.app.schemas.order import Order
 
 # Configura o servidor Socket.IO
 sio = socketio.AsyncServer(
@@ -125,3 +131,130 @@ async def disconnect(sid, reason):
             await sio.leave_room(sid, f"store_{totem.store_id}")
             totem.sid = None
             db.commit()
+
+
+
+
+@sio.event
+def send_order(sid, data):
+    print('send_order ', sid, data)
+
+    with get_db_manager() as db:
+        totem = db.query(models.TotemAuthorization).filter(models.TotemAuthorization.sid == sid).first()
+        if not totem:
+            raise Exception('Totem does not exist')
+
+        pix_config = db.query(models.StorePixConfig).filter_by(store_id=totem.store_id).first()
+        if not pix_config:
+            raise Exception('Pix configuration not found for store')
+
+        new_order = NewOrder(**data)
+
+        db_order = models.Order(
+            sequential_id=gerar_sequencial_do_dia(db, totem.store_id),
+            public_id=generate_unique_public_id(db, totem.store_id),
+            store_id=totem.store_id,
+            totem_id=totem.id,
+            name=new_order.name,
+            phone=new_order.phone,
+            cpf=new_order.cpf,
+            payment_type_id=new_order.payment_type_id,
+            order_type='cardapio_digital',
+            delivery_type='retirada',
+            payment_status='pendente',
+            order_status='recebido',
+        )
+
+        products = db.query(models.Product).filter(
+            models.Product.store_id == totem.store_id,
+            models.Product.id.in_([p.product_id for p in new_order.products])
+        ).all()
+
+        total_price = 0
+
+        try:
+            for order_product in new_order.products:
+                product = next(p for p in products if p.id == order_product.product_id)
+                calculated_price = product.base_price
+                if calculated_price != order_product.price:
+                    raise Exception(f"Invalid price for product {product.id}")
+
+
+
+
+                db_product = models.OrderProduct(
+                    store_id=totem.store_id,
+                    product_id=product.id,
+                    name=product.name,
+                    price=calculated_price,
+                    quantity=order_product.quantity,
+                    note = order_product.note
+                )
+
+
+
+
+
+
+
+
+                db_order.products.append(db_product)
+
+                variants_price = 0
+
+                for order_variant in order_product.variants:
+                    variant = next(v for v in product.variants if v.id == order_variant.variant_id)
+                    db_variant = models.OrderProductVariant(
+                        order_product=db_product,
+                        store_id=totem.store_id,
+                        product_variant_id=variant.id,
+                        name=variant.name,
+                    )
+                    db_product.variants.append(db_variant)
+
+                    options_price = 0
+
+                    for order_option in order_variant.options:
+                        option = next(o for o in variant.options if o.id == order_option.variant_option_id)
+                        if option.price != order_option.price:
+                            raise Exception(f"Invalid price for option {option.id} in variant {variant.id}")
+                        db_option = models.OrderProductVariantOption(
+                            order_product_variant=db_variant,
+                            store_id=totem.store_id,
+                            product_variant_option_id=option.id,
+                            name=option.name,
+                            price=option.price,
+                            quantity=order_option.quantity
+                        )
+                        db_variant.options.append(db_option)
+                        options_price += db_option.price * order_option.quantity
+
+                    variants_price += options_price
+
+                total_price += (calculated_price + variants_price) * order_product.quantity
+
+                if new_order.total_price != total_price:
+                    raise Exception(f"Total price mismatch: expected {new_order.total_price}, got {total_price}")
+
+                db_order.total_price = total_price
+
+                efi_charge = payment_services.create_charge(pix_config, db_order.total_price, db_order.cpf, db_order.name)
+
+                db_charge = models.Charge(
+                    status='pending',
+                    amount=int(float(efi_charge['valor']['original']) * 100),
+                    tx_id=efi_charge['txid'],
+                    copy_key=efi_charge['pixCopiaECola'],
+                    store_id=totem.store_id,
+                    expires_at=parser.isoparse(efi_charge['calendario']['criacao']) +
+                               datetime.timedelta(seconds=int(efi_charge['calendario']['expiracao']))
+                )
+
+                db_order.charge = db_charge
+
+                db.add(db_order)
+                db.commit()
+
+                return Order.model_validate(db_order).model_dump()
+        except:
+            raise Exception("Failed")

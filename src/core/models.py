@@ -564,28 +564,6 @@ class CashierTransaction(Base, TimestampMixin):
     user: Mapped["User"] = relationship("User")
     payment_method: Mapped["StorePaymentMethods"] = relationship("StorePaymentMethods")
 
-class Order(Base, TimestampMixin):
-    __tablename__ = "orders"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
-
-
-    status: Mapped[str] = mapped_column(default="pending")  # Ex: pending, completed, cancelled
-    total: Mapped[float] = mapped_column(Numeric(10, 2))
-    payment_method_id: Mapped[int] = mapped_column(ForeignKey("store_payment_methods.id"))
-
-
-    payment_method: Mapped["StorePaymentMethods"] = relationship("StorePaymentMethods", back_populates="orders")
-
-    note: Mapped[str | None] = mapped_column(nullable=True)
-
-
-
-    store: Mapped["Store"] = relationship("Store", back_populates="orders", lazy="joined")
-    transactions: Mapped[List["CashierTransaction"]] = relationship("CashierTransaction", back_populates="order")
-
 
 
 class Customer(Base):
@@ -639,6 +617,141 @@ class Banner(Base, TimestampMixin):
     product: Mapped[Product | None] = relationship()
     category: Mapped[Category | None] = relationship()
     store: Mapped[Store] = relationship()
+
+
+class Order(Base, TimestampMixin):
+    __tablename__ = "orders"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    sequential_id: Mapped[int] = mapped_column()  # Número sequencial por dia
+    public_id: Mapped[str] = mapped_column(unique=True)  # Código público aleatório (tipo ABC123)
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True)
+    customer_address_id: Mapped[int | None] = mapped_column(ForeignKey("customer_addresses.id"), nullable=True)
+
+    name: Mapped[str] = mapped_column()  # Nome do cliente (se necessário)
+    phone: Mapped[str] = mapped_column()
+    cpf: Mapped[str] = mapped_column()
+
+    attendant_name: Mapped[str | None] = mapped_column(nullable=True)  # Só para PDV/Mesa
+
+    order_type: Mapped[str] = mapped_column()
+    # Ex: "cardapio_digital", "mesa", "pdv"
+
+    delivery_type: Mapped[str] = mapped_column()
+    # Ex: "retirada", "delivery"
+
+    total_price: Mapped[int] = mapped_column()
+
+    payment_status: Mapped[str] = mapped_column()
+    # Ex: "pendente", "pago", "cancelado"
+
+    order_status: Mapped[str] = mapped_column()
+    # Ex: "recebido", "em_preparo", "pronto", "finalizado", "cancelado"
+
+    charge_id: Mapped[int | None] = mapped_column(ForeignKey("charges.id"), nullable=True)
+    charge: Mapped["Charge"] = relationship()
+
+    totem_id: Mapped[int | None] = mapped_column(ForeignKey("totem_authorizations.id"), nullable=True)
+
+    products: Mapped[list["OrderProduct"]] = relationship(backref="order")
+
+    payment_type_id: Mapped[int | None] = mapped_column(ForeignKey("payment_types.id"), nullable=True)
+
+    payment_type: Mapped["StorePayments"] = relationship()
+    needs_change: Mapped[bool] = mapped_column(default=False)  # precisa de troco?
+    change_amount: Mapped[float | None] = mapped_column(nullable=True)  # valor que cliente vai entregar (dinheiro em espécie)
+
+
+
+class OrderProduct(Base, TimestampMixin):
+    __tablename__ = "order_products"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"))
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+
+    name: Mapped[str] = mapped_column()
+    price: Mapped[int] = mapped_column()
+    quantity: Mapped[int] = mapped_column()
+    note: Mapped[str] = mapped_column(default='')  # <<<<<<<<<< AQUI
+
+    variants: Mapped[list["OrderProductVariant"]] = relationship(backref="product")
+
+
+
+class OrderProductVariant(Base, TimestampMixin):
+    __tablename__ = "order_product_variants"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    order_product_id: Mapped[int] = mapped_column(ForeignKey("order_products.id"))
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+    product_variant_id: Mapped[int] = mapped_column(ForeignKey("product_variants.id"))
+
+    name: Mapped[str] = mapped_column()
+
+    options: Mapped[list["OrderProductVariantOption"]] = relationship(backref="variant")
+
+
+
+class OrderProductVariantOption(Base, TimestampMixin):
+    __tablename__ = "order_product_variant_options"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    order_product_variant_id: Mapped[int] = mapped_column(ForeignKey("order_product_variants.id"))
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+    product_variant_option_id: Mapped[int] = mapped_column(ForeignKey("product_variant_options.id"))
+
+    name: Mapped[str] = mapped_column()
+    price: Mapped[int] = mapped_column()
+    quantity: Mapped[int] = mapped_column()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 class StoreRating(Base, TimestampMixin):
     __tablename__ = "store_rating"
