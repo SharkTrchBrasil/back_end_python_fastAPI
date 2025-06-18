@@ -50,15 +50,21 @@ class Store(Base, TimestampMixin):
     # Relacionamentos
 
 
-    accesses: Mapped[list["StoreAccess"]] = relationship()
-    categories: Mapped[list["Category"]] = relationship()
+    accesses = relationship("StoreAccess", back_populates="store")
+    categories = relationship("Category", back_populates="store")
+    variants = relationship("Variant", back_populates="store")
+    totem_authorizations = relationship("TotemAuthorization", back_populates="store")
+
+
+
+
     payment_methods: Mapped[list["StorePaymentMethods"]] = relationship()
     products: Mapped[list["Product"]] = relationship()
     coupons: Mapped[list["Coupon"]] = relationship()
-    variants: Mapped[list["Variant"]] = relationship()
+
 
     themes: Mapped[list["StoreTheme"]] = relationship()
-    totem_authorizations: Mapped[list["TotemAuthorization"]] = relationship()
+
 
     payables: Mapped[list["StorePayable"]] = relationship()
 
@@ -109,8 +115,8 @@ class StoreAccess(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
     role_id: Mapped[int] = mapped_column(ForeignKey("roles.id"))
+    store: relationship("Store", back_populates="accesses", overlaps="accesses")
 
-    store: Mapped[Store] = relationship()
     user: Mapped[User] = relationship()
     role: Mapped[Role] = relationship()
 

@@ -21,14 +21,7 @@ from src.core.database import get_db_manager
 from dateutil import parser
 from src.api.app.services import payment as payment_services
 from src.api.app.schemas.order import Order
-
-# Configura o servidor Socket.IO
-sio = socketio.AsyncServer(
-    cors_allowed_origins="*",
-    logger=True,
-    engineio_logger=True,
-    async_mode="asgi",
-)
+from src.socketio_instance import sio
 
 
 async def refresh_product_list(db, store_id: int, sid: str | None = None):
