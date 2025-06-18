@@ -4,9 +4,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from starlette.templating import Jinja2Templates
 
-from src.api.app.routes.realtime import sio
-from src.core import database
-from src.core.models import Base
+from src.api.socketio_instance import sio
 
 from src.api.admin import router as admin_router
 from src.api.app import router as app_router

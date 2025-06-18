@@ -1,4 +1,4 @@
-from src.api.app.routes.realtime import sio
+from src.api.socketio_instance import sio
 from src.core import models
 from src.core.database import get_db_manager
 from src.api.shared_schemas.store_theme import StoreThemeOut
