@@ -659,7 +659,7 @@ class Order(Base, TimestampMixin):
 
     products: Mapped[list["OrderProduct"]] = relationship(backref="order")
 
-    payment_method_id = Mapped(int, ForeignKey('store_payment_methods.id'))
+    payment_method_id = mapped_column(ForeignKey("store_payment_methods.id"), nullable=False)
 
     payment_method = relationship('StorePaymentMethods')
 
