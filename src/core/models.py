@@ -661,7 +661,7 @@ class Order(Base, TimestampMixin):
 
     payment_type_id: Mapped[int | None] = mapped_column(ForeignKey("payment_types.id"), nullable=True)
 
-    payment_type: Mapped["StorePayments"] = relationship()
+    payment_type: Mapped["StorePaymentMethods"] = relationship()
     needs_change: Mapped[bool] = mapped_column(default=False)  # precisa de troco?
     change_amount: Mapped[float | None] = mapped_column(nullable=True)  # valor que cliente vai entregar (dinheiro em espécie)
 
