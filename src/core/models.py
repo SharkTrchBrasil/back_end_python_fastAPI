@@ -115,7 +115,7 @@ class StoreAccess(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
     role_id: Mapped[int] = mapped_column(ForeignKey("roles.id"))
-    store: relationship("Store", back_populates="accesses", overlaps="accesses")
+    store:   Mapped["Store"] = relationship("Store", back_populates="accesses")
 
     user: Mapped[User] = relationship()
     role: Mapped[Role] = relationship()
