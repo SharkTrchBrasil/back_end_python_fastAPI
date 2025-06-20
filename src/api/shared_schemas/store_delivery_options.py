@@ -1,8 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime
 
-from src.core.models import StoreCity, StoreNeighborhood
 
 
 class StoreDeliveryConfigBase(BaseModel):

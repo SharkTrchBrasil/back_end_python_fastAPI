@@ -75,20 +75,32 @@ async def connect(sid, environ):
         room_name = f"store_{totem.store_id}"
         await sio.enter_room(sid, room_name)
 
-        # Carrega dados completos da loja
+        # Carrega dados completos da loja com seus relacionamentos
+        # Loja -> delivery_config
+        # Loja -> Cidades -> Bairros
         store = db.query(models.Store).options(
             joinedload(models.Store.payment_methods),
-            joinedload(models.Store.delivery_config),
+            joinedload(models.Store.delivery_config),  # Carrega a configuração de entrega (sem cidades/bairros aqui)
             joinedload(models.Store.hours),
+            # Carrega as cidades da loja e, para cada cidade, seus bairros
             joinedload(models.Store.cities).joinedload(models.StoreCity.neighborhoods),
         ).filter_by(id=totem.store_id).first()
 
         if store:
             # Envia dados da loja com avaliações
-            store_schema = StoreDetails.model_validate(store)
+            try:
+                # Converte o objeto SQLAlchemy 'store' para o Pydantic 'StoreDetails'
+                store_schema = StoreDetails.model_validate(store)
+            except Exception as e:
+                print(f"Erro ao validar Store com Pydantic StoreDetails para loja {store.id}: {e}")
+                # Isso pode indicar que StoreDetails ou seus aninhados (StoreCity Pydantic, StoreNeighborhood Pydantic)
+                # não estão configurados corretamente com model_config = {"from_attributes": True, "arbitrary_types_allowed": True}
+                raise ConnectionRefusedError(f"Erro interno do servidor: Dados da loja malformados: {e}")
+
             store_schema.ratingsSummary = RatingsSummaryOut(
                 **get_store_ratings_summary(db, store_id=store.id)
             )
+            # Converte o modelo Pydantic para um dicionário serializável para JSON
             store_payload = store_schema.model_dump()
             await sio.emit("store_updated", store_payload, to=sid)
 
