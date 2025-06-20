@@ -21,6 +21,9 @@ class StoreDetails(StoreBase):
     ratingsSummary: Optional[RatingsSummaryOut] = Field(None, alias="ratingsSummary")
 
 
+
     model_config = {
-        "from_attributes": True
+        "from_attributes": True,
+        "arbitrary_types_allowed": True  # Mantenha isso
     }
+

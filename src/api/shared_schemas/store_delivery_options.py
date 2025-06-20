@@ -26,9 +26,6 @@ class StoreDeliveryConfigBase(BaseModel):
     table_estimated_max: Optional[int] = None
     table_instructions: Optional[str] = None
 
-    cities: List[StoreCity] = []  # Relationship with cities
-    neighborhoods: List[StoreNeighborhood] = [] # Relationship with neighborhoods
-
 
     model_config = {
         "from_attributes": True,
