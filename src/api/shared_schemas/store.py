@@ -1,6 +1,8 @@
 from enum import Enum
 from pydantic import BaseModel, Field, computed_field
 from typing import Optional
+
+from src.api.shared_schemas.store_delivery_options import StoreDeliveryConfig
 from src.core.aws import get_presigned_url
 
 
@@ -32,6 +34,7 @@ class StoreBase(BaseModel):
 
     # Plano
     plan_type: Optional[str] = "free"
+    delivery_config: Optional[StoreDeliveryConfig] = None  # Nested Delivery Config
 
     # Imagem é opcional
     file_key: Optional[str] = None

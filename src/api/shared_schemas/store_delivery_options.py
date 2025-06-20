@@ -1,6 +1,9 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
+
+from src.core.models import StoreCity, StoreNeighborhood
+
 
 class StoreDeliveryConfigBase(BaseModel):
     # DELIVERY
@@ -23,9 +26,12 @@ class StoreDeliveryConfigBase(BaseModel):
     table_estimated_max: Optional[int] = None
     table_instructions: Optional[str] = None
 
-    model_config = {
-            "from_attributes": True
-    }
+    cities: List[StoreCity] = []  # Relationship with cities
+    neighborhoods: List[StoreNeighborhood] = [] # Relationship with neighborhoods
+
+    model_config = {"from_attributes": True}
+
+
 class StoreDeliveryConfigCreate(StoreDeliveryConfigBase):
     pass
 
