@@ -47,8 +47,10 @@ class StoreBase(BaseModel):
         return get_presigned_url(self.file_key) if self.file_key else ""
 
 
+
     model_config = {
-        "from_attributes": True
+        "from_attributes": True,
+        "arbitrary_types_allowed": True # ADICIONE ESTA LINHA AQUI
     }
 
 class Store(StoreBase):

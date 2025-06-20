@@ -10,7 +10,11 @@ class StoreCityBaseSchema(BaseModel):
     is_active: bool = True
     neighborhoods: List[StoreNeighborhood] = []  # Relationship with neighborhoods
 
-    model_config = {"from_attributes": True}
+
+    model_config = {
+        "from_attributes": True,
+        "arbitrary_types_allowed": True # ADICIONE ESTA LINHA AQUI
+    }
 
 class StoreCitySchema(StoreCityBaseSchema):
     id: int

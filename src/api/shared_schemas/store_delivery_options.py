@@ -29,7 +29,11 @@ class StoreDeliveryConfigBase(BaseModel):
     cities: List[StoreCity] = []  # Relationship with cities
     neighborhoods: List[StoreNeighborhood] = [] # Relationship with neighborhoods
 
-    model_config = {"from_attributes": True}
+
+    model_config = {
+        "from_attributes": True,
+        "arbitrary_types_allowed": True # ADICIONE ESTA LINHA AQUI
+    }
 
 
 class StoreDeliveryConfigCreate(StoreDeliveryConfigBase):
