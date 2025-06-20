@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-
+# src/api/shared_schemas/store_neighborhood.py (ou onde estiver)
+from pydantic import BaseModel, ConfigDict # Importe ConfigDict para Pydantic V2
 
 class StoreNeighborhoodBaseSchema(BaseModel):
     name: str
@@ -8,13 +8,18 @@ class StoreNeighborhoodBaseSchema(BaseModel):
     free_delivery: bool = False
     is_active: bool = True
 
+    model_config = ConfigDict(
+        from_attributes=True,
+        arbitrary_types_allowed=True
+    )
 
-    model_config = {
-        "from_attributes": True,
-        "arbitrary_types_allowed": True # ADICIONE ESTA LINHA AQUI
-    }
 class StoreNeighborhoodSchema(StoreNeighborhoodBaseSchema):
     id: int
 
-    class Config:
-        orm_mode = True
+    # Use model_config para Pydantic V2 para consistência
+    model_config = ConfigDict(
+        from_attributes=True,
+        arbitrary_types_allowed=True
+    )
+    # Se você removeu 'arbitrary_types_allowed' de StoreNeighborhoodBaseSchema
+    # e ainda tem problemas, pode ser que você precise dessa linha aqui também
