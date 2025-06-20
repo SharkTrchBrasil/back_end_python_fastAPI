@@ -2,7 +2,8 @@ import asyncio
 from fastapi import APIRouter, Form, HTTPException
 
 from src.api.app.events.socketio_emitters import emit_store_updated
-from src.api.shared_schemas.store import Store
+from src.core.models import Store
+
 from src.core.database import GetDBDep
 from src.core.models import StoreNeighborhood, StoreCity
 from src.api.shared_schemas.store_neighborhood import StoreNeighborhoodSchema
