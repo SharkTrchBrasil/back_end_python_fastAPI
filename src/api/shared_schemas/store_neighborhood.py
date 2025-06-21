@@ -21,5 +21,3 @@ class StoreNeighborhoodSchema(StoreNeighborhoodBaseSchema):
         from_attributes=True,
         arbitrary_types_allowed=True
     )
-    # Se você removeu 'arbitrary_types_allowed' de StoreNeighborhoodBaseSchema
-    # e ainda tem problemas, pode ser que você precise dessa linha aqui também

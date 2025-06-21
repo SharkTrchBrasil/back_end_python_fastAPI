@@ -46,9 +46,7 @@ def customer_login_google(customer_in: CustomerCreate, db: GetDBDep):
 
 @router.post("/{customer_id}/addresses", response_model=AddressOut)
 def add_address(customer_id: int, address_in: AddressCreate, db: GetDBDep):
-    result = db.execute(select(Customer).where(Customer.id == customer_id))
-    customer = result.scalars().first()
-
+    customer = db.scalar(select(Customer).where(Customer.id == customer_id))
     if not customer:
         raise HTTPException(status_code=404, detail="Cliente não encontrado")
 
@@ -57,6 +55,7 @@ def add_address(customer_id: int, address_in: AddressCreate, db: GetDBDep):
     db.commit()
     db.refresh(address)
     return address
+
 
 
 @router.delete("/{customer_id}/addresses/{address_id}", status_code=204)

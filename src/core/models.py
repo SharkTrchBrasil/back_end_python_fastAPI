@@ -594,12 +594,18 @@ class Address(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"), nullable=False)
+
     street: Mapped[str] = mapped_column(String(200), nullable=False)
+    number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     city: Mapped[str] = mapped_column(String(100), nullable=False)
-    state: Mapped[str] = mapped_column(String(50), nullable=True)
-    postal_code: Mapped[str] = mapped_column(String(20), nullable=True)
+    reference: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+
+
+    neighborhood_id: Mapped[Optional[int]] = mapped_column(ForeignKey("store_neighborhoods.id", ondelete="SET NULL"), nullable=True)
+    neighborhood_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     customer: Mapped["Customer"] = relationship("Customer", back_populates="customer_addresses")
+    neighborhood: Mapped[Optional["StoreNeighborhood"]] = relationship("StoreNeighborhood", lazy="joined")
 
 
 

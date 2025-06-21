@@ -3,13 +3,16 @@ from typing import List, Optional
 
 class AddressCreate(BaseModel):
     street: str
+    number: Optional[str] = None
     city: str
-    state: Optional[str] = None
-    postal_code: Optional[str] = None
+    reference: Optional[str] = None
+
+    neighborhood_id: Optional[int] = None  # <- se entrega por bairro
+    neighborhood_name: Optional[str] = None  # <- se entrega por cidade
+
 
 class AddressOut(AddressCreate):
     id: int
-
     class Config:
         orm_mode = True
 

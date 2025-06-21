@@ -9,7 +9,7 @@ from src.api.shared_schemas.store_city import StoreCityBaseSchema
 from src.api.shared_schemas.store_delivery_options import StoreDeliveryConfigBase
 from src.api.shared_schemas.store_hours import StoreHoursSchema
 
-from src.core.models import StoreDeliveryConfiguration
+
 
 
 class StoreDetails(StoreBase):
@@ -17,13 +17,13 @@ class StoreDetails(StoreBase):
     delivery_config: StoreDeliveryConfigBase | None = None
     hours: list[StoreHoursSchema] = []
     cities: list[StoreCityBaseSchema] = []
-    # ADICIONE ESTE CAMPO para incluir o resumo das avaliações
+
     ratingsSummary: Optional[RatingsSummaryOut] = Field(None, alias="ratingsSummary")
 
 
 
     model_config = {
         "from_attributes": True,
-        "arbitrary_types_allowed": True  # Mantenha isso
+        "arbitrary_types_allowed": True
     }
 

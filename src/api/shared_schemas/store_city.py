@@ -1,16 +1,16 @@
 from pydantic import BaseModel
 from typing import Optional, List
 
-# IMPORTANTE: Importe o Pydantic Model de Bairro, não o modelo SQLAlchemy
-from src.api.shared_schemas.store_neighborhood import StoreNeighborhoodBaseSchema # Ou StoreNeighborhoodSchema, dependendo de qual você usa para aninhamento
+
+from src.api.shared_schemas.store_neighborhood import StoreNeighborhoodBaseSchema
 
 
 class StoreCityBaseSchema(BaseModel):
     name: str
     delivery_fee: int = 0
     is_active: bool = True
-    # CORREÇÃO AQUI: neighborhoods deve ser uma lista do SEU PYDANTIC MODEL de bairro
-    neighborhoods: List[StoreNeighborhoodBaseSchema] = []  # Agora é uma lista de Pydantic Models
+
+    neighborhoods: List[StoreNeighborhoodBaseSchema] = []
 
 
     model_config = {
