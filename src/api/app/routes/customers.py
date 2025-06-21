@@ -57,6 +57,19 @@ def add_address(customer_id: int, address_in: AddressCreate, db: GetDBDep):
     return address
 
 
+@router.get("/{customer_id}/addresses", response_model=list[AddressOut])
+def get_customer_addresses(customer_id: int, db: GetDBDep):
+    customer = db.scalar(select(Customer).where(Customer.id == customer_id))
+    if not customer:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+
+    addresses = db.scalars(
+        select(Address).where(Address.customer_id == customer_id)
+    ).all()
+
+    return addresses
+
+
 
 @router.delete("/{customer_id}/addresses/{address_id}", status_code=204)
 def delete_address(customer_id: int, address_id: int, db: GetDBDep):
