@@ -1,5 +1,4 @@
-# src/api/shared_schemas/store_neighborhood.py (ou onde estiver)
-from pydantic import BaseModel, ConfigDict # Importe ConfigDict para Pydantic V2
+from pydantic import BaseModel, ConfigDict
 
 class StoreNeighborhoodBaseSchema(BaseModel):
     name: str
@@ -10,14 +9,13 @@ class StoreNeighborhoodBaseSchema(BaseModel):
 
     model_config = ConfigDict(
         from_attributes=True,
-        arbitrary_types_allowed=True
+        arbitrary_types_allowed=True,
     )
 
 class StoreNeighborhoodSchema(StoreNeighborhoodBaseSchema):
     id: int
 
-    # Use model_config para Pydantic V2 para consistência
     model_config = ConfigDict(
         from_attributes=True,
-        arbitrary_types_allowed=True
+        arbitrary_types_allowed=True,
     )
