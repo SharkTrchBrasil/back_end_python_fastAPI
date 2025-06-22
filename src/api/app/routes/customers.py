@@ -109,3 +109,56 @@ def update_customer_info(
     db.refresh(customer)
 
     return customer
+
+
+
+@router.put("/{customer_id}/addresses/{address_id}", response_model=AddressOut)
+def update_address(
+    customer_id: int,
+    address_id: int,
+    address_in: AddressCreate, # Recebe os dados atualizados do endereço
+    db: GetDBDep,
+):
+    # 1. Verifica se o cliente existe
+    customer = db.scalar(select(Customer).where(Customer.id == customer_id))
+    if not customer:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+
+    # 2. Busca o endereço específico para o cliente
+    # Usamos 'and_' para garantir que o endereço pertence ao cliente certo
+    address = db.scalar(
+        select(Address).where(
+            and_(
+                Address.id == address_id,
+                Address.customer_id == customer_id,
+            )
+        )
+    )
+
+    if not address:
+        raise HTTPException(status_code=404, detail="Endereço não encontrado ou não pertence a este cliente")
+
+    # 3. Atualiza os campos do endereço com os dados recebidos
+    # Itera sobre os campos do address_in e atualiza o objeto 'address'
+    # Use address_in.model_dump() para obter um dicionário dos novos dados
+    for field, value in address_in.model_dump(exclude_unset=True).items():
+        setattr(address, field, value)
+
+    # O 'exclude_unset=True' é útil se você for usar PATCH,
+    # para PUT, você pode remover, pois espera todos os campos.
+    # Se AddressCreate representa o estado COMPLETO do endereço,
+    # você pode fazer uma atribuição direta para cada campo:
+    # address.street = address_in.street
+    # address.number = address_in.number
+    # address.city = address_in.city
+    # address.complement = address_in.complement
+    # address.neighborhood_id = address_in.neighborhood_id
+    # address.neighborhood = address_in.neighborhood
+    # ... e assim por diante para todos os campos relevantes.
+
+
+    db.add(address) # Adiciona a sessão para marcar como modificada
+    db.commit()    # Comita as mudanças no banco de dados
+    db.refresh(address) # Atualiza o objeto 'address' com os dados do banco após o commit
+
+    return address
