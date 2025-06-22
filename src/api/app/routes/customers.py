@@ -162,3 +162,20 @@ def update_address(
     db.refresh(address) # Atualiza o objeto 'address' com os dados do banco após o commit
 
     return address
+
+
+
+
+@router.get("/{customer_id}/addresses/{address_id}", response_model=AddressOut)
+def get_customer_address(customer_id: int, address_id: int, db: GetDBDep):
+    address = db.scalar(
+        select(Address).where(
+            and_(
+                Address.id == address_id,
+                Address.customer_id == customer_id
+            )
+        )
+    )
+    if not address:
+        raise HTTPException(status_code=404, detail="Endereço não encontrado")
+    return address
