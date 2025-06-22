@@ -20,3 +20,13 @@ class StoreCityBaseSchema(BaseModel):
 
 class StoreCitySchema(StoreCityBaseSchema):
     id: int
+
+
+
+class StoreCityOut(BaseModel):
+    id: int
+    name: str
+    delivery_fee: int = 0
+
+    class Config:
+        orm_mode = True
