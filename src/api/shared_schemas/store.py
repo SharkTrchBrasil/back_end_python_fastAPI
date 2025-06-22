@@ -12,6 +12,7 @@ class Roles(Enum):
 
 
 class StoreBase(BaseModel):
+    id: int
     name: str = Field(min_length=4, max_length=100)
 
     phone: str
