@@ -597,7 +597,8 @@ class Address(Base):
 
     street: Mapped[str] = mapped_column(String(200), nullable=False)
     number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    city: Mapped[str] = mapped_column(String(100), nullable=False)
+    city_id: Mapped[int] = mapped_column(nullable=False)
+
     reference: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
 

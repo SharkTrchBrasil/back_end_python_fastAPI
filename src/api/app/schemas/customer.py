@@ -2,13 +2,12 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 
 class AddressCreate(BaseModel):
-    street: str
-    number: Optional[str] = None
-    city: str
-    reference: Optional[str] = None
-
-    neighborhood_id: Optional[int] = None  # <- se entrega por bairro
-    neighborhood_name: Optional[str] = None  # <- se entrega por cidade
+    street: str = Field(..., min_length=3)
+    number: str
+    city_id: int
+    reference: str | None = None
+    neighborhood_id: int | None = None
+    neighborhood_name: str | None = None
 
 
 class AddressOut(AddressCreate):
