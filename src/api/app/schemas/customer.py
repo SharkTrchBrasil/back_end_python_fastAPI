@@ -5,6 +5,7 @@ class AddressCreate(BaseModel):
     street: str = Field(..., min_length=3)
     number: str
     city_id: int
+    city_name: str | None = None
     reference: str | None = None
     neighborhood_id: int | None = None
     neighborhood_name: str | None = None
