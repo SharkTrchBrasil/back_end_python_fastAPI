@@ -3,7 +3,7 @@ from typing import List, Optional
 
 class AddressCreate(BaseModel):
     street: str = Field(..., min_length=3)
-    number: str
+    number: int
     city_id: int
     reference: str | None = None
     neighborhood_id: int | None = None
