@@ -3,11 +3,12 @@ from typing import List, Optional
 
 class AddressCreate(BaseModel):
     street: str = Field(..., min_length=3)
-    number: int
+    number: str
     city_id: int
     reference: str | None = None
     neighborhood_id: int | None = None
     neighborhood_name: str | None = None
+    delivery_scope: str | None = None
 
 
 class AddressOut(AddressCreate):

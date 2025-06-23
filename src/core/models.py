@@ -600,7 +600,7 @@ class Address(Base):
     city_id: Mapped[int] = mapped_column(nullable=False)
 
     reference: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-
+    delivery_scope: Mapped[str] = mapped_column(String(20), nullable=False, default='city')
 
     neighborhood_id: Mapped[Optional[int]] = mapped_column(ForeignKey("store_neighborhoods.id", ondelete="SET NULL"), nullable=True)
     neighborhood_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
