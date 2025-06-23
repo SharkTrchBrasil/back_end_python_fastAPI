@@ -21,7 +21,7 @@ def customer_login_google(customer_in: CustomerCreate, db: GetDBDep):
 
     if customer:
         customer.name = customer_in.name
-        customer.phone = customer_in.phone
+       # customer.phone = customer_in.phone
         customer.photo = customer_in.photo
         db.commit()
         db.refresh(customer)
@@ -30,7 +30,7 @@ def customer_login_google(customer_in: CustomerCreate, db: GetDBDep):
     customer = Customer(
         name=customer_in.name,
         email=customer_in.email,
-        phone=customer_in.phone,
+       # phone=customer_in.phone,
         photo=customer_in.photo,
         customer_addresses=[Address(**addr.model_dump()) for addr in customer_in.addresses],
     )
