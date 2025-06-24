@@ -653,7 +653,7 @@ class Order(Base, TimestampMixin):
     order_type: Mapped[str] = mapped_column()  # Ex: "cardapio_digital", "mesa", "pdv"
     delivery_type: Mapped[str] = mapped_column()  # Ex: "retirada", "delivery"
 
-   # total_price: Mapped[int] = mapped_column()
+    total_price: Mapped[int] = mapped_column()
 
     payment_status: Mapped[str] = mapped_column()  # Ex: "pendente", "pago", "cancelado"
     order_status: Mapped[str] = mapped_column()    # Ex: "recebido", "em_preparo", "pronto", "finalizado", "cancelado"
