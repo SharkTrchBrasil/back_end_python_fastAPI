@@ -4,10 +4,10 @@ from typing import List, Optional
 class AddressCreate(BaseModel):
     street: str = Field(..., min_length=3)
     number: str
-    city_id: int
+    city_id: Optional[int] = None  # Agora permite None/null
     city_name: str | None = None
     reference: str | None = None
-    neighborhood_id: int | None = None
+    neighborhood_id: Optional[int] = None # Se neighborhood_id também puder ser nulo
     neighborhood_name: str | None = None
     delivery_scope: str | None = None
 
