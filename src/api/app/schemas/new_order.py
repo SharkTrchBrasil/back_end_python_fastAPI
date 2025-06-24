@@ -29,18 +29,18 @@ class NewOrder(BaseModel):
 
     customer_id: int # New: Unique ID for the customer
 
-    # --- Existing fields ---
+
     total_price: int
     products: List[NewOrderProduct]
 
-    # --- New fields for delivery and payment ---
-    delivery_type: Optional[str] = None # e.g., 'delivery', 'pickup'
+
+    delivery_type: Optional[str] = None
     address: AddressOut | None = None
-    payment_method_id: Optional[int] = None # ID of the chosen payment method
-    needs_change: Optional[bool] = False # Whether the customer needs change for cash payment
-    change_for: Optional[float] = None # Amount customer pays if needs_change is True
-    observation: Optional[str] = None # Any additional notes for the order
-    delivery_fee: Optional[float] = 0.0 # Delivery fee for the order
+    payment_method_id: Optional[int] = None
+    needs_change: Optional[bool] = False
+    change_for: Optional[float] = None
+    observation: Optional[str] = None
+    delivery_fee: Optional[float] = 0.0
 
     @model_validator(mode='after')
     def validate_order_details(self):

@@ -165,6 +165,11 @@ async def send_order(sid, data): # This is the corrected signature
         if not customer:
             return {'error': 'Cliente não encontrado'}
 
+        # Verifica se o endereço foi fornecido antes de tentar acessar o ID
+        address_id_to_use = None
+        if new_order.address:  # Se new_order.address não for None
+            address_id_to_use = new_order.address.id
+
         try:
             db_order = models.Order(
                 sequential_id=gerar_sequencial_do_dia(db, totem.store_id),
@@ -173,6 +178,8 @@ async def send_order(sid, data): # This is the corrected signature
                 totem_id=totem.id,
                 customer_id=new_order.customer_id,
                 payment_type_id=new_order.payment_method_id,
+                # Passe o ID do endereço (pode ser None se o endereço não foi fornecido)
+                address_id=address_id_to_use,  # <<< MUDANÇA AQUI
                 order_type='cardapio_digital',
                 delivery_type=new_order.delivery_type,
                 payment_status='pendent',
