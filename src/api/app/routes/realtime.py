@@ -1,12 +1,12 @@
-from datetime import datetime
+
 from urllib.parse import parse_qs
 
-import socketio
+
 from pydantic import ValidationError
 from sqlalchemy.orm import joinedload
 
 from src.api.admin.services.order_code import generate_unique_public_id, gerar_sequencial_do_dia
-from src.api.app.routes import products
+
 from src.api.app.schemas.new_order import NewOrder
 from src.api.app.schemas.store_details import StoreDetails
 from src.api.app.services.rating import (
@@ -19,8 +19,7 @@ from src.api.shared_schemas.store_theme import StoreThemeOut
 
 from src.core import models
 from src.core.database import get_db_manager
-from dateutil import parser
-from src.api.app.services import payment as payment_services
+
 from src.api.app.schemas.order import Order
 from src.socketio_instance import sio
 
@@ -215,8 +214,8 @@ async def send_order(sid, data): # This is the corrected signature
                 o.variant_option_id for p in new_order.products
                 for v in p.variants for o in v.options
             ]
-            variant_options = db.query(models.VariantOption).filter(
-                models.VariantOption.id.in_(option_ids)
+            variant_options = db.query(models.OrderVariantOption).filter(
+                models.OrderVariantOption.id.in_(option_ids)
             ).all()
 
             total_price_calculated = 0
