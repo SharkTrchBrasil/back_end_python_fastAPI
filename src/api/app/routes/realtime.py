@@ -203,6 +203,22 @@ async def send_order(sid, data): # This is the corrected signature
                 models.Product.id.in_([p.product_id for p in new_order.products])
             ).all()
 
+            # BUSCAR variantes e opções diretamente
+            variant_ids = [
+                v.variant_id for p in new_order.products for v in p.variants
+            ]
+            variants = db.query(models.Variant).filter(
+                models.Variant.id.in_(variant_ids)
+            ).all()
+
+            option_ids = [
+                o.variant_option_id for p in new_order.products
+                for v in p.variants for o in v.options
+            ]
+            variant_options = db.query(models.VariantOption).filter(
+                models.VariantOption.id.in_(option_ids)
+            ).all()
+
             total_price_calculated = 0
 
             for order_product in new_order.products:
@@ -224,7 +240,10 @@ async def send_order(sid, data): # This is the corrected signature
 
                 variants_price = 0
                 for order_variant in order_product.variants:
-                    variant = next(v for v in product.variants if v.id == order_variant.variant_id)
+                    variant = next((v for v in variants if v.id == order_variant.variant_id), None)
+                    if variant is None:
+                        return {'error': f"Variante inválida no produto {product.name}"}
+
                     db_variant = models.OrderVariant(
                         order_product=db_product,
                         store_id=totem.store_id,
@@ -235,7 +254,10 @@ async def send_order(sid, data): # This is the corrected signature
 
                     options_price = 0
                     for order_option in order_variant.options:
-                        option = next(o for o in variant.options if o.id == order_option.variant_option_id)
+                        option = next((o for o in variant_options if o.id == order_option.variant_option_id), None)
+                        if option is None:
+                            return {'error': f"Opção inválida em {variant.name} do produto {product.name}"}
+
                         if option.price != order_option.price:
                             return {'error': f"Preço inválido para a opção {option.name} do produto {product.name}"}
 
@@ -258,7 +280,8 @@ async def send_order(sid, data): # This is the corrected signature
                 total_price_calculated += new_order.delivery_fee
 
             if new_order.total_price != total_price_calculated:
-                return {'error': f"Total incorreto. Esperado: {total_price_calculated}, recebido: {new_order.total_price}"}
+                return {
+                    'error': f"Total incorreto. Esperado: {total_price_calculated}, recebido: {new_order.total_price}"}
 
             db_order.total_price = total_price_calculated
 
@@ -267,7 +290,8 @@ async def send_order(sid, data): # This is the corrected signature
 
             order_dict = Order.model_validate(db_order).model_dump()
             print('[SOCKET] Pedido processado com sucesso e retornado ao cliente')
-            return {'success': True, 'order': order_dict} # Return the success message
+            return {'success': True, 'order': order_dict}
+
 
         except Exception as e:
             db.rollback()
