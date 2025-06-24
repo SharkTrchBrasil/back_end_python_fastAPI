@@ -142,7 +142,7 @@ async def disconnect(sid, reason):
 
 
 @sio.event
-def send_order(sid, data, callback):  # <-- Adicionado callback
+async def send_order(sid, data, callback):  # <- agora é async
     print('[SOCKET] Evento send_order recebido')
     print('[SOCKET] sid:', sid)
     print('[SOCKET] data:', data)
@@ -150,24 +150,24 @@ def send_order(sid, data, callback):  # <-- Adicionado callback
     with get_db_manager() as db:
         totem = db.query(models.TotemAuthorization).filter(models.TotemAuthorization.sid == sid).first()
         if not totem:
-            callback({'error': 'Totem não encontrado ou não autorizado'})
+            await callback({'error': 'Totem não encontrado ou não autorizado'})
             return
 
         pix_config = db.query(models.StorePixConfig).filter_by(store_id=totem.store_id).first()
         if not pix_config:
-            callback({'error': 'Configuração Pix não encontrada para a loja'})
+            await callback({'error': 'Configuração Pix não encontrada para a loja'})
             return
 
         try:
             new_order = NewOrder(**data)
         except ValidationError as e:
             print(f"[SOCKET] Erro de validação do pedido: {e.errors()}")
-            callback({'error': 'Dados do pedido inválidos', 'details': e.errors()})
+            await callback({'error': 'Dados do pedido inválidos', 'details': e.errors()})
             return
 
         customer = db.query(models.Customer).filter_by(id=new_order.customer_id, store_id=totem.store_id).first()
         if not customer:
-            callback({'error': 'Cliente não encontrado'})
+            await callback({'error': 'Cliente não encontrado'})
             return
 
         try:
@@ -199,7 +199,7 @@ def send_order(sid, data, callback):  # <-- Adicionado callback
                 product = next(p for p in products if p.id == order_product.product_id)
                 calculated_price = product.base_price
                 if calculated_price != order_product.price:
-                    callback({'error': f"Preço inválido para o produto {product.name}"})
+                    await callback({'error': f"Preço inválido para o produto {product.name}"})
                     return
 
                 db_product = models.OrderProduct(
@@ -228,7 +228,7 @@ def send_order(sid, data, callback):  # <-- Adicionado callback
                     for order_option in order_variant.options:
                         option = next(o for o in variant.options if o.id == order_option.variant_option_id)
                         if option.price != order_option.price:
-                            callback({'error': f"Preço inválido para a opção {option.name} do produto {product.name}"})
+                            await callback({'error': f"Preço inválido para a opção {option.name} do produto {product.name}"})
                             return
 
                         db_option = models.OrderVariantOption(
@@ -250,7 +250,7 @@ def send_order(sid, data, callback):  # <-- Adicionado callback
                 total_price_calculated += new_order.delivery_fee
 
             if new_order.total_price != total_price_calculated:
-                callback({'error': f"Total incorreto. Esperado: {total_price_calculated}, recebido: {new_order.total_price}"})
+                await callback({'error': f"Total incorreto. Esperado: {total_price_calculated}, recebido: {new_order.total_price}"})
                 return
 
             db_order.total_price = total_price_calculated
@@ -259,10 +259,10 @@ def send_order(sid, data, callback):  # <-- Adicionado callback
             db.commit()
 
             order_dict = Order.model_validate(db_order).model_dump()
-            callback({'success': True, 'order': order_dict})  # <-- Envia resposta ao Flutter
+            await callback({'success': True, 'order': order_dict})
             print('[SOCKET] Pedido processado com sucesso e retornado ao cliente')
 
         except Exception as e:
             db.rollback()
             print(f"[SOCKET] Erro ao processar o pedido: {e}")
-            callback({'error': f"Erro ao processar o pedido: {str(e)}"})
+            await callback({'error': f"Erro ao processar o pedido: {str(e)}"})

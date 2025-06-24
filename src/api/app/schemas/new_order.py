@@ -3,7 +3,7 @@ from typing import Annotated, List, Optional
 from pydantic import BaseModel, Field, ValidationError, root_validator, model_validator
 
 from src.api.app.schemas.customer import AddressOut
-from src.core.models import Address
+
 
 
 class NewOrderVariantOption(BaseModel):
@@ -26,12 +26,7 @@ class NewOrderProduct(BaseModel):
 
 
 class NewOrder(BaseModel):
-    # --- Removed customer contact details ---
-    # phone: str
-    # cpf: str
-    # name: str
 
-    # --- Added customer_id ---
     customer_id: int # New: Unique ID for the customer
 
     # --- Existing fields ---
