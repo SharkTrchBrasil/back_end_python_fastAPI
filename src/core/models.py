@@ -709,13 +709,13 @@ class OrderProduct(Base, TimestampMixin):
 
 
 class OrderVariant(Base, TimestampMixin):
-    __tablename__ = "order_product_variants"
+    __tablename__ = "order_variants"
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
     order_product_id: Mapped[int] = mapped_column(ForeignKey("order_products.id"))
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    product_variant_id: Mapped[int] = mapped_column(ForeignKey("product_variants.id"))
+    variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id"))
 
     name: Mapped[str] = mapped_column()
 
@@ -725,19 +725,19 @@ class OrderVariant(Base, TimestampMixin):
 
 
 class OrderVariantOption(Base, TimestampMixin):
-    __tablename__ = "order_product_variant_options"
+    __tablename__ = "order_variant_options"
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    order_product_variant_id: Mapped[int] = mapped_column(ForeignKey("order_product_variants.id"))
+    order_variant_id: Mapped[int] = mapped_column(ForeignKey("order_variants.id"))
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    product_variant_option_id: Mapped[int] = mapped_column(ForeignKey("product_variant_options.id"))
+    variant_option_id: Mapped[int] = mapped_column(ForeignKey("variant_options.id"))
 
     name: Mapped[str] = mapped_column()
     price: Mapped[int] = mapped_column()
     quantity: Mapped[int] = mapped_column()
 
-    order_product_variant: Mapped[OrderVariant] = relationship()
+    order_variant: Mapped[OrderVariant] = relationship()
 
 
 class OrderProductTicket(Base, TimestampMixin):
