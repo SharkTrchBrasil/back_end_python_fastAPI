@@ -142,7 +142,7 @@ async def disconnect(sid, reason):
 
 
 @sio.event
-async def send_order(sid, data, callback):  # <- agora é async
+async def send_order(sid, data, callback):  # correto
     print('[SOCKET] Evento send_order recebido')
     print('[SOCKET] sid:', sid)
     print('[SOCKET] data:', data)
