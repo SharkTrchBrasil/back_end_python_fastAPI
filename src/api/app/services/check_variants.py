@@ -1,10 +1,8 @@
 from fastapi import HTTPException
-
 from src.core import models
 
-
 def validate_order_variants(db, product_data):
-    product_id = product_data["product_id"]
+    product_id = product_data.product_id  # <- corrigido
 
     # 1. Verifica se as variantes estão ligadas ao produto
     valid_variant_ids = db.query(models.ProductVariantProduct.variant_id).filter_by(
@@ -12,8 +10,8 @@ def validate_order_variants(db, product_data):
     ).all()
     valid_variant_ids = [v[0] for v in valid_variant_ids]
 
-    for variant_data in product_data.get("variants", []):
-        variant_id = variant_data["variant_id"]
+    for variant_data in product_data.variants:  # <- corrigido
+        variant_id = variant_data.variant_id  # <- corrigido
 
         if variant_id not in valid_variant_ids:
             raise HTTPException(
@@ -27,8 +25,8 @@ def validate_order_variants(db, product_data):
         ).all()
         valid_option_ids = [o[0] for o in valid_option_ids]
 
-        for option_data in variant_data.get("options", []):
-            option_id = option_data["variant_option_id"]
+        for option_data in variant_data.options:  # <- corrigido
+            option_id = option_data.variant_option_id  # <- corrigido
             if option_id not in valid_option_ids:
                 raise HTTPException(
                     status_code=400,
