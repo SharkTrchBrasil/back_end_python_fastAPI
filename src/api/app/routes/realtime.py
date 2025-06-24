@@ -139,10 +139,8 @@ async def disconnect(sid, reason):
             db.commit()
 
 
-
-
 @sio.event
-async def send_order(sid, data, callback):  # correto
+async def send_order(sid, data): # This is the corrected signature
     print('[SOCKET] Evento send_order recebido')
     print('[SOCKET] sid:', sid)
     print('[SOCKET] data:', data)
@@ -150,25 +148,22 @@ async def send_order(sid, data, callback):  # correto
     with get_db_manager() as db:
         totem = db.query(models.TotemAuthorization).filter(models.TotemAuthorization.sid == sid).first()
         if not totem:
-            await callback({'error': 'Totem não encontrado ou não autorizado'})
-            return
+            # Instead of await callback({...}), simply return the dictionary
+            return {'error': 'Totem não encontrado ou não autorizado'}
 
         pix_config = db.query(models.StorePixConfig).filter_by(store_id=totem.store_id).first()
         if not pix_config:
-            await callback({'error': 'Configuração Pix não encontrada para a loja'})
-            return
+            return {'error': 'Configuração Pix não encontrada para a loja'}
 
         try:
             new_order = NewOrder(**data)
         except ValidationError as e:
             print(f"[SOCKET] Erro de validação do pedido: {e.errors()}")
-            await callback({'error': 'Dados do pedido inválidos', 'details': e.errors()})
-            return
+            return {'error': 'Dados do pedido inválidos', 'details': e.errors()}
 
         customer = db.query(models.Customer).filter_by(id=new_order.customer_id, store_id=totem.store_id).first()
         if not customer:
-            await callback({'error': 'Cliente não encontrado'})
-            return
+            return {'error': 'Cliente não encontrado'}
 
         try:
             db_order = models.Order(
@@ -199,8 +194,7 @@ async def send_order(sid, data, callback):  # correto
                 product = next(p for p in products if p.id == order_product.product_id)
                 calculated_price = product.base_price
                 if calculated_price != order_product.price:
-                    await callback({'error': f"Preço inválido para o produto {product.name}"})
-                    return
+                    return {'error': f"Preço inválido para o produto {product.name}"}
 
                 db_product = models.OrderProduct(
                     store_id=totem.store_id,
@@ -228,8 +222,7 @@ async def send_order(sid, data, callback):  # correto
                     for order_option in order_variant.options:
                         option = next(o for o in variant.options if o.id == order_option.variant_option_id)
                         if option.price != order_option.price:
-                            await callback({'error': f"Preço inválido para a opção {option.name} do produto {product.name}"})
-                            return
+                            return {'error': f"Preço inválido para a opção {option.name} do produto {product.name}"}
 
                         db_option = models.OrderVariantOption(
                             order_variant=db_variant,
@@ -250,8 +243,7 @@ async def send_order(sid, data, callback):  # correto
                 total_price_calculated += new_order.delivery_fee
 
             if new_order.total_price != total_price_calculated:
-                await callback({'error': f"Total incorreto. Esperado: {total_price_calculated}, recebido: {new_order.total_price}"})
-                return
+                return {'error': f"Total incorreto. Esperado: {total_price_calculated}, recebido: {new_order.total_price}"}
 
             db_order.total_price = total_price_calculated
 
@@ -259,10 +251,10 @@ async def send_order(sid, data, callback):  # correto
             db.commit()
 
             order_dict = Order.model_validate(db_order).model_dump()
-            await callback({'success': True, 'order': order_dict})
             print('[SOCKET] Pedido processado com sucesso e retornado ao cliente')
+            return {'success': True, 'order': order_dict} # Return the success message
 
         except Exception as e:
             db.rollback()
             print(f"[SOCKET] Erro ao processar o pedido: {e}")
-            await callback({'error': f"Erro ao processar o pedido: {str(e)}"})
+            return {'error': f"Erro ao processar o pedido: {str(e)}"} # Return the error message
