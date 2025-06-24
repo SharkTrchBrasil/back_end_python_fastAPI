@@ -142,63 +142,65 @@ async def disconnect(sid, reason):
 
 
 @sio.event
-def send_order(sid, data):
-    print('send_order ', sid, data)
+def send_order(sid, data, callback):  # <-- Adicionado callback
+    print('[SOCKET] Evento send_order recebido')
+    print('[SOCKET] sid:', sid)
+    print('[SOCKET] data:', data)
 
     with get_db_manager() as db:
         totem = db.query(models.TotemAuthorization).filter(models.TotemAuthorization.sid == sid).first()
         if not totem:
-            raise Exception('Totem does not exist')
+            callback({'error': 'Totem não encontrado ou não autorizado'})
+            return
 
         pix_config = db.query(models.StorePixConfig).filter_by(store_id=totem.store_id).first()
         if not pix_config:
-            raise Exception('Pix configuration not found for store')
+            callback({'error': 'Configuração Pix não encontrada para a loja'})
+            return
 
         try:
-            # Validate incoming data against the NewOrder Pydantic model
             new_order = NewOrder(**data)
         except ValidationError as e:
-            # Handle validation errors gracefully, perhaps emit an error to the client
-            print(f"NewOrder validation error: {e.errors()}")
-            raise Exception(f"Invalid order data: {e.errors()}")
+            print(f"[SOCKET] Erro de validação do pedido: {e.errors()}")
+            callback({'error': 'Dados do pedido inválidos', 'details': e.errors()})
+            return
 
-
-        # Fetch the customer based on customer_id
         customer = db.query(models.Customer).filter_by(id=new_order.customer_id, store_id=totem.store_id).first()
         if not customer:
-            raise Exception('Customer not found')
-
-        db_order = models.Order(
-            sequential_id=gerar_sequencial_do_dia(db, totem.store_id),
-            public_id=generate_unique_public_id(db, totem.store_id),
-            store_id=totem.store_id,
-            totem_id=totem.id,
-
-            customer_id=new_order.customer_id, # New: Link to customer by ID
-            payment_type_id=new_order.payment_method_id, # Use payment_method_id
-            order_type='cardapio_digital',
-            delivery_type=new_order.delivery_type, # Use new delivery_type
-            payment_status='pendent',
-            order_status='pendent',
-            needs_change=new_order.needs_change, # New
-            change_for=new_order.change_for,     # New
-            observation=new_order.observation,   # New
-            delivery_fee=new_order.delivery_fee, # New
-        )
-
-        products = db.query(models.Product).filter(
-            models.Product.store_id == totem.store_id,
-            models.Product.id.in_([p.product_id for p in new_order.products])
-        ).all()
-
-        total_price_calculated = 0 # Use a distinct variable for calculated total
+            callback({'error': 'Cliente não encontrado'})
+            return
 
         try:
+            db_order = models.Order(
+                sequential_id=gerar_sequencial_do_dia(db, totem.store_id),
+                public_id=generate_unique_public_id(db, totem.store_id),
+                store_id=totem.store_id,
+                totem_id=totem.id,
+                customer_id=new_order.customer_id,
+                payment_type_id=new_order.payment_method_id,
+                order_type='cardapio_digital',
+                delivery_type=new_order.delivery_type,
+                payment_status='pendent',
+                order_status='pendent',
+                needs_change=new_order.needs_change,
+                change_for=new_order.change_for,
+                observation=new_order.observation,
+                delivery_fee=new_order.delivery_fee,
+            )
+
+            products = db.query(models.Product).filter(
+                models.Product.store_id == totem.store_id,
+                models.Product.id.in_([p.product_id for p in new_order.products])
+            ).all()
+
+            total_price_calculated = 0
+
             for order_product in new_order.products:
                 product = next(p for p in products if p.id == order_product.product_id)
                 calculated_price = product.base_price
                 if calculated_price != order_product.price:
-                    raise Exception(f"Invalid price for product {product.id}")
+                    callback({'error': f"Preço inválido para o produto {product.name}"})
+                    return
 
                 db_product = models.OrderProduct(
                     store_id=totem.store_id,
@@ -206,13 +208,12 @@ def send_order(sid, data):
                     name=product.name,
                     price=calculated_price,
                     quantity=order_product.quantity,
-                    note = order_product.note
+                    note=order_product.note
                 )
 
                 db_order.products.append(db_product)
 
                 variants_price = 0
-
                 for order_variant in order_product.variants:
                     variant = next(v for v in product.variants if v.id == order_variant.variant_id)
                     db_variant = models.OrderVariant(
@@ -224,11 +225,12 @@ def send_order(sid, data):
                     db_product.variants.append(db_variant)
 
                     options_price = 0
-
                     for order_option in order_variant.options:
                         option = next(o for o in variant.options if o.id == order_option.variant_option_id)
                         if option.price != order_option.price:
-                            raise Exception(f"Invalid price for option {option.id} in variant {variant.id}")
+                            callback({'error': f"Preço inválido para a opção {option.name} do produto {product.name}"})
+                            return
+
                         db_option = models.OrderVariantOption(
                             order_variant=db_variant,
                             store_id=totem.store_id,
@@ -242,38 +244,25 @@ def send_order(sid, data):
 
                     variants_price += options_price
 
-                # Accumulate calculated total price for products and their options/variants
                 total_price_calculated += (calculated_price + variants_price) * order_product.quantity
 
-            # Add delivery fee to the calculated total price
             if new_order.delivery_fee:
                 total_price_calculated += new_order.delivery_fee
 
-            # Final price validation with the new_order.total_price from frontend
             if new_order.total_price != total_price_calculated:
-                raise Exception(f"Total price mismatch: expected {new_order.total_price}, got {total_price_calculated}")
+                callback({'error': f"Total incorreto. Esperado: {total_price_calculated}, recebido: {new_order.total_price}"})
+                return
 
-            db_order.total_price = total_price_calculated # Assign the final calculated total
-
-            # efi_charge = payment_services.create_charge(pix_config, db_order.total_price, db_order.cpf, db_order.name)
-            #
-            # db_charge = models.Charge(
-            #     status='pending',
-            #     amount=int(float(efi_charge['valor']['original']) * 100),
-            #     tx_id=efi_charge['txid'],
-            #     copy_key=efi_charge['pixCopiaECola'],
-            #     store_id=totem.store_id,
-            #     expires_at=parser.isoparse(efi_charge['calendario']['criacao']) +
-            #                datetime.timedelta(seconds=int(efi_charge['calendario']['expiracao']))
-            # )
-            #
-            # db_order.charge = db_charge
+            db_order.total_price = total_price_calculated
 
             db.add(db_order)
             db.commit()
 
-            return Order.model_validate(db_order).model_dump()
+            order_dict = Order.model_validate(db_order).model_dump()
+            callback({'success': True, 'order': order_dict})  # <-- Envia resposta ao Flutter
+            print('[SOCKET] Pedido processado com sucesso e retornado ao cliente')
+
         except Exception as e:
-            db.rollback() # Rollback transaction on error
-            print(f"Error processing order: {e}")
-            raise Exception(f"Failed to process order: {e}")
+            db.rollback()
+            print(f"[SOCKET] Erro ao processar o pedido: {e}")
+            callback({'error': f"Erro ao processar o pedido: {str(e)}"})
