@@ -2,6 +2,7 @@
 from typing import Annotated, List, Optional
 from pydantic import BaseModel, Field, ValidationError, root_validator, model_validator
 
+from src.api.app.schemas.customer import AddressOut
 from src.core.models import Address
 
 
@@ -39,7 +40,7 @@ class NewOrder(BaseModel):
 
     # --- New fields for delivery and payment ---
     delivery_type: Optional[str] = None # e.g., 'delivery', 'pickup'
-    address: Optional[Address] = None # Detailed address if delivery_type is 'delivery'
+    address: AddressOut | None = None
     payment_method_id: Optional[int] = None # ID of the chosen payment method
     needs_change: Optional[bool] = False # Whether the customer needs change for cash payment
     change_for: Optional[float] = None # Amount customer pays if needs_change is True

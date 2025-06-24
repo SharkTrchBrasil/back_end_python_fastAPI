@@ -14,8 +14,9 @@ class AddressCreate(BaseModel):
 
 class AddressOut(AddressCreate):
     id: int
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True  # substitui orm_mode
+    }
 
 class CustomerBase(BaseModel):
     name: str
