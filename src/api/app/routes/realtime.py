@@ -151,9 +151,9 @@ async def send_order(sid, data): # This is the corrected signature
             # Instead of await callback({...}), simply return the dictionary
             return {'error': 'Totem não encontrado ou não autorizado'}
 
-        pix_config = db.query(models.StorePixConfig).filter_by(store_id=totem.store_id).first()
-        if not pix_config:
-            return {'error': 'Configuração Pix não encontrada para a loja'}
+        # pix_config = db.query(models.StorePixConfig).filter_by(store_id=totem.store_id).first()
+        # if not pix_config:
+        #     return {'error': 'Configuração Pix não encontrada para a loja'}
 
         try:
             new_order = NewOrder(**data)
