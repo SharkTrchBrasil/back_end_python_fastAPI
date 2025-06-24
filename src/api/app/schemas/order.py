@@ -22,7 +22,7 @@ class Order(BaseModel):
     attendant_name: str | None = None
     order_type: str
     delivery_type: str
-    total_price: int
+    #total_price: int
     payment_status: str
     order_status: str
     charge: Charge | None  # modelo aninhado
