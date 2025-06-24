@@ -180,7 +180,7 @@ async def send_order(sid, data): # This is the corrected signature
                 store_id=totem.store_id,
                 totem_id=totem.id,
                 customer_id=new_order.customer_id,
-                payment_type_id=new_order.payment_method_id,
+                payment_method_id=new_order.payment_method_id,
 
                 address_id=address_id_to_use,
                 order_type='cardapio_digital',
