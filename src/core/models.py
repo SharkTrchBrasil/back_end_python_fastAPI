@@ -647,10 +647,6 @@ class Order(Base, TimestampMixin):
     customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True)
     customer_address_id: Mapped[int | None] = mapped_column(ForeignKey("customer_addresses.id"), nullable=True)
 
-    name: Mapped[str] = mapped_column()  # Nome do cliente (se necessário)
-    phone: Mapped[str] = mapped_column()
-    cpf: Mapped[str] = mapped_column()
-
     attendant_name: Mapped[str | None] = mapped_column(nullable=True)  # Só para PDV/Mesa
 
     order_type: Mapped[str] = mapped_column()

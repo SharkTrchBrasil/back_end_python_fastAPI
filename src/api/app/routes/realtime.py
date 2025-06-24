@@ -2,6 +2,7 @@ from datetime import datetime
 from urllib.parse import parse_qs
 
 import socketio
+from pydantic import ValidationError
 from sqlalchemy.orm import joinedload
 
 from src.api.admin.services.order_code import generate_unique_public_id, gerar_sequencial_do_dia
@@ -153,21 +154,36 @@ def send_order(sid, data):
         if not pix_config:
             raise Exception('Pix configuration not found for store')
 
-        new_order = NewOrder(**data)
+        try:
+            # Validate incoming data against the NewOrder Pydantic model
+            new_order = NewOrder(**data)
+        except ValidationError as e:
+            # Handle validation errors gracefully, perhaps emit an error to the client
+            print(f"NewOrder validation error: {e.errors()}")
+            raise Exception(f"Invalid order data: {e.errors()}")
+
+
+        # Fetch the customer based on customer_id
+        customer = db.query(models.Customer).filter_by(id=new_order.customer_id, store_id=totem.store_id).first()
+        if not customer:
+            raise Exception('Customer not found')
 
         db_order = models.Order(
             sequential_id=gerar_sequencial_do_dia(db, totem.store_id),
             public_id=generate_unique_public_id(db, totem.store_id),
             store_id=totem.store_id,
             totem_id=totem.id,
-            name=new_order.name,
-            phone=new_order.phone,
-            cpf=new_order.cpf,
-            payment_type_id=new_order.payment_type_id,
+
+            customer_id=new_order.customer_id, # New: Link to customer by ID
+            payment_type_id=new_order.payment_method_id, # Use payment_method_id
             order_type='cardapio_digital',
-            delivery_type='retirada',
-            payment_status='pendente',
-            order_status='recebido',
+            delivery_type=new_order.delivery_type, # Use new delivery_type
+            payment_status='pendent',
+            order_status='pendent',
+            needs_change=new_order.needs_change, # New
+            change_for=new_order.change_for,     # New
+            observation=new_order.observation,   # New
+            delivery_fee=new_order.delivery_fee, # New
         )
 
         products = db.query(models.Product).filter(
@@ -175,7 +191,7 @@ def send_order(sid, data):
             models.Product.id.in_([p.product_id for p in new_order.products])
         ).all()
 
-        total_price = 0
+        total_price_calculated = 0 # Use a distinct variable for calculated total
 
         try:
             for order_product in new_order.products:
@@ -183,9 +199,6 @@ def send_order(sid, data):
                 calculated_price = product.base_price
                 if calculated_price != order_product.price:
                     raise Exception(f"Invalid price for product {product.id}")
-
-
-
 
                 db_product = models.OrderProduct(
                     store_id=totem.store_id,
@@ -195,13 +208,6 @@ def send_order(sid, data):
                     quantity=order_product.quantity,
                     note = order_product.note
                 )
-
-
-
-
-
-
-
 
                 db_order.products.append(db_product)
 
@@ -236,30 +242,38 @@ def send_order(sid, data):
 
                     variants_price += options_price
 
-                total_price += (calculated_price + variants_price) * order_product.quantity
+                # Accumulate calculated total price for products and their options/variants
+                total_price_calculated += (calculated_price + variants_price) * order_product.quantity
 
-                if new_order.total_price != total_price:
-                    raise Exception(f"Total price mismatch: expected {new_order.total_price}, got {total_price}")
+            # Add delivery fee to the calculated total price
+            if new_order.delivery_fee:
+                total_price_calculated += new_order.delivery_fee
 
-                db_order.total_price = total_price
+            # Final price validation with the new_order.total_price from frontend
+            if new_order.total_price != total_price_calculated:
+                raise Exception(f"Total price mismatch: expected {new_order.total_price}, got {total_price_calculated}")
 
-                # efi_charge = payment_services.create_charge(pix_config, db_order.total_price, db_order.cpf, db_order.name)
-                #
-                # db_charge = models.Charge(
-                #     status='pending',
-                #     amount=int(float(efi_charge['valor']['original']) * 100),
-                #     tx_id=efi_charge['txid'],
-                #     copy_key=efi_charge['pixCopiaECola'],
-                #     store_id=totem.store_id,
-                #     expires_at=parser.isoparse(efi_charge['calendario']['criacao']) +
-                #                datetime.timedelta(seconds=int(efi_charge['calendario']['expiracao']))
-                # )
-                #
-                # db_order.charge = db_charge
+            db_order.total_price = total_price_calculated # Assign the final calculated total
 
-                db.add(db_order)
-                db.commit()
+            # efi_charge = payment_services.create_charge(pix_config, db_order.total_price, db_order.cpf, db_order.name)
+            #
+            # db_charge = models.Charge(
+            #     status='pending',
+            #     amount=int(float(efi_charge['valor']['original']) * 100),
+            #     tx_id=efi_charge['txid'],
+            #     copy_key=efi_charge['pixCopiaECola'],
+            #     store_id=totem.store_id,
+            #     expires_at=parser.isoparse(efi_charge['calendario']['criacao']) +
+            #                datetime.timedelta(seconds=int(efi_charge['calendario']['expiracao']))
+            # )
+            #
+            # db_order.charge = db_charge
 
-                return Order.model_validate(db_order).model_dump()
-        except:
-            raise Exception("Failed")
+            db.add(db_order)
+            db.commit()
+
+            return Order.model_validate(db_order).model_dump()
+        except Exception as e:
+            db.rollback() # Rollback transaction on error
+            print(f"Error processing order: {e}")
+            raise Exception(f"Failed to process order: {e}")
