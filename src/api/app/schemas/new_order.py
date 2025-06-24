@@ -30,7 +30,7 @@ class NewOrder(BaseModel):
     customer_id: int # New: Unique ID for the customer
 
 
-    total_price: int
+   # total_price: int
     products: List[NewOrderProduct]
 
 

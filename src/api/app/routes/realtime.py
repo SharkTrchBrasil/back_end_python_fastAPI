@@ -197,7 +197,7 @@ async def send_order(sid, data):
                 customer_address_id=address_id_to_use, # Usando o ID do endereço, se disponível
                 order_type='cardapio_digital', # Assumindo que este é o tipo fixo para pedidos de totem
                 delivery_type=new_order.delivery_type,
-                total_price=new_order.total_price, # Agora o total_price vem do new_order validado
+                #total_price=new_order.total_price, # Agora o total_price vem do new_order validado
                 payment_method_id=new_order.payment_method_id,
                 payment_status='pendent', # Status inicial
                 order_status='pendent',   # Status inicial
