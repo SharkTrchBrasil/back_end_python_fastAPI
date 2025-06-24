@@ -9,6 +9,7 @@ from src.api.admin.services.order_code import generate_unique_public_id, gerar_s
 
 from src.api.app.schemas.new_order import NewOrder
 from src.api.app.schemas.store_details import StoreDetails
+from src.api.app.services.check_variants import validate_order_variants
 from src.api.app.services.rating import (
     get_store_ratings_summary,
     get_product_ratings_summary,
@@ -214,9 +215,12 @@ async def send_order(sid, data): # This is the corrected signature
                 o.variant_option_id for p in new_order.products
                 for v in p.variants for o in v.options
             ]
-            variant_options = db.query(models.OrderVariantOption).filter(
-                models.OrderVariantOption.id.in_(option_ids)
+            variant_options = db.query(models.VariantOptions).filter(
+                models.VariantOptions.id.in_(option_ids)
             ).all()
+
+            for product_data in new_order.products:
+                validate_order_variants(db, product_data)
 
             total_price_calculated = 0
 
