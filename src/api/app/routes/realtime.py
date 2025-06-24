@@ -182,7 +182,7 @@ async def send_order(sid, data): # This is the corrected signature
                 customer_id=new_order.customer_id,
                 payment_method_id=new_order.payment_method_id,
 
-                address_id=address_id_to_use,
+                customer_address_id=address_id_to_use,
                 order_type='cardapio_digital',
                 delivery_type=new_order.delivery_type,
                 payment_status='pendent',
