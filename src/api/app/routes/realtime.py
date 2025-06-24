@@ -1,7 +1,7 @@
 
 from urllib.parse import parse_qs
 
-
+import socketio
 from pydantic import ValidationError
 from sqlalchemy.orm import joinedload
 
@@ -299,4 +299,8 @@ async def send_order(sid, data): # This is the corrected signature
         except Exception as e:
             db.rollback()
             print(f"[SOCKET] Erro ao processar o pedido: {e}")
-            return {'error': f"Erro ao processar o pedido: {str(e)}"} # Return the error message
+            # Emita a mensagem de erro convertendo a exceção para string
+            await socketio.emit('send_order_response', {
+                "success": False,
+                "error": str(e)
+            }, to=sid)
