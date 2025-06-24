@@ -634,6 +634,7 @@ class Banner(Base, TimestampMixin):
     store: Mapped[Store] = relationship()
 
 
+
 class Order(Base, TimestampMixin):
     __tablename__ = "orders"
 
@@ -649,40 +650,31 @@ class Order(Base, TimestampMixin):
 
     attendant_name: Mapped[str | None] = mapped_column(nullable=True)  # Só para PDV/Mesa
 
-    order_type: Mapped[str] = mapped_column()
-    # Ex: "cardapio_digital", "mesa", "pdv"
+    order_type: Mapped[str] = mapped_column()  # Ex: "cardapio_digital", "mesa", "pdv"
+    delivery_type: Mapped[str] = mapped_column()  # Ex: "retirada", "delivery"
 
-    delivery_type: Mapped[str] = mapped_column()
-    # Ex: "retirada", "delivery"
+   # total_price: Mapped[int] = mapped_column()
 
-    total_price: Mapped[int] = mapped_column()
+    payment_status: Mapped[str] = mapped_column()  # Ex: "pendente", "pago", "cancelado"
+    order_status: Mapped[str] = mapped_column()    # Ex: "recebido", "em_preparo", "pronto", "finalizado", "cancelado"
 
-    payment_status: Mapped[str] = mapped_column()
-    # Ex: "pendente", "pago", "cancelado"
+    payment_method_id: Mapped[int] = mapped_column(ForeignKey("store_payment_methods.id"), nullable=False)
+    payment_method = relationship("StorePaymentMethods", back_populates="orders")
 
-    order_status: Mapped[str] = mapped_column()
-    # Ex: "recebido", "em_preparo", "pronto", "finalizado", "cancelado"
+    needs_change: Mapped[bool] = mapped_column(default=False)
+    change_amount: Mapped[float | None] = mapped_column(nullable=True)
+
+    observation: Mapped[str | None] = mapped_column(nullable=True)
+    delivery_fee: Mapped[int] = mapped_column(default=0)
 
     charge_id: Mapped[int | None] = mapped_column(ForeignKey("charges.id"), nullable=True)
-    charge: Mapped["Charge"] = relationship()
+    charge = relationship("Charge")
 
     totem_id: Mapped[int | None] = mapped_column(ForeignKey("totem_authorizations.id"), nullable=True)
 
     products: Mapped[list["OrderProduct"]] = relationship(backref="order")
 
-
-    payment_method_id: Mapped[int] = mapped_column(ForeignKey("store_payment_methods.id"), nullable=False)
-
-    payment_method = relationship('StorePaymentMethods', back_populates='orders')
-
-    needs_change: Mapped[bool] = mapped_column(default=False)  # precisa de troco?
-    change_amount: Mapped[float | None] = mapped_column(nullable=True)  # valor que cliente vai entregar (dinheiro em espécie)
-
-
-
-
     store = relationship("Store", back_populates="orders")
-
     transactions: Mapped[list["CashierTransaction"]] = relationship(back_populates="order")
 
 

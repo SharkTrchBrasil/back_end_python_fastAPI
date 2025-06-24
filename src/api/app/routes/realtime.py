@@ -179,16 +179,21 @@ async def send_order(sid, data): # This is the corrected signature
                 public_id=generate_unique_public_id(db, totem.store_id),
                 store_id=totem.store_id,
                 totem_id=totem.id,
-                customer_id=new_order.customer_id,
-                payment_method_id=new_order.payment_method_id,
 
+                customer_id=new_order.customer_id,
                 customer_address_id=address_id_to_use,
+
                 order_type='cardapio_digital',
                 delivery_type=new_order.delivery_type,
+
+              #  total_price=order_total_price,  # defina previamente
+                payment_method_id=new_order.payment_method_id,
                 payment_status='pendent',
                 order_status='pendent',
+
                 needs_change=new_order.needs_change,
                 change_amount=new_order.change_for,
+
                 observation=new_order.observation,
                 delivery_fee=new_order.delivery_fee,
             )
