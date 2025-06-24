@@ -293,14 +293,9 @@ async def send_order(sid, data): # This is the corrected signature
 
             order_dict = Order.model_validate(db_order).model_dump()
             print('[SOCKET] Pedido processado com sucesso e retornado ao cliente')
-            return {'success': True, 'order': order_dict}
-
+            return {"success": True, "order": order_dict}
 
         except Exception as e:
             db.rollback()
             print(f"[SOCKET] Erro ao processar o pedido: {e}")
-            # Emita a mensagem de erro convertendo a exceção para string
-            await socketio.emit('send_order_response', {
-                "success": False,
-                "error": str(e)
-            }, to=sid)
+            return {"success": False, "error": str(e)}
