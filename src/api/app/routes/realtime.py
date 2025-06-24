@@ -188,7 +188,7 @@ async def send_order(sid, data): # This is the corrected signature
                 payment_status='pendent',
                 order_status='pendent',
                 needs_change=new_order.needs_change,
-                change_for=new_order.change_for,
+                change_amount=new_order.change_for,
                 observation=new_order.observation,
                 delivery_fee=new_order.delivery_fee,
             )
