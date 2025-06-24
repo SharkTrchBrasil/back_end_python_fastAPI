@@ -161,8 +161,11 @@ async def send_order(sid, data): # This is the corrected signature
             print(f"[SOCKET] Erro de validação do pedido: {e.errors()}")
             return {'error': 'Dados do pedido inválidos', 'details': e.errors()}
 
-        customer = db.query(models.Customer).filter_by(id=new_order.customer_id, store_id=totem.store_id).first()
+        # Buscar o cliente apenas pelo ID, pois ele não está vinculado a uma loja específica
+        customer = db.query(models.Customer).filter_by(id=new_order.customer_id).first()
+
         if not customer:
+            # Se o cliente não for encontrado, retorne um erro apropriado
             return {'error': 'Cliente não encontrado'}
 
 
