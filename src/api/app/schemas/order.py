@@ -19,9 +19,6 @@ class Order(BaseModel):
     store_id: int
     customer_id: int | None = None
     customer_address_id: int | None = None
-    name: str
-    phone: str
-    cpf: str
     attendant_name: str | None = None
     order_type: str
     delivery_type: str
