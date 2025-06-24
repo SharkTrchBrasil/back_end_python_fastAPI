@@ -709,37 +709,50 @@ class OrderProduct(Base, TimestampMixin):
 
 
 class OrderVariant(Base, TimestampMixin):
-    __tablename__ = "order_variants"
+    __tablename__ = "order_product_variants"
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
     order_product_id: Mapped[int] = mapped_column(ForeignKey("order_products.id"))
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id"))
+    product_variant_id: Mapped[int] = mapped_column(ForeignKey("product_variants.id"))
 
     name: Mapped[str] = mapped_column()
 
     options: Mapped[list["OrderVariantOption"]] = relationship(backref="variant")
+    order_product: Mapped[OrderProduct] = relationship()
 
 
 
 class OrderVariantOption(Base, TimestampMixin):
-    __tablename__ = "order_variant_options"
+    __tablename__ = "order_product_variant_options"
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    order_variant_id: Mapped[int] = mapped_column(ForeignKey("order_variants.id"))
+    order_product_variant_id: Mapped[int] = mapped_column(ForeignKey("order_product_variants.id"))
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    variant_option_id: Mapped[int] = mapped_column(ForeignKey("variant_options.id"))
+    product_variant_option_id: Mapped[int] = mapped_column(ForeignKey("product_variant_options.id"))
 
     name: Mapped[str] = mapped_column()
     price: Mapped[int] = mapped_column()
     quantity: Mapped[int] = mapped_column()
 
+    order_product_variant: Mapped[OrderVariant] = relationship()
 
 
+class OrderProductTicket(Base, TimestampMixin):
+    __tablename__ = "order_product_tickets"
 
+    id: Mapped[int] = mapped_column(primary_key=True)
 
+    order_product_id: Mapped[int] = mapped_column(ForeignKey("order_products.id"))
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"))
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+
+    ticket_code: Mapped[str] = mapped_column(unique=True)
+    status: Mapped[int] = mapped_column()
+
+    order_product: Mapped[OrderProduct] = relationship(backref="tickets")
 
 
 

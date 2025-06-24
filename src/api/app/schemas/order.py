@@ -1,8 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
-
-
+from pydantic import BaseModel, ConfigDict
 
 
 class Charge(BaseModel):
@@ -10,6 +8,8 @@ class Charge(BaseModel):
     amount: float
     copy_key: str
     expires_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class Order(BaseModel):
@@ -35,5 +35,4 @@ class Order(BaseModel):
     payment_method_id: int
 
 
-    class Config:
-        orm_mode = True  # Importante se estiver usando .from_orm() ou model_validate()
+    model_config = ConfigDict(from_attributes=True)

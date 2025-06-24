@@ -243,19 +243,19 @@ def send_order(sid, data):
 
                 db_order.total_price = total_price
 
-                efi_charge = payment_services.create_charge(pix_config, db_order.total_price, db_order.cpf, db_order.name)
-
-                db_charge = models.Charge(
-                    status='pending',
-                    amount=int(float(efi_charge['valor']['original']) * 100),
-                    tx_id=efi_charge['txid'],
-                    copy_key=efi_charge['pixCopiaECola'],
-                    store_id=totem.store_id,
-                    expires_at=parser.isoparse(efi_charge['calendario']['criacao']) +
-                               datetime.timedelta(seconds=int(efi_charge['calendario']['expiracao']))
-                )
-
-                db_order.charge = db_charge
+                # efi_charge = payment_services.create_charge(pix_config, db_order.total_price, db_order.cpf, db_order.name)
+                #
+                # db_charge = models.Charge(
+                #     status='pending',
+                #     amount=int(float(efi_charge['valor']['original']) * 100),
+                #     tx_id=efi_charge['txid'],
+                #     copy_key=efi_charge['pixCopiaECola'],
+                #     store_id=totem.store_id,
+                #     expires_at=parser.isoparse(efi_charge['calendario']['criacao']) +
+                #                datetime.timedelta(seconds=int(efi_charge['calendario']['expiracao']))
+                # )
+                #
+                # db_order.charge = db_charge
 
                 db.add(db_order)
                 db.commit()
