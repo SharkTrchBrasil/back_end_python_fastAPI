@@ -348,3 +348,24 @@ def check_coupon(sid, data):
 
 
         return jsonable_encoder(Coupon.model_validate(coupon))
+
+@sio.event
+def list_coupons(sid, _):
+    with get_db_manager() as db:
+        totem = db.query(models.TotemAuthorization).filter(models.TotemAuthorization.sid == sid).first()
+
+        if not totem:
+            return {'error': 'Totem não autorizado'}
+
+        now = datetime.datetime.utcnow()
+
+        coupons = db.query(models.Coupon).filter(
+            models.Coupon.store_id == totem.store_id,
+            models.Coupon.used < models.Coupon.max_uses,
+            or_(models.Coupon.start_date == None, models.Coupon.start_date <= now),
+            or_(models.Coupon.end_date == None, models.Coupon.end_date >= now),
+        ).all()
+
+        return {
+            'coupons': [Coupon.model_validate(c).model_dump() for c in coupons]
+        }
