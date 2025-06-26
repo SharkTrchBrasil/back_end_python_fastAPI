@@ -350,7 +350,7 @@ def check_coupon(sid, data):
         return jsonable_encoder(Coupon.model_validate(coupon))
 
 @sio.event
-def list_coupons(sid, _):
+def list_coupons(sid):
     with get_db_manager() as db:
         totem = db.query(models.TotemAuthorization).filter(models.TotemAuthorization.sid == sid).first()
 
