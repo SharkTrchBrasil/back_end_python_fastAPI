@@ -142,6 +142,17 @@ async def disconnect(sid, reason):
             totem.sid = None
             db.commit()
 
+
+
+
+
+
+
+
+
+
+
+
 @sio.event
 async def send_order(sid, data):
     print('[SOCKET] Evento send_order recebido')
@@ -213,6 +224,7 @@ async def send_order(sid, data):
                 observation=new_order.observation,
                 delivery_fee=new_order.delivery_fee,
                 coupon_id=optional_coupon.id if optional_coupon else None,
+
             )
 
             # Após buscar os produtos do pedido:
@@ -272,7 +284,7 @@ async def send_order(sid, data):
                     price=price_with_coupon,
                     quantity=order_product_data.quantity,
                     note=order_product_data.note,
-                    coupon_id=applied_coupon.id if applied_coupon else None
+
                 )
                 db_order.products.append(db_product_entry)
 
@@ -328,6 +340,17 @@ async def send_order(sid, data):
             db.rollback()
             print(f"[SOCKET] Erro inesperado ao processar o pedido: {e}")
             return {"success": False, "error": f"Erro interno ao processar o pedido: {str(e)}"}
+
+
+
+
+
+
+
+
+
+
+
 
 @sio.event
 def check_coupon(sid, data):

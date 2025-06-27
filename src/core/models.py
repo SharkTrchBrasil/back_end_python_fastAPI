@@ -673,6 +673,7 @@ class Order(Base, TimestampMixin):
 
     store = relationship("Store", back_populates="orders")
     transactions: Mapped[list["CashierTransaction"]] = relationship(back_populates="order")
+
     coupon_id: Mapped[int | None] = mapped_column(ForeignKey("coupons.id"))
     coupon = relationship("Coupon", back_populates="orders")
 
