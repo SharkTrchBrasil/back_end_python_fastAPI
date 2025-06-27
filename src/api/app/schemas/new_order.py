@@ -23,6 +23,7 @@ class NewOrderProduct(BaseModel):
     quantity: Annotated[int, Field(gt=0)]
     variants: List[NewOrderVariant]
     note: str = ''
+    coupon_code: str | None = None  # ✅ Isso aqui precisa existir
 
 
 class NewOrder(BaseModel):
