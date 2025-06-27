@@ -31,6 +31,7 @@ class NewOrder(BaseModel):
 
 
     total_price: int
+    coupon_code: Optional[str] = None  # 👈 Aqui você recebe
     products: List[NewOrderProduct]
 
 
