@@ -213,10 +213,6 @@ class VariantOptions(Base, TimestampMixin):
     price: Mapped[int] = mapped_column()
     discount_price: Mapped[int] = mapped_column()
     max_quantity: Mapped[int] = mapped_column()
-
-
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-
     variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id", ondelete="CASCADE"))
     variant: Mapped["Variant"] = relationship(back_populates="options")
 
