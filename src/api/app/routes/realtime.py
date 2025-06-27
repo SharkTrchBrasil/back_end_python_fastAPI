@@ -189,6 +189,10 @@ async def send_order(sid, data):
             print("[SOCKET] Aviso: Pedido de entrega com novo endereço sem ID. Considere salvar/associar o endereço antes.")
 
 
+        optional_coupon = None
+        if new_order.coupon_code:
+            optional_coupon = db.query(Coupon).filter_by(code=new_order.coupon_code).first()
+
 
         try:
             db_order = models.Order(
@@ -200,7 +204,7 @@ async def send_order(sid, data):
                 customer_address_id=address_id_to_use, # Usando o ID do endereço, se disponível
                 order_type='cardapio_digital', # Assumindo que este é o tipo fixo para pedidos de totem
                 delivery_type=new_order.delivery_type,
-                #total_price=new_order.total_price, # Agora o total_price vem do new_order validado
+                total_price=new_order.total_price, # Agora o total_price vem do new_order validado
                 payment_method_id=new_order.payment_method_id,
                 payment_status='pendent', # Status inicial
                 order_status='pendent',   # Status inicial
@@ -208,6 +212,7 @@ async def send_order(sid, data):
                 change_amount=new_order.change_for, # Usando change_for para change_amount
                 observation=new_order.observation,
                 delivery_fee=new_order.delivery_fee,
+                coupon_id=optional_coupon.id if optional_coupon else None,
             )
 
             # Após buscar os produtos do pedido:
@@ -302,7 +307,7 @@ async def send_order(sid, data):
             db_order.total_price = discounted_total
             if order_coupon:
                 db_order.coupon_id = order_coupon.id
-                db_order.discounted_total_price = discounted_total
+               # db_order.discounted_total_price = discounted_total
 
             db.add(db_order)
             db.commit()

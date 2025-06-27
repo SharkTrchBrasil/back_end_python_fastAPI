@@ -262,6 +262,7 @@ class Coupon(Base, TimestampMixin):
     available: Mapped[bool] = mapped_column(default=True)
 
     onlyNewCustomers: Mapped[bool] = mapped_column(default=False)
+    orders: Mapped[list["Order"]] = relationship(back_populates="coupon")
 
 
 
@@ -673,6 +674,8 @@ class Order(Base, TimestampMixin):
     store = relationship("Store", back_populates="orders")
     transactions: Mapped[list["CashierTransaction"]] = relationship(back_populates="order")
     coupon_id: Mapped[int | None] = mapped_column(ForeignKey("coupons.id"))
+    coupon = relationship("Coupon", back_populates="orders")
+
 
 class OrderProduct(Base, TimestampMixin):
     __tablename__ = "order_products"
