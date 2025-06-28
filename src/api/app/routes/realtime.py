@@ -290,13 +290,11 @@ async def send_order(sid, data):
 
                 current_product_total = price_with_coupon * order_product_data.quantity
 
-                # Somar o preço das variantes e opções
+                # Corrigindo cálculo do preço com variantes
                 if order_product_data.variants:
                     for variant_data in order_product_data.variants:
                         for option in variant_data.options:
-                            variant_price = option.price * option.quantity
-                            current_product_total += variant_price
-
+                            current_product_total += option.price * option.quantity
 
                 total_price_calculated_backend += current_product_total
 
