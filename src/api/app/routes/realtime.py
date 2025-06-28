@@ -17,7 +17,7 @@ from src.api.app.services.rating import (
     get_store_ratings_summary,
     get_product_ratings_summary,
 )
-from src.api.app.schemas.coupon import Coupon
+
 from src.api.shared_schemas.product import ProductOut
 from src.api.shared_schemas.rating import RatingsSummaryOut
 from src.api.shared_schemas.store_theme import StoreThemeOut
@@ -26,6 +26,8 @@ from src.core import models
 from src.core.database import get_db_manager
 
 from src.api.app.schemas.order import Order
+from src.core.models import Coupon
+from src.api.app.schemas.coupon import Coupon as CouponSchema
 from src.socketio_instance import sio
 
 
@@ -354,31 +356,33 @@ async def send_order(sid, data):
 
 
 
-
 @sio.event
 def check_coupon(sid, data):
-    with(get_db_manager() as db):
+    with get_db_manager() as db:
         totem = db.query(models.TotemAuthorization).filter(models.TotemAuthorization.sid == sid).first()
 
         if not totem:
             raise Exception('Totem does not exist')
 
-        coupon = db.query(models.Coupon).filter(
+        coupon_orm = db.query(models.Coupon).filter(
             models.Coupon.code == data,
             models.Coupon.store_id == totem.store_id
         ).first()
 
-        if not coupon or coupon.used >= coupon.max_uses:
+        if not coupon_orm or coupon_orm.used >= coupon_orm.max_uses:
             return {'error': 'Cupom inválido'}
 
         now = datetime.datetime.now(datetime.timezone.utc)
-        if coupon.start_date and now < coupon.start_date:
+        if coupon_orm.start_date and now < coupon_orm.start_date:
             return {'error': 'Cupom inválido'}
-        elif coupon.end_date and now > coupon.end_date:
+        elif coupon_orm.end_date and now > coupon_orm.end_date:
             return {'error': 'Cupom inválido'}
 
+        # Aqui converte o ORM para schema Pydantic
+        coupon_schema = CouponSchema.model_validate(coupon_orm)
 
-        return jsonable_encoder(Coupon.model_validate(coupon))
+        return jsonable_encoder(coupon_schema)
+
 
 @sio.event
 def list_coupons(sid):
@@ -390,13 +394,15 @@ def list_coupons(sid):
 
         now = datetime.datetime.utcnow()
 
-        coupons = db.query(models.Coupon).filter(
+        coupons_orm = db.query(models.Coupon).filter(
             models.Coupon.store_id == totem.store_id,
             models.Coupon.used < models.Coupon.max_uses,
             or_(models.Coupon.start_date == None, models.Coupon.start_date <= now),
             or_(models.Coupon.end_date == None, models.Coupon.end_date >= now),
         ).all()
 
+        coupons_schema = [CouponSchema.model_validate(c).model_dump() for c in coupons_orm]
+
         return {
-            'coupons': [Coupon.model_validate(c).model_dump() for c in coupons]
+            'coupons': coupons_schema
         }
