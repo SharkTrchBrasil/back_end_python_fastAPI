@@ -1,0 +1,7 @@
+# render.yaml
+services:
+  - type: cron
+    name: check-coupons-banners # Um nome descritivo para sua tarefa
+    schedule: "0 0 * * *"       # Ex: Roda todo dia à meia-noite UTC. Ajuste conforme sua necessidade.
+    # buildCommand: "pip install -r requirements.txt" # Comando para instalar dependências (se você tiver um)
+    startCommand: "PYTHONPATH=. python src/cron/checker.py" # <--- MUDANÇA IMPORTANTE AQUI

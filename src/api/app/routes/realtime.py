@@ -151,6 +151,12 @@ async def disconnect(sid, reason):
 
 
 
+def apply_coupon(coupon, price: float) -> float:
+    if coupon.discount_percent:
+        return round(price * (1 - coupon.discount_percent / 100), 2)
+    elif coupon.discount_fixed:
+        return max(0, price - coupon.discount_fixed)
+    return price
 
 
 
@@ -269,7 +275,8 @@ async def send_order(sid, data):
                     coupon = coupon_map.get(order_product_data.coupon_code)
                     if coupon and coupon.product_id == product_db.id:
                         applied_coupon = coupon
-                        price_with_coupon = coupon.apply(product_db.base_price)
+                        price_with_coupon = apply_coupon(coupon, product_db.base_price)
+
                     else:
                         return {'error': f"Cupom inválido para o produto {product_db.name}"}
                 else:
@@ -306,7 +313,11 @@ async def send_order(sid, data):
                 potential_order_coupon = coupon_map.get(new_order.coupon_code)
                 if potential_order_coupon and potential_order_coupon.product_id is None:
                     order_coupon = potential_order_coupon
-                    discounted_total = order_coupon.apply(total_price_calculated_backend)
+
+                    discounted_total = apply_coupon(order_coupon, total_price_calculated_backend)
+
+
+
                 else:
                     return {"error": "Cupom geral inválido para o pedido."}
             else:

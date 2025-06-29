@@ -267,6 +267,7 @@ class Coupon(Base, TimestampMixin):
 
 
 
+
 class TotemAuthorization(Base, TimestampMixin):
     __tablename__ = "totem_authorizations"
 
