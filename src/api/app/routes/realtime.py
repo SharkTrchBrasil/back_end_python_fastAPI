@@ -90,7 +90,7 @@ async def connect(sid, environ):
             joinedload(models.Store.delivery_config),  # Carrega a configuração de entrega (sem cidades/bairros aqui)
             joinedload(models.Store.hours),
             # Carrega as cidades da loja e, para cada cidade, seus bairros
-          #  joinedload(models.Store.cities).joinedload(models.StoreCity.neighborhoods),
+            joinedload(models.Store.cities).joinedload(models.StoreCity.neighborhoods),
         ).filter_by(id=totem.store_id).first()
 
         if store:
