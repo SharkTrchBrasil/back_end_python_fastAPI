@@ -213,7 +213,6 @@ async def send_order(sid, data):
         if new_order.coupon_code:
             optional_coupon = db.query(Coupon).filter_by(code=new_order.coupon_code).first()
 
-
         try:
             db_order = models.Order(
                 sequential_id=gerar_sequencial_do_dia(db, totem.store_id),
@@ -221,18 +220,29 @@ async def send_order(sid, data):
                 store_id=totem.store_id,
                 totem_id=totem.id,
                 customer_id=new_order.customer_id,
-                customer_address_id=address_id_to_use, # Usando o ID do endereço, se disponível
-                order_type='cardapio_digital', # Assumindo que este é o tipo fixo para pedidos de totem
+
+                customer_name=new_order.customer_name,
+                customer_phone=new_order.customer_phone,
+                payment_method_name=new_order.payment_method_name,
+                order_type='cardapio_digital',
                 delivery_type=new_order.delivery_type,
-                total_price=new_order.total_price, # Agora o total_price vem do new_order validado
+                total_price=new_order.total_price,
                 payment_method_id=new_order.payment_method_id,
-                payment_status='pendent', # Status inicial
-                order_status='pendent',   # Status inicial
+                payment_status='pendent',
+                order_status='pendent',
                 needs_change=new_order.needs_change,
-                change_amount=new_order.change_for, # Usando change_for para change_amount
+                change_amount=new_order.change_for,
                 observation=new_order.observation,
                 delivery_fee=new_order.delivery_fee,
                 coupon_id=optional_coupon.id if optional_coupon else None,
+
+                # ✅ Copiando os dados do endereço diretamente
+                street=new_order.street,
+                number=new_order.number,
+                complement=new_order.complement,
+                neighborhood=new_order.neighborhood,
+
+                city=new_order.city,
 
             )
 

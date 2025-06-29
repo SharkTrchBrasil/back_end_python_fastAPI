@@ -644,7 +644,18 @@ class Order(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
 
     customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True)
-    customer_address_id: Mapped[int | None] = mapped_column(ForeignKey("customer_addresses.id"), nullable=True)
+
+    customer_name: Mapped[str | None] = mapped_column(nullable=True)
+    customer_phone: Mapped[str | None] = mapped_column(nullable=True)
+
+    # ✅ Campos fixos de endereço no pedido
+    street: Mapped[str] = mapped_column()
+    number: Mapped[str | None] = mapped_column(nullable=True)
+    complement: Mapped[str | None] = mapped_column(nullable=True)
+    neighborhood: Mapped[str] = mapped_column()
+    city: Mapped[str] = mapped_column()
+
+
 
     attendant_name: Mapped[str | None] = mapped_column(nullable=True)  # Só para PDV/Mesa
 
@@ -658,6 +669,7 @@ class Order(Base, TimestampMixin):
 
     payment_method_id: Mapped[int] = mapped_column(ForeignKey("store_payment_methods.id"), nullable=False)
     payment_method = relationship("StorePaymentMethods", back_populates="orders")
+    payment_method_name: Mapped[str | None] = mapped_column(nullable=True)
 
     needs_change: Mapped[bool] = mapped_column(default=False)
     change_amount: Mapped[float | None] = mapped_column(nullable=True)

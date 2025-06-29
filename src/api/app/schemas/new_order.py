@@ -30,10 +30,14 @@ class NewOrder(BaseModel):
 
     customer_id: int # New: Unique ID for the customer
 
+    customer_name: str | None = None
+    customer_phone: str | None = None
+
 
     total_price: int
     coupon_code: Optional[str] = None  # 👈 Aqui você recebe
     products: List[NewOrderProduct]
+    payment_method_name: str | None = None
 
 
     delivery_type: Optional[str] = None
@@ -44,17 +48,31 @@ class NewOrder(BaseModel):
     observation: Optional[str] = None
     delivery_fee: Optional[float] = 0.0
 
+    # ✅ Campos copiados do endereço
+    street: str | None = None
+    number: str | None = None
+    complement: str | None = None
+    neighborhood: str | None = None
+
+    city: str | None = None
+
     @model_validator(mode='after')
     def validate_order_details(self):
-        if self.delivery_type == 'delivery' and self.address is None:
-            raise ValueError("Address is required for delivery orders.")
-        elif self.delivery_type == 'pickup' and self.address is not None:
-            pass  # ou raise se quiser bloquear
+        if self.delivery_type == 'delivery':
+            if self.address is None:
+                raise ValueError("Address is required for delivery orders.")
+            # ✅ Copia os campos do endereço
+            self.street = self.address.street
+            self.number = self.address.number
+            self.complement = self.address.complement
+            self.neighborhood = self.address.neighborhood_name
+
+            self.city = self.address.city_name
 
         if self.needs_change:
             if self.change_for is None:
                 raise ValueError("Informe o valor que o cliente irá pagar em dinheiro (change_for).")
-            if self.change_for < self.total_price:
+            if self.change_for < self.total_price / 100:
                 raise ValueError("O valor informado para troco deve ser maior ou igual ao total da compra.")
         else:
             if self.change_for is not None:
