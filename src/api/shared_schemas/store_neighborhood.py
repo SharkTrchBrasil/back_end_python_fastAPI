@@ -20,13 +20,3 @@ class StoreNeighborhoodSchema(StoreNeighborhoodBaseSchema):
         arbitrary_types_allowed=True,
     )
 
-
-class StoreNeighborhoodOut(BaseModel):
-    id: int
-    name: str
-    delivery_fee: int = 0
-    city_id: int
-    free_delivery: bool = False
-
-    class Config:
-        orm_mode = True

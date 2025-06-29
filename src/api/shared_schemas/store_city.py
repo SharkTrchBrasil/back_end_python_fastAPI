@@ -2,31 +2,27 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 
-from src.api.shared_schemas.store_neighborhood import StoreNeighborhoodBaseSchema
+from src.api.shared_schemas.store_neighborhood import StoreNeighborhoodSchema
 
 
+# Input: para criação/atualização (com todos os dados)
 class StoreCityBaseSchema(BaseModel):
     name: str
     delivery_fee: int = 0
     is_active: bool = True
-
-    neighborhoods: List[StoreNeighborhoodBaseSchema] = []
-
+    neighborhoods: List[StoreNeighborhoodSchema] = []
 
     model_config = {
         "from_attributes": True,
-        "arbitrary_types_allowed": True # Mantenha esta linha
+        "arbitrary_types_allowed": True
     }
 
 class StoreCitySchema(StoreCityBaseSchema):
     id: int
 
-
-
+# Output: só retorna o id
 class StoreCityOut(BaseModel):
     id: int
-    name: str
-    delivery_fee: int = 0
 
     class Config:
         orm_mode = True
