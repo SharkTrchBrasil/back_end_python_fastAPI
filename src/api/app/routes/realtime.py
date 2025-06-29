@@ -151,6 +151,7 @@ async def disconnect(sid, reason):
 
 
 
+
 def apply_coupon(coupon, price: float) -> float:
     if coupon.discount_percent:
         return round(price * (1 - coupon.discount_percent / 100), 2)
