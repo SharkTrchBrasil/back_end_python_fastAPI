@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from typing import List
 
-from src.api.shared_schemas.store_neighborhood import StoreNeighborhoodOut
+from src.api.shared_schemas.store_neighborhood import StoreNeighborhoodSchema
 from src.core.database import GetDBDep
 from src.core.models import Store, StoreCity, StoreNeighborhood
 from src.api.shared_schemas.store_city import StoreCityOut  # Certifique-se que esse schema exista
@@ -20,7 +20,7 @@ def get_store_cities(store_id: int, db: GetDBDep):
 
 
 
-@router.get("/cities/{city_id}/neighborhoods", response_model=List[StoreNeighborhoodOut])
+@router.get("/cities/{city_id}/neighborhoods", response_model=List[StoreNeighborhoodSchema])
 def get_neighborhoods_by_city(city_id: int, db: GetDBDep):
     neighborhoods = db.scalars(
         select(StoreNeighborhood).where(StoreNeighborhood.city_id == city_id)
