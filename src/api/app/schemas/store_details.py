@@ -16,7 +16,7 @@ class StoreDetails(Store):
     payment_methods: list[StorePaymentMethods] = []
     delivery_config: StoreDeliveryConfigBase | None = None
     hours: list[StoreHoursSchema] = []
-   # cities: list[StoreCityBaseSchema] = []
+    cities: list[StoreCityBaseSchema] = []
 
     ratingsSummary: Optional[RatingsSummaryOut] = Field(None, alias="ratingsSummary")
 
