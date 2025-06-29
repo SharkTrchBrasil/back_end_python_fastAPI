@@ -59,16 +59,11 @@ class NewOrder(BaseModel):
     @model_validator(mode='after')
     def validate_order_details(self):
         if self.delivery_type == 'delivery':
-            if self.address is None:
-                raise ValueError("Address is required for delivery orders.")
-            # ✅ Copia os campos do endereço
-            self.street = self.address.street
-            self.number = self.address.number
-            self.complement = self.address.complement
-            self.neighborhood = self.address.neighborhood_name
-
-            self.city = self.address.city_name
-
+            # Valida campos soltos ao invés do objeto 'address'
+            if not (self.street and self.neighborhood and self.city):
+                raise ValueError(
+                    "Campos de endereço (street, neighborhood, city) são obrigatórios para pedidos de delivery.")
+        # validação do troco continua igual
         if self.needs_change:
             if self.change_for is None:
                 raise ValueError("Informe o valor que o cliente irá pagar em dinheiro (change_for).")
