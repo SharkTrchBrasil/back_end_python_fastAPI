@@ -264,7 +264,7 @@ async def send_order(sid, data):
                     store_id=totem.store_id,
                     product_id=product_db.id,
                     name=product_db.name,
-                    price=price_with_coupon,
+                    price=int(price_with_coupon),
                     quantity=order_product_data.quantity,
                     note=order_product_data.note,
                 )
