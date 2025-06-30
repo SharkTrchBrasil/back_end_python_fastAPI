@@ -172,50 +172,25 @@ async def send_order(sid, data):
     with get_db_manager() as db:
         totem = db.query(models.TotemAuthorization).filter(models.TotemAuthorization.sid == sid).first()
         if not totem:
-            print(f"[SOCKET] Erro: Totem não encontrado ou não autorizado para sid: {sid}")
             return {'error': 'Totem não encontrado ou não autorizado'}
 
         try:
-            # Tenta validar os dados de entrada usando o modelo Pydantic NewOrder
             new_order = NewOrder(**data)
         except ValidationError as e:
-            print(f"[SOCKET] Erro de validação do pedido: {e.errors()}")
-            serializable_errors = []
-            for error_detail in e.errors():
-                temp_error = error_detail.copy()
-                # Verifica se há um 'ctx' e 'error' dentro dele
-                if 'ctx' in temp_error and isinstance(temp_error['ctx'], dict) and 'error' in temp_error['ctx']:
-                    # Se o 'error' for uma instância de ValueError, converte para string
-                    if isinstance(temp_error['ctx']['error'], ValueError):
-                        temp_error['ctx']['error'] = str(temp_error['ctx']['error'])
-                serializable_errors.append(temp_error)
-            return {'error': 'Dados do pedido inválidos', 'details': serializable_errors}
+            return {'error': 'Dados do pedido inválidos', 'details': e.errors()}
         except Exception as e:
-            # Captura outros erros inesperados durante a validação inicial do Pydantic
-            print(f"[SOCKET] Erro inesperado na validação inicial do Pydantic: {e}")
-            return {"success": False, "error": f"Erro inesperado na validação dos dados: {str(e)}"}
-
+            return {'error': f'Erro inesperado: {str(e)}'}
 
         customer = db.query(models.Customer).filter_by(id=new_order.customer_id).first()
         if not customer:
-            print(f"[SOCKET] Erro: Cliente com ID {new_order.customer_id} não encontrado.")
             return {'error': 'Cliente não encontrado'}
 
-        address_id_to_use = None
-
-        if new_order.address and new_order.address.id:
-            address_id_to_use = new_order.address.id
-        elif new_order.delivery_type == 'delivery' and new_order.address:
-
-            print("[SOCKET] Aviso: Pedido de entrega com novo endereço sem ID. Considere salvar/associar o endereço antes.")
-
+        if not new_order.delivery_type:
+            return {'error': 'Tipo de entrega é obrigatório'}
 
         optional_coupon = None
         if new_order.coupon_code:
             optional_coupon = db.query(Coupon).filter_by(code=new_order.coupon_code).first()
-
-        if not new_order.delivery_type:
-            return {'error': 'Tipo de entrega é obrigatório'}
 
         try:
             db_order = models.Order(
@@ -224,12 +199,10 @@ async def send_order(sid, data):
                 store_id=totem.store_id,
                 totem_id=totem.id,
                 customer_id=new_order.customer_id,
-
                 customer_name=new_order.customer_name,
                 customer_phone=new_order.customer_phone,
                 payment_method_name=new_order.payment_method_name,
                 order_type='cardapio_digital',
-
                 delivery_type=new_order.delivery_type,
                 total_price=new_order.total_price,
                 payment_method_id=new_order.payment_method_id,
@@ -238,29 +211,21 @@ async def send_order(sid, data):
                 needs_change=new_order.needs_change,
                 change_amount=new_order.change_for,
                 observation=new_order.observation,
-                delivery_fee=int(new_order.delivery_fee) if new_order.delivery_fee is not None else 0,
-
+                delivery_fee=int(new_order.delivery_fee or 0),
                 coupon_id=optional_coupon.id if optional_coupon else None,
-
-                # ✅ Copiando os dados do endereço diretamente
                 street=new_order.street,
                 number=new_order.number,
                 complement=new_order.complement,
                 neighborhood=new_order.neighborhood,
-
                 city=new_order.city,
-
             )
 
-            # Após buscar os produtos do pedido:
             products_from_db = db.query(models.Product).filter(
                 models.Product.store_id == totem.store_id,
                 models.Product.id.in_([p.product_id for p in new_order.products])
             ).all()
-
             products_map = {p.id: p for p in products_from_db}
 
-            # Buscar cupons
             coupon_codes = [p.coupon_code for p in new_order.products if p.coupon_code]
             if new_order.coupon_code:
                 coupon_codes.append(new_order.coupon_code)
@@ -269,21 +234,14 @@ async def send_order(sid, data):
                 models.Coupon.store_id == totem.store_id,
                 models.Coupon.code.in_(coupon_codes),
                 models.Coupon.used < models.Coupon.max_uses,
-                or_(models.Coupon.start_date == None, models.Coupon.start_date <= datetime.datetime.utcnow()
-),
-                or_(models.Coupon.end_date == None, models.Coupon.end_date >= datetime.datetime.utcnow()
-)
+                or_(models.Coupon.start_date == None, models.Coupon.start_date <= datetime.datetime.utcnow()),
+                or_(models.Coupon.end_date == None, models.Coupon.end_date >= datetime.datetime.utcnow())
             ).all()
-
-            # Mapeia cupons por código
             coupon_map = {c.code: c for c in coupons}
 
-            # ... prossegue com products_map, variants_map, options_map ...
             total_price_calculated_backend = 0
 
-
             for order_product_data in new_order.products:
-
                 validate_order_variants(db, order_product_data)
 
                 product_db = products_map.get(order_product_data.product_id)
@@ -297,12 +255,10 @@ async def send_order(sid, data):
                     else:
                         return {'error': f"Cupom inválido para o produto {product_db.name}"}
                 else:
-                    price_with_coupon = product_db.base_price
+                    price_with_coupon = product_db.promotion_price or product_db.base_price
 
                 if price_with_coupon != order_product_data.price:
-                    return {
-                        'error': f"Preço inválido para o produto {product_db.name}. Esperado: {price_with_coupon}, Recebido: {order_product_data.price}"
-                    }
+                    return {'error': f"Preço inválido para {product_db.name}. Esperado: {price_with_coupon}, Recebido: {order_product_data.price}"}
 
                 db_product_entry = models.OrderProduct(
                     store_id=totem.store_id,
@@ -317,18 +273,13 @@ async def send_order(sid, data):
                 current_product_total = price_with_coupon * order_product_data.quantity
                 variants_price = 0
 
-                # 🔎 Consulta as variantes válidas ligadas ao produto
-                variant_links = db.query(models.ProductVariantProduct).filter_by(
-                    product_id=product_db.id
-                ).all()
-
+                variant_links = db.query(models.ProductVariantProduct).filter_by(product_id=product_db.id).all()
                 variant_map = {link.variant_id: link.variant for link in variant_links}
 
                 for order_variant_data in order_product_data.variants:
                     variant = variant_map.get(order_variant_data.variant_id)
                     if not variant:
-                        return {
-                            'error': f"Variante ID {order_variant_data.variant_id} não está associada ao produto {product_db.name}"}
+                        return {'error': f"Variante inválida: {order_variant_data.variant_id}"}
 
                     db_variant = models.OrderVariant(
                         store_id=totem.store_id,
@@ -338,20 +289,16 @@ async def send_order(sid, data):
                     )
                     db_product_entry.variants.append(db_variant)
 
-                    # 🔎 Consulta opções válidas dessa variante
-                    valid_options = db.query(models.VariantOptions).filter_by(
-                        variant_id=variant.id
-                    ).all()
+                    valid_options = db.query(models.VariantOptions).filter_by(variant_id=variant.id).all()
                     option_map = {opt.id: opt for opt in valid_options}
 
                     for order_option_data in order_variant_data.options:
                         option = option_map.get(order_option_data.variant_option_id)
                         if not option:
-                            return {
-                                'error': f"Opção ID {order_option_data.variant_option_id} não pertence à variante {variant.name}"}
+                            return {'error': f"Opção inválida: {order_option_data.variant_option_id}"}
 
                         if option.price != order_option_data.price:
-                            return {'error': f"Preço inválido para a opção {option.name} da variante {variant.name}"}
+                            return {'error': f"Preço incorreto na opção {option.name} da variante {variant.name}"}
 
                         db_option = models.OrderVariantOption(
                             store_id=totem.store_id,
@@ -366,57 +313,43 @@ async def send_order(sid, data):
 
                 total_price_calculated_backend += current_product_total + variants_price
 
-            # Aplica cupom de pedido geral (se houver e for válido)
+            # Aplica cupom geral (de pedido)
             order_coupon = None
             if new_order.coupon_code:
                 potential_order_coupon = coupon_map.get(new_order.coupon_code)
                 if potential_order_coupon and potential_order_coupon.product_id is None:
                     order_coupon = potential_order_coupon
-
                     discounted_total = apply_coupon(order_coupon, total_price_calculated_backend)
-
-
-
                 else:
                     return {"error": "Cupom geral inválido para o pedido."}
             else:
                 discounted_total = total_price_calculated_backend
 
-            # Soma taxa de entrega se tiver
+            # Soma taxa de entrega
             if new_order.delivery_fee:
                 discounted_total += new_order.delivery_fee
 
-            # Valida o total
+            # Validação final do total
             if new_order.total_price != discounted_total:
                 return {"error": f"Total incorreto. Esperado: {discounted_total}, Recebido: {new_order.total_price}"}
 
-            # Atribui total e cupom no pedido
             db_order.total_price = discounted_total
             if order_coupon:
                 db_order.coupon_id = order_coupon.id
-               # db_order.discounted_total_price = discounted_total
 
             db.add(db_order)
             db.commit()
-
-            # Após o commit, garanta que os produtos e variantes do pedido estão carregados para a serialização
             db.refresh(db_order)
 
-            # Valida e converte o objeto de pedido do DB para o formato de saída (Order schema)
             order_dict = Order.model_validate(db_order).model_dump()
-            print('[SOCKET] Pedido processado com sucesso e retornado ao cliente')
             return {"success": True, "order": order_dict}
 
         except sqlalchemy.exc.IntegrityError as e:
             db.rollback()
-            print(f"[SOCKET] Erro de integridade ao processar o pedido (possível dado duplicado ou ausente): {e}")
-            return {"success": False, "error": "Erro ao salvar o pedido devido a dados inválidos ou duplicados. Tente novamente."}
+            return {"error": "Erro ao salvar o pedido: integridade violada"}
         except Exception as e:
             db.rollback()
-            print(f"[SOCKET] Erro inesperado ao processar o pedido: {e}")
-            return {"success": False, "error": f"Erro interno ao processar o pedido: {str(e)}"}
-
-
+            return {"error": f"Erro interno ao processar o pedido: {str(e)}"}
 
 
 
