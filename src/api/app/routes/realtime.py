@@ -12,6 +12,7 @@ from src.api.admin.services.order_code import generate_unique_public_id, gerar_s
 
 from src.api.app.schemas.new_order import NewOrder
 from src.api.app.schemas.store_details import StoreDetails
+from src.api.app.services.check_variants import validate_order_variants
 
 from src.api.app.services.rating import (
     get_store_ratings_summary,
@@ -275,7 +276,11 @@ async def send_order(sid, data):
             # ... prossegue com products_map, variants_map, options_map ...
             total_price_calculated_backend = 0
 
+
             for order_product_data in new_order.products:
+
+                validate_order_variants(db, order_product_data)
+
                 product_db = products_map.get(order_product_data.product_id)
                 if not product_db:
                     return {'error': f"Produto com ID {order_product_data.product_id} não encontrado."}
@@ -307,11 +312,18 @@ async def send_order(sid, data):
                 current_product_total = price_with_coupon * order_product_data.quantity
                 variants_price = 0
 
+                # 🔎 Consulta as variantes válidas ligadas ao produto
+                variant_links = db.query(models.ProductVariantProduct).filter_by(
+                    product_id=product_db.id
+                ).all()
+
+                variant_map = {link.variant_id: link.variant for link in variant_links}
+
                 for order_variant_data in order_product_data.variants:
-                    variant = next((v for v in product_db.variants if v.id == order_variant_data.variant_id), None)
+                    variant = variant_map.get(order_variant_data.variant_id)
                     if not variant:
                         return {
-                            'error': f"Variante com ID {order_variant_data.variant_id} não encontrada no produto {product_db.name}"}
+                            'error': f"Variante ID {order_variant_data.variant_id} não está associada ao produto {product_db.name}"}
 
                     db_variant = models.OrderVariant(
                         store_id=totem.store_id,
@@ -321,12 +333,19 @@ async def send_order(sid, data):
                     )
                     db_product_entry.variants.append(db_variant)
 
+                    # 🔎 Consulta opções válidas dessa variante
+                    valid_options = db.query(models.VariantOptions).filter_by(
+                        variant_id=variant.id
+                    ).all()
+                    option_map = {opt.id: opt for opt in valid_options}
+
                     for order_option_data in order_variant_data.options:
-                        option = next((o for o in variant.options if o.id == order_option_data.variant_option_id), None)
+                        option = option_map.get(order_option_data.variant_option_id)
                         if not option:
                             return {
-                                'error': f"Opção com ID {order_option_data.variant_option_id} não encontrada na variante {variant.name}"}
-                        if order_option_data.price != option.price:
+                                'error': f"Opção ID {order_option_data.variant_option_id} não pertence à variante {variant.name}"}
+
+                        if option.price != order_option_data.price:
                             return {'error': f"Preço inválido para a opção {option.name} da variante {variant.name}"}
 
                         db_option = models.OrderVariantOption(
