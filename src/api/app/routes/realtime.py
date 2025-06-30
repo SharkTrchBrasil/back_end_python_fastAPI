@@ -280,14 +280,10 @@ async def send_order(sid, data):
                 if not product_db:
                     return {'error': f"Produto com ID {order_product_data.product_id} não encontrado."}
 
-                # Aplica cupom se existir para este produto
-                applied_coupon = None
                 if order_product_data.coupon_code:
                     coupon = coupon_map.get(order_product_data.coupon_code)
                     if coupon and coupon.product_id == product_db.id:
-                        applied_coupon = coupon
                         price_with_coupon = apply_coupon(coupon, product_db.base_price)
-
                     else:
                         return {'error': f"Cupom inválido para o produto {product_db.name}"}
                 else:
@@ -295,7 +291,8 @@ async def send_order(sid, data):
 
                 if price_with_coupon != order_product_data.price:
                     return {
-                        'error': f"Preço inválido para o produto {product_db.name}. Esperado: {price_with_coupon}, Recebido: {order_product_data.price}"}
+                        'error': f"Preço inválido para o produto {product_db.name}. Esperado: {price_with_coupon}, Recebido: {order_product_data.price}"
+                    }
 
                 db_product_entry = models.OrderProduct(
                     store_id=totem.store_id,
@@ -304,19 +301,46 @@ async def send_order(sid, data):
                     price=price_with_coupon,
                     quantity=order_product_data.quantity,
                     note=order_product_data.note,
-
                 )
                 db_order.products.append(db_product_entry)
 
                 current_product_total = price_with_coupon * order_product_data.quantity
+                variants_price = 0
 
-                # Corrigindo cálculo do preço com variantes
-                if order_product_data.variants:
-                    for variant_data in order_product_data.variants:
-                        for option in variant_data.options:
-                            current_product_total += option.price * option.quantity
+                for order_variant_data in order_product_data.variants:
+                    variant = next((v for v in product_db.variants if v.id == order_variant_data.variant_id), None)
+                    if not variant:
+                        return {
+                            'error': f"Variante com ID {order_variant_data.variant_id} não encontrada no produto {product_db.name}"}
 
-                total_price_calculated_backend += current_product_total
+                    db_variant = models.OrderVariant(
+                        store_id=totem.store_id,
+                        order_product=db_product_entry,
+                        variant_id=variant.id,
+                        name=variant.name,
+                    )
+                    db_product_entry.variants.append(db_variant)
+
+                    for order_option_data in order_variant_data.options:
+                        option = next((o for o in variant.options if o.id == order_option_data.variant_option_id), None)
+                        if not option:
+                            return {
+                                'error': f"Opção com ID {order_option_data.variant_option_id} não encontrada na variante {variant.name}"}
+                        if order_option_data.price != option.price:
+                            return {'error': f"Preço inválido para a opção {option.name} da variante {variant.name}"}
+
+                        db_option = models.OrderVariantOption(
+                            store_id=totem.store_id,
+                            order_variant=db_variant,
+                            variant_option_id=option.id,
+                            name=option.name,
+                            price=option.price,
+                            quantity=order_option_data.quantity,
+                        )
+                        db_variant.options.append(db_option)
+                        variants_price += db_option.price * db_option.quantity
+
+                total_price_calculated_backend += current_product_total + variants_price
 
             # Aplica cupom de pedido geral (se houver e for válido)
             order_coupon = None
