@@ -26,41 +26,38 @@ async def connect(sid, environ, auth):
             raise ConnectionRefusedError("Missing admin token")
 
         with get_db_manager() as db:
-            print(f"[DEBUG] Verificando token com 'verify_access_token'...")
             email = verify_access_token(token)
-            print(f"[DEBUG] Resultado do verify_access_token: {email}")
-
             if not email:
-                print(f"[ADMIN SOCKET] SID {sid}: Token inválido ou expirado para o admin.")
+                print(f"[ADMIN SOCKET] Token inválido.")
                 raise ConnectionRefusedError("Invalid or expired token")
 
-            print(f"[DEBUG] Buscando admin no banco com email: {email}")
             admin = db.query(models.User).filter_by(email=email).first()
-            print(f"[DEBUG] Resultado da consulta de admin: {admin}")
-
             if not admin:
-                print(f"[ADMIN SOCKET] SID {sid}: Admin '{email}' não encontrado.")
+                print(f"[ADMIN SOCKET] Admin '{email}' não encontrado.")
                 raise ConnectionRefusedError("Admin not found")
 
-            print(f"[DEBUG] Verificando se o admin está vinculado a uma loja...")
-            if not admin.store_id:
-                print(f"[ADMIN SOCKET] SID {sid}: Admin '{email}' não está vinculado a uma loja.")
-                raise ConnectionRefusedError("Admin not linked to a store")
+            # Busca o acesso à loja (store_accesses)
+            access = db.query(models.StoreAccess).filter_by(user_id=admin.id).first()
+            if not access:
+                print(f"[ADMIN SOCKET] Admin '{email}' não possui acesso a nenhuma loja.")
+                raise ConnectionRefusedError("Admin not linked to any store")
 
-            print(f"[DEBUG] Admin encontrado. Atualizando SID no banco de dados...")
+            store_id = access.store_id  # <-- Esse é o que você deve usar
+
+            # Salva o SID
             admin.sid = sid
             db.commit()
-            print(f"[DEBUG] SID atualizado com sucesso.")
 
-            room_name = f"store_{admin.store_id}"
+            room_name = f"store_{store_id}"
             await sio.enter_room(sid, room_name, namespace="/admin")
+
             print(f"[ADMIN SOCKET] Admin '{email}' (SID: {sid}) conectado à sala '{room_name}'.")
 
             await sio.emit(
                 "admin_connected",
                 {
                     "status": "connected",
-                    "store_id": admin.store_id,
+                    "store_id": store_id,
                     "admin_email": admin.email,
                 },
                 to=sid,
