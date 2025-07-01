@@ -8,34 +8,38 @@ from src.socketio_instance import sio
 from urllib.parse import parse_qs
 from src.core.security import verify_access_token
 from src.core.database import get_db_manager
-
 @sio.event(namespace="/admin")
 async def connect(sid, environ, auth):
     try:
         print(f"\n[SOCKET ADMIN] Tentando conectar: SID={sid}")
 
-        # 1. Pegar o token da conexão (via auth ou query string)
-        token = auth.get("token_admin") if auth else parse_qs(environ.get("QUERY_STRING", "")).get("token_admin", [None])[0]
-        print(f"[SOCKET ADMIN] Token recebido: {token}")
+        token = None
+        store_id = None
 
-        if not token:
-            print(f"[SOCKET ADMIN] Token ausente para SID {sid}")
-            raise ConnectionRefusedError("Missing admin token")
+        if auth:
+            token = auth.get("token_admin")
+            store_id = auth.get("store_id")
+            print(f"[SOCKET ADMIN] Token recebido: {token}")
+            print(f"[SOCKET ADMIN] Store ID recebido: {store_id}")
+        else:
+            query = parse_qs(environ.get("QUERY_STRING", ""))
+            token = query.get("token_admin", [None])[0]
+            store_id = query.get("store_id", [None])[0]
+            print(f"[SOCKET ADMIN] Token via query: {token}")
+            print(f"[SOCKET ADMIN] Store ID via query: {store_id}")
 
-        # 2. Verifica e decodifica o token
-        token_data = verify_access_token(token)
-        if not token_data or "store_id" not in token_data:
-            print(f"[SOCKET ADMIN] Token inválido ou sem store_id")
+        if not token or not store_id:
+            raise ConnectionRefusedError("Missing token or store_id")
+
+        email = verify_access_token(token)
+        if not email:
             raise ConnectionRefusedError("Invalid or expired token")
 
-        store_id = token_data["store_id"]
         room_name = f"store_{store_id}"
 
-        # 3. Entra na sala da loja
         await sio.enter_room(sid, room_name, namespace="/admin")
         print(f"[SOCKET ADMIN] Conectado à sala: {room_name}")
 
-        # 4. Emite confirmação da conexão
         await sio.emit(
             "admin_connected",
             {
@@ -45,7 +49,6 @@ async def connect(sid, environ, auth):
             to=sid,
             namespace="/admin",
         )
-        print(f"[SOCKET ADMIN] Evento 'admin_connected' enviado para SID {sid}.\n")
 
     except ConnectionRefusedError as e:
         print(f"[SOCKET ADMIN] Conexão recusada: {e}\n")
@@ -54,8 +57,7 @@ async def connect(sid, environ, auth):
         print(f"[SOCKET ADMIN] Erro inesperado: {e}")
         import traceback
         traceback.print_exc()
-        raise ConnectionRefusedError("Internal error")
-
+        raise ConnectionRefusedError("Internal server error")
 
 
 
