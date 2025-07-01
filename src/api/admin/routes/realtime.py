@@ -9,39 +9,15 @@ from src.core.database import get_db_manager
 
 
 
-
-
 @sio.event(namespace="/admin")
 async def connect(sid, environ, auth):
-    try:
-        print(f"\n[SOCKET ADMIN] Tentando conectar: SID={sid}")
-
-        token = auth.get("token_admin")
-        store_id = int(auth.get("store_id")) if auth.get("store_id") else None
-
-        if not token or not store_id:
-            raise ConnectionRefusedError("Missing token or store_id")
-
-        email = verify_access_token(token)
-        if not email:
-            raise ConnectionRefusedError("Invalid token")
-
-        print(f"[SOCKET ADMIN] Email validado: {email} | Loja: {store_id}")
-
-        room = f"store_{store_id}"
-        await sio.enter_room(sid, room, namespace="/admin")
-        print(f"[SOCKET ADMIN] Entrou na sala: {room}")
-
-        await sio.emit(
-            "admin_connected",
-            {"status": "connected", "store_id": store_id, "email": email},
-            to=sid,
-            namespace="/admin"
-        )
-
-    except Exception as e:
-        print(f"[SOCKET ADMIN] Erro ao conectar: {e}")
-        raise ConnectionRefusedError("Unable to connect")
+    print(f"[SOCKET ADMIN] SID={sid} auth={auth}")
+    if auth and "token_admin" in auth and "store_id" in auth:
+        await sio.enter_room(sid, f"store_{auth['store_id']}", namespace="/admin")
+        await sio.emit("admin_connected", {"status": "connected"}, to=sid, namespace="/admin")
+        print("[SOCKET ADMIN] Conectado sem validação (teste)")
+    else:
+        raise ConnectionRefusedError("Missing token or store_id")
 
 
 @sio.event(namespace="/admin")
