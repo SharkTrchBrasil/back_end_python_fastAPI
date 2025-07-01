@@ -9,14 +9,11 @@ from src.socketio_instance import sio
 
 @sio.event(namespace="/admin")
 async def connect(sid, environ):
-    print(f"[ADMIN SOCKET] Tentativa de conexão: {sid}")
-
     try:
         query = parse_qs(environ.get("QUERY_STRING", ""))
         token = query.get("token_admin", [None])[0]
 
         if not token:
-            print("[ADMIN SOCKET] Token não fornecido.")
             raise ConnectionRefusedError("Token não fornecido")
 
         with get_db_manager() as db:
