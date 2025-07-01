@@ -1,63 +1,47 @@
-from urllib.parse import parse_qs
-import traceback
-from src.core.database import get_db_manager
+
 from src.core import models
-from src.core.security import verify_access_token
+
 from src.socketio_instance import sio
 
 from urllib.parse import parse_qs
 from src.core.security import verify_access_token
 from src.core.database import get_db_manager
+
+
+
+
+
 @sio.event(namespace="/admin")
 async def connect(sid, environ, auth):
     try:
         print(f"\n[SOCKET ADMIN] Tentando conectar: SID={sid}")
 
-        token = None
-        store_id = None
-
-        if auth:
-            token = auth.get("token_admin")
-            store_id = auth.get("store_id")
-            print(f"[SOCKET ADMIN] Token recebido: {token}")
-            print(f"[SOCKET ADMIN] Store ID recebido: {store_id}")
-        else:
-            query = parse_qs(environ.get("QUERY_STRING", ""))
-            token = query.get("token_admin", [None])[0]
-            store_id = query.get("store_id", [None])[0]
-            print(f"[SOCKET ADMIN] Token via query: {token}")
-            print(f"[SOCKET ADMIN] Store ID via query: {store_id}")
+        token = auth.get("token_admin")
+        store_id = int(auth.get("store_id")) if auth.get("store_id") else None
 
         if not token or not store_id:
             raise ConnectionRefusedError("Missing token or store_id")
 
         email = verify_access_token(token)
         if not email:
-            raise ConnectionRefusedError("Invalid or expired token")
+            raise ConnectionRefusedError("Invalid token")
 
-        room_name = f"store_{store_id}"
+        print(f"[SOCKET ADMIN] Email validado: {email} | Loja: {store_id}")
 
-        await sio.enter_room(sid, room_name, namespace="/admin")
-        print(f"[SOCKET ADMIN] Conectado à sala: {room_name}")
+        room = f"store_{store_id}"
+        await sio.enter_room(sid, room, namespace="/admin")
+        print(f"[SOCKET ADMIN] Entrou na sala: {room}")
 
         await sio.emit(
             "admin_connected",
-            {
-                "status": "connected",
-                "store_id": store_id,
-            },
+            {"status": "connected", "store_id": store_id},
             to=sid,
-            namespace="/admin",
+            namespace="/admin"
         )
 
-    except ConnectionRefusedError as e:
-        print(f"[SOCKET ADMIN] Conexão recusada: {e}\n")
-        raise
     except Exception as e:
-        print(f"[SOCKET ADMIN] Erro inesperado: {e}")
-        import traceback
-        traceback.print_exc()
-        raise ConnectionRefusedError("Internal server error")
+        print(f"[SOCKET ADMIN] Erro ao conectar: {e}")
+        raise ConnectionRefusedError("Unable to connect")
 
 
 
