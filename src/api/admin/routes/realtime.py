@@ -15,6 +15,7 @@ async def connect_admin(sid, environ):
     try:
         query = parse_qs(environ.get("QUERY_STRING", ""))
         token = query.get("token_admin", [None])[0]
+        print(f"QUERY_STRING: {environ.get('QUERY_STRING', '')}")
 
         if not token:
             raise ConnectionRefusedError("Token do admin ausente")
