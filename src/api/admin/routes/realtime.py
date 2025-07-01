@@ -34,7 +34,7 @@ async def connect(sid, environ, auth):
 
         await sio.emit(
             "admin_connected",
-            {"status": "connected", "store_id": store_id},
+            {"status": "connected", "store_id": store_id, "email": email},
             to=sid,
             namespace="/admin"
         )
@@ -42,7 +42,6 @@ async def connect(sid, environ, auth):
     except Exception as e:
         print(f"[SOCKET ADMIN] Erro ao conectar: {e}")
         raise ConnectionRefusedError("Unable to connect")
-
 
 
 @sio.event(namespace="/admin")
