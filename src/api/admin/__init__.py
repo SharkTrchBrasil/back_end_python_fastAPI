@@ -30,6 +30,7 @@ from src.api.admin.routes.cashier_session_routes import router as cashier_sessio
 from src.api.admin.routes.cashier_transaction_routes import router as  cashier_transaction_routes
 from src.api.admin.routes.banners import router as banners_router
 from src.api.admin.routes.store_ratings import router as store_ratings_router
+from src.api.admin.routes.orders import router as orders_router
 
 
 router = APIRouter(prefix="/admin")
@@ -73,3 +74,5 @@ router.include_router(cashier_session_routes)
 router.include_router(cashier_transaction_routes)
 router.include_router(banners_router)
 router.include_router(store_ratings_router)
+
+router.include_router(orders_router)
