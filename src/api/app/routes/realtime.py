@@ -347,6 +347,13 @@ async def send_order(sid, data):
 
             db.add(db_order)
             db.commit()
+
+            await sio.emit(
+                "order_created",
+                Order.model_validate(db_order).model_dump(),
+                to=f"store_{totem.store_id}"
+            )
+
             db.refresh(db_order)
 
             order_dict = Order.model_validate(db_order).model_dump()
