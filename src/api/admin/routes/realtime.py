@@ -49,6 +49,10 @@ async def connect(sid, environ, auth):
                 print(f"[SOCKET ADMIN] Admin '{admin.email}' não vinculado a nenhuma loja.")
                 raise ConnectionRefusedError("Admin not linked to a store")
 
+            if not access.role:
+                print(f"[SOCKET ADMIN] Role com ID {access.role_id} não encontrada.")
+                raise ConnectionRefusedError("Role não encontrada para este acesso.")
+
             room_name = f"store_{access.store_id}"
 
             admin.sid = sid
