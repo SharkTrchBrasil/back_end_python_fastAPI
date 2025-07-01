@@ -7,23 +7,15 @@ from src.socketio_instance import sio
 
 
 
-@sio.on("connect")
 
-
-
-async def connect_admin(sid, environ):
-    print("Namespaces registrados:", sio.namespaces)
+@sio.event(namespace="/admin")
+async def connect(sid, environ, auth):
     try:
-        query_string = environ.get("QUERY_STRING", "")
-        print(f"[SOCKET] QUERY_STRING: {query_string}")
-        query = parse_qs(query_string)
-        token = query.get("token_admin", [None])[0]
-        print(f"[SOCKET] Token recebido: {token}")
-
+        token = auth.get('token_admin') if auth else None
         if not token:
-            print("[SOCKET] Token ausente")
-            raise ConnectionRefusedError("Token do admin ausente")
+            raise ConnectionRefusedError("Missing token")
 
+        # autentique o token e extraia o email
         with get_db_manager() as db:
             email = verify_access_token(token)
             print(f"[SOCKET] Email extraído do token: {email}")
@@ -50,6 +42,7 @@ async def connect_admin(sid, environ):
             db.commit()
 
             print(f"[SOCKET] Admin {admin.email} (ID: {admin.id}) entrou na sala {room}")
+
     except Exception as e:
         import traceback
         print("[SOCKET] Erro durante connect_admin:")
@@ -60,12 +53,13 @@ async def connect_admin(sid, environ):
 
 
 
-@sio.on("disconnect", namespace="/admin")
-async def disconnect_admin(sid):
+@sio.event(namespace="/admin")
+async def disconnect(sid):
     with get_db_manager() as db:
-        admin = db.query(models.User).filter_by(sid=sid).first()
+        admin = db.query(User).filter_by(sid=sid).first()
         if admin and admin.store_id:
             await sio.leave_room(sid, f"store_{admin.store_id}", namespace="/admin")
             print(f"[Admin Disconnected] {admin.email} (ID: {admin.id}) saiu da sala store_{admin.store_id}")
             admin.sid = None
             db.commit()
+
