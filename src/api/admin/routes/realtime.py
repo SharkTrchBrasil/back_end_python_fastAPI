@@ -6,11 +6,10 @@ from src.core.models import User
 from src.core.security import verify_access_token
 from src.socketio_instance import sio
 
-
-@sio.event(namespace="/admin")
-async def connect(sid, environ, auth=None):  # Adicione auth como parâmetro opcional
+@sio.on("connect", namespace="/admin")
+async def connect_admin(sid, environ, auth):
     try:
-        # Obter o token tanto do auth quanto da query string
+        # Obter token via auth ou query string
         query = parse_qs(environ.get("QUERY_STRING", ""))
         token = auth.get('token_admin') if auth else query.get("token_admin", [None])[0]
 
@@ -39,7 +38,6 @@ async def connect(sid, environ, auth=None):  # Adicione auth como parâmetro opc
 
             print(f"[ADMIN CONNECT] Admin {email} conectado à sala {room}")
 
-            # Envie uma confirmação de conexão bem-sucedida
             await sio.emit('admin_connected', {
                 'status': 'connected',
                 'store_id': admin.store_id,
@@ -50,7 +48,6 @@ async def connect(sid, environ, auth=None):  # Adicione auth como parâmetro opc
         print(f"[ADMIN CONNECT ERROR] Erro na conexão: {str(e)}")
         traceback.print_exc()
         raise ConnectionRefusedError(f"Erro na conexão: {str(e)}")
-
 
 
 @sio.event(namespace="/admin")
