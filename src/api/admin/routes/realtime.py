@@ -10,48 +10,51 @@ from src.core.models import User
 from src.core.security import verify_access_token
 from src.socketio_instance import sio
 
+
 @sio.event
 async def connect_admin(sid, environ):
-    query = parse_qs(environ.get("QUERY_STRING", ""))
-    token = query.get("token_admin", [None])[0]
+    try:
+        query = parse_qs(environ.get("QUERY_STRING", ""))
+        token = query.get("token_admin", [None])[0]
 
-    if not token:
-        raise ConnectionRefusedError("Token do admin ausente")
+        if not token:
+            raise ConnectionRefusedError("Token do admin ausente")
 
-    with get_db_manager() as db:
-        # 🔐 Verifica o token e extrai o e-mail
-        email = verify_access_token(token)
-        if not email:
-            raise ConnectionRefusedError("Token inválido")
+        with get_db_manager() as db:
+            email = verify_access_token(token)
+            if not email:
+                raise ConnectionRefusedError("Token inválido")
 
-        # 🔎 Busca o admin no banco pelo e-mail
-        admin = db.query(User).filter_by(email=email).first()
-        if not admin:
-            raise ConnectionRefusedError("Admin não encontrado")
+            admin = db.query(User).filter_by(email=email).first()
+            if not admin:
+                raise ConnectionRefusedError("Admin não encontrado")
 
-        if not admin.store_id:
-            raise ConnectionRefusedError("Admin não vinculado a loja")
+            if not admin.store_id:
+                raise ConnectionRefusedError("Admin não vinculado a loja")
 
-        room = f"store_{admin.store_id}"
-        await sio.enter_room(sid, room)
-        print(f"[Admin Connected] Admin {admin.id} entrou na sala {room}")
+            room = f"store_{admin.store_id}"
+            await sio.enter_room(sid, room)
 
+            admin.sid = sid  # Salva o sid do socket para desconexão
+            db.commit()
 
-
-
-
-
-
-
-
-
+            print(f"[Admin Connected] Admin {admin.id} entrou na sala {room}")
+    except Exception as e:
+        import traceback
+        print("[Socket.IO] Erro durante connect_admin:")
+        traceback.print_exc()
+        raise ConnectionRefusedError("Erro interno ao conectar admin")
 
 
-# Evento de desconexão
 @sio.event
 async def disconnect_admin(sid):
     with get_db_manager() as db:
         admin = db.query(models.User).filter_by(sid=sid).first()
+
         if admin and admin.store_id:
             await sio.leave_room(sid, f"store_{admin.store_id}")
             print(f"[Admin Disconnected] Admin {admin.id} saiu da sala store_{admin.store_id}")
+
+            # Opcional: limpar o sid ao desconectar
+            admin.sid = None
+            db.commit()
