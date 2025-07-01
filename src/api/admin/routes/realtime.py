@@ -7,7 +7,7 @@ from src.socketio_instance import sio
 
 
 
-@sio.on("connect", namespace="/admin")
+@sio.on("connect")
 
 
 
