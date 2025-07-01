@@ -1,14 +1,12 @@
+
+
 from urllib.parse import parse_qs
 import traceback
-from sqlalchemy.orm import joinedload # Import this for eager loading
-
+# Importações necessárias para autenticação e banco de dados
 from src.core.database import get_db_manager
-from src.core import models # Assuming your models are in src.core.models
+from src.core import models # Assumindo que seus modelos estão em src.core.models
 from src.core.security import verify_access_token
 from src.socketio_instance import sio
-
-from src.api.shared_schemas.store_theme import StoreThemeOut # Make sure this path is correct
-from src.api.shared_schemas.banner import BannerOut # Make sure this path is correct
 
 
 # --- Evento de conexão do Socket.IO para administradores ---
@@ -49,15 +47,15 @@ async def connect(sid, environ, auth):
             admin.sid = sid
             db.commit()
 
-            # Entra na sala específica da loja
+            # Entra na sala específica da loja.
+            # É aqui que o admin receberá eventos como 'order_created' direcionados à sua loja.
             room_name = f"store_{admin.store_id}"
             await sio.enter_room(sid, room_name, namespace="/admin")
 
             print(f"[ADMIN SOCKET] Admin '{email}' (SID: {sid}) conectado à sala '{room_name}'.")
 
-
-
-            # Confirmação final da conexão para o cliente admin
+            # Confirmação final da conexão para o cliente admin.
+            # Isso informa ao cliente que a conexão foi bem-sucedida e quais são os dados do admin.
             await sio.emit(
                 "admin_connected",
                 {
@@ -65,7 +63,7 @@ async def connect(sid, environ, auth):
                     "store_id": admin.store_id,
                     "admin_email": admin.email,
                 },
-                to=sid,
+                to=sid, # Envia apenas para o SID do cliente que acabou de conectar
                 namespace="/admin",
             )
 
@@ -84,13 +82,13 @@ async def connect(sid, environ, auth):
 async def disconnect(sid):
     print(f"[ADMIN SOCKET] Desconexão: SID {sid}")
     with get_db_manager() as db:
-        # Encontra o admin pelo SID para limpar o registro
+        # Encontra o admin pelo SID para limpar o registro no banco de dados
         admin = db.query(models.User).filter_by(sid=sid).first()
         if admin:
-            # Deixa a sala da loja
+            # Garante que o admin seja removido da sala da loja ao desconectar
             room_name = f"store_{admin.store_id}"
             await sio.leave_room(sid, room_name, namespace="/admin")
-            # Limpa o SID no banco de dados
+            # Limpa o SID para indicar que o admin não está mais conectado via socket
             admin.sid = None
             db.commit()
             print(f"[ADMIN SOCKET] Admin '{admin.email}' (SID: {sid}) desconectado e SID limpo.")
