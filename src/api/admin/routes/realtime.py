@@ -9,49 +9,53 @@ from src.socketio_instance import sio
 @sio.event(namespace="/admin")
 async def connect(sid, environ, auth):
     try:
-        print(f"\n[ADMIN SOCKET] Iniciando conexão para SID: {sid}")
+        print(f"\n[SOCKET][CONNECT] SID {sid} - Iniciando conexão...")
 
         token = None
-
         if auth:
             token = auth.get("token_admin")
-            print(f"[DEBUG] Token recebido via 'auth': {token}")
+            print(f"[SOCKET] Token via auth: {token}")
         else:
             query = parse_qs(environ.get("QUERY_STRING", ""))
             token = query.get("token_admin", [None])[0]
-            print(f"[DEBUG] Token recebido via query string: {token}")
+            print(f"[SOCKET] Token via query string: {token}")
 
         if not token:
-            print(f"[ADMIN SOCKET] SID {sid}: Token de acesso admin ausente.")
+            print(f"[SOCKET][ERROR] Token ausente.")
             raise ConnectionRefusedError("Missing admin token")
 
         with get_db_manager() as db:
             email = verify_access_token(token)
+            print(f"[SOCKET] Email do token: {email}")
+
             if not email:
-                print(f"[ADMIN SOCKET] Token inválido.")
+                print(f"[SOCKET][ERROR] Token inválido.")
                 raise ConnectionRefusedError("Invalid or expired token")
 
             admin = db.query(models.User).filter_by(email=email).first()
+            print(f"[SOCKET] Admin encontrado: {admin}")
+
             if not admin:
-                print(f"[ADMIN SOCKET] Admin '{email}' não encontrado.")
+                print(f"[SOCKET][ERROR] Admin não encontrado.")
                 raise ConnectionRefusedError("Admin not found")
 
-            # Busca o acesso à loja (store_accesses)
             access = db.query(models.StoreAccess).filter_by(user_id=admin.id).first()
-            if not access:
-                print(f"[ADMIN SOCKET] Admin '{email}' não possui acesso a nenhuma loja.")
-                raise ConnectionRefusedError("Admin not linked to any store")
+            print(f"[SOCKET] Acesso à loja: {access}")
 
-            store_id = access.store_id  # <-- Esse é o que você deve usar
+            if not access or not access.store_id:
+                print(f"[SOCKET][ERROR] Admin sem acesso a nenhuma loja.")
+                raise ConnectionRefusedError("Admin not linked to store")
 
-            # Salva o SID
+            store_id = access.store_id
+            print(f"[SOCKET] Loja vinculada: {store_id}")
+
             admin.sid = sid
             db.commit()
+            print(f"[SOCKET] SID {sid} salvo.")
 
             room_name = f"store_{store_id}"
             await sio.enter_room(sid, room_name, namespace="/admin")
-
-            print(f"[ADMIN SOCKET] Admin '{email}' (SID: {sid}) conectado à sala '{room_name}'.")
+            print(f"[SOCKET] Entrou na sala: {room_name}")
 
             await sio.emit(
                 "admin_connected",
@@ -63,12 +67,12 @@ async def connect(sid, environ, auth):
                 to=sid,
                 namespace="/admin",
             )
-            print(f"[ADMIN SOCKET] Mensagem 'admin_connected' enviada para {sid}.")
+            print(f"[SOCKET] Conexão confirmada para o cliente.")
 
     except ConnectionRefusedError as e:
-        print(f"[ADMIN SOCKET] Conexão recusada para SID {sid}: {e}")
+        print(f"[SOCKET][REFUSED] SID {sid}: {e}")
         raise
     except Exception as e:
-        print(f"[ADMIN SOCKET] Erro inesperado durante a conexão para SID {sid}: {e}")
+        print(f"[SOCKET][FATAL ERROR] SID {sid}: {e}")
         traceback.print_exc()
         raise ConnectionRefusedError(f"Erro interno do servidor: {e}")
