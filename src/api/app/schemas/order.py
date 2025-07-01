@@ -2,6 +2,42 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 
+class OrderProductVariantOption(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    quantity: int
+
+
+class OrderProductVariant(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    options: list[OrderProductVariantOption]
+
+
+class OrderProductTickets(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ticket_code: str
+    status: int
+
+
+class OrderProduct(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    quantity: int
+    variants: list[OrderProductVariant]
+    tickets: list[OrderProductTickets]
+    price: int
+
+
+
 class Charge(BaseModel):
     status: str
     amount: float
@@ -17,7 +53,7 @@ class Order(BaseModel):
     public_id: str
     store_id: int
     customer_id: int | None = None
-
+    discounted_total_price: int
 
 
     # ✅ Novos campos desnormalizados

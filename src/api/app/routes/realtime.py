@@ -334,8 +334,16 @@ async def send_order(sid, data):
                 return {"error": f"Total incorreto. Esperado: {discounted_total}, Recebido: {new_order.total_price}"}
 
             db_order.total_price = discounted_total
+            db_order.coupon_id = order_coupon.id if order_coupon else None
+            db_order.discounted_total_price = discounted_total
+
+
+
             if order_coupon:
                 db_order.coupon_id = order_coupon.id
+
+            for coupon in coupons:
+                coupon.used += 1
 
             db.add(db_order)
             db.commit()
