@@ -7,7 +7,7 @@ from src.core.security import verify_access_token
 from src.socketio_instance import sio
 
 @sio.on("connect", namespace="/admin")
-async def connect_admin(sid, environ, auth):
+async def connect(sid, environ, auth):
     try:
         # Obter token via auth ou query string
         query = parse_qs(environ.get("QUERY_STRING", ""))
