@@ -27,6 +27,7 @@ from src.core import models
 from src.core.database import get_db_manager
 
 from src.api.app.schemas.order import Order
+from src.core.helpers.authorize_totem import authorize_totem
 from src.core.models import Coupon
 from src.api.app.schemas.coupon import Coupon as CouponSchema
 from src.socketio_instance import sio
@@ -68,12 +69,8 @@ async def connect(sid, environ):
         raise ConnectionRefusedError("Missing token")
 
     with get_db_manager() as db:
-        totem = db.query(models.TotemAuthorization).filter(
-            models.TotemAuthorization.totem_token == token,
-            models.TotemAuthorization.granted.is_(True),
-        ).first()
-
-        if not totem or not totem.store:
+        totem = await authorize_totem(db, token)
+        if not totem:
             raise ConnectionRefusedError("Invalid or unauthorized token")
 
         # Atualiza o SID do totem
