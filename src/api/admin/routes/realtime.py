@@ -5,82 +5,58 @@ from src.core import models
 from src.core.security import verify_access_token
 from src.socketio_instance import sio
 
+from urllib.parse import parse_qs
+from src.core.security import verify_access_token
+from src.core.database import get_db_manager
 
 @sio.event(namespace="/admin")
 async def connect(sid, environ, auth):
     try:
         print(f"\n[SOCKET ADMIN] Tentando conectar: SID={sid}")
 
-        token = None
-        if auth:
-            token = auth.get("token_admin")
-            print(f"[SOCKET ADMIN] Token recebido via 'auth': {token}")
-        else:
-            query = parse_qs(environ.get("QUERY_STRING", ""))
-            token = query.get("token_admin", [None])[0]
-            print(f"[SOCKET ADMIN] Token recebido via query string: {token}")
+        # 1. Pegar o token da conexão (via auth ou query string)
+        token = auth.get("token_admin") if auth else parse_qs(environ.get("QUERY_STRING", "")).get("token_admin", [None])[0]
+        print(f"[SOCKET ADMIN] Token recebido: {token}")
 
         if not token:
             print(f"[SOCKET ADMIN] Token ausente para SID {sid}")
             raise ConnectionRefusedError("Missing admin token")
 
-        with get_db_manager() as db:
-            email = verify_access_token(token)
-            if not email:
-                print(f"[SOCKET ADMIN] Token inválido ou expirado para SID {sid}")
-                raise ConnectionRefusedError("Invalid or expired token")
+        # 2. Verifica e decodifica o token
+        token_data = verify_access_token(token)
+        if not token_data or "store_id" not in token_data:
+            print(f"[SOCKET ADMIN] Token inválido ou sem store_id")
+            raise ConnectionRefusedError("Invalid or expired token")
 
-            print(f"[SOCKET ADMIN] Token válido. Email extraído: {email}")
-            admin = db.query(models.User).filter_by(email=email).first()
+        store_id = token_data["store_id"]
+        room_name = f"store_{store_id}"
 
-            if not admin:
-                print(f"[SOCKET ADMIN] Usuário '{email}' não encontrado no banco.")
-                raise ConnectionRefusedError("Admin not found")
+        # 3. Entra na sala da loja
+        await sio.enter_room(sid, room_name, namespace="/admin")
+        print(f"[SOCKET ADMIN] Conectado à sala: {room_name}")
 
-            print(f"[SOCKET ADMIN] Usuário encontrado: {admin.email} (ID: {admin.id})")
-
-            access = db.query(models.StoreAccess).filter_by(user_id=admin.id).first()
-
-            if not access:
-                print(f"[SOCKET ADMIN] Acesso à loja não encontrado para o usuário '{admin.email}'")
-                raise ConnectionRefusedError("Admin store access not found")
-
-            if not access.store_id:
-                print(f"[SOCKET ADMIN] Admin '{admin.email}' não vinculado a nenhuma loja.")
-                raise ConnectionRefusedError("Admin not linked to a store")
-
-            if not access.role:
-                print(f"[SOCKET ADMIN] Role com ID {access.role_id} não encontrada.")
-                raise ConnectionRefusedError("Role não encontrada para este acesso.")
-
-            room_name = f"store_{access.store_id}"
-
-            admin.sid = sid
-            db.commit()
-
-            await sio.enter_room(sid, room_name, namespace="/admin")
-            print(f"[SOCKET ADMIN] Admin '{admin.email}' conectado à sala: {room_name}")
-
-            await sio.emit(
-                "admin_connected",
-                {
-                    "status": "connected",
-                    "store_id": access.store_id,
-                    "admin_email": admin.email,
-                },
-                to=sid,
-                namespace="/admin",
-            )
-
-            print(f"[SOCKET ADMIN] Evento 'admin_connected' enviado para SID {sid} com sucesso.\n")
+        # 4. Emite confirmação da conexão
+        await sio.emit(
+            "admin_connected",
+            {
+                "status": "connected",
+                "store_id": store_id,
+            },
+            to=sid,
+            namespace="/admin",
+        )
+        print(f"[SOCKET ADMIN] Evento 'admin_connected' enviado para SID {sid}.\n")
 
     except ConnectionRefusedError as e:
-        print(f"[SOCKET ADMIN] Conexão recusada para SID {sid}: {e}\n")
+        print(f"[SOCKET ADMIN] Conexão recusada: {e}\n")
         raise
     except Exception as e:
-        print(f"[SOCKET ADMIN] Erro inesperado durante conexão do SID {sid}: {e}")
+        print(f"[SOCKET ADMIN] Erro inesperado: {e}")
+        import traceback
         traceback.print_exc()
-        raise ConnectionRefusedError("Internal server error during socket admin connect")
+        raise ConnectionRefusedError("Internal error")
+
+
 
 
 @sio.event(namespace="/admin")
