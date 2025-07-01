@@ -8,16 +8,20 @@ from src.core.security import verify_access_token
 from src.core.database import get_db_manager
 
 
-
 @sio.event(namespace="/admin")
 async def connect(sid, environ, auth):
-    print(f"[SOCKET ADMIN] SID={sid} auth={auth}")
-    if auth and "token_admin" in auth and "store_id" in auth:
-        await sio.enter_room(sid, f"store_{auth['store_id']}", namespace="/admin")
-        await sio.emit("admin_connected", {"status": "connected"}, to=sid, namespace="/admin")
-        print("[SOCKET ADMIN] Conectado sem validação (teste)")
-    else:
+    print(f"[SOCKET ADMIN] Tentando conectar SID={sid} auth={auth}")
+
+    token = auth.get("token_admin") if auth else None
+    store_id = int(auth.get("store_id")) if auth and auth.get("store_id") else None
+
+    if not token or not store_id:
+        print("[SOCKET ADMIN] Token ou store_id ausente!")
         raise ConnectionRefusedError("Missing token or store_id")
+
+    print("[SOCKET ADMIN] Conectado com token e store_id (teste, sem DB)")
+    await sio.enter_room(sid, f"store_{store_id}", namespace="/admin")
+    await sio.emit("admin_connected", {"status": "connected", "store_id": store_id}, to=sid, namespace="/admin")
 
 
 @sio.event(namespace="/admin")
