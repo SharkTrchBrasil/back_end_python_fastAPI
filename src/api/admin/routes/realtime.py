@@ -30,78 +30,75 @@ from src.api.app.schemas.order import Order
 from src.core.helpers.authorize_totem import authorize_totem
 from src.core.models import Coupon
 from src.api.app.schemas.coupon import Coupon as CouponSchema
+from src.core.security import verify_access_token
 from src.socketio_instance import sio
 
 
+@sio.event(namespace="/admin")
+async def connect(sid, environ, auth):
+    try:
+        print(f"\n[SOCKET ADMIN] Tentando conectar: SID={sid}")
 
-# Evento de conexão do Socket.IO
-@sio.event
-async def connect(sid, environ):
-    query = parse_qs(environ.get("QUERY_STRING", ""))
-    token = query.get("totem_token", [None])[0]
+        # 1. Obtem o token da autenticação
+        token = (
+            auth.get("token_admin")
+            if auth
+            else parse_qs(environ.get("QUERY_STRING", "")).get("token_admin", [None])[0]
+        )
+        print(f"[SOCKET ADMIN] Token recebido: {token}")
 
-    if not token:
-        raise ConnectionRefusedError("Missing token")
+        if not token:
+            print(f"[SOCKET ADMIN] Token ausente para SID {sid}")
+            raise ConnectionRefusedError("Missing admin token")
 
-    with get_db_manager() as db:
-        totem = await authorize_totem(db, token)
-        if not totem:
-            raise ConnectionRefusedError("Invalid or unauthorized token")
+        # 2. Decodifica e valida o token
+        token_data = verify_access_token(token)
+        if not token_data or "store_id" not in token_data:
+            print(f"[SOCKET ADMIN] Token inválido ou sem store_id")
+            raise ConnectionRefusedError("Invalid or expired token")
 
-        # Atualiza o SID do totem
-        totem.sid = sid
-        db.commit()
+        store_id = token_data["store_id"]
+        print(f"[SOCKET ADMIN] store_id extraído do token: {store_id}")
 
-        room_name = f"store_{totem.store_id}"
-        await sio.enter_room(sid, room_name)
+        # 3. Consulta o TotemAuthorization baseado no store_id
+        with get_db_manager() as db:
+            totem = db.query(models.TotemAuthorization).filter(
+                models.TotemAuthorization.store_id == store_id,
+                models.TotemAuthorization.granted.is_(True),
+            ).first()
 
-        # Carrega dados completos da loja com seus relacionamentos
-        # Loja -> delivery_config
-        # Loja -> Cidades -> Bairros
-        store = db.query(models.Store).options(
-            joinedload(models.Store.payment_methods),
-            joinedload(models.Store.delivery_config),  # Carrega a configuração de entrega (sem cidades/bairros aqui)
-            joinedload(models.Store.hours),
-            # Carrega as cidades da loja e, para cada cidade, seus bairros
-            joinedload(models.Store.cities).joinedload(models.StoreCity.neighborhoods),
-        ).filter_by(id=totem.store_id).first()
+            if not totem or not totem.store:
+                print(f"[SOCKET ADMIN] Totem não encontrado para store_id={store_id}")
+                raise ConnectionRefusedError("Totem not authorized or store not found")
 
-        if store:
-            # Envia dados da loja com avaliações
-            try:
-                # Converte o objeto SQLAlchemy 'store' para o Pydantic 'StoreDetails'
-                store_schema = StoreDetails.model_validate(store)
-            except Exception as e:
-                print(f"Erro ao validar Store com Pydantic StoreDetails para loja {store.id}: {e}")
-                # Isso pode indicar que StoreDetails ou seus aninhados (StoreCity Pydantic, StoreNeighborhood Pydantic)
-                # não estão configurados corretamente com model_config = {"from_attributes": True, "arbitrary_types_allowed": True}
-                raise ConnectionRefusedError(f"Erro interno do servidor: Dados da loja malformados: {e}")
+            # (Opcional) Salva o SID se necessário
+            totem.sid = sid
+            db.commit()
 
-            store_schema.ratingsSummary = RatingsSummaryOut(
-                **get_store_ratings_summary(db, store_id=store.id)
-            )
-            # Converte o modelo Pydantic para um dicionário serializável para JSON
-            store_payload = store_schema.model_dump()
-            await sio.emit("store_updated", store_payload, to=sid)
+        # 4. Entra na sala da loja
+        room_name = f"store_{store_id}"
+        await sio.enter_room(sid, room_name, namespace="/admin")
+        print(f"[SOCKET ADMIN] Conectado à sala: {room_name}")
 
-            # Envia tema
-            theme = db.query(models.StoreTheme).filter_by(store_id=totem.store_id).first()
-            if theme:
-                await sio.emit(
-                    "theme_updated",
-                    StoreThemeOut.model_validate(theme).model_dump(),
-                    to=sid,
-                )
+        # 5. Emite evento de confirmação de conexão
+        await sio.emit(
+            "admin_connected",
+            {
+                "status": "connected",
+                "store_id": store_id,
+            },
+            to=sid,
+            namespace="/admin",
+        )
 
-
-            # Envia os banners da loja
-            banners = db.query(models.Banner).filter_by(store_id=totem.store_id).all()
-            if banners:
-                from src.api.shared_schemas.banner import BannerOut
-
-                banner_payload = [BannerOut.model_validate(b).model_dump() for b in banners]
-                await sio.emit("banners_updated", banner_payload, to=sid)
-
+    except ConnectionRefusedError as e:
+        print(f"[SOCKET ADMIN] Conexão recusada: {e}\n")
+        raise
+    except Exception as e:
+        print(f"[SOCKET ADMIN] Erro inesperado: {e}")
+        import traceback
+        traceback.print_exc()
+        raise ConnectionRefusedError("Internal error")
 
 # Evento de desconexão do Socket.IO
 @sio.event

@@ -19,3 +19,6 @@ async def enter_store_room(sid: str, store_id: int):
     room_name = f"store_{store_id}"
     await sio.enter_room(sid, room_name)
     return room_name
+
+
+
