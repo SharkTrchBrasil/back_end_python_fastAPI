@@ -42,8 +42,8 @@ class Order(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    phone: str
-    name: str
+    customer_name: str | None = None
+    customer_phone: str | None = None
     total_price: int
     discounted_total_price: int
     totem_name: str | None = None
