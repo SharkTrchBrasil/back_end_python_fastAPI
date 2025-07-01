@@ -4,8 +4,15 @@ from src.core.database import get_db_manager
 from src.core.models import User
 from src.core.security import verify_access_token
 from src.socketio_instance import sio
+
+
+
 @sio.on("connect", namespace="/admin")
+
+
+
 async def connect_admin(sid, environ):
+    print("Namespaces registrados:", sio.namespaces)
     try:
         query_string = environ.get("QUERY_STRING", "")
         print(f"[SOCKET] QUERY_STRING: {query_string}")
