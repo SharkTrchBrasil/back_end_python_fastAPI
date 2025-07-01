@@ -6,50 +6,54 @@ from src.core.security import verify_access_token
 from src.socketio_instance import sio
 
 
-
-
 @sio.event(namespace="/admin")
 async def connect(sid, environ, auth):
     try:
-        token = auth.get('token_admin') if auth else None
+        # Obter o token tanto do auth quanto da query string (para compatibilidade)
+        query = parse_qs(environ.get("QUERY_STRING", ""))
+        token = auth.get('token_admin') if auth else query.get("token_admin", [None])[0]
+
         if not token:
             raise ConnectionRefusedError("Missing token")
 
-        # autentique o token e extraia o email
         with get_db_manager() as db:
             email = verify_access_token(token)
-            print(f"[SOCKET] Email extraído do token: {email}")
+            print(f"[ADMIN SOCKET] Email do token: {email}")
 
             if not email:
-                print("[SOCKET] Token inválido ou expirado")
                 raise ConnectionRefusedError("Token inválido ou expirado")
 
             admin = db.query(User).filter_by(email=email).first()
-            print(f"[SOCKET] Admin encontrado: {admin}")
-
             if not admin:
-                print("[SOCKET] Admin não encontrado no banco")
                 raise ConnectionRefusedError("Admin não encontrado")
 
             if not admin.store_id:
-                print("[SOCKET] Admin sem store_id")
                 raise ConnectionRefusedError("Admin não vinculado a loja")
 
+            # Entra na sala
             room = f"store_{admin.store_id}"
             await sio.enter_room(sid, room, namespace="/admin")
-
             admin.sid = sid
             db.commit()
 
-            print(f"[SOCKET] Admin {admin.email} (ID: {admin.id}) entrou na sala {room}")
+            print(f"[ADMIN SOCKET] Admin {email} conectado à sala {room}")
+
+            # Envia dados iniciais (similar ao app que funciona)
+            store = db.query(models.Store).options(
+                joinedload(models.Store.payment_methods),
+                joinedload(models.Store.delivery_config),
+            ).filter_by(id=admin.store_id).first()
+
+            if store:
+                await sio.emit("admin_connected", {
+                    "store_id": store.id,
+                    "store_name": store.name,
+                    "admin_email": email
+                }, to=sid, namespace="/admin")
 
     except Exception as e:
-        import traceback
-        print("[SOCKET] Erro durante connect_admin:")
-        traceback.print_exc()
-        raise ConnectionRefusedError("Erro interno ao conectar admin")
-
-
+        print(f"[ADMIN SOCKET ERROR] {str(e)}")
+        raise ConnectionRefusedError("Falha na conexão: " + str(e))
 
 
 
