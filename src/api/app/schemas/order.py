@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict
 
 class OrderProductVariantOption(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
+    variant_option_id: int | None = None  # ← opcional
     id: int
     name: str
     quantity: int

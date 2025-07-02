@@ -70,3 +70,5 @@ async def delete_product_variant(
     db.delete(variant)
     db.commit()
     await refresh_product_list(db, variant.store_id)
+
+    return None  # necessário com status 204

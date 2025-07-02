@@ -21,7 +21,7 @@ async def create_product_variant_option(
     db_option = models.VariantOptions(
         **option.model_dump(),
         variant_id=variant.id,
-        store_id=variant.store_id,
+        store_id=variant.store_id, # usado para fazer refres no socket.io
     )
 
     db.add(db_option)
@@ -50,3 +50,20 @@ async def patch_product_variant_option(
     db.commit()
     await refresh_product_list(db, option.store_id)
     return option
+
+
+
+@router.delete("/{option_id}", status_code=204)
+async def delete_product_variant_option(
+    db: GetDBDep,
+    option: GetVariantOptionDep,
+):
+    store_id = option.store_id  # salva para usar no refresh depois
+
+    db.delete(option)
+    db.commit()
+
+    await refresh_product_list(db, store_id)
+
+    return None  # status_code 204 (No Content) não precisa retornar nada
+

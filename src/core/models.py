@@ -216,6 +216,9 @@ class VariantOptions(Base, TimestampMixin):
     variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id", ondelete="CASCADE"))
     variant: Mapped["Variant"] = relationship(back_populates="options")
 
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+    store: Mapped["Store"] = relationship()
+
 class ProductVariantProduct(Base):
     __tablename__ = "product_variants_products"
     __table_args__ = (
@@ -743,7 +746,8 @@ class OrderVariantOption(Base, TimestampMixin):
 
     order_variant_id: Mapped[int] = mapped_column(ForeignKey("order_variants.id"))
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    variant_option_id: Mapped[int] = mapped_column(ForeignKey("variant_options.id"))
+    variant_option_id: Mapped[int | None] = mapped_column(nullable=True)
+
 
     name: Mapped[str] = mapped_column()
     price: Mapped[int] = mapped_column()
