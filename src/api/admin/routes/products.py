@@ -1,9 +1,11 @@
 import asyncio
+from collections import defaultdict
 from typing import Optional, List
 
 from pydantic import TypeAdapter
 
 from fastapi import APIRouter, Form
+from starlette.responses import JSONResponse
 
 from src.api.admin.schemas.variant_selection import VariantSelectionPayload
 from src.api.app.routes.realtime import refresh_product_list
@@ -245,7 +247,32 @@ def save_variants_for_product(
 
 
 
+@router.get("/grouped-by-category")
+def get_products_grouped_by_category(
+    store: GetStoreDep,
+    db: GetDBDep,
+):
+    products = db.query(models.Product).filter_by(store_id=store.id).all()
 
+    result = defaultdict(list)
+
+    for product in products:
+        category = product.category
+        category_data = {
+            "id": category.id if category else 0,
+            "name": category.name if category else "Sem categoria"
+        }
+
+        product_data = ProductOut.from_orm(product).model_dump()
+        result[frozenset(category_data.items())].append(product_data)
+
+    # Converter para chave legível no JSON
+    formatted_result = {}
+    for key, products_list in result.items():
+        category_dict = dict(key)
+        formatted_result[category_dict] = products_list
+
+    return JSONResponse(content=formatted_result)
 
 
 
