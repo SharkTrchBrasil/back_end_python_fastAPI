@@ -227,7 +227,7 @@ async def patch_product(
 
 
 @router.get("/variants/{variant_id}/products", response_model=List[int])
-def list_products_linked_to_variant(store_id: int, variant_id: int, db: GetDBDep):
+async def list_products_linked_to_variant(store_id: int, variant_id: int, db: GetDBDep):
     links = db.query(models.ProductVariantProduct).filter_by(variant_id=variant_id).all()
     product_ids = [link.product_id for link in links]
     return product_ids
@@ -236,7 +236,7 @@ def list_products_linked_to_variant(store_id: int, variant_id: int, db: GetDBDep
 
 
 @router.post("/{product_id}/variants", status_code=204)
-def save_variants_for_product(
+async def save_variants_for_product(
     store_id: int,
     product_id: int,
     payload: VariantSelectionPayload,
@@ -250,6 +250,9 @@ def save_variants_for_product(
         db.add(models.ProductVariantProduct(product_id=product_id, variant_id=variant_id))
 
     db.commit()
+    await asyncio.create_task(refresh_product_list(db, store_id))
+
+
 
 
 #
