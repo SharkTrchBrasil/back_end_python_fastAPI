@@ -665,6 +665,11 @@ class Order(Base, TimestampMixin):
     total_price: Mapped[int] = mapped_column()
     discounted_total_price : Mapped[int] = mapped_column()
 
+    totem_id: Mapped[int | None] = mapped_column(ForeignKey("totem_authorizations.id"))
+
+    totem: Mapped[TotemAuthorization | None] = relationship()
+
+
     payment_status: Mapped[str] = mapped_column()  # Ex: "pendente", "pago", "cancelado"
     order_status: Mapped[str] = mapped_column()    # Ex: "recebido", "em_preparo", "pronto", "finalizado", "cancelado"
 
@@ -681,8 +686,6 @@ class Order(Base, TimestampMixin):
     charge_id: Mapped[int | None] = mapped_column(ForeignKey("charges.id"), nullable=True)
     charge = relationship("Charge")
 
-    totem_id: Mapped[int | None] = mapped_column(ForeignKey("totem_authorizations.id"), nullable=True)
-
     products: Mapped[list["OrderProduct"]] = relationship(backref="order")
 
     store = relationship("Store", back_populates="orders")
@@ -691,6 +694,16 @@ class Order(Base, TimestampMixin):
     coupon_id: Mapped[int | None] = mapped_column(ForeignKey("coupons.id"))
     coupon = relationship("Coupon", back_populates="orders")
 
+
+
+
+    @property
+    def totem_name(self):
+        return self.totem.totem_name if self.totem else None
+
+    @property
+    def charge_status(self):
+        return self.charge.status if self.charge else None
 
 class OrderProduct(Base, TimestampMixin):
     __tablename__ = "order_products"
