@@ -3,6 +3,7 @@ from typing import Optional, List
 
 from fastapi import APIRouter, Form
 
+from src.api.admin.schemas.variant_selection import VariantSelectionPayload
 from src.api.app.routes.realtime import refresh_product_list
 from src.api.shared_schemas.product import ProductOut
 from src.core import models
@@ -249,6 +250,46 @@ async def patch_product(
     db.refresh(db_product)
     await asyncio.create_task(refresh_product_list(db, store.id))
     return db_product
+
+
+
+@router.get("/stores/{store_id}/products/{product_id}/variants", response_model=list[int])
+def list_variants_for_product(store_id: int, product_id: int, db: GetDBDep):
+    links = db.query(models.ProductVariantProduct).filter_by(product_id=product_id).all()
+    variant_ids = [link.variant_id for link in links]
+    return variant_ids
+
+
+
+
+@router.post("/stores/{store_id}/products/{product_id}/variants", status_code=204)
+def save_variants_for_product(
+    store_id: int,
+    product_id: int,
+    payload: VariantSelectionPayload,
+    db: GetDBDep
+):
+    # Remove os vínculos antigos
+    db.query(models.ProductVariantProduct).filter_by(product_id=product_id).delete()
+
+    # Adiciona os vínculos novos
+    for variant_id in payload.variant_ids:
+        db.add(models.ProductVariantProduct(product_id=product_id, variant_id=variant_id))
+
+    db.commit()
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 @router.delete("/{product_id}", status_code=204)
