@@ -1,6 +1,8 @@
 import asyncio
 from typing import Optional, List
 
+from pydantic import TypeAdapter
+
 from fastapi import APIRouter, Form
 
 from src.api.admin.schemas.variant_selection import VariantSelectionPayload
@@ -106,43 +108,6 @@ async def create_product(
 
 
 
-
-
-# @router.post("", response_model=ProductOut)
-# def create_product(
-#     db: Session = Depends(GetDBDep),
-#     store = Depends(GetStoreDep),
-#     image: UploadFile = File(...),
-#     variant_ids: Optional[List[int]] = Form([]),
-#     product_data: ProductCreate = Depends(ProductCreate),
-# ):
-#     # Valida categoria
-#     category = db.query(models.Category).filter(
-#         models.Category.id == product_data.category_id,
-#         models.Category.store_id == store.id
-#     ).first()
-#     if not category:
-#         raise HTTPException(status_code=400, detail="Category not found")
-#
-#     # Upload da imagem
-#     file_key = upload_file(image)
-#
-#     # Cria produto com dados do formulário e a chave da imagem
-#     db_product = models.Product(
-#         **product_data.model_dump(exclude_unset=True),
-#         store_id=store.id,
-#         file_key=file_key
-#     )
-#
-#     # Associa variantes ao produto (se houver)
-#     if variant_ids:
-#         variants = db.query(models.Variant).filter(models.Variant.id.in_(variant_ids)).all()
-#         db_product.variants = variants
-#
-#     db.add(db_product)
-#     db.commit()
-#     db.refresh(db_product)
-#     return db_product
 
 
 @router.get("", response_model=list[ProductOut])
@@ -253,7 +218,7 @@ async def patch_product(
 
 
 
-@router.get("/stores/{store_id}/products/{product_id}/variants", response_model=List[int])
+@router.get("/{product_id}/variants", response_model=list[VariantSelectionPayload])
 
 def list_variants_for_product(store_id: int, product_id: int, db: GetDBDep):
     links = db.query(models.ProductVariantProduct).filter_by(product_id=product_id).all()
@@ -263,7 +228,7 @@ def list_variants_for_product(store_id: int, product_id: int, db: GetDBDep):
 
 
 
-@router.post("/stores/{store_id}/products/{product_id}/variants", status_code=204)
+@router.post("/{product_id}/variants", status_code=204)
 def save_variants_for_product(
     store_id: int,
     product_id: int,
@@ -301,98 +266,3 @@ async def delete_product(product_id: int,  store: GetStoreDep, db: GetDBDep, db_
     delete_file(old_file_key)
     await asyncio.create_task(refresh_product_list(db, store.id))
     return
-
-# @router.patch("/{product_id}", response_model=Product)
-# def patch_product(
-#         db: GetDBDep,
-#         db_product: GetProductDep,
-#         name: str | None = Form(None),
-#         description: str | None = Form(None),
-#         base_price: int | None = Form(None),
-#         cost_price: int | None = Form(None),
-#         available: bool | None = Form(None),
-#         category_id: int | None = Form(None),
-#
-#         promotion_price: int | None = Form(None),
-#
-#         featured: bool | None = Form(None),
-#
-#
-#         activate_promotion: bool | None = Form(None),
-#
-#
-#
-#
-#         ean: str | None = Form(None),
-#         code: str | None = Form(None),
-#         auto_code: bool | None = Form(None),
-#         extra_code: str | None = Form(None),
-#         stock_quantity: int | None = Form(None),
-#         control_stock: bool | None = Form(None),
-#         min_stock: int | None = Form(None),
-#         max_stock: int | None = Form(None),
-#         unit: str | None = Form(None),
-#         allow_fraction: bool | None = Form(None),
-#         observation: str | None = Form(None),
-#         location: str | None = Form(None),
-#         image: UploadFile | None = File(None),
-# ):
-#     if name: db_product.name = name
-#     if description: db_product.description = description
-#     if base_price is not None: db_product.base_price = base_price
-#     if cost_price is not None: db_product.cost_price = cost_price
-#     if available is not None: db_product.available = available
-#
-#     if promotion_price is not None: db_product.promotion_price = promotion_price
-#     if activate_promotion is not None: db_product.activate_promotion = activate_promotion
-#     if featured is not None: db_product.featured = featured
-#
-#     if category_id:
-#         category = db.query(models.Category).filter(
-#             models.Category.id == category_id,
-#             models.Category.store_id == db_product.store_id
-#         ).first()
-#
-#         if not category:
-#             raise HTTPException(status_code=400, detail="Category not found")
-#         db_product.category_id = category_id
-#
-#
-#
-#     if ean is not None:
-#         db_product.ean = ean
-#     if code is not None:
-#         db_product.code = code
-#     if auto_code is not None:
-#         db_product.auto_code = auto_code
-#     if extra_code is not None:
-#         db_product.extra_code = extra_code
-#     if stock_quantity is not None:
-#         db_product.stock_quantity = stock_quantity
-#     if control_stock is not None:
-#         db_product.control_stock = control_stock
-#     if min_stock is not None:
-#         db_product.min_stock = min_stock
-#     if max_stock is not None:
-#         db_product.max_stock = max_stock
-#     if unit is not None:
-#         db_product.unit = unit
-#     if allow_fraction is not None:
-#         db_product.allow_fraction = allow_fraction
-#     if observation is not None:
-#         db_product.observation = observation
-#     if location is not None:
-#         db_product.location = location
-#
-#     file_to_delete = None
-#     if image:
-#         file_to_delete = db_product.file_key
-#         file_key = upload_file(image)
-#         db_product.file_key = file_key
-#
-#     db.commit()
-#
-#     if file_to_delete:
-#         delete_file(file_to_delete)
-#
-#     return db_product
