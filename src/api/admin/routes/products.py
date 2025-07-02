@@ -246,31 +246,34 @@ def save_variants_for_product(
     db.commit()
 
 
-
-@router.get("/grouped-by-category")
-def get_products_grouped_by_category(
-    store_id: int,  # <-- adicionado
-    db: GetDBDep,
-):
-    store = db.query(models.Store).filter_by(id=store_id).first()
-    if not store:
-        raise HTTPException(status_code=404, detail="Store not found")
-
-    products = db.query(models.Product).filter_by(store_id=store.id).all()
-
-    result = {}
-    for product in products:
-        cat_id = product.category_id or 0
-        result.setdefault(cat_id, []).append(ProductOut.from_orm(product))
-
-    return result
-
-
+#
+# @router.get("/grouped-by-category")
+# def get_products_grouped_by_category(
+#     store_id: int,  # <-- adicionado
+#     db: GetDBDep,
+# ):
+#     store = db.query(models.Store).filter_by(id=store_id).first()
+#     if not store:
+#         raise HTTPException(status_code=404, detail="Store not found")
+#
+#     products = db.query(models.Product).filter_by(store_id=store.id).all()
+#
+#     result = {}
+#     for product in products:
+#         cat_id = product.category_id or 0
+#         result.setdefault(cat_id, []).append(ProductOut.from_orm(product))
+#
+#     return result
 
 
 
 
 
+
+@router.get("/minimal", response_model=list[dict])
+def get_minimal_products(store_id: int, db: GetDBDep):
+    products = db.query(models.Product).filter(models.Product.store_id == store_id).all()
+    return [{"id": p.id, "name": p.name} for p in products]
 
 
 
