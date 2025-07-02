@@ -249,30 +249,21 @@ def save_variants_for_product(
 
 @router.get("/grouped-by-category")
 def get_products_grouped_by_category(
-    store: GetStoreDep,
+    store_id: int,  # <-- adicionado
     db: GetDBDep,
 ):
+    store = db.query(models.Store).filter_by(id=store_id).first()
+    if not store:
+        raise HTTPException(status_code=404, detail="Store not found")
+
     products = db.query(models.Product).filter_by(store_id=store.id).all()
 
-    result = defaultdict(list)
-
+    result = {}
     for product in products:
-        category = product.category
-        category_data = {
-            "id": category.id if category else 0,
-            "name": category.name if category else "Sem categoria"
-        }
+        cat_id = product.category_id or 0
+        result.setdefault(cat_id, []).append(ProductOut.from_orm(product))
 
-        product_data = ProductOut.from_orm(product).model_dump()
-        result[frozenset(category_data.items())].append(product_data)
-
-    # Converter para chave legível no JSON
-    formatted_result = {}
-    for key, products_list in result.items():
-        category_dict = dict(key)
-        formatted_result[category_dict] = products_list
-
-    return JSONResponse(content=formatted_result)
+    return result
 
 
 
