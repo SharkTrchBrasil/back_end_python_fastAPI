@@ -218,12 +218,11 @@ async def patch_product(
 
 
 
-@router.get("/{product_id}/variants", response_model=list[VariantSelectionPayload])
-
-def list_variants_for_product(store_id: int, product_id: int, db: GetDBDep):
-    links = db.query(models.ProductVariantProduct).filter_by(product_id=product_id).all()
-    variant_ids = [link.variant_id for link in links]
-    return variant_ids
+@router.get("/variants/{variant_id}/products", response_model=List[int])
+def list_products_linked_to_variant(store_id: int, variant_id: int, db: GetDBDep):
+    links = db.query(models.ProductVariantProduct).filter_by(variant_id=variant_id).all()
+    product_ids = [link.product_id for link in links]
+    return product_ids
 
 
 
