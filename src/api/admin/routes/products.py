@@ -106,6 +106,12 @@ async def create_product(
 
 
 
+@router.get("/minimal", response_model=list[dict])
+def get_minimal_products(store_id: int, db: GetDBDep):
+    products = db.query(models.Product).filter(models.Product.store_id == store_id).all()
+    return [{"id": p.id, "name": p.name} for p in products]
+
+
 
 
 
@@ -268,12 +274,6 @@ def save_variants_for_product(
 
 
 
-
-
-@router.get("/minimal", response_model=list[dict])
-def get_minimal_products(store_id: int, db: GetDBDep):
-    products = db.query(models.Product).filter(models.Product.store_id == store_id).all()
-    return [{"id": p.id, "name": p.name} for p in products]
 
 
 
