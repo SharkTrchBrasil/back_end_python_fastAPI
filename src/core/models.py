@@ -701,9 +701,6 @@ class Order(Base, TimestampMixin):
     def totem_name(self):
         return self.totem.totem_name if self.totem else None
 
-    @property
-    def charge_status(self):
-        return self.charge.status if self.charge else None
 
 class OrderProduct(Base, TimestampMixin):
     __tablename__ = "order_products"

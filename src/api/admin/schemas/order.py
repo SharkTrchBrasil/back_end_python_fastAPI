@@ -47,7 +47,6 @@ class Order(BaseModel):
     total_price: int
     discounted_total_price: int
     totem_name: str | None = None
-    charge_status: str | None = None
     created_at: datetime
 
 
