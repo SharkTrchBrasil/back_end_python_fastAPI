@@ -2,7 +2,6 @@ import datetime
 from operator import or_
 from urllib.parse import parse_qs
 
-
 import sqlalchemy
 from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError
@@ -32,30 +31,41 @@ from src.core.models import Coupon
 from src.api.app.schemas.coupon import Coupon as CouponSchema
 from src.core.security import verify_access_token
 from src.socketio_instance import sio
+
+
 @sio.event(namespace="/admin")
 async def connect(sid, environ, auth):
     try:
         print(f"\n[SOCKET] >>> Conectando: SID={sid}")
+
         token = auth.get("token_admin")
         store_id = auth.get("store_id")
 
         if not token:
+            print("[SOCKET] Token ausente")
             raise ConnectionRefusedError("Token ausente")
 
+        try:
+            store_id = int(store_id)
+        except (TypeError, ValueError):
+            print(f"[SOCKET] store_id inválido ou ausente: {store_id}")
+            raise ConnectionRefusedError("Store ID inválido ou ausente")
+
         token_data = verify_access_token(token)
-        print(f"[SOCKET] Token data: {token_data}")
         if not token_data:
+            print("[SOCKET] Token inválido")
             raise ConnectionRefusedError("Token inválido")
 
-        email = token_data["sub"]
+        email = token_data.get("sub")
+        if not email:
+            print("[SOCKET] Token sem campo 'sub'")
+            raise ConnectionRefusedError("Token inválido")
 
         with get_db_manager() as db:
             user = db.query(models.User).filter_by(email=email).first()
             if not user:
-                print("[SOCKET] Usuário não encontrado")
+                print(f"[SOCKET] Usuário não encontrado para email {email}")
                 raise ConnectionRefusedError("Usuário inválido")
-
-            print(f"[SOCKET] Verificando acesso: user_id={user.id}, store_id={store_id}")
 
             acesso = db.query(models.StoreAccess).filter_by(
                 user_id=user.id,
@@ -63,15 +73,12 @@ async def connect(sid, environ, auth):
             ).first()
 
             if not acesso:
-                print("[SOCKET] Acesso negado: usuário não tem acesso à loja")
+                print(f"[SOCKET] Acesso negado para user_id={user.id} na store_id={store_id}")
                 raise ConnectionRefusedError("Acesso negado à loja")
 
-            # Se chegou até aqui, pode conectar
             await sio.enter_room(sid, f"store_{store_id}", namespace="/admin")
-            print(f"[SOCKET] Entrou na sala store_{store_id}")
-
             await sio.emit("admin_connected", {"store_id": store_id}, to=sid, namespace="/admin")
-            print(f"[SOCKET] Evento 'admin_connected' emitido")
+            print(f"[SOCKET] Usuário conectado na sala store_{store_id}")
 
     except ConnectionRefusedError as e:
         print(f"[SOCKET] Conexão recusada: {e}")
@@ -82,10 +89,10 @@ async def connect(sid, environ, auth):
         traceback.print_exc()
         raise ConnectionRefusedError("Erro interno")
 
-# Evento de desconexão do Socket.IO
+
 @sio.event
 async def disconnect(sid, reason):
-    print("disconnect", sid, reason)
+    print(f"[SOCKET] Desconectado: SID={sid}, reason={reason}")
 
     with get_db_manager() as db:
         totem = db.query(models.TotemAuthorization).filter_by(sid=sid).first()
@@ -93,4 +100,4 @@ async def disconnect(sid, reason):
             await sio.leave_room(sid, f"store_{totem.store_id}")
             totem.sid = None
             db.commit()
-
+            print(f"[SOCKET] SID {sid} saiu da sala store_{totem.store_id}")
