@@ -57,7 +57,7 @@ async def refresh_product_list(db, store_id: int, sid: str | None = None):
 async def connect(sid, environ):
     query = parse_qs(environ.get("QUERY_STRING", ""))
     token = query.get("totem_token", [None])[0]
-
+    print(f"🔥 ADMIN socket connect: SID={sid}, Query={environ.get('QUERY_STRING')}")
     if not token:
         raise ConnectionRefusedError("Missing token")
 
