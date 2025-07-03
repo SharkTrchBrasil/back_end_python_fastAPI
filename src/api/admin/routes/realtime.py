@@ -32,47 +32,54 @@ from src.core.models import Coupon
 from src.api.app.schemas.coupon import Coupon as CouponSchema
 from src.core.security import verify_access_token
 from src.socketio_instance import sio
-
 @sio.event(namespace="/admin")
 async def connect(sid, environ, auth):
     try:
-        print(f"[SOCKET] Tentando conectar SID={sid}")
+        print(f"\n[SOCKET] >>> Conectando: SID={sid}")
         token = auth.get("token_admin")
         store_id = auth.get("store_id")
-        print(f"[SOCKET] Token: {token}")
-        print(f"[SOCKET] store_id: {store_id}")
+
+        if not token:
+            raise ConnectionRefusedError("Token ausente")
 
         token_data = verify_access_token(token)
-        print(f"[SOCKET] token_data: {token_data}")
+        print(f"[SOCKET] Token data: {token_data}")
         if not token_data:
             raise ConnectionRefusedError("Token inválido")
 
         email = token_data["sub"]
-        print(f"[SOCKET] email extraído do token: {email}")
 
         with get_db_manager() as db:
             user = db.query(models.User).filter_by(email=email).first()
             if not user:
-                raise ConnectionRefusedError("Usuário não encontrado")
+                print("[SOCKET] Usuário não encontrado")
+                raise ConnectionRefusedError("Usuário inválido")
 
-            print(f"[SOCKET] user_id: {user.id}")
+            print(f"[SOCKET] Verificando acesso: user_id={user.id}, store_id={store_id}")
 
-            has_access = db.query(models.StoreAccess).filter_by(
+            acesso = db.query(models.StoreAccess).filter_by(
                 user_id=user.id,
                 store_id=store_id
             ).first()
 
-            if not has_access:
+            if not acesso:
+                print("[SOCKET] Acesso negado: usuário não tem acesso à loja")
                 raise ConnectionRefusedError("Acesso negado à loja")
 
+            # Se chegou até aqui, pode conectar
             await sio.enter_room(sid, f"store_{store_id}", namespace="/admin")
+            print(f"[SOCKET] Entrou na sala store_{store_id}")
+
             await sio.emit("admin_connected", {"store_id": store_id}, to=sid, namespace="/admin")
+            print(f"[SOCKET] Evento 'admin_connected' emitido")
 
     except ConnectionRefusedError as e:
         print(f"[SOCKET] Conexão recusada: {e}")
         raise
     except Exception as e:
         print(f"[SOCKET] Erro inesperado: {e}")
+        import traceback
+        traceback.print_exc()
         raise ConnectionRefusedError("Erro interno")
 
 # Evento de desconexão do Socket.IO
