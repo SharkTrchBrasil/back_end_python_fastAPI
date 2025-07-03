@@ -122,7 +122,7 @@ async def connect(sid, environ):
                 banner_payload = [BannerOut.model_validate(b).model_dump() for b in banners]
                 await sio.emit("banners_updated", banner_payload, to=sid)
 
-            orders = db.query(models.Order).filter_by(store_id=totem.store_id).order_by(models.Order.cr.desc()).limit(20).all() # Exemplo: últimos 20 pedidos
+            orders = db.query(models.Order).filter_by(store_id=totem.store_id).order_by(models.Order.created_at.desc()).limit(20).all() # Exemplo: últimos 20 pedidos
             if orders:
 
                 order_payload = [Order.model_validate(o).model_dump() for o in orders]
