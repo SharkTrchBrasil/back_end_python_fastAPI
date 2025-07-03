@@ -343,6 +343,27 @@ async def send_order(sid, data):
                 coupon.used += 1
 
             db.add(db_order)
+
+            # Verifica se já existe o vínculo do cliente com a loja
+            store_customer = db.query(models.StoreCustomer).filter_by(
+                store_id=totem.store_id,
+                customer_id=new_order.customer_id
+            ).first()
+
+            if store_customer:
+                store_customer.total_orders += 1
+                store_customer.total_spent += discounted_total
+                store_customer.last_order_at = datetime.datetime.utcnow()
+            else:
+                store_customer = models.StoreCustomer(
+                    store_id=totem.store_id,
+                    customer_id=new_order.customer_id,
+                    total_orders=1,
+                    total_spent=discounted_total,
+                    last_order_at=datetime.datetime.utcnow()
+                )
+                db.add(store_customer)
+
             db.commit()
 
             await sio.emit(

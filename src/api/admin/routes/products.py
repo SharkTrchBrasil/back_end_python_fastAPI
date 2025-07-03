@@ -255,32 +255,6 @@ async def save_variants_for_product(
 
 
 
-#
-# @router.get("/grouped-by-category")
-# def get_products_grouped_by_category(
-#     store_id: int,  # <-- adicionado
-#     db: GetDBDep,
-# ):
-#     store = db.query(models.Store).filter_by(id=store_id).first()
-#     if not store:
-#         raise HTTPException(status_code=404, detail="Store not found")
-#
-#     products = db.query(models.Product).filter_by(store_id=store.id).all()
-#
-#     result = {}
-#     for product in products:
-#         cat_id = product.category_id or 0
-#         result.setdefault(cat_id, []).append(ProductOut.from_orm(product))
-#
-#     return result
-
-
-
-
-
-
-
-
 @router.delete("/{product_id}", status_code=204)
 async def delete_product(product_id: int,  store: GetStoreDep, db: GetDBDep, db_product: GetProductDep):
     old_file_key = db_product.file_key

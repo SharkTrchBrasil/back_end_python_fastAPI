@@ -36,69 +36,29 @@ from src.socketio_instance import sio
 
 @sio.event(namespace="/admin")
 async def connect(sid, environ, auth):
-    try:
-        print(f"\n[SOCKET ADMIN] Tentando conectar: SID={sid}")
+    token = auth.get("token_admin")
+    store_id = auth.get("store_id")
 
-        # 1. Obtem o token da autenticação
-        token = (
-            auth.get("token_admin")
-            if auth
-            else parse_qs(environ.get("QUERY_STRING", "")).get("token_admin", [None])[0]
-        )
-        print(f"[SOCKET ADMIN] Token recebido: {token}")
+    token_data = verify_access_token(token)
+    if not token_data:
+        raise ConnectionRefusedError("Invalid token")
 
-        if not token:
-            print(f"[SOCKET ADMIN] Token ausente para SID {sid}")
-            raise ConnectionRefusedError("Missing admin token")
+    email = token_data["sub"]
 
-        # 2. Decodifica e valida o token
-        token_data = verify_access_token(token)
-        if not token_data or "store_id" not in token_data:
-            print(f"[SOCKET ADMIN] Token inválido ou sem store_id")
-            raise ConnectionRefusedError("Invalid or expired token")
+    with get_db_manager() as db:
+        user = db.query(models.User).filter_by(email=email).first()
 
-        store_id = token_data["store_id"]
-        print(f"[SOCKET ADMIN] store_id extraído do token: {store_id}")
+        # ✅ Verifica se o user tem acesso a essa loja
+        has_access = db.query(models.StoreAccess).filter_by(
+            user_id=user.id,
+            store_id=store_id
+        ).first()
 
-        # 3. Consulta o TotemAuthorization baseado no store_id
-        with get_db_manager() as db:
-            totem = db.query(models.TotemAuthorization).filter(
-                models.TotemAuthorization.store_id == store_id,
-                models.TotemAuthorization.granted.is_(True),
-            ).first()
+        if not has_access:
+            raise ConnectionRefusedError("User does not have access to this store")
 
-            if not totem or not totem.store:
-                print(f"[SOCKET ADMIN] Totem não encontrado para store_id={store_id}")
-                raise ConnectionRefusedError("Totem not authorized or store not found")
-
-            # (Opcional) Salva o SID se necessário
-            totem.sid = sid
-            db.commit()
-
-        # 4. Entra na sala da loja
-        room_name = f"store_{store_id}"
-        await sio.enter_room(sid, room_name, namespace="/admin")
-        print(f"[SOCKET ADMIN] Conectado à sala: {room_name}")
-
-        # 5. Emite evento de confirmação de conexão
-        await sio.emit(
-            "admin_connected",
-            {
-                "status": "connected",
-                "store_id": store_id,
-            },
-            to=sid,
-            namespace="/admin",
-        )
-
-    except ConnectionRefusedError as e:
-        print(f"[SOCKET ADMIN] Conexão recusada: {e}\n")
-        raise
-    except Exception as e:
-        print(f"[SOCKET ADMIN] Erro inesperado: {e}")
-        import traceback
-        traceback.print_exc()
-        raise ConnectionRefusedError("Internal error")
+        # Entra na sala da loja
+        await sio.enter_room(sid, f"store_{store_id}", namespace="/admin")
 
 # Evento de desconexão do Socket.IO
 @sio.event

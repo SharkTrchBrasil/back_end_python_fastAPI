@@ -62,6 +62,10 @@ class Store(Base, TimestampMixin):
     products: Mapped[list["Product"]] = relationship()
     coupons: Mapped[list["Coupon"]] = relationship()
 
+    # no Store
+    store_customers = relationship("StoreCustomer", back_populates="store")
+
+
 
     themes: Mapped[list["StoreTheme"]] = relationship()
 
@@ -175,7 +179,7 @@ class Product(Base, TimestampMixin):
     tag: Mapped[str] = mapped_column(default="")
 
     product_ratings: Mapped[List["ProductRating"]] = relationship(back_populates="product")
-
+    sold_count: Mapped[int] = mapped_column()
 
 class Variant(Base, TimestampMixin):
     __tablename__ = "variants"
@@ -590,6 +594,9 @@ class Customer(Base):
     product_ratings: Mapped[List["ProductRating"]] = relationship(back_populates="customer")
 
 
+    # no Customer
+    store_customers = relationship("StoreCustomer", back_populates="customer")
+
 class Address(Base):
     __tablename__ = "customer_addresses"
 
@@ -854,8 +861,17 @@ class ProductRating(Base, TimestampMixin):
 
 
 
+class StoreCustomer(Base, TimestampMixin):
+    __tablename__ = "store_customers"
 
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), primary_key=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), primary_key=True)
 
+    total_orders: Mapped[int] = mapped_column(default=1)
+    total_spent: Mapped[int] = mapped_column(default=0)
+    last_order_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    store = relationship("Store", back_populates="store_customers")
+    customer = relationship("Customer", back_populates="store_customers")
 
 
 
