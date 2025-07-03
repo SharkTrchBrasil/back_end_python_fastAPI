@@ -32,62 +32,39 @@ from src.api.app.schemas.coupon import Coupon as CouponSchema
 from src.core.security import verify_access_token
 from src.socketio_instance import sio
 
-
 @sio.event(namespace="/admin")
 async def connect(sid, environ, auth):
     try:
-        print(f"\n[SOCKET] >>> Conectando: SID={sid}")
+        print(f"[ADMIN SOCKET] Conectando SID={sid}")
+        token = auth.get("totem_token")
+        store_url = auth.get("store_url")
 
-        token = auth.get("token_admin")
-        store_id = auth.get("store_id")
-
-        if not token:
-            print("[SOCKET] Token ausente")
-            raise ConnectionRefusedError("Token ausente")
-
-        try:
-            store_id = int(store_id)
-        except (TypeError, ValueError):
-            print(f"[SOCKET] store_id inválido ou ausente: {store_id}")
-            raise ConnectionRefusedError("Store ID inválido ou ausente")
-
-        token_data = verify_access_token(token)
-        if not token_data:
-            print("[SOCKET] Token inválido")
-            raise ConnectionRefusedError("Token inválido")
-
-        email = token_data.get("sub")
-        if not email:
-            print("[SOCKET] Token sem campo 'sub'")
-            raise ConnectionRefusedError("Token inválido")
+        if not token or not store_url:
+            raise ConnectionRefusedError("Token ou store_url ausente")
 
         with get_db_manager() as db:
-            user = db.query(models.User).filter_by(email=email).first()
-            if not user:
-                print(f"[SOCKET] Usuário não encontrado para email {email}")
-                raise ConnectionRefusedError("Usuário inválido")
-
-            acesso = db.query(models.StoreAccess).filter_by(
-                user_id=user.id,
-                store_id=store_id
+            totem = db.query(models.TotemAuthorization).filter_by(
+                totem_token=token,
+                store_url=store_url,
+                granted=True
             ).first()
 
-            if not acesso:
-                print(f"[SOCKET] Acesso negado para user_id={user.id} na store_id={store_id}")
-                raise ConnectionRefusedError("Acesso negado à loja")
+            if not totem:
+                raise ConnectionRefusedError("Token inválido ou não autorizado")
 
-            await sio.enter_room(sid, f"store_{store_id}", namespace="/admin")
-            await sio.emit("admin_connected", {"store_id": store_id}, to=sid, namespace="/admin")
-            print(f"[SOCKET] Usuário conectado na sala store_{store_id}")
+            # Atualiza o SID para rastrear desconexão
+            totem.sid = sid
+            db.commit()
 
-    except ConnectionRefusedError as e:
-        print(f"[SOCKET] Conexão recusada: {e}")
-        raise
+            room_name = f"store_{totem.store_id}"
+            await sio.enter_room(sid, room_name, namespace="/admin")
+
+            await sio.emit("admin_connected", {"store_id": totem.store_id}, to=sid, namespace="/admin")
+            print(f"[ADMIN SOCKET] Conectado e entrou na sala {room_name}")
+
     except Exception as e:
-        print(f"[SOCKET] Erro inesperado: {e}")
-        import traceback
-        traceback.print_exc()
-        raise ConnectionRefusedError("Erro interno")
+        print(f"[ADMIN SOCKET] Erro na conexão: {e}")
+        raise ConnectionRefusedError("Falha na autenticação")
 
 
 @sio.event
