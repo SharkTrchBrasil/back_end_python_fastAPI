@@ -38,6 +38,7 @@ class Store(Base, TimestampMixin):
 
     # Identidade visual
     file_key: Mapped[Optional[str]] = mapped_column(nullable=True)
+    banner_file_key: Mapped[Optional[str]] = mapped_column(nullable=True)
 
     # Redes sociais
     instagram: Mapped[Optional[str]] = mapped_column(nullable=True)

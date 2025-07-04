@@ -37,6 +37,14 @@ class StoreBase(BaseModel):
 
     # Imagem (opcional)
     file_key: Optional[str] = None
+    # No StoreBase
+    banner_file_key: Optional[str] = None
+
+    @computed_field
+    @property
+    def banner_path(self) -> str:
+        return get_presigned_url(self.banner_file_key) if self.banner_file_key else ""
+
 
     @computed_field
     @property
@@ -85,9 +93,17 @@ class StoreUpdate(BaseModel):
     facebook: Optional[str] = None
     tiktok: Optional[str] = None
     plan_type: Optional[str] = None
+
+
     file_key: Optional[str] = None
+    banner_file_key: Optional[str] = None
 
     @computed_field
     @property
     def image_path(self) -> str:
         return get_presigned_url(self.file_key) if self.file_key else ""
+
+    @computed_field
+    @property
+    def banner_path(self) -> str:
+        return get_presigned_url(self.banner_file_key) if self.banner_file_key else ""

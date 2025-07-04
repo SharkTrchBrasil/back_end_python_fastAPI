@@ -148,6 +148,8 @@ async def patch_store(
     state: str | None = Form(None),
     description:  str | None = Form(None),
     image: UploadFile | None = File(None),
+    banner: UploadFile | None = File(None),
+
 ):
     file_key_to_delete = None
 
@@ -156,6 +158,14 @@ async def patch_store(
         file_key_to_delete = store.file_key
         new_file_key = upload_file(image)
         store.file_key = new_file_key
+
+    banner_key_to_delete = None
+
+    if banner:
+        banner_key_to_delete = store.banner_file_key
+        new_banner_key = upload_file(banner)
+        store.banner_file_key = new_banner_key
+
 
     if name is not None: store.name = name
     if phone is not None: store.phone = phone
@@ -184,9 +194,12 @@ async def patch_store(
     db.commit()
     db.refresh(store)
 
-    # Se a logo foi alterada, exclua a antiga
     if file_key_to_delete:
         delete_file(file_key_to_delete)
+
+    if banner_key_to_delete:
+        delete_file(banner_key_to_delete)
+
 
     await asyncio.create_task(emit_store_updated(store))
 
