@@ -83,6 +83,7 @@ def create_store(
     # Garante que seja único
     unique_slug = generate_unique_slug(db, base_slug)
 
+    db_store.store_url = unique_slug
 
     totem_auth = models.TotemAuthorization(
         store_id=db_store.id,
