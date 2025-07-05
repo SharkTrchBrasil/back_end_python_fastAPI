@@ -15,7 +15,7 @@ from src.api.admin.routes.webhook import router as webhook_router
 from src.api.admin.routes.store_city import router as city_router
 from src.api.admin.routes.store_neighborhood import router as neighborhood_router
 from src.api.admin.routes.store_payable import router as payables_router
-
+from src.api.admin.routes.store_customer import router as customers_router
 
 
 
@@ -76,3 +76,5 @@ router.include_router(banners_router)
 router.include_router(store_ratings_router)
 
 router.include_router(orders_router)
+
+router.include_router(store_hours_router)
