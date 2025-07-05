@@ -12,6 +12,7 @@ from src.api.admin.services.order_code import generate_unique_public_id, gerar_s
 
 from src.api.app.schemas.new_order import NewOrder
 from src.api.app.schemas.store_details import StoreDetails
+from src.api.app.services.add_customer_store import register_customer_store_relationship
 from src.api.app.services.check_variants import validate_order_variants
 
 from src.api.app.services.rating import (
@@ -344,25 +345,13 @@ async def send_order(sid, data):
 
             db.add(db_order)
 
-            # Verifica se já existe o vínculo do cliente com a loja
-            store_customer = db.query(models.StoreCustomer).filter_by(
+            # Atualiza o vínculo do cliente com a loja
+            register_customer_store_relationship(
+                db=db,
                 store_id=totem.store_id,
-                customer_id=new_order.customer_id
-            ).first()
-
-            if store_customer:
-                store_customer.total_orders += 1
-                store_customer.total_spent += discounted_total
-                store_customer.last_order_at = datetime.datetime.utcnow()
-            else:
-                store_customer = models.StoreCustomer(
-                    store_id=totem.store_id,
-                    customer_id=new_order.customer_id,
-                    total_orders=1,
-                    total_spent=discounted_total,
-                    last_order_at=datetime.datetime.utcnow()
-                )
-                db.add(store_customer)
+                customer_id=new_order.customer_id,
+                order_total=discounted_total
+            )
 
             db.commit()
 
