@@ -34,7 +34,7 @@ class StoreBase(BaseModel):
     # Plano
     plan_type: Optional[str] = "free"
     delivery_config: Optional[StoreDeliveryConfig] = None  # Nested Delivery Config
-
+    store_url: Optional[str] = None
     # Imagem (opcional)
     file_key: Optional[str] = None
     # No StoreBase

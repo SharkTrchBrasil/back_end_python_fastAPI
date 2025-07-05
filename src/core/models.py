@@ -45,11 +45,11 @@ class Store(Base, TimestampMixin):
     facebook: Mapped[Optional[str]] = mapped_column(nullable=True)
     tiktok: Mapped[Optional[str]] = mapped_column(nullable=True)
 
+
     # Plano
     plan_type: Mapped[str] = mapped_column(default="free", nullable=False)
-
+    store_url: Mapped[Optional[str]] = mapped_column(nullable=True)
     # Relacionamentos
-
 
     accesses = relationship("StoreAccess", back_populates="store")
     categories = relationship("Category", back_populates="store")
