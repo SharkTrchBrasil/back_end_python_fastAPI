@@ -195,7 +195,8 @@ async def send_order(sid, data):
                 coupon_id=optional_coupon.id if optional_coupon else None,
                 street=new_order.street,
                 number=new_order.number,
-                complement=new_order.complement,
+                complement=new_order.complement if new_order.complement else None,
+                attendant_name= new_order.attendant_name  if new_order.attendant_name else None,
                 neighborhood=new_order.neighborhood,
                 city=new_order.city,
             )
