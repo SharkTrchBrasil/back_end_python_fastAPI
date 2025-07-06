@@ -17,7 +17,6 @@ def get_orders(
 
 
 
-#TODO: AQUI VERIFICAR ORDERDETAILS COLOQUEI ORDER
 @router.get("/{order_id}", response_model=OrderDetails)
 def get_order(
         db: GetDBDep,
