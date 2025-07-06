@@ -18,29 +18,27 @@ from src.socketio_instance import sio
 
 @sio.event
 async def connect(sid, environ):
-    print(f"[SOCKET.IO] ✅ Novo socket conectado: {sid}")
+    print(f"[SOCKET.IO] ✅ Novo admin conectado: {sid}")
     query = parse_qs(environ.get("QUERY_STRING", ""))
-    token = query.get("totem_token", [None])[0]
+    token = query.get("admin_token", [None])[0]  # Renomeado para admin_token
 
     if not token:
-        raise ConnectionRefusedError("Missing token")
+        raise ConnectionRefusedError("Token de admin ausente")
 
     with get_db_manager() as db:
-        totem = await authorize_admin(db, token)
-        if not totem:
-            raise ConnectionRefusedError("Invalid or unauthorized token")
+        admin = await authorize_admin(db, token)  # Assume que authorize_admin verifica credenciais de admin
+        if not admin:
+            raise ConnectionRefusedError("Token de admin inválido ou não autorizado")
 
-        # Atualiza o SID do totem
-        totem.sid = sid
-        db.commit()
-
-        room_name = f"store_{totem.store_id}"
+        # Room específica para admin (opcional, se quiser segregar por loja)
+        room_name = f"admin_store_{admin.store_id}"
         await sio.enter_room(sid, room_name)
+        print(f"[SOCKET.IO] Admin entrou na room: {room_name}")
 
-        # Emite dados iniciais para o painel/admin
-        await emit_store_full_updated(db, totem.store_id, sid)
-        await product_list_all(db, totem.store_id, sid)
-        await emit_orders_initial(db, totem.store_id, sid)
+        # Emite dados iniciais
+        await emit_store_full_updated(db, admin.store_id, sid)
+        await product_list_all(db, admin.store_id, sid)
+        await emit_orders_initial(db, admin.store_id, sid)
 
 
 # Evento de desconexão do Socket.IO
@@ -53,3 +51,7 @@ async def disconnect(sid, reason):
             await sio.leave_room(sid, f"store_{totem.store_id}")
             totem.sid = None
             db.commit()
+
+
+
+
