@@ -700,8 +700,8 @@ class Order(Base, TimestampMixin):
     )
     coupon = relationship("Coupon", back_populates="orders")
 
-    # needs_change: Mapped[bool] = mapped_column(default=False)
-    # change_amount: Mapped[float | None] = mapped_column(nullable=True)
+    needs_change: Mapped[bool] = mapped_column(default=False)
+    change_amount: Mapped[float | None] = mapped_column(nullable=True)
 
     observation: Mapped[str | None] = mapped_column(nullable=True)
     delivery_fee: Mapped[int] = mapped_column(default=0)

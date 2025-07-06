@@ -38,13 +38,18 @@ class NewOrder(BaseModel):
     coupon_code: Optional[str] = None  # 👈 Aqui você recebe
     products: List[NewOrderProduct]
     payment_method_name: str | None = None
-
+    attendant_name: str | None = None
 
     delivery_type: Optional[str] = None
     address: AddressOut | None = None
     payment_method_id: Optional[int] = None
+
+    # troco
     needs_change: Optional[bool] = False
     change_for: Optional[float] = None
+
+    # fim #
+
     observation: Optional[str] = None
     delivery_fee: Optional[float] = 0.0
 
