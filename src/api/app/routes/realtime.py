@@ -36,6 +36,9 @@ from src.core.models import Coupon
 from src.api.app.schemas.coupon import Coupon as CouponSchema
 from src.socketio_instance import sio
 
+from src.api.app.schemas.order import Order as OrderSchema
+
+
 
 
 
@@ -340,7 +343,8 @@ async def send_order(sid, data):
             db.refresh(db_order)
 
 
-            order_dict = Order.model_validate(db_order).model_dump()
+            order_dict = OrderSchema.model_validate(db_order).model_dump()
+
             return {"success": True, "order": order_dict}
 
         except sqlalchemy.exc.IntegrityError as e:
