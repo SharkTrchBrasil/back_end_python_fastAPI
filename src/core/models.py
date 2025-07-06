@@ -408,7 +408,8 @@ class StorePaymentMethods(Base, TimestampMixin):
 
     pix_key:        Mapped[str]  = mapped_column(nullable=True)
 
-    orders = relationship('Order', back_populates='payment_method')
+
+    orders = relationship("Order", back_populates="payment_method", passive_deletes=True)
 
 
 class StoreDeliveryConfiguration(Base, TimestampMixin):
@@ -676,34 +677,40 @@ class Order(Base, TimestampMixin):
     total_price: Mapped[int] = mapped_column()
     discounted_total_price : Mapped[int] = mapped_column()
 
-    totem_id: Mapped[int | None] = mapped_column(ForeignKey("totem_authorizations.id"))
-
+    totem_id: Mapped[int | None] = mapped_column(
+        ForeignKey("totem_authorizations.id", ondelete="SET NULL"),
+        nullable=True
+    )
     totem: Mapped[TotemAuthorization | None] = relationship()
 
+    payment_status: Mapped[str] = mapped_column()
+    order_status: Mapped[str] = mapped_column()
 
-    payment_status: Mapped[str] = mapped_column()  # Ex: "pendente", "pago", "cancelado"
-    order_status: Mapped[str] = mapped_column()    # Ex: "recebido", "em_preparo", "pronto", "finalizado", "cancelado"
-
-    payment_method_id: Mapped[int] = mapped_column(ForeignKey("store_payment_methods.id"), nullable=False)
+    payment_method_id: Mapped[int | None] = mapped_column(
+        ForeignKey("store_payment_methods.id", ondelete="SET NULL"),
+        nullable=True
+    )
     payment_method = relationship("StorePaymentMethods", back_populates="orders")
+
     payment_method_name: Mapped[str | None] = mapped_column(nullable=True)
 
-    needs_change: Mapped[bool] = mapped_column(default=False)
-    change_amount: Mapped[float | None] = mapped_column(nullable=True)
+    coupon_id: Mapped[int | None] = mapped_column(
+        ForeignKey("coupons.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    coupon = relationship("Coupon", back_populates="orders")
+
+    # needs_change: Mapped[bool] = mapped_column(default=False)
+    # change_amount: Mapped[float | None] = mapped_column(nullable=True)
 
     observation: Mapped[str | None] = mapped_column(nullable=True)
     delivery_fee: Mapped[int] = mapped_column(default=0)
 
-    charge_id: Mapped[int | None] = mapped_column(ForeignKey("charges.id"), nullable=True)
-    charge = relationship("Charge")
 
     products: Mapped[list["OrderProduct"]] = relationship(backref="order")
 
     store = relationship("Store", back_populates="orders")
     transactions: Mapped[list["CashierTransaction"]] = relationship(back_populates="order")
-
-    coupon_id: Mapped[int | None] = mapped_column(ForeignKey("coupons.id"))
-    coupon = relationship("Coupon", back_populates="orders")
 
 
 
