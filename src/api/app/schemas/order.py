@@ -68,6 +68,7 @@ class Order(BaseModel):
     neighborhood: str
     city: str
 
+    products: list[OrderProduct]
 
 
 
