@@ -725,14 +725,21 @@ class OrderProduct(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"))
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    order_id: Mapped[int] = mapped_column(
+        ForeignKey("orders.id", ondelete="CASCADE")
+    )
+    store_id: Mapped[int] = mapped_column(
+        ForeignKey("stores.id", ondelete="CASCADE")
+    )
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id", ondelete="SET NULL"),
+        nullable=True
+    )
 
     name: Mapped[str] = mapped_column()
     price: Mapped[int] = mapped_column()
     quantity: Mapped[int] = mapped_column()
-    note: Mapped[str] = mapped_column(default='')  # <<<<<<<<<< AQUI
+    note: Mapped[str] = mapped_column(default='', nullable=False)
 
     variants: Mapped[list["OrderVariant"]] = relationship(backref="product")
 
@@ -743,9 +750,16 @@ class OrderVariant(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    order_product_id: Mapped[int] = mapped_column(ForeignKey("order_products.id"))
+    order_product_id: Mapped[int] = mapped_column(
+        ForeignKey("order_products.id", ondelete="CASCADE")
+    )
+    variant_id: Mapped[int] = mapped_column(
+        ForeignKey("variants.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id"))
+
 
     name: Mapped[str] = mapped_column()
 
@@ -759,9 +773,16 @@ class OrderVariantOption(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    order_variant_id: Mapped[int] = mapped_column(ForeignKey("order_variants.id"))
+    order_variant_id: Mapped[int] = mapped_column(
+        ForeignKey("order_variants.id", ondelete="CASCADE")
+    )
+    variant_option_id: Mapped[int | None] = mapped_column(
+        ForeignKey("variant_options.id", ondelete="SET NULL"),  # se quiser
+        nullable=True
+    )
+
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    variant_option_id: Mapped[int | None] = mapped_column(nullable=True)
+
 
 
     name: Mapped[str] = mapped_column()
