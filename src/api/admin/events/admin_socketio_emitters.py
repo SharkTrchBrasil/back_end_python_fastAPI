@@ -46,8 +46,8 @@ async def emit_orders_initial(db, store_id: int, sid: str | None = None):
         .options(
             joinedload(models.Order.products)
             .joinedload(models.OrderProduct.variants)
-            .joinedload(models.OrderVariant.options),
-            joinedload(models.Order.charge)
+            .joinedload(models.OrderVariant.options)
+
         )
         .filter(models.Order.store_id == store_id)
         .order_by(models.Order.created_at.desc())
@@ -59,10 +59,6 @@ async def emit_orders_initial(db, store_id: int, sid: str | None = None):
     payload = []
     for order in orders:
         order_data = Order.model_validate(order).model_dump()
-
-        # Convert charge to null if not exists (para compatibilidade com Flutter)
-        if not order_data.get('charge'):
-            order_data['charge'] = None
 
         payload.append(order_data)
 
