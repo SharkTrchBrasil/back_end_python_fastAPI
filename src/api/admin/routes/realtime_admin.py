@@ -18,6 +18,7 @@ from src.socketio_instance import sio
 
 @sio.event
 async def connect(sid, environ):
+    print(f"[SOCKET.IO] ✅ Novo socket conectado: {sid}")
     query = parse_qs(environ.get("QUERY_STRING", ""))
     token = query.get("totem_token", [None])[0]
 

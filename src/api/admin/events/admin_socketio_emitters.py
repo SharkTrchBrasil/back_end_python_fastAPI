@@ -10,6 +10,9 @@ from src.api.shared_schemas.product import ProductOut
 from sqlalchemy.orm import joinedload
 
 async def emit_store_full_updated(db, store_id: int, sid: str | None = None):
+    print("🔄 emit_store_full_updated foi chamado")
+
+
     store = db.query(models.Store).options(
         joinedload(models.Store.payment_methods),
         joinedload(models.Store.delivery_config),
@@ -38,6 +41,9 @@ async def emit_store_full_updated(db, store_id: int, sid: str | None = None):
 
 
 async def emit_orders_initial(db, store_id: int, sid: str | None = None):
+    print("🔄 emit_ordera_initial foi chamado")
+
+
     orders = (
         db.query(models.Order)
         .filter(models.Order.store_id == store_id)
@@ -67,6 +73,9 @@ async def emit_order_updated(db, order_id: int):
 
 
 async def product_list_all(db, store_id: int, sid: str | None = None):
+    print("🔄 emit_product_list_all foi chamado")
+
+
     products_list = db.query(models.Product).options(
         joinedload(models.Product.variant_links)
         .joinedload(models.ProductVariantProduct.variant)
