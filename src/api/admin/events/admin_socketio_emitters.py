@@ -69,7 +69,7 @@ async def emit_orders_initial(db, store_id: int, sid: str | None = None):
 
 
 async def emit_order_updated_from_obj(order: models.Order):
-    payload = OrderSchema.model_validate(order).model_dump()
+    payload = OrderDetails.model_validate(order).model_dump()
     await sio.emit("order_updated", payload, namespace='/admin', to=f"admin_store_{order.store_id}")
 
 
