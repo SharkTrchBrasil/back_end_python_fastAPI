@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 from operator import or_
 from urllib.parse import parse_qs
@@ -8,6 +9,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError
 from sqlalchemy.orm import joinedload
 
+from src.api.admin.events.admin_socketio_emitters import emit_order_updated
 from src.api.admin.services.order_code import generate_unique_public_id, gerar_sequencial_do_dia
 
 from src.api.app.schemas.new_order import NewOrder
@@ -355,13 +357,11 @@ async def send_order(sid, data):
 
             db.commit()
 
-            await sio.emit(
-                "order_created",
-                Order.model_validate(db_order).model_dump(),
-                to=f"store_{totem.store_id}"
-            )
+
+            await asyncio.create_task(emit_order_updated(db_order, db_order.store_id))
 
             db.refresh(db_order)
+
 
             order_dict = Order.model_validate(db_order).model_dump()
             return {"success": True, "order": order_dict}

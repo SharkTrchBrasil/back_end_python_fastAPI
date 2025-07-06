@@ -48,7 +48,7 @@ class Store(Base, TimestampMixin):
 
     # Plano
     plan_type: Mapped[str] = mapped_column(default="free", nullable=False)
-    store_url: Mapped[Optional[str]] = mapped_column(nullable=True)
+    store_url: Mapped[Optional[str]] = mapped_column(nullable=False)
     # Relacionamentos
 
     accesses = relationship("StoreAccess", back_populates="store")
