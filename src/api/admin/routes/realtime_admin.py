@@ -1,6 +1,6 @@
 from urllib.parse import parse_qs
 
-from sqlalchemy.orm import joinedload
+
 
 from src.api.admin.events.admin_socketio_emitters import (
     emit_orders_initial,
@@ -15,7 +15,7 @@ from src.core.database import get_db_manager
 from src.socketio_instance import sio
 
 
-# Evento de conexão do Socket.IO
+
 @sio.event
 async def connect(sid, environ):
     query = parse_qs(environ.get("QUERY_STRING", ""))
@@ -45,7 +45,6 @@ async def connect(sid, environ):
 # Evento de desconexão do Socket.IO
 @sio.event
 async def disconnect(sid, reason):
-    print("disconnect", sid, reason)
 
     with get_db_manager() as db:
         totem = db.query(models.TotemAuthorization).filter_by(sid=sid).first()

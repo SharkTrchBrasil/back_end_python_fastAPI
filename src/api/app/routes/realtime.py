@@ -11,6 +11,7 @@ from sqlalchemy.orm import joinedload
 
 from src.api.admin.events.admin_socketio_emitters import emit_order_updated
 from src.api.admin.services.order_code import generate_unique_public_id, gerar_sequencial_do_dia
+from src.api.app.events.socketio_emitters import refresh_product_list
 
 from src.api.app.schemas.new_order import NewOrder
 from src.api.app.schemas.store_details import StoreDetails
@@ -36,30 +37,6 @@ from src.api.app.schemas.coupon import Coupon as CouponSchema
 from src.socketio_instance import sio
 
 
-async def refresh_product_list(db, store_id: int, sid: str | None = None):
-    products_l = db.query(models.Product).options(
-        joinedload(models.Product.variant_links)
-        .joinedload(models.ProductVariantProduct.variant)
-        .joinedload(models.Variant.options)
-    ).filter_by(store_id=store_id, available=True).all()
-
-    # Pega avaliações dos produtos
-    product_ratings = {
-        product.id: get_product_ratings_summary(db, product_id=product.id)
-        for product in products_l
-    }
-
-    # Junta dados do produto + avaliações
-    payload = [
-        {
-            **ProductOut.from_orm_obj(product).model_dump(exclude_unset=True),
-            "rating": product_ratings.get(product.id),
-        }
-        for product in products_l
-    ]
-
-    target = sid if sid else f"store_{store_id}"
-    await sio.emit("products_updated", payload, to=target)
 
 
 # Evento de conexão do Socket.IO
