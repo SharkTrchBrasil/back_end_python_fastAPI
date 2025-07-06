@@ -337,8 +337,7 @@ async def send_order(sid, data):
 
             db.commit()
 
-
-            await asyncio.create_task(emit_order_updated(db_order, db_order.store_id))
+            await asyncio.create_task(emit_order_updated(db, db_order.id))
 
             db.refresh(db_order)
 

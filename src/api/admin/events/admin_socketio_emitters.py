@@ -9,6 +9,7 @@ from src.api.app.schemas.store_details import StoreDetails
 from src.api.shared_schemas.product import ProductOut
 from sqlalchemy.orm import joinedload
 from src.api.app.schemas.order import Order as OrderSchema  # ⬅️ Importa o Pydantic certo aqui
+from sqlalchemy.orm import selectinload
 
 
 async def emit_store_full_updated(db, store_id: int, sid: str | None = None):
@@ -39,7 +40,6 @@ async def emit_store_full_updated(db, store_id: int, sid: str | None = None):
     await sio.emit("store_full_updated", payload, namespace='/admin', to=target)
 
 
-from sqlalchemy.orm import selectinload
 
 async def emit_orders_initial(db, store_id: int, sid: str | None = None):
     print(f"🔄 [Admin] emit_orders_initial para store_id: {store_id}")
