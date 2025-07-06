@@ -2,7 +2,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 
-class OrderProductVariantOption(BaseModel):
+class OrderVariantOption(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     variant_option_id: int | None = None  # ← opcional
     id: int
@@ -15,7 +15,7 @@ class OrderProductVariant(BaseModel):
 
     id: int
     name: str
-    options: list[OrderProductVariantOption]
+    options: list[OrderVariantOption]
 
 
 class OrderProductTickets(BaseModel):
@@ -33,7 +33,7 @@ class OrderProduct(BaseModel):
     name: str
     quantity: int
     variants: list[OrderProductVariant]
-    tickets: list[OrderProductTickets]
+   # tickets: list[OrderProductTickets]
     price: int
 
 
