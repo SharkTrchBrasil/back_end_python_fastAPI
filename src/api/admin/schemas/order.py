@@ -17,13 +17,13 @@ class OrderProductVariant(BaseModel):
     name: str
     options: list[OrderVariantOption]
 
-
-class OrderProductTickets(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    ticket_code: str
-    status: int
+#
+# class OrderProductTickets(BaseModel):
+#     model_config = ConfigDict(from_attributes=True)
+#
+#     id: int
+#     ticket_code: str
+#     status: int
 
 
 class OrderProduct(BaseModel):

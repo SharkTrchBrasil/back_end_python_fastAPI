@@ -20,10 +20,10 @@ from src.api.app.services.check_variants import validate_order_variants
 
 from src.api.app.services.rating import (
     get_store_ratings_summary,
-    get_product_ratings_summary,
+
 )
 
-from src.api.shared_schemas.product import ProductOut
+
 from src.api.shared_schemas.rating import RatingsSummaryOut
 from src.api.shared_schemas.store_theme import StoreThemeOut
 
@@ -185,8 +185,8 @@ async def send_order(sid, data):
                 payment_method_id=new_order.payment_method_id,
                 payment_status='pendent',
                 order_status='pendent',
-                needs_change=new_order.needs_change,
-                change_amount=new_order.change_for,
+               # needs_change=new_order.needs_change,
+              #  change_amount=new_order.change_for,
                 observation=new_order.observation,
                 delivery_fee=int(new_order.delivery_fee or 0),
                 coupon_id=optional_coupon.id if optional_coupon else None,

@@ -18,12 +18,12 @@ class OrderProductVariant(BaseModel):
     options: list[OrderProductVariantOption]
 
 
-class OrderProductTickets(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    ticket_code: str
-    status: int
+# class OrderProductTickets(BaseModel):
+#     model_config = ConfigDict(from_attributes=True)
+#
+#     id: int
+#     ticket_code: str
+#     status: int
 
 
 class OrderProduct(BaseModel):
@@ -33,19 +33,19 @@ class OrderProduct(BaseModel):
     name: str
     quantity: int
     variants: list[OrderProductVariant]
-    tickets: list[OrderProductTickets]
+ #  tickets: list[OrderProductTickets]
     price: int
 
 
 
-class Charge(BaseModel):
-    status: str
-    amount: float
-    copy_key: str
-    expires_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
+# class Charge(BaseModel):
+#     status: str
+#     amount: float
+#     copy_key: str
+#     expires_at: datetime
+#
+#     model_config = ConfigDict(from_attributes=True)
+#
 
 class Order(BaseModel):
     id: int
@@ -77,10 +77,10 @@ class Order(BaseModel):
     total_price: int
     payment_status: str
     order_status: str
-    charge: Charge | None
+   # charge: Charge | None
     totem_id: int | None = None
-    needs_change: bool = False
-    change_amount: float | None = None
+   # needs_change: bool = False
+  #  change_amount: float | None = None
     payment_method_id: int
 
     model_config = ConfigDict(from_attributes=True)

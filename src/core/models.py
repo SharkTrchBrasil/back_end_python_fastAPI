@@ -792,23 +792,23 @@ class OrderVariantOption(Base, TimestampMixin):
     order_variant: Mapped[OrderVariant] = relationship()
 
 
-class OrderProductTicket(Base, TimestampMixin):
-    __tablename__ = "order_product_tickets"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-
-    order_product_id: Mapped[int] = mapped_column(ForeignKey("order_products.id"))
-    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"))
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-
-    ticket_code: Mapped[str] = mapped_column(unique=True)
-    status: Mapped[int] = mapped_column()
-
-    order_product: Mapped[OrderProduct] = relationship(backref="tickets")
-
-
-
-
+# class OrderProductTicket(Base, TimestampMixin):
+#     __tablename__ = "order_product_tickets"
+#
+#     id: Mapped[int] = mapped_column(primary_key=True)
+#
+#     order_product_id: Mapped[int] = mapped_column(ForeignKey("order_products.id"))
+#     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"))
+#     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+#
+#     ticket_code: Mapped[str] = mapped_column(unique=True)
+#     status: Mapped[int] = mapped_column()
+#
+#     order_product: Mapped[OrderProduct] = relationship(backref="tickets")
+#
+#
+#
+#
 
 
 
