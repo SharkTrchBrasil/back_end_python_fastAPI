@@ -1,39 +1,38 @@
-# src/api/admin/admin_namespace.py
 from urllib.parse import parse_qs
 
-from socketio import AsyncNamespace
-
+from src.api.admin.services.authorize_admin import enter_store_room, authorize_admin, update_sid
 from src.core.database import get_db_manager
-from src.api.admin.services.authorize_admin import authorize_admin, update_sid, enter_store_room
 
 
-class AdminNamespace(AsyncNamespace):
-    async def on_connect(self, sid, environ):
-        query = parse_qs(environ.get('QUERY_STRING', ''))
-        token = query.get('admin_token', [None])[0]  # Assume que o parâmetro é 'admin_token'
+async def on_connect(self, sid, environ):
+    print(f"[SOCKET.IO] ✅ Tentativa de conexão admin: {sid}")
+    query = parse_qs(environ.get("QUERY_STRING", ""))
+    token = query.get("admin_token", [None])[0]
 
-        if not token:
-            raise ConnectionRefusedError("Token de acesso obrigatório")
+    if not token:
+        raise ConnectionRefusedError("Token de admin ausente")
 
-        with get_db_manager() as db:
-            # Usa a função authorize_admin existente
+    with get_db_manager() as db:
+        try:
+            # 1. Autenticação
             totem = await authorize_admin(db, token)
-            if not totem:
-                raise ConnectionRefusedError("Credenciais inválidas ou não autorizadas")
+            if not totem or not totem.store:
+                raise ConnectionRefusedError("Credenciais inválidas")
 
-            # Atualiza SID usando a função existente
+            # 2. Atualização do SID
             await update_sid(db, totem, sid)
 
-            # Entra na room usando a função existente
-            room_name = await enter_store_room(sid, totem.store.id)
-            print(f'✅ Admin conectado (Totem ID: {totem.id}, Loja: {totem.store.id}, Room: {room_name})')
+            # 3. Entrar na room COM NAMESPACE EXPLÍCITO
+            room_name = await enter_store_room(sid, totem.store.id, self.namespace)
 
-            # Emite eventos iniciais
-            await self.emit('connection_success', {
-                'message': 'Autenticado com sucesso',
+            # 4. Emitir dados iniciais
+            await self.emit('connection_ack', {
+                'status': 'authenticated',
                 'store_id': totem.store.id
             }, to=sid)
 
-    async def on_disconnect(self, sid):
-        print(f'🔌 Admin desconectado: {sid}')
-        # Limpeza pode ser adicionada aqui se necessário
+            print(f"🟢 [SOCKET.IO] Admin autenticado (SID: {sid}, Loja: {totem.store.id})")
+
+        except Exception as e:
+            print(f"🔴 [SOCKET.IO] Erro na conexão: {str(e)}")
+            raise ConnectionRefusedError("Falha na autenticação")
