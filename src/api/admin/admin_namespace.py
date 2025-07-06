@@ -1,38 +1,29 @@
 from urllib.parse import parse_qs
 
-from src.api.admin.services.authorize_admin import enter_store_room, authorize_admin, update_sid
+from socketio import AsyncNamespace
+
+from src.api.admin.routes.realtime_admin import emit_initial_data
 from src.core.database import get_db_manager
+from src.api.admin.services.authorize_admin import authorize_admin, update_sid
 
 
-async def on_connect(self, sid, environ):
-    print(f"[SOCKET.IO] ✅ Tentativa de conexão admin: {sid}")
-    query = parse_qs(environ.get("QUERY_STRING", ""))
-    token = query.get("admin_token", [None])[0]
 
-    if not token:
-        raise ConnectionRefusedError("Token de admin ausente")
+class AdminNamespace(AsyncNamespace):
+    async def on_connect(self, sid, environ):
+        print(f"[ADMIN] Conexão estabelecida: {sid}")
+        query = parse_qs(environ.get('QUERY_STRING', ''))
+        token = query.get('admin_token', [None])[0]
 
-    with get_db_manager() as db:
-        try:
-            # 1. Autenticação
+        if not token:
+            raise ConnectionRefusedError("Token ausente")
+
+        with get_db_manager() as db:
             totem = await authorize_admin(db, token)
             if not totem or not totem.store:
-                raise ConnectionRefusedError("Credenciais inválidas")
+                raise ConnectionRefusedError("Acesso negado")
 
-            # 2. Atualização do SID
             await update_sid(db, totem, sid)
+            await self.enter_room(sid, f"admin_store_{totem.store.id}")
 
-            # 3. Entrar na room COM NAMESPACE EXPLÍCITO
-            room_name = await enter_store_room(sid, totem.store.id, self.namespace)
-
-            # 4. Emitir dados iniciais
-            await self.emit('connection_ack', {
-                'status': 'authenticated',
-                'store_id': totem.store.id
-            }, to=sid)
-
-            print(f"🟢 [SOCKET.IO] Admin autenticado (SID: {sid}, Loja: {totem.store.id})")
-
-        except Exception as e:
-            print(f"🔴 [SOCKET.IO] Erro na conexão: {str(e)}")
-            raise ConnectionRefusedError("Falha na autenticação")
+            # Chama os emitters globais
+            await emit_initial_data(db, totem.store.id, sid)
