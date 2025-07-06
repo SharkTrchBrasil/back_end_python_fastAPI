@@ -38,15 +38,17 @@ async def emit_store_full_updated(db, store_id: int, sid: str | None = None):
     await sio.emit("store_full_updated", payload, namespace='/admin', to=target)
 
 
+from sqlalchemy.orm import selectinload
+
 async def emit_orders_initial(db, store_id: int, sid: str | None = None):
     print(f"🔄 [Admin] emit_orders_initial para store_id: {store_id}")
 
     orders = (
         db.query(models.Order)
         .options(
-            joinedload(models.Order.products)
-            .joinedload(models.OrderProduct.variants)
-            .joinedload(models.OrderVariant.options)
+            selectinload(models.Order.products)
+            .selectinload(models.OrderProduct.variants)
+            .selectinload(models.OrderVariant.options)
         )
         .filter(models.Order.store_id == store_id)
         .all()
@@ -54,14 +56,15 @@ async def emit_orders_initial(db, store_id: int, sid: str | None = None):
 
     payload = []
     for order in orders:
-        order_data = OrderDetails.model_validate(order).model_dump()
-        payload.append(order_data)
+        try:
+            order_data = OrderDetails.model_validate(order).model_dump()
+            payload.append(order_data)
+        except Exception as e:
+            print(f'❌ Erro ao validar pedido ID {order.id}: {e}')
+            continue
 
     target = sid if sid else f"admin_store_{store_id}"
     await sio.emit("orders_initial", payload, namespace='/admin', to=target)
-
-
-
 
 
 async def emit_order_updated(db, order_id: int):
