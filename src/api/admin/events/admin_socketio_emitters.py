@@ -68,14 +68,10 @@ async def emit_orders_initial(db, store_id: int, sid: str | None = None):
     await sio.emit("orders_initial", payload, namespace='/admin', to=target)
 
 
-async def emit_order_updated(db, order_id: int):
-    order = db.query(models.Order).filter_by(id=order_id).first()
-    if not order:
-        return
-
-
+async def emit_order_updated_from_obj(order: models.Order):
     payload = OrderSchema.model_validate(order).model_dump()
     await sio.emit("order_updated", payload, namespace='/admin', to=f"admin_store_{order.store_id}")
+
 
 async def product_list_all(db, store_id: int, sid: str | None = None):
     print(f"🔄 [Admin] product_list_all para store_id: {store_id}")
