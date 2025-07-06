@@ -43,15 +43,39 @@ async def emit_orders_initial(db, store_id: int, sid: str | None = None):
 
     orders = (
         db.query(models.Order)
+        .options(
+            joinedload(models.Order.products)
+            .joinedload(models.OrderProduct.variants)
+            .joinedload(models.OrderVariant.options),
+            joinedload(models.Order.charge)
+        )
         .filter(models.Order.store_id == store_id)
         .order_by(models.Order.created_at.desc())
         .limit(20)
         .all()
     )
 
-    payload = [Order.model_validate(order).model_dump() for order in orders]
+    # Serialização compatível com o Flutter
+    payload = []
+    for order in orders:
+        order_data = Order.model_validate(order).model_dump()
+
+        # Convert charge to null if not exists (para compatibilidade com Flutter)
+        if not order_data.get('charge'):
+            order_data['charge'] = None
+
+        payload.append(order_data)
+
     target = sid if sid else f"admin_store_{store_id}"
     await sio.emit("orders_initial", payload, namespace='/admin', to=target)
+
+
+
+
+
+
+
+
 
 
 async def emit_order_updated(db, order_id: int):
