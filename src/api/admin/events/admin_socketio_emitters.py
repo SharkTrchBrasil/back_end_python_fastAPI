@@ -1,4 +1,4 @@
-from src.api.admin.schemas.order import Order
+from src.api.admin.schemas.order import Order, OrderDetails
 from src.api.app.services.rating import get_product_ratings_summary, get_store_ratings_summary
 from src.api.shared_schemas.rating import RatingsSummaryOut
 from src.socketio_instance import sio
@@ -47,28 +47,18 @@ async def emit_orders_initial(db, store_id: int, sid: str | None = None):
             joinedload(models.Order.products)
             .joinedload(models.OrderProduct.variants)
             .joinedload(models.OrderVariant.options)
-
         )
         .filter(models.Order.store_id == store_id)
-        .order_by(models.Order.created_at.desc())
-        .limit(20)
         .all()
     )
 
-    # Serialização compatível com o Flutter
     payload = []
     for order in orders:
-        order_data = Order.model_validate(order).model_dump()
-
+        order_data = OrderDetails.model_validate(order).model_dump()
         payload.append(order_data)
 
     target = sid if sid else f"admin_store_{store_id}"
     await sio.emit("orders_initial", payload, namespace='/admin', to=target)
-
-
-
-
-
 
 
 
