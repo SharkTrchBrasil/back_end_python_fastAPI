@@ -37,7 +37,7 @@ async def connect(sid, environ):
         await sio.enter_room(sid, room_name)
 
         # Emite dados iniciais para o painel/admin
-        await emit_store_full_updated(totem.store_id, sid)
+        await emit_store_full_updated(db, totem.store_id, sid)
         await product_list_all(db, totem.store_id, sid)
         await emit_orders_initial(db, totem.store_id, sid)
 

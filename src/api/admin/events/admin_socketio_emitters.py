@@ -9,34 +9,31 @@ from src.api.app.schemas.store_details import StoreDetails
 from src.api.shared_schemas.product import ProductOut
 from sqlalchemy.orm import joinedload
 
-async def emit_store_full_updated(store_id: int, sid: str | None = None):
-    with get_db_manager() as db:
-        store = db.query(models.Store).options(
-            joinedload(models.Store.payment_methods),
-            joinedload(models.Store.delivery_config),
-            joinedload(models.Store.hours),
-            joinedload(models.Store.cities).joinedload(models.StoreCity.neighborhoods),
-        ).filter_by(id=store_id).first()
+async def emit_store_full_updated(db, store_id: int, sid: str | None = None):
+    store = db.query(models.Store).options(
+        joinedload(models.Store.payment_methods),
+        joinedload(models.Store.delivery_config),
+        joinedload(models.Store.hours),
+        joinedload(models.Store.cities).joinedload(models.StoreCity.neighborhoods),
+    ).filter_by(id=store_id).first()
 
-        if store is None:
-            print(f"emit_store_full_updated: loja {store_id} não encontrada")
-            return
+    if store is None:
+        print(f"emit_store_full_updated: loja {store_id} não encontrada")
+        return
 
-        try:
-            store_schema = StoreDetails.model_validate(store)
-        except Exception as e:
-            print(f"Erro ao validar Store com Pydantic StoreDetails para loja {store.id}: {e}")
-            raise ConnectionRefusedError(f"Dados malformados: {e}")
+    try:
+        store_schema = StoreDetails.model_validate(store)
+    except Exception as e:
+        print(f"Erro ao validar Store com Pydantic StoreDetails para loja {store.id}: {e}")
+        raise ConnectionRefusedError(f"Dados malformados: {e}")
 
-        store_schema.ratingsSummary = RatingsSummaryOut(
-            **get_store_ratings_summary(db, store_id=store.id)
-        )
+    store_schema.ratingsSummary = RatingsSummaryOut(
+        **get_store_ratings_summary(db, store_id=store.id)
+    )
 
-        payload = store_schema.model_dump()
-        target = sid if sid else f"store_{store_id}"
-        await sio.emit("store_full_updated", payload, to=target)
-
-
+    payload = store_schema.model_dump()
+    target = sid if sid else f"store_{store_id}"
+    await sio.emit("store_full_updated", payload, to=target)
 
 
 
