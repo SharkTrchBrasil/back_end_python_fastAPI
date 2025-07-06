@@ -33,7 +33,7 @@ async def emit_store_full_updated(db, store_id: int, sid: str | None = None):
 
     payload = store_schema.model_dump()
     target = sid if sid else f"store_{store_id}"
-    await sio.emit("store_full_updated", payload, to=target)
+    await sio.emit("admin_store_full_updated", payload, to=target)
 
 
 
@@ -49,7 +49,7 @@ async def emit_orders_initial(db, store_id: int, sid: str | None = None):
     payload = [Order.model_validate(order).model_dump() for order in orders]
 
     target = sid if sid else f"store_{store_id}"
-    await sio.emit("orders_initial", payload, to=target)
+    await sio.emit("admin_orders_initial", payload, to=target)
 
 
 
@@ -60,7 +60,7 @@ async def emit_order_updated(db, order_id: int):
 
 
     payload = Order.model_validate(order).model_dump()
-    await sio.emit("order_updated", payload, to=f"store_{order.store_id}")
+    await sio.emit("admin_order_updated", payload, to=f"store_{order.store_id}")
 
 
 
@@ -89,14 +89,14 @@ async def product_list_all(db, store_id: int, sid: str | None = None):
     ]
 
     target = sid if sid else f"store_{store_id}"
-    await sio.emit("products_updated", payload, to=target)
+    await sio.emit("admin_products_updated", payload, to=target)
 
 
 
 
 async def emit_store_updated(store: models.Store):
     await sio.emit(
-        'store_updated',
+        'admin_store_updated',
         StoreDetails.model_validate(store).model_dump(),
         to=f'store_{store.id}'
     )
@@ -105,7 +105,7 @@ async def emit_theme_updated(theme: models.StoreTheme):
     # Converte ORM para Pydantic para emitir JSON correto
     pydantic_theme = StoreThemeOut.model_validate(theme).model_dump()
     await sio.emit(
-        'theme_updated',
+        'admin_theme_updated',
         pydantic_theme,
         to=f'store_{theme.store_id}'
     )
@@ -120,4 +120,4 @@ async def emit_products_updated(store_id: int):
 
         payload = [ProductOut.from_orm_obj(p).model_dump(exclude_unset=True) for p in products]
 
-    await sio.emit('products_updated', payload, to=f'store_{store_id}')
+    await sio.emit('admin_products_updated', payload, to=f'store_{store_id}')
