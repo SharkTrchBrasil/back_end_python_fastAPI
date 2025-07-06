@@ -8,7 +8,7 @@ from src.api.shared_schemas.store_theme import StoreThemeOut
 from src.api.app.schemas.store_details import StoreDetails
 from src.api.shared_schemas.product import ProductOut
 from sqlalchemy.orm import joinedload
-from src.api.app.schemas.order import Order as OrderSchema  # ⬅️ Importa o Pydantic certo aqui
+from src.api.admin.schemas.order import Order as OrderSchema  # ⬅️ Importa o Pydantic certo aqui
 from sqlalchemy.orm import selectinload
 
 
@@ -58,7 +58,7 @@ async def emit_orders_initial(db, store_id: int, sid: str | None = None):
     payload = []
     for order in orders:
         try:
-            order_data = OrderDetails.model_validate(order).model_dump()
+            order_data = OrderDetails.model_validate(order).model_dump(mode='json')
             payload.append(order_data)
         except Exception as e:
             print(f'❌ Erro ao validar pedido ID {order.id}: {e}')
@@ -69,8 +69,9 @@ async def emit_orders_initial(db, store_id: int, sid: str | None = None):
 
 
 async def emit_order_updated_from_obj(order: models.Order):
-    payload = OrderDetails.model_validate(order).model_dump()
+    payload = OrderDetails.model_validate(order).model_dump(mode='json')
     await sio.emit("order_updated", payload, namespace='/admin', to=f"admin_store_{order.store_id}")
+
 
 
 async def product_list_all(db, store_id: int, sid: str | None = None):
