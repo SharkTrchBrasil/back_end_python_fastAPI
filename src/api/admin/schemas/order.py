@@ -38,14 +38,14 @@ class OrderProduct(BaseModel):
 
 
 
-class Charge(BaseModel):
-    status: str
-    amount: float
-    copy_key: str
-    expires_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
+# class Charge(BaseModel):
+#     status: str
+#     amount: float
+#     copy_key: str
+#     expires_at: datetime
+#
+#     model_config = ConfigDict(from_attributes=True)
+#
 
 class Order(BaseModel):
     id: int
@@ -77,10 +77,9 @@ class Order(BaseModel):
     total_price: int
     payment_status: str
     order_status: str
-    charge: Charge | None
+
     totem_id: int | None = None
-    needs_change: bool = False
-    change_amount: float | None = None
+
     payment_method_id: int
 
     model_config = ConfigDict(from_attributes=True)
