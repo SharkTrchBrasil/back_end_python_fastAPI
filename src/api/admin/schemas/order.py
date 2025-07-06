@@ -84,3 +84,7 @@ class Order(BaseModel):
     payment_method_id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class OrderDetails(Order):
+    products: list[OrderProduct]

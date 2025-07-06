@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from src.api.admin.schemas.order import Order
+from src.api.admin.schemas.order import Order, OrderDetails
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
@@ -17,8 +17,8 @@ def get_orders(
 
 
 
-
-@router.get("/{order_id}", response_model=Order)
+#TODO: AQUI VERIFICAR ORDERDETAILS COLOQUEI ORDER
+@router.get("/{order_id}", response_model=OrderDetails)
 def get_order(
         db: GetDBDep,
         store: GetStoreDep,
