@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from starlette.templating import Jinja2Templates
 
+from src.api.admin.admin_namespace import AdminNamespace
 from src.socketio_instance import sio
 
 from src.api.admin import router as admin_router
@@ -11,6 +12,9 @@ from src.api.app import router as app_router
 
 
 #Base.metadata.create_all(bind=database.engine)
+
+# Registra namespaces ANTES de criar o ASGIApp
+sio.register_namespace(AdminNamespace('/admin'))
 
 fast_app = FastAPI(
     title="PDVix API"
