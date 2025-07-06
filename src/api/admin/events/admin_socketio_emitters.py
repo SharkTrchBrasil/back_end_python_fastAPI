@@ -8,6 +8,7 @@ from src.api.shared_schemas.store_theme import StoreThemeOut
 from src.api.app.schemas.store_details import StoreDetails
 from src.api.shared_schemas.product import ProductOut
 from sqlalchemy.orm import joinedload
+from src.api.app.schemas.order import Order as OrderSchema  # ⬅️ Importa o Pydantic certo aqui
 
 
 async def emit_store_full_updated(db, store_id: int, sid: str | None = None):
@@ -72,9 +73,9 @@ async def emit_order_updated(db, order_id: int):
     if not order:
         return
 
-    payload = Order.model_validate(order).model_dump()
-    await sio.emit("order_updated", payload, namespace='/admin', to=f"admin_store_{order.store_id}")
 
+    payload = OrderSchema.model_validate(order).model_dump()
+    await sio.emit("order_updated", payload, namespace='/admin', to=f"admin_store_{order.store_id}")
 
 async def product_list_all(db, store_id: int, sid: str | None = None):
     print(f"🔄 [Admin] product_list_all para store_id: {store_id}")
