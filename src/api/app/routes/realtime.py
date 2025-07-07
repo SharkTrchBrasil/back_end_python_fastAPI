@@ -359,6 +359,8 @@ async def send_order(sid, data):
 
 
 
+
+
 @sio.event
 def check_coupon(sid, data):
     with get_db_manager() as db:
