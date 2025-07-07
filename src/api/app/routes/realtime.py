@@ -342,7 +342,6 @@ async def send_order(sid, data):
 
             db.refresh(db_order)
 
-
             order_dict = OrderSchema.model_validate(db_order).model_dump()
 
             return {"success": True, "order": order_dict}
@@ -350,12 +349,10 @@ async def send_order(sid, data):
         except sqlalchemy.exc.IntegrityError as e:
             db.rollback()
             return {"error": "Erro ao salvar o pedido: integridade violada"}
+
         except Exception as e:
             db.rollback()
-            return {"error": f"Erro interno ao processar o pedido: {str(e)}"}
-
-
-
+            return {"error": str(e)}
 
 
 
