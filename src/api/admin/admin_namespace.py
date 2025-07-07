@@ -82,7 +82,7 @@ class AdminNamespace(AsyncNamespace):
             if not order:
                 return {'error': 'Pedido não encontrado'}
 
-            order.status = data['new_status']
+            order.order_status = data['new_status']
             db.commit()
 
             # ✅ Recarrega os dados atualizados do banco
