@@ -4,7 +4,7 @@ from src.core import models  # Importe models para acessar TotemAuthorization
 from src.api.admin.events.admin_socketio_emitters import (
     emit_store_full_updated,
     product_list_all,
-    emit_orders_initial
+    emit_orders_initial, emit_order_updated_from_obj
 )
 from src.api.admin.services.authorize_admin import authorize_admin, update_sid
 from src.core.database import get_db_manager
@@ -64,3 +64,33 @@ class AdminNamespace(AsyncNamespace):
         await emit_store_full_updated(db, store_id, sid)
         await product_list_all(db, store_id, sid)
         await emit_orders_initial(db, store_id, sid)
+
+
+
+
+async def on_update_order_status(self, sid, data):
+    with get_db_manager() as db:
+        store = db.query(models.TotemAuthorization).filter(
+            models.TotemAuthorization.sid == sid
+        ).first()
+
+        if not store:
+            return {'error': 'Loja não autorizada'}
+
+        order = db.query(models.Order).filter(
+            models.Order.id == data['order_id'],
+            models.Order.store_id == store.store_id
+        ).first()
+
+        if not order:
+            return {'error': 'Pedido não encontrado'}
+
+        order.status = data['new_status']
+        db.commit()
+
+        await emit_order_updated_from_obj(order)
+
+
+        print(f"✅ Pedido {order.id} atualizado para: {data['new_status']}")
+
+        return {'success': True}
