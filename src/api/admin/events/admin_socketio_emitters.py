@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from src.api.admin.schemas.order import Order, OrderDetails
 from src.api.app.services.rating import get_product_ratings_summary, get_store_ratings_summary
 from src.api.shared_schemas.rating import RatingsSummaryOut
@@ -44,6 +46,12 @@ async def emit_store_full_updated(db, store_id: int, sid: str | None = None):
 async def emit_orders_initial(db, store_id: int, sid: str | None = None):
     print(f"🔄 [Admin] emit_orders_initial para store_id: {store_id}")
 
+
+    now = datetime.utcnow()
+
+    start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+
     orders = (
         db.query(models.Order)
         .options(
@@ -51,7 +59,11 @@ async def emit_orders_initial(db, store_id: int, sid: str | None = None):
             .selectinload(models.OrderProduct.variants)
             .selectinload(models.OrderVariant.options)
         )
-        .filter(models.Order.store_id == store_id)
+        .filter(
+            models.Order.store_id == store_id,
+            models.Order.created_at >= start_of_day,
+            models.Order.created_at <= end_of_day,
+        )
         .all()
     )
 
