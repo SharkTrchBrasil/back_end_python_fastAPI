@@ -85,6 +85,9 @@ class AdminNamespace(AsyncNamespace):
             order.status = data['new_status']
             db.commit()
 
+            # ✅ Recarrega os dados atualizados do banco
+            db.refresh(order)
+
             await emit_order_updated_from_obj(order)
 
             print(f"✅ Pedido {order.id} atualizado para: {data['new_status']}")
