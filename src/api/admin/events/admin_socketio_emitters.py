@@ -1,17 +1,15 @@
 from datetime import datetime
 
-from src.api.admin.schemas.order import Order, OrderDetails
+from src.api.admin.schemas.order import OrderDetails
 from src.api.admin.schemas.store_settings import StoreSettingsOut
 from src.api.app.services.rating import get_product_ratings_summary, get_store_ratings_summary
 from src.api.shared_schemas.rating import RatingsSummaryOut
 from src.socketio_instance import sio
 from src.core import models
-from src.core.database import get_db_manager
 from src.api.shared_schemas.store_theme import StoreThemeOut
-from src.api.app.schemas.store_details import StoreDetails
+from src.api.shared_schemas.store_details import StoreDetails
 from src.api.shared_schemas.product import ProductOut
 from sqlalchemy.orm import joinedload
-from src.api.admin.schemas.order import Order as OrderSchema  # ⬅️ Importa o Pydantic certo aqui
 from sqlalchemy.orm import selectinload
 
 

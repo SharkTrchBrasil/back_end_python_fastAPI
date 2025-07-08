@@ -17,7 +17,6 @@ class StoreSettingsUpdate(StoreSettingsBase):
     pass
 
 class StoreSettingsOut(StoreSettingsBase):
-    store_id: int
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
 
