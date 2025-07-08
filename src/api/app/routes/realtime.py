@@ -9,7 +9,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError
 from sqlalchemy.orm import joinedload
 
-from src.api.admin.events.admin_socketio_emitters import emit_order_updated_from_obj
+from src.api.admin.events.admin_socketio_emitters import admin_emit_order_updated_from_obj
 from src.api.admin.services.order_code import generate_unique_public_id, gerar_sequencial_do_dia
 from src.api.app.events.socketio_emitters import refresh_product_list
 
@@ -341,7 +341,7 @@ async def send_order(sid, data):
 
             db.commit()
 
-            await asyncio.create_task(emit_order_updated_from_obj(db_order))
+            await asyncio.create_task(admin_emit_order_updated_from_obj(db_order))
 
             db.refresh(db_order)
 
