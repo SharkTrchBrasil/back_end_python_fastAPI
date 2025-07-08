@@ -46,7 +46,7 @@ async def emit_store_full_updated(db, store_id: int, sid: str | None = None):
 
     payload = store_schema.model_dump()
     if settings_schema:
-        payload['settings'] = settings_schema  # Adiciona as configurações dentro do payload
+        payload['store_settings'] = settings_schema  # Adiciona as configurações dentro do payload
 
     target = sid if sid else f"admin_store_{store_id}"  # Room específica para admin
     await sio.emit("store_full_updated", payload, namespace='/admin', to=target)
