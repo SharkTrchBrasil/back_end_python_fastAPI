@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from datetime import datetime
 
@@ -10,15 +10,6 @@ class StoreSettingsBase(BaseModel):
     auto_accept_orders: Optional[bool] = False
     auto_print_orders: Optional[bool] = False
 
-class StoreSettingsCreate(StoreSettingsBase):
-    pass
+    model_config = ConfigDict(from_attributes=True)  # 👈 permite aceitar ORM
 
-class StoreSettingsUpdate(StoreSettingsBase):
-    pass
 
-class StoreSettingsOut(StoreSettingsBase):
-    created_at: Optional[datetime]
-    updated_at: Optional[datetime]
-
-    class Config:
-        orm_mode = True
