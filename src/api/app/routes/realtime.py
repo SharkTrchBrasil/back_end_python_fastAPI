@@ -200,6 +200,10 @@ async def send_order(sid, data):
                     city=new_order.city,
                 )
 
+            store_settings = db.query(models.StoreSettings).filter_by(store_id=totem.store_id).first()
+            if store_settings and store_settings.auto_accept_orders:
+                db_order.order_status = 'preparing'
+
             products_from_db = db.query(models.Product).filter(
                 models.Product.store_id == totem.store_id,
                 models.Product.id.in_([p.product_id for p in new_order.products])

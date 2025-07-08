@@ -85,12 +85,13 @@ class AdminNamespace(AsyncNamespace):
             return {'success': True}
 
     async def on_update_store_settings(self, sid, data):
-        store_id = data.get("store_id")
-        if not store_id:
-            return {"error": "store_id é obrigatório"}
 
         with get_db_manager() as db:
-            settings = db.query(models.StoreSettings).filter_by(store_id=store_id).first()
+            store = db.query(models.TotemAuthorization).filter_by(sid=sid).first()
+            if not store:
+                return {'error': 'Loja não autorizada'}
+
+            settings = db.query(models.StoreSettings).filter_by(store_id=store.store_id).first()
             if not settings:
                 return {"error": "Configurações não encontradas"}
 
