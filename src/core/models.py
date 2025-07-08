@@ -96,6 +96,7 @@ class Store(Base, TimestampMixin):
 
     store_ratings: Mapped[List["StoreRating"]] = relationship(back_populates="store")
 
+    settings = relationship("StoreSettings", back_populates="store", uselist=False, cascade="all, delete-orphan")
 
 class User(Base, TimestampMixin):
     __tablename__ = "users"
@@ -907,6 +908,20 @@ class StoreCustomer(Base, TimestampMixin):
 
 
 
+class StoreSettings(Base, TimestampMixin):
+    __tablename__ = "store_settings"
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), primary_key=True)
+
+    is_delivery_active: Mapped[bool] = mapped_column( default=True)
+    is_takeout_active: Mapped[bool] = mapped_column( default=True)
+    is_table_service_active: Mapped[bool] = mapped_column( default=True)
+    is_store_open: Mapped[bool] = mapped_column( default=True)
+
+    auto_accept_orders: Mapped[bool] = mapped_column( default=False)
+    auto_print_orders: Mapped[bool] = mapped_column( default=False)
+
+    store = relationship("Store", back_populates="settings", uselist=False)
 
 
 

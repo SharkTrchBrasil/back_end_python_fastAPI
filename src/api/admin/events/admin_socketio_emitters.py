@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from src.api.admin.schemas.order import Order, OrderDetails
+from src.api.admin.schemas.store_settings import StoreSettingsOut
 from src.api.app.services.rating import get_product_ratings_summary, get_store_ratings_summary
 from src.api.shared_schemas.rating import RatingsSummaryOut
 from src.socketio_instance import sio
@@ -28,19 +29,28 @@ async def emit_store_full_updated(db, store_id: int, sid: str | None = None):
         print(f"❌ Loja {store_id} não encontrada")
         return
 
+    settings = db.query(models.StoreSettings).filter_by(store_id=store_id).first()
+    if not settings:
+        print(f"⚠️ Configurações da loja {store_id} não encontradas")
+
     try:
         store_schema = StoreDetails.model_validate(store)
         store_schema.ratingsSummary = RatingsSummaryOut(
             **get_store_ratings_summary(db, store_id=store.id)
         )
+        settings_schema = None
+        if settings:
+            settings_schema = StoreSettingsOut.model_validate(settings).model_dump(mode='json')
     except Exception as e:
-        print(f"❌ Erro ao validar Store: {e}")
+        print(f"❌ Erro ao validar dados: {e}")
         raise ConnectionRefusedError(f"Dados inválidos: {e}")
 
     payload = store_schema.model_dump()
+    if settings_schema:
+        payload['settings'] = settings_schema  # Adiciona as configurações dentro do payload
+
     target = sid if sid else f"admin_store_{store_id}"  # Room específica para admin
     await sio.emit("store_full_updated", payload, namespace='/admin', to=target)
-
 
 
 async def emit_orders_initial(db, store_id: int, sid: str | None = None):
@@ -129,3 +139,5 @@ async def emit_theme_updated(theme: models.StoreTheme):
         namespace='/admin',
         to=f'admin_store_{theme.store_id}'
     )
+
+
