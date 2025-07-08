@@ -14,7 +14,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.orm import selectinload
 
 
-async def emit_store_full_updated(db, store_id: int, sid: str | None = None):
+async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = None):
     print(f"🔄 [Admin] emit_store_full_updated para store_id: {store_id}")
 
     store = db.query(models.Store).options(
@@ -52,7 +52,7 @@ async def emit_store_full_updated(db, store_id: int, sid: str | None = None):
     await sio.emit("store_full_updated", payload, namespace='/admin', to=target)
 
 
-async def emit_orders_initial(db, store_id: int, sid: str | None = None):
+async def admin_emit_orders_initial(db, store_id: int, sid: str | None = None):
     print(f"🔄 [Admin] emit_orders_initial para store_id: {store_id}")
 
 
@@ -89,13 +89,13 @@ async def emit_orders_initial(db, store_id: int, sid: str | None = None):
     await sio.emit("orders_initial", payload, namespace='/admin', to=target)
 
 
-async def emit_order_updated_from_obj(order: models.Order):
+async def admin_emit_order_updated_from_obj(order: models.Order):
     payload = OrderDetails.model_validate(order).model_dump(mode='json')
     print('[SOCKET] emit_order_updated_from_obj payload:', payload)  # 👈 Adicione isso
     await sio.emit("order_updated", payload, namespace='/admin', to=f"admin_store_{order.store_id}")
 
 
-async def product_list_all(db, store_id: int, sid: str | None = None):
+async def admin_product_list_all(db, store_id: int, sid: str | None = None):
     print(f"🔄 [Admin] product_list_all para store_id: {store_id}")
 
     products = db.query(models.Product).options(
@@ -121,7 +121,7 @@ async def product_list_all(db, store_id: int, sid: str | None = None):
     await sio.emit("products_updated", payload, namespace='/admin', to=target)
 
 
-async def emit_store_updated(store: models.Store):
+async def admin_emit_store_updated(store: models.Store):
     await sio.emit(
         'store_updated',
         StoreDetails.model_validate(store).model_dump(),
@@ -130,7 +130,7 @@ async def emit_store_updated(store: models.Store):
     )
 
 
-async def emit_theme_updated(theme: models.StoreTheme):
+async def admin_emit_theme_updated(theme: models.StoreTheme):
     pydantic_theme = StoreThemeOut.model_validate(theme).model_dump()
     await sio.emit(
         'theme_updated',

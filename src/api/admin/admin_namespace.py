@@ -2,12 +2,12 @@ from urllib.parse import parse_qs
 from socketio import AsyncNamespace
 
 from src.api.admin.schemas.store_settings import StoreSettingsBase
+from src.api.app.events.socketio_emitters import emit_store_updated
 from src.core import models  # Importe models para acessar TotemAuthorization
 from src.api.admin.events.admin_socketio_emitters import (
-    emit_store_full_updated,
-    product_list_all,
-    emit_orders_initial, emit_order_updated_from_obj, emit_store_updated
-)
+
+    admin_emit_orders_initial, admin_product_list_all, admin_emit_store_full_updated, admin_emit_order_updated_from_obj,
+    admin_emit_store_updated)
 from src.api.admin.services.authorize_admin import authorize_admin, update_sid
 from src.core.database import get_db_manager
 
@@ -57,9 +57,9 @@ class AdminNamespace(AsyncNamespace):
                 db.rollback()
 
     async def _emit_initial_data(self, db, store_id, sid):
-        await emit_store_full_updated(db, store_id, sid)
-        await product_list_all(db, store_id, sid)
-        await emit_orders_initial(db, store_id, sid)
+        await admin_emit_store_full_updated(db, store_id, sid)
+        await admin_product_list_all(db, store_id, sid)
+        await admin_emit_orders_initial(db, store_id, sid)
 
     async def on_update_order_status(self, sid, data):
         with get_db_manager() as db:
@@ -79,7 +79,7 @@ class AdminNamespace(AsyncNamespace):
             db.commit()
             db.refresh(order)
 
-            await emit_order_updated_from_obj(order)
+            await admin_emit_order_updated_from_obj(order)
             print(f"✅ Pedido {order.id} atualizado para: {data['new_status']}")
 
             return {'success': True}
@@ -106,7 +106,8 @@ class AdminNamespace(AsyncNamespace):
                 db.commit()
                 db.refresh(settings)
 
-                await emit_store_updated(settings.store)
+                await admin_emit_store_updated(settings.store)
+                await emit_store_updated(store)
                 return StoreSettingsBase.model_validate(settings).model_dump(mode='json')
 
             except Exception as e:
