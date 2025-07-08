@@ -29,11 +29,12 @@ class AdminNamespace(AsyncNamespace):
 
                 await update_sid(db, totem, sid)
 
-                room = f"admin_store_{totem.store.id}"
-                await self.enter_room(sid, room)
-                print(f"✅ Admin entrou na room: {room}")
+                for store in totem.stores:
+                    room = f"admin_store_{store.id}"
+                    await self.enter_room(sid, room)
+                    print(f"✅ Admin entrou na room: {room}")
+                    await self._emit_initial_data(db, store.id, sid)
 
-                await self._emit_initial_data(db, totem.store.id, sid)
                 db.commit()
 
             except Exception as e:

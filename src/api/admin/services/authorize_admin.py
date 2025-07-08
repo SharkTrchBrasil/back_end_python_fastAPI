@@ -7,9 +7,24 @@ async def authorize_admin(db, token: str):
         models.TotemAuthorization.totem_token == token,
         models.TotemAuthorization.granted.is_(True),
     ).first()
-    if not totem or not totem.store:
+
+    if not totem or not totem.granted_by_id:
         return None
+
+    # 🔍 Busca todas as lojas que o usuário tem acesso
+    accesses = db.query(models.StoreAccess).filter_by(user_id=totem.granted_by_id).all()
+    totem.stores = [access.store for access in accesses]
     return totem
+
+
+# async def authorize_admin(db, token: str):
+#     totem = db.query(models.TotemAuthorization).filter(
+#         models.TotemAuthorization.totem_token == token,
+#         models.TotemAuthorization.granted.is_(True),
+#     ).first()
+#     if not totem or not totem.store:
+#         return None
+#     return totem
 
 async def update_sid(db, totem, sid: str):
     totem.sid = sid
