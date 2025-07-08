@@ -75,6 +75,20 @@ def create_store(
     )
     db.add(db_delivery_settings)
 
+    # Cria as configurações gerais da loja (settings)
+    db_store_settings = models.StoreSettings(
+        store_id=db_store.id,
+        is_delivery_active=True,
+        is_takeout_active=True,
+        is_table_service_active=True,
+        is_store_open=True,
+        auto_accept_orders=False,
+        auto_print_orders=False
+    )
+    db.add(db_store_settings)
+
+
+
 
     totem_token = str(uuid.uuid4())
 
@@ -96,18 +110,8 @@ def create_store(
     )
     db.add(totem_auth)
 
-    # Cria as configurações gerais da loja (settings)
 
-    db_store_settings = models.StoreSettings(
-        store_id=db_store.id,
-        is_delivery_active=True,
-        is_takeout_active=True,
-        is_table_service_active=True,
-        is_store_open=True,
-        auto_accept_orders=False,
-        auto_print_orders=False
-    )
-    db.add(db_store_settings)
+
 
     # Cria vínculo do usuário com a loja como dono
     db_role = db.query(models.Role).filter(models.Role.machine_name == "owner").first()
