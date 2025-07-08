@@ -29,10 +29,13 @@ def create_store(
     user: GetCurrentUserDep,
     store_create: StoreCreate
 ):
-    # Cria a loja
-    db_store = models.Store(name=store_create.name, phone=store_create.phone)
+    db_store = models.Store(
+        name=store_create.name,
+        phone=store_create.phone,
+        store_url=generate_unique_slug(db, slugify(store_create.name))
+    )
     db.add(db_store)
-    db.flush()  # envia insert e gera db_store.id
+    db.flush()  # agora sim
 
     # Cria as formas de pagamento
     for payment in default_payment_methods:
@@ -92,12 +95,6 @@ def create_store(
 
     totem_token = str(uuid.uuid4())
 
-    base_slug = slugify(store_create.name)
-
-    # Garante que seja único
-    unique_slug = generate_unique_slug(db, base_slug)
-
-    db_store.store_url = unique_slug
 
     totem_auth = models.TotemAuthorization(
         store_id=db_store.id,
@@ -106,7 +103,7 @@ def create_store(
         totem_name = db_store.name,
         granted=True,
         granted_by_id= user.id,
-        store_url=unique_slug,
+        store_url=db_store.store_url,
     )
     db.add(totem_auth)
 
