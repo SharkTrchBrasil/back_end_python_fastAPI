@@ -1,7 +1,8 @@
 from datetime import datetime
 
 from src.api.admin.schemas.order import OrderDetails
-from src.api.admin.schemas.store_settings import StoreSettingsOut
+from src.api.admin.schemas.store_settings import StoreSettingsBase
+
 from src.api.app.services.rating import get_product_ratings_summary, get_store_ratings_summary
 from src.api.shared_schemas.rating import RatingsSummaryOut
 from src.socketio_instance import sio
@@ -38,7 +39,7 @@ async def emit_store_full_updated(db, store_id: int, sid: str | None = None):
         )
         settings_schema = None
         if settings:
-            settings_schema = StoreSettingsOut.model_validate(settings).model_dump(mode='json')
+            settings_schema = StoreSettingsBase.model_validate(settings).model_dump(mode='json')
     except Exception as e:
         print(f"❌ Erro ao validar dados: {e}")
         raise ConnectionRefusedError(f"Dados inválidos: {e}")

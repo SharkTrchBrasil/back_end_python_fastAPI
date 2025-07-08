@@ -1,7 +1,7 @@
 from urllib.parse import parse_qs
 from socketio import AsyncNamespace
 
-from src.api.admin.schemas.store_settings import StoreSettingsOut
+from src.api.admin.schemas.store_settings import StoreSettingsBase
 from src.core import models  # Importe models para acessar TotemAuthorization
 from src.api.admin.events.admin_socketio_emitters import (
     emit_store_full_updated,
@@ -106,7 +106,7 @@ class AdminNamespace(AsyncNamespace):
                 db.refresh(settings)
 
                 await emit_store_updated(settings.store)
-                return StoreSettingsOut.model_validate(settings).model_dump(mode='json')
+                return StoreSettingsBase.model_validate(settings).model_dump(mode='json')
 
             except Exception as e:
                 db.rollback()
