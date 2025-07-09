@@ -94,21 +94,105 @@ async def admin_emit_orders_initial(db, store_id: int, sid: str | None = None):
             .all()
         )
 
-        # Sempre retorna uma lista, mesmo que vazia
-        payload = [
+        orders_data = [
             OrderDetails.model_validate(order).model_dump(mode='json')
             for order in orders
-        ] if orders else []
+        ]
+
+        # ✅ ENVIAR O STORE_ID JUNTO COM OS PEDIDOS
+        payload = {
+            "store_id": store_id,
+            "orders": orders_data
+        }
 
         target = sid if sid else f"admin_store_{store_id}"
         await sio.emit("orders_initial", payload, namespace='/admin', to=target)
 
     except Exception as e:
         print(f'❌ Erro em emit_orders_initial: {str(e)}')
-        # Envia lista vazia em caso de erro
+        # ✅ Envia lista vazia com store_id em caso de erro também
         target = sid if sid else f"admin_store_{store_id}"
-        await sio.emit("orders_initial", [], namespace='/admin', to=target)
+        await sio.emit("orders_initial", {"store_id": store_id, "orders": []}, namespace='/admin', to=target)
 
+
+# async def admin_emit_orders_initial(db, store_id: int, sid: str | None = None):
+#     print(f"🔄 [Admin] emit_orders_initial para store_id: {store_id}")
+#
+#     try:
+#         now = datetime.utcnow()
+#         start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+#         end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+#
+#         orders = (
+#             db.query(models.Order)
+#             .options(
+#                 selectinload(models.Order.products)
+#                 .selectinload(models.OrderProduct.variants)
+#                 .selectinload(models.OrderVariant.options)
+#             )
+#             .filter(
+#                 models.Order.store_id == store_id,
+#                 models.Order.created_at >= start_of_day,
+#                 models.Order.created_at <= end_of_day,
+#             )
+#             .all()
+#         )
+#
+#         # Sempre retorna uma lista, mesmo que vazia
+#         payload = [
+#             OrderDetails.model_validate(order).model_dump(mode='json')
+#             for order in orders
+#         ] if orders else []
+#
+#         target = sid if sid else f"admin_store_{store_id}"
+#         await sio.emit("orders_initial", payload, namespace='/admin', to=target)
+#
+#     except Exception as e:
+#         print(f'❌ Erro em emit_orders_initial: {str(e)}')
+#         # Envia lista vazia em caso de erro
+#         target = sid if sid else f"admin_store_{store_id}"
+#         await sio.emit("orders_initial", [], namespace='/admin', to=target)
+#
+#
+# async def admin_product_list_all(db, store_id: int, sid: str | None = None):
+#     print(f"🔄 [Admin] product_list_all para store_id: {store_id}")
+#
+#     try:
+#         products = db.query(models.Product).options(
+#             joinedload(models.Product.variant_links)
+#             .joinedload(models.ProductVariantProduct.variant)
+#             .joinedload(models.Variant.options)
+#         ).filter_by(store_id=store_id, available=True).all()
+#
+#         # Cria payload com produtos ou lista vazia
+#         payload = []
+#         if products:
+#             product_ratings = {
+#                 product.id: get_product_ratings_summary(db, product_id=product.id)
+#                 for product in products
+#             }
+#
+#             payload = [
+#                 {
+#                     **ProductOut.from_orm_obj(product).model_dump(exclude_unset=True),
+#                     "rating": product_ratings.get(product.id) or {
+#                         "average_rating": 0,
+#                         "total_ratings": 0,
+#                         "distribution": {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+#                     },
+#                 }
+#                 for product in products
+#             ]
+#
+#         target = sid if sid else f"admin_store_{store_id}"
+#         await sio.emit("products_updated", payload, namespace='/admin', to=target)
+#
+#     except Exception as e:
+#         print(f'❌ Erro em product_list_all: {str(e)}')
+#         # Envia lista vazia em caso de erro
+#         target = sid if sid else f"admin_store_{store_id}"
+#         await sio.emit("products_updated", [], namespace='/admin', to=target)
+#
 
 async def admin_product_list_all(db, store_id: int, sid: str | None = None):
     print(f"🔄 [Admin] product_list_all para store_id: {store_id}")
@@ -120,15 +204,14 @@ async def admin_product_list_all(db, store_id: int, sid: str | None = None):
             .joinedload(models.Variant.options)
         ).filter_by(store_id=store_id, available=True).all()
 
-        # Cria payload com produtos ou lista vazia
-        payload = []
+        products_data = []
         if products:
             product_ratings = {
                 product.id: get_product_ratings_summary(db, product_id=product.id)
                 for product in products
             }
 
-            payload = [
+            products_data = [
                 {
                     **ProductOut.from_orm_obj(product).model_dump(exclude_unset=True),
                     "rating": product_ratings.get(product.id) or {
@@ -140,14 +223,25 @@ async def admin_product_list_all(db, store_id: int, sid: str | None = None):
                 for product in products
             ]
 
+        # ✅ ENVIAR O STORE_ID JUNTO COM OS PRODUTOS
+        payload = {
+            "store_id": store_id,
+            "products": products_data
+        }
+
         target = sid if sid else f"admin_store_{store_id}"
         await sio.emit("products_updated", payload, namespace='/admin', to=target)
 
     except Exception as e:
         print(f'❌ Erro em product_list_all: {str(e)}')
-        # Envia lista vazia em caso de erro
+        # ✅ Envia lista vazia com store_id em caso de erro
         target = sid if sid else f"admin_store_{store_id}"
-        await sio.emit("products_updated", [], namespace='/admin', to=target)
+        await sio.emit("products_updated", {"store_id": store_id, "products": []}, namespace='/admin', to=target)
+
+
+
+
+
 
 
 # As outras funções permanecem inalteradas
