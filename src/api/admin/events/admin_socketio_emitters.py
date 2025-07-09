@@ -29,7 +29,6 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
             print(f"❌ Loja {store_id} não encontrada")
             return
 
-        # Configurações padrão se não existirem
         settings = db.query(models.StoreSettings).filter_by(store_id=store_id).first()
         if not settings:
             settings = models.StoreSettings(
@@ -47,7 +46,6 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
 
         store_schema = StoreDetails.model_validate(store)
 
-        # Ratings padrão se não existirem
         try:
             store_schema.ratingsSummary = RatingsSummaryOut(
                 **get_store_ratings_summary(db, store_id=store.id)
@@ -60,16 +58,81 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
                 ratings=[]
             )
 
-        payload = store_schema.model_dump()
-        payload['store_settings'] = StoreSettingsBase.model_validate(settings).model_dump(mode='json')
+        # ✅ Mude a forma como o payload é montado
+        payload = {
+            "store_id": store_id, # Adicione o store_id explicitamente aqui
+            "store": store_schema.model_dump(), # Encapsule os dados da loja
+        }
+        payload['store']['store_settings'] = StoreSettingsBase.model_validate(settings).model_dump(mode='json')
 
         target = sid if sid else f"admin_store_{store_id}"
         await sio.emit("store_full_updated", payload, namespace='/admin', to=target)
 
     except Exception as e:
         print(f'❌ Erro crítico em emit_store_full_updated: {str(e)}')
-        raise
+        # ✅ Envia payload vazio com store_id em caso de erro
+        target = sid if sid else f"admin_store_{store_id}"
+        await sio.emit("store_full_updated", {"store_id": store_id, "store": {}}, namespace='/admin', to=target)
 
+
+
+
+# async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = None):
+#     print(f"🔄 [Admin] emit_store_full_updated para store_id: {store_id}")
+#
+#     try:
+#         store = db.query(models.Store).options(
+#             joinedload(models.Store.payment_methods),
+#             joinedload(models.Store.delivery_config),
+#             joinedload(models.Store.hours),
+#             joinedload(models.Store.cities).joinedload(models.StoreCity.neighborhoods),
+#         ).filter_by(id=store_id).first()
+#
+#         if not store:
+#             print(f"❌ Loja {store_id} não encontrada")
+#             return
+#
+#         # Configurações padrão se não existirem
+#         settings = db.query(models.StoreSettings).filter_by(store_id=store_id).first()
+#         if not settings:
+#             settings = models.StoreSettings(
+#                 store_id=store_id,
+#                 is_delivery_active=False,
+#                 is_takeout_active=True,
+#                 is_table_service_active=False,
+#                 is_store_open=False,
+#                 auto_accept_orders=False,
+#                 auto_print_orders=False
+#             )
+#             db.add(settings)
+#             db.commit()
+#             print(f"⚙️ Configurações padrão criadas para loja {store_id}")
+#
+#         store_schema = StoreDetails.model_validate(store)
+#
+#         # Ratings padrão se não existirem
+#         try:
+#             store_schema.ratingsSummary = RatingsSummaryOut(
+#                 **get_store_ratings_summary(db, store_id=store.id)
+#             )
+#         except Exception:
+#             store_schema.ratingsSummary = RatingsSummaryOut(
+#                 average_rating=0,
+#                 total_ratings=0,
+#                 distribution={1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+#                 ratings=[]
+#             )
+#
+#         payload = store_schema.model_dump()
+#         payload['store_settings'] = StoreSettingsBase.model_validate(settings).model_dump(mode='json')
+#
+#         target = sid if sid else f"admin_store_{store_id}"
+#         await sio.emit("store_full_updated", payload, namespace='/admin', to=target)
+#
+#     except Exception as e:
+#         print(f'❌ Erro crítico em emit_store_full_updated: {str(e)}')
+#         raise
+#
 
 async def admin_emit_orders_initial(db, store_id: int, sid: str | None = None):
     print(f"🔄 [Admin] emit_orders_initial para store_id: {store_id}")
