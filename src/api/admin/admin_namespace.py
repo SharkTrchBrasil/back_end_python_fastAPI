@@ -113,3 +113,30 @@ class AdminNamespace(AsyncNamespace):
             except Exception as e:
                 db.rollback()
                 return {"error": str(e)}
+
+
+    async def on_join_store_room(self, sid, data):
+        try:
+            store_id = data.get("store_id")
+            if not store_id:
+                print("❌ store_id ausente em join_store_room")
+                return
+
+            room = f"admin_store_{store_id}"
+            await self.enter_room(sid, room)
+            print(f"✅ Admin entrou na sala dinâmica: {room}")
+        except Exception as e:
+            print(f"❌ Erro ao entrar na sala da loja {store_id}: {e}")
+
+    async def on_leave_store_room(self, sid, data):
+        try:
+            store_id = data.get("store_id")
+            if not store_id:
+                print("❌ store_id ausente em leave_store_room")
+                return
+
+            room = f"admin_store_{store_id}"
+            await self.leave_room(sid, room)
+            print(f"🚪 Admin saiu da sala: {room}")
+        except Exception as e:
+            print(f"❌ Erro ao sair da sala da loja {store_id}: {e}")
