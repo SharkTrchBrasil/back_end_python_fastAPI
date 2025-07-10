@@ -27,7 +27,10 @@ class AdminNamespace(AsyncNamespace):
                 if not totem or not totem.store:
                     raise ConnectionRefusedError("Acesso negado")
 
-                await update_sid(db, totem, sid)
+                # Atualiza o sid e confirma
+                totem.sid = sid
+                db.commit()
+                print(f"Sid atualizado para {sid}")
 
                 for store in totem.stores:
                     room = f"admin_store_{store.id}"
