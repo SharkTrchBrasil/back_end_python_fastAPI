@@ -89,26 +89,45 @@ class AdminNamespace(AsyncNamespace):
 
     async def on_update_order_status(self, sid, data):
         with get_db_manager() as db:
-            store = db.query(models.TotemAuthorization).filter_by(sid=sid).first()
-            if not store:
-                return {'error': 'Loja não autorizada'}
+            try:
+                # 1. Validação básica dos dados de entrada
+                if not all(key in data for key in ['order_id', 'new_status']):
+                    return {'error': 'Dados incompletos'}
 
-            order = db.query(models.Order).filter_by(
-                id=data['order_id'],
-                store_id=store.store_id
-            ).first()
+                # 2. Verifica a sessão (admin OU totem)
+                session = db.query(models.StoreSession).filter_by(sid=sid).first()
+                if not session:
+                    return {'error': 'Sessão não autorizada'}
 
-            if not order:
-                return {'error': 'Pedido não encontrado'}
+                # 3. Busca o pedido vinculado à LOJA da sessão
+                order = db.query(models.Order).filter_by(
+                    id=data['order_id'],
+                    store_id=session.store_id
+                ).first()
 
-            order.order_status = data['new_status']
-            db.commit()
-            db.refresh(order)
+                if not order:
+                    return {'error': 'Pedido não encontrado nesta loja'}
 
-            await admin_emit_order_updated_from_obj(order)
-            print(f"✅ Pedido {order.id} atualizado para: {data['new_status']}")
+                # 4. Valida o novo status (exemplo com enum)
+                valid_statuses = ['pending', 'preparing', 'ready', 'delivered']
+                if data['new_status'] not in valid_statuses:
+                    return {'error': 'Status inválido'}
 
-            return {'success': True}
+                # 5. Atualização segura
+                order.order_status = data['new_status']
+                db.commit()
+                db.refresh(order)
+
+                # 6. Notificação
+                await admin_emit_order_updated_from_obj(order)
+                print(f"✅ [Session {sid}] Pedido {order.id} atualizado para: {data['new_status']}")
+
+                return {'success': True, 'order_id': order.id, 'new_status': order.order_status}
+
+            except Exception as e:
+                db.rollback()
+                print(f"❌ Erro ao atualizar pedido: {str(e)}")
+                return {'error': 'Falha interna'}
 
     async def on_update_store_settings(self, sid, data):
         with get_db_manager() as db:
