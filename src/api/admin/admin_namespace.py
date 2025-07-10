@@ -85,13 +85,18 @@ class AdminNamespace(AsyncNamespace):
             return {'success': True}
 
     async def on_update_store_settings(self, sid, data):
-
         with get_db_manager() as db:
-            store = db.query(models.TotemAuthorization).filter_by(sid=sid).first()
-            if not store:
+            # Renomeie 'store' para algo mais específico como 'totem_auth'
+            totem_auth = db.query(models.TotemAuthorization).filter_by(sid=sid).first()
+            if not totem_auth:
                 return {'error': 'Loja não autorizada'}
 
-            settings = db.query(models.StoreSettings).filter_by(store_id=store.store_id).first()
+            # ✅ Busque o objeto models.Store usando o store_id do totem_auth
+            store = db.query(models.Store).filter_by(id=totem_auth.store_id).first()
+            if not store:
+                return {"error": "Loja associada não encontrada"}
+
+            settings = db.query(models.StoreSettings).filter_by(store_id=store.id).first()
             if not settings:
                 return {"error": "Configurações não encontradas"}
 
@@ -105,14 +110,23 @@ class AdminNamespace(AsyncNamespace):
 
                 db.commit()
                 db.refresh(settings)
+                db.refresh(
+                    store)  # ✅ Refresh the store object too, in case related data changed (though not directly from these settings)
 
-                await admin_emit_store_updated(settings.store)
-                await emit_store_updated(store)
+                # ✅ Agora, ambas as funções de emit recebem o objeto models.Store
+                await admin_emit_store_updated(store)  # Isso é o que causa o erro se 'store' for TotemAuthorization
+                await admin_emit_store_full_updated(db,
+                                                    store.id)  # Você já tem isso, ou use um emit_store_updated mais genérico se preferir
+
+                # O retorno do evento de settings deve ser as próprias settings, não a loja
                 return StoreSettingsBase.model_validate(settings).model_dump(mode='json')
 
             except Exception as e:
                 db.rollback()
+                # ✅ Imprima o erro para depuração
+                print(f"❌ Erro ao atualizar configurações da loja: {str(e)}")
                 return {"error": str(e)}
+
 
 
     async def on_join_store_room(self, sid, data):
