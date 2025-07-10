@@ -1,5 +1,6 @@
 import asyncio
-import datetime
+from datetime import datetime
+
 from operator import or_
 from urllib.parse import parse_qs
 
@@ -38,9 +39,6 @@ from src.socketio_instance import sio
 from src.api.app.schemas.order import Order as OrderSchema
 
 
-
-
-
 # Evento de conexão do Socket.IO
 @sio.event
 async def connect(sid, environ):
@@ -51,82 +49,103 @@ async def connect(sid, environ):
         raise ConnectionRefusedError("Missing token")
 
     with get_db_manager() as db:
-        totem = await authorize_totem(db, token)
-        if not totem:
-            raise ConnectionRefusedError("Invalid or unauthorized token")
+        try:
+            totem = await authorize_totem(db, token)
+            if not totem or not totem.store:
+                raise ConnectionRefusedError("Invalid or unauthorized token")
 
-        # Atualiza o SID do totem
-        totem.sid = sid
-        db.commit()
-
-        room_name = f"store_{totem.store_id}"
-        await sio.enter_room(sid, room_name)
-
-        # Carrega dados completos da loja com seus relacionamentos
-        # Loja -> delivery_config
-        # Loja -> Cidades -> Bairros
-        store = db.query(models.Store).options(
-            joinedload(models.Store.payment_methods),
-            joinedload(models.Store.delivery_config),  # Carrega a configuração de entrega (sem cidades/bairros aqui)
-            joinedload(models.Store.hours),
-            # Carrega as cidades da loja e, para cada cidade, seus bairros
-            joinedload(models.Store.cities).joinedload(models.StoreCity.neighborhoods),
-        ).filter_by(id=totem.store_id).first()
-
-        if store:
-            # Envia dados da loja com avaliações
-            try:
-                # Converte o objeto SQLAlchemy 'store' para o Pydantic 'StoreDetails'
-                store_schema = StoreDetails.model_validate(store)
-            except Exception as e:
-                print(f"Erro ao validar Store com Pydantic StoreDetails para loja {store.id}: {e}")
-                # Isso pode indicar que StoreDetails ou seus aninhados (StoreCity Pydantic, StoreNeighborhood Pydantic)
-                # não estão configurados corretamente com model_config = {"from_attributes": True, "arbitrary_types_allowed": True}
-                raise ConnectionRefusedError(f"Erro interno do servidor: Dados da loja malformados: {e}")
-
-            store_schema.ratingsSummary = RatingsSummaryOut(
-                **get_store_ratings_summary(db, store_id=store.id)
-            )
-            # Converte o modelo Pydantic para um dicionário serializável para JSON
-            store_payload = store_schema.model_dump()
-            await sio.emit("store_updated", store_payload, to=sid)
-
-            # Envia tema
-            theme = db.query(models.StoreTheme).filter_by(store_id=totem.store_id).first()
-            if theme:
-                await sio.emit(
-                    "theme_updated",
-                    StoreThemeOut.model_validate(theme).model_dump(),
-                    to=sid,
+            # Cria/atualiza a sessão
+            session = db.query(models.StoreSession).filter_by(sid=sid).first()
+            if not session:
+                session = models.StoreSession(
+                    sid=sid,
+                    store_id=totem.store.id,
+                    client_type='totem'
                 )
+                db.add(session)
+            else:
+                session.store_id = totem.store.id
+                session.client_type = 'totem'
+                session.updated_at = datetime.utcnow()
 
-            # Envia lista de produtos
-            await refresh_product_list(db, totem.store_id, sid)
 
-            # Envia os banners da loja
-            banners = db.query(models.Banner).filter_by(store_id=totem.store_id).all()
-            if banners:
-                from src.api.shared_schemas.banner import BannerOut
 
-                banner_payload = [BannerOut.model_validate(b).model_dump() for b in banners]
-                await sio.emit("banners_updated", banner_payload, to=sid)
+            db.commit()
+            print(f"✅ Totem session criada/atualizada para sid {sid}")
+
+            room_name = f"store_{totem.store_id}"
+            await sio.enter_room(sid, room_name)
+
+            # Carrega dados completos da loja
+            store = db.query(models.Store).options(
+                joinedload(models.Store.payment_methods),
+                joinedload(models.Store.delivery_config),
+                joinedload(models.Store.hours),
+                joinedload(models.Store.cities).joinedload(models.StoreCity.neighborhoods),
+            ).filter_by(id=totem.store_id).first()
+
+            if not store:
+                raise ConnectionRefusedError("Store not found")
+
+            try:
+                store_schema = StoreDetails.model_validate(store)
+                store_schema.ratingsSummary = RatingsSummaryOut(
+                    **get_store_ratings_summary(db, store_id=store.id)
+                )
+                await sio.emit("store_updated", store_schema.model_dump(), to=sid)
+
+                # Envia tema
+                theme = db.query(models.StoreTheme).filter_by(store_id=totem.store_id).first()
+                if theme:
+                    await sio.emit(
+                        "theme_updated",
+                        StoreThemeOut.model_validate(theme).model_dump(),
+                        to=sid,
+                    )
+
+                # Envia produtos e banners
+                await refresh_product_list(db, totem.store_id, sid)
+
+                banners = db.query(models.Banner).filter_by(store_id=totem.store_id).all()
+                if banners:
+                    from src.api.shared_schemas.banner import BannerOut
+                    banner_payload = [BannerOut.model_validate(b).model_dump() for b in banners]
+                    await sio.emit("banners_updated", banner_payload, to=sid)
+
+            except Exception as e:
+                print(f"Erro ao enviar dados iniciais: {e}")
+                raise ConnectionRefusedError(f"Erro interno: {str(e)}")
+
+        except Exception as e:
+            db.rollback()
+            print(f"❌ Erro na conexão do totem: {str(e)}")
+            raise ConnectionRefusedError(str(e))
 
 
 # Evento de desconexão do Socket.IO
 @sio.event
 async def disconnect(sid, reason):
-    print("disconnect", sid, reason)
+    print("Totem disconnected", sid, reason)
 
     with get_db_manager() as db:
-        totem = db.query(models.TotemAuthorization).filter_by(sid=sid).first()
-        if totem:
-            await sio.leave_room(sid, f"store_{totem.store_id}")
-            totem.sid = None
-            db.commit()
+        try:
+            # Remove a sessão do totem
+            session = db.query(models.StoreSession).filter_by(sid=sid, client_type='totem').first()
+            if session:
+                await sio.leave_room(sid, f"store_{session.store_id}")
+                db.delete(session)
+                db.commit()
+                print(f"✅ Totem session removida para sid {sid}")
 
+            # Limpeza adicional (opcional) - remove sid de qualquer totem que ainda o tenha
+            totem = db.query(models.TotemAuthorization).filter_by(sid=sid).first()
+            if totem:
+                totem.sid = None
+                db.commit()
 
-
-
+        except Exception as e:
+            db.rollback()
+            print(f"❌ Erro na desconexão do totem: {str(e)}")
 
 
 

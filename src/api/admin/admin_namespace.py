@@ -1,3 +1,4 @@
+from datetime import datetime
 from urllib.parse import parse_qs
 from socketio import AsyncNamespace
 
@@ -27,10 +28,22 @@ class AdminNamespace(AsyncNamespace):
                 if not totem or not totem.store:
                     raise ConnectionRefusedError("Acesso negado")
 
-                # Atualiza o sid e confirma
-                totem.sid = sid
+                # Criar/atualizar sessão na tabela store_sessions
+                session = db.query(models.StoreSession).filter_by(sid=sid).first()
+                if not session:
+                    session = models.StoreSession(
+                        sid=sid,
+                        store_id=totem.store.id,
+                        client_type='admin'
+                    )
+                    db.add(session)
+                else:
+                    session.store_id = totem.store.id
+                    session.client_type = 'admin'
+                    session.updated_at = datetime.utcnow()
+
                 db.commit()
-                print(f"Sid atualizado para {sid}")
+                print(f"✅ Session criada/atualizada para sid {sid}")
 
                 for store in totem.stores:
                     room = f"admin_store_{store.id}"
@@ -49,15 +62,25 @@ class AdminNamespace(AsyncNamespace):
         print(f"[ADMIN] Desconexão: {sid}")
         with get_db_manager() as db:
             try:
+                # Remover a sessão ao desconectar
+                session = db.query(models.StoreSession).filter_by(sid=sid).first()
+                if session:
+                    await self.leave_room(sid, f"admin_store_{session.store_id}")
+                    db.delete(session)
+                    db.commit()
+                    print(f"✅ Session removida para sid {sid}")
+
+                # Opcional: também limpar o sid do totem (se ainda estiver usando)
                 totem = db.query(models.TotemAuthorization).filter_by(sid=sid).first()
                 if totem:
-                    await self.leave_room(sid, f"admin_store_{totem.store_id}")
                     totem.sid = None
                     db.commit()
-                    print(f"✅ Admin removido da room: admin_store_{totem.store_id}")
             except Exception as e:
                 print(f"❌ Erro na desconexão: {str(e)}")
                 db.rollback()
+
+
+
 
     async def _emit_initial_data(self, db, store_id, sid):
         await admin_emit_store_full_updated(db, store_id, sid)
@@ -89,13 +112,12 @@ class AdminNamespace(AsyncNamespace):
 
     async def on_update_store_settings(self, sid, data):
         with get_db_manager() as db:
-            # Renomeie 'store' para algo mais específico como 'totem_auth'
-            totem_auth = db.query(models.TotemAuthorization).filter_by(sid=sid).first()
-            if not totem_auth:
-                return {'error': 'Loja não autorizada'}
+            # Agora verificamos a sessão em vez do totem diretamente
+            session = db.query(models.StoreSession).filter_by(sid=sid, client_type='admin').first()
+            if not session:
+                return {'error': 'Sessão não encontrada ou não autorizada'}
 
-            # ✅ Busque o objeto models.Store usando o store_id do totem_auth
-            store = db.query(models.Store).filter_by(id=totem_auth.store_id).first()
+            store = db.query(models.Store).filter_by(id=session.store_id).first()
             if not store:
                 return {"error": "Loja associada não encontrada"}
 
@@ -113,23 +135,17 @@ class AdminNamespace(AsyncNamespace):
 
                 db.commit()
                 db.refresh(settings)
-                db.refresh(
-                    store)  # ✅ Refresh the store object too, in case related data changed (though not directly from these settings)
+                db.refresh(store)
 
-                # ✅ Agora, ambas as funções de emit recebem o objeto models.Store
-                await admin_emit_store_updated(store)  # Isso é o que causa o erro se 'store' for TotemAuthorization
-                await admin_emit_store_full_updated(db,
-                                                    store.id)  # Você já tem isso, ou use um emit_store_updated mais genérico se preferir
+                await admin_emit_store_updated(store)
+                await admin_emit_store_full_updated(db, store.id)
 
-                # O retorno do evento de settings deve ser as próprias settings, não a loja
                 return StoreSettingsBase.model_validate(settings).model_dump(mode='json')
 
             except Exception as e:
                 db.rollback()
-                # ✅ Imprima o erro para depuração
                 print(f"❌ Erro ao atualizar configurações da loja: {str(e)}")
                 return {"error": str(e)}
-
 
 
     async def on_join_store_room(self, sid, data):

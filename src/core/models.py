@@ -300,6 +300,20 @@ class TotemAuthorization(Base, TimestampMixin):
 
     store_url: Mapped[str] = mapped_column(unique=True, nullable=False)
 
+
+
+
+class StoreSession(Base, TimestampMixin):
+    __tablename__ = "store_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+    client_type: Mapped[str] = mapped_column()  # 'admin' ou 'totem'
+    sid: Mapped[str] = mapped_column(unique=True)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+
+
 class StoreTheme(Base, TimestampMixin):
     __tablename__ = "store_themes"
 
