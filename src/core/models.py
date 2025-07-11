@@ -15,14 +15,15 @@ class Base(DeclarativeBase):
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=text("TIMEZONE('America/Sao_Paulo', NOW())")  # Converte para UTC-3
+        server_default=text("TIMEZONE('America/Sao_Paulo', NOW())")
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=text("TIMEZONE('America/Sao_Paulo', NOW())"),
-        onupdate=text("TIMEZONE('America/Sao_Paulo', NOW())")
+        server_onupdate=text("TIMEZONE('America/Sao_Paulo', NOW())")  # <- aqui o ajuste!
     )
+
 class Store(Base, TimestampMixin):
     __tablename__ = "stores"
 

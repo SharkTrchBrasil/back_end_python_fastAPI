@@ -1,4 +1,5 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from src.api.admin.schemas.order import OrderDetails
 from src.api.admin.schemas.store_settings import StoreSettingsBase
@@ -138,10 +139,9 @@ async def admin_emit_orders_initial(db, store_id: int, sid: str | None = None):
     print(f"🔄 [Admin] emit_orders_initial para store_id: {store_id}")
 
     try:
-        now = datetime.utcnow()
+        now = datetime.now(ZoneInfo("America/Sao_Paulo"))
         start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
         end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=999999)
-
         orders = (
             db.query(models.Order)
             .options(
