@@ -79,7 +79,7 @@ class Order(BaseModel):
     payment_status: str
     order_status: str
    # charge: Charge | None
-    totem_id: int | None = None
+   # totem_id: int | None = None
    # needs_change: bool = False
   #  change_amount: float | None = None
     payment_method_id: int

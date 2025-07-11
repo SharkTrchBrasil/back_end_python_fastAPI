@@ -310,8 +310,6 @@ class StoreSession(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     client_type: Mapped[str] = mapped_column()  # 'admin' ou 'totem'
     sid: Mapped[str] = mapped_column(unique=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-
 
 
 class StoreTheme(Base, TimestampMixin):
@@ -696,11 +694,11 @@ class Order(Base, TimestampMixin):
     total_price: Mapped[int] = mapped_column()
     discounted_total_price : Mapped[int] = mapped_column()
 
-    totem_id: Mapped[int | None] = mapped_column(
-        ForeignKey("totem_authorizations.id", ondelete="SET NULL"),
-        nullable=True
-    )
-    totem: Mapped[TotemAuthorization | None] = relationship()
+    # totem_id: Mapped[int | None] = mapped_column(
+    #     ForeignKey("totem_authorizations.id", ondelete="SET NULL"),
+    #     nullable=True
+    # )
+    # totem: Mapped[TotemAuthorization | None] = relationship()
 
     payment_status: Mapped[str] = mapped_column()
     order_status: Mapped[str] = mapped_column()
@@ -734,10 +732,10 @@ class Order(Base, TimestampMixin):
 
 
 
-    @property
-    def totem_name(self):
-        return self.totem.totem_name if self.totem else None
-
+    # @property
+    # def totem_name(self):
+    #     return self.totem.totem_name if self.totem else None
+    #
 
 class OrderProduct(Base, TimestampMixin):
     __tablename__ = "order_products"

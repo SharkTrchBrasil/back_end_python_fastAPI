@@ -201,7 +201,7 @@ async def send_order(sid, data):
                 sequential_id=gerar_sequencial_do_dia(db, session.store_id),
                 public_id=generate_unique_public_id(db, session.store_id),
                 store_id=session.store_id,
-                totem_id=session.totem_id if session.client_type == 'totem' else None,
+               # totem_id=session.totem_id if session.client_type == 'totem' else None,
                 customer_id=new_order.customer_id,
                 customer_name=new_order.customer_name,
                 customer_phone=new_order.customer_phone,

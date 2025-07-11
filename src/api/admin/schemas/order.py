@@ -79,7 +79,7 @@ class Order(BaseModel):
     payment_status: str
     order_status: str
 
-    totem_id: int | None = None
+    #totem_id: int | None = None
 
     payment_method_id: int
 
