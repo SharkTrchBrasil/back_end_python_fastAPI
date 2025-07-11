@@ -1,5 +1,6 @@
 import asyncio
-from datetime import datetime
+# Correto - Importe datetime corretamente
+from datetime import datetime, timezone
 
 from operator import or_
 from urllib.parse import parse_qs
@@ -246,8 +247,8 @@ async def send_order(sid, data):
                 models.Coupon.store_id == session.store_id,
                 models.Coupon.code.in_(coupon_codes),
                 models.Coupon.used < models.Coupon.max_uses,
-                or_(models.Coupon.start_date == None, models.Coupon.start_date <= datetime.datetime.utcnow()),
-                or_(models.Coupon.end_date == None, models.Coupon.end_date >= datetime.datetime.utcnow())
+                or_(models.Coupon.start_date == None, models.Coupon.start_date <= datetime.utcnow()),
+                or_(models.Coupon.end_date == None, models.Coupon.end_date >= datetime.utcnow())
             ).all()
             coupon_map = {c.code: c for c in coupons}
 
@@ -626,7 +627,7 @@ async def check_coupon(sid, data):
             if not coupon:
                 return {'error': 'Cupom não encontrado'}
 
-            now = datetime.datetime.now(datetime.timezone.utc)
+            now = datetime.now(timezone.utc)
 
             if coupon.used >= coupon.max_uses:
                 return {'error': 'Cupom já utilizado'}
@@ -655,7 +656,7 @@ async def list_coupons(sid):
                 return {'error': 'Sessão não autorizada'}
 
             # 2. Busca cupons válidos
-            now = datetime.datetime.utcnow()
+            now = datetime.utcnow()
 
             coupons = db.query(models.Coupon).filter(
                 models.Coupon.store_id == session.store_id,

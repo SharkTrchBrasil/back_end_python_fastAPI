@@ -2,7 +2,7 @@ import enum
 from datetime import datetime, date, timezone
 from typing import Optional, List
 
-from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric, String
+from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric, String, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -11,10 +11,18 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 class Base(DeclarativeBase):
     pass
 
-class TimestampMixin:
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
 
+class TimestampMixin:
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('America/Sao_Paulo', NOW())")  # Converte para UTC-3
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('America/Sao_Paulo', NOW())"),
+        onupdate=text("TIMEZONE('America/Sao_Paulo', NOW())")
+    )
 class Store(Base, TimestampMixin):
     __tablename__ = "stores"
 
