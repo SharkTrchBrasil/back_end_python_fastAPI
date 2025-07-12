@@ -55,6 +55,7 @@ class Order(BaseModel):
     customer_id: int | None = None
     discounted_total_price: int
     created_at: datetime
+    updated_at: datetime
 
 
     # ✅ Novos campos desnormalizados
