@@ -224,7 +224,7 @@ async def send_order(sid, data):
                 city=new_order.city,
                 # ✅ Novos campos aqui:
                 is_scheduled=new_order.is_scheduled,
-                scheduled_for=new_order.scheduled_for,
+                scheduled_for=new_order.scheduled_for if new_order.scheduled_for else None,
                 consumption_type=new_order.consumption_type,
             )
 
