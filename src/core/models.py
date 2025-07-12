@@ -2,11 +2,10 @@ import enum
 from datetime import datetime, date, timezone
 from typing import Optional, List
 
-from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric, String, text
+from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric, String, text, Enum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from sqlalchemy import Enum as SQLAlchemyEnum
-
 
 
 class Base(DeclarativeBase):
@@ -25,6 +24,7 @@ class TimestampMixin:
         server_onupdate=text("TIMEZONE('America/Sao_Paulo', NOW())")  # <- aqui o ajuste!
     )
 
+
 class Store(Base, TimestampMixin):
     __tablename__ = "stores"
 
@@ -34,7 +34,7 @@ class Store(Base, TimestampMixin):
 
     # Ativação
     is_active: Mapped[bool] = mapped_column(default=False, nullable=False)
-   # store_url: Mapped[str] = mapped_column(unique=True, nullable=False)
+    # store_url: Mapped[str] = mapped_column(unique=True, nullable=False)
     # Endereço
     zip_code: Mapped[Optional[str]] = mapped_column(nullable=True)
     street: Mapped[Optional[str]] = mapped_column(nullable=True)
@@ -55,7 +55,6 @@ class Store(Base, TimestampMixin):
     facebook: Mapped[Optional[str]] = mapped_column(nullable=True)
     tiktok: Mapped[Optional[str]] = mapped_column(nullable=True)
 
-
     # Plano
     plan_type: Mapped[str] = mapped_column(default="free", nullable=False)
     store_url: Mapped[Optional[str]] = mapped_column(nullable=False)
@@ -66,9 +65,6 @@ class Store(Base, TimestampMixin):
     variants = relationship("Variant", back_populates="store")
     totem_authorizations = relationship("TotemAuthorization", back_populates="store")
 
-
-
-
     payment_methods: Mapped[list["StorePaymentMethods"]] = relationship()
     products: Mapped[list["Product"]] = relationship()
     coupons: Mapped[list["Coupon"]] = relationship()
@@ -76,10 +72,7 @@ class Store(Base, TimestampMixin):
     # no Store
     store_customers = relationship("StoreCustomer", back_populates="store")
 
-
-
     themes: Mapped[list["StoreTheme"]] = relationship()
-
 
     payables: Mapped[list["StorePayable"]] = relationship()
 
@@ -111,7 +104,6 @@ class Store(Base, TimestampMixin):
     )
 
 
-
 class User(Base, TimestampMixin):
     __tablename__ = "users"
 
@@ -123,11 +115,13 @@ class User(Base, TimestampMixin):
     is_email_verified: Mapped[bool] = mapped_column(default=False)
     verification_code: Mapped[Optional[str]] = mapped_column(nullable=True)
 
+
 class Role(Base, TimestampMixin):
     __tablename__ = "roles"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     machine_name: Mapped[str] = mapped_column(unique=True)
+
 
 class StoreAccess(Base, TimestampMixin):
     __tablename__ = "store_accesses"
@@ -135,12 +129,13 @@ class StoreAccess(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
     role_id: Mapped[int] = mapped_column(ForeignKey("roles.id"))
-    store:   Mapped["Store"] = relationship("Store", back_populates="accesses")
+    store: Mapped["Store"] = relationship("Store", back_populates="accesses")
 
     user: Mapped[User] = relationship()
     role: Mapped[Role] = relationship()
 
     __table_args__ = (Index("ix_store_user", "store_id", "user_id"),)
+
 
 class Category(Base, TimestampMixin):
     __tablename__ = "categories"
@@ -156,6 +151,7 @@ class Category(Base, TimestampMixin):
         back_populates="category",
         cascade="all, delete-orphan"
     )
+
 
 class Product(Base, TimestampMixin):
     __tablename__ = "products"
@@ -184,9 +180,6 @@ class Product(Base, TimestampMixin):
 
     ean: Mapped[str] = mapped_column(default="")
 
-
-
-
     stock_quantity: Mapped[int] = mapped_column(default=0)
     control_stock: Mapped[bool] = mapped_column(default=False)
     min_stock: Mapped[int] = mapped_column(default=0)
@@ -195,7 +188,8 @@ class Product(Base, TimestampMixin):
     tag: Mapped[str] = mapped_column(default="")
 
     product_ratings: Mapped[List["ProductRating"]] = relationship(back_populates="product")
-    sold_count: Mapped[int] = mapped_column( nullable=False, default=0)
+    sold_count: Mapped[int] = mapped_column(nullable=False, default=0)
+
 
 class Variant(Base, TimestampMixin):
     __tablename__ = "variants"
@@ -239,6 +233,7 @@ class VariantOptions(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     store: Mapped["Store"] = relationship()
 
+
 class ProductVariantProduct(Base):
     __tablename__ = "product_variants_products"
     __table_args__ = (
@@ -251,8 +246,6 @@ class ProductVariantProduct(Base):
 
     product: Mapped["Product"] = relationship(back_populates="variant_links")
     variant: Mapped["Variant"] = relationship(back_populates="product_links")
-
-
 
 
 class Coupon(Base, TimestampMixin):
@@ -288,9 +281,6 @@ class Coupon(Base, TimestampMixin):
     orders: Mapped[list["Order"]] = relationship(back_populates="coupon")
 
 
-
-
-
 class TotemAuthorization(Base, TimestampMixin):
     __tablename__ = "totem_authorizations"
 
@@ -311,8 +301,6 @@ class TotemAuthorization(Base, TimestampMixin):
     store_url: Mapped[str] = mapped_column(unique=True, nullable=False)
 
 
-
-
 class StoreSession(Base, TimestampMixin):
     __tablename__ = "store_sessions"
 
@@ -321,7 +309,8 @@ class StoreSession(Base, TimestampMixin):
     client_type: Mapped[str] = mapped_column()  # 'admin' ou 'totem'
     sid: Mapped[str] = mapped_column(unique=True)
 
-class AdminConsolidatedStoreSelection(Base, TimestampMixin): # Adicionei TimestampMixin aqui também para padronizar
+
+class AdminConsolidatedStoreSelection(Base, TimestampMixin):  # Adicionei TimestampMixin aqui também para padronizar
     __tablename__ = 'admin_consolidated_store_selection'
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -329,12 +318,10 @@ class AdminConsolidatedStoreSelection(Base, TimestampMixin): # Adicionei Timesta
     admin_id: Mapped[int] = mapped_column(ForeignKey("totem_authorizations.id"), nullable=False)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), nullable=False)
 
-
     __table_args__ = (UniqueConstraint('admin_id', 'store_id', name='uq_admin_store_selection'),)
 
     admin_authorization: Mapped[TotemAuthorization] = relationship(backref="consolidated_selections")
     store: Mapped[Store] = relationship()
-
 
 
 class StoreTheme(Base, TimestampMixin):
@@ -369,9 +356,9 @@ class StoreTheme(Base, TimestampMixin):
 
     font_family: Mapped[str] = mapped_column()
 
-    category_layout:  Mapped[str] = mapped_column()
-    product_layout:  Mapped[str] = mapped_column()
-    theme_name:  Mapped[str] = mapped_column()
+    category_layout: Mapped[str] = mapped_column()
+    product_layout: Mapped[str] = mapped_column()
+    theme_name: Mapped[str] = mapped_column()
 
 
 class StorePixConfig(Base, TimestampMixin):
@@ -388,6 +375,7 @@ class StorePixConfig(Base, TimestampMixin):
 
     hmac_key: Mapped[str] = mapped_column(unique=True)
 
+
 class Charge(Base, TimestampMixin):
     __tablename__ = "charges"
 
@@ -401,6 +389,7 @@ class Charge(Base, TimestampMixin):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     e2e_id: Mapped[str | None] = mapped_column()
 
+
 class PixDevolution(Base, TimestampMixin):
     __tablename__ = "pix_devolutions"
 
@@ -411,6 +400,7 @@ class PixDevolution(Base, TimestampMixin):
     amount: Mapped[int] = mapped_column()
     e2e_id: Mapped[str] = mapped_column()
     reason: Mapped[str | None] = mapped_column()
+
 
 class StoreChatbotConfig(Base, TimestampMixin):
     __tablename__ = "store_chatbot_configs"
@@ -427,7 +417,6 @@ class StoreChatbotConfig(Base, TimestampMixin):
     session_path: Mapped[str] = mapped_column(nullable=True)  # caminho local ou info da sessão
 
 
-
 class StorePaymentMethods(Base, TimestampMixin):
     __tablename__ = "store_payment_methods"
 
@@ -435,21 +424,18 @@ class StorePaymentMethods(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     payment_type: Mapped[str] = mapped_column()  # 'Cash', 'Card', 'Pix', ...
 
-    custom_name:  Mapped[str]  = mapped_column()
+    custom_name: Mapped[str] = mapped_column()
     custom_icon: Mapped[str] = mapped_column(nullable=True)
 
-    is_active:          Mapped[bool] = mapped_column(default=True)
+    is_active: Mapped[bool] = mapped_column(default=True)
 
     active_on_delivery: Mapped[bool] = mapped_column(default=True)
-    active_on_pickup:   Mapped[bool] = mapped_column(default=True)
-    active_on_counter:  Mapped[bool] = mapped_column(default=True)
+    active_on_pickup: Mapped[bool] = mapped_column(default=True)
+    active_on_counter: Mapped[bool] = mapped_column(default=True)
 
-    tax_rate:        Mapped[float] = mapped_column(default=0)
+    tax_rate: Mapped[float] = mapped_column(default=0)
 
-
-
-    pix_key:        Mapped[str]  = mapped_column(nullable=True)
-
+    pix_key: Mapped[str] = mapped_column(nullable=True)
 
     orders = relationship("Order", back_populates="payment_method", passive_deletes=True)
 
@@ -482,19 +468,21 @@ class StoreDeliveryConfiguration(Base, TimestampMixin):
 
     store: Mapped["Store"] = relationship(back_populates="delivery_config")
 
+
 class StoreHours(Base, TimestampMixin):
     __tablename__ = "store_hours"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
 
-    day_of_week: Mapped[int] = mapped_column()         # 0 - domingo, 6 - sábado
-    open_time: Mapped[str] = mapped_column()           # exemplo: '08:00'
-    close_time: Mapped[str] = mapped_column()          # exemplo: '18:00'
+    day_of_week: Mapped[int] = mapped_column()  # 0 - domingo, 6 - sábado
+    open_time: Mapped[str] = mapped_column()  # exemplo: '08:00'
+    close_time: Mapped[str] = mapped_column()  # exemplo: '18:00'
     shift_number: Mapped[int] = mapped_column()
     is_active: Mapped[bool] = mapped_column(default=True)
 
     store: Mapped["Store"] = relationship(back_populates="hours")
+
 
 class StoreCity(Base, TimestampMixin):
     __tablename__ = "store_cities"
@@ -507,6 +495,7 @@ class StoreCity(Base, TimestampMixin):
                                                                     cascade="all, delete")
     is_active: Mapped[bool] = mapped_column(default=True)
     store: Mapped["Store"] = relationship(back_populates="cities")
+
 
 class StoreNeighborhood(Base, TimestampMixin):
     __tablename__ = "store_neighborhoods"
@@ -523,18 +512,12 @@ class StoreNeighborhood(Base, TimestampMixin):
     city: Mapped["StoreCity"] = relationship("StoreCity", back_populates="neighborhoods")
 
 
-
-
-
-
-
-
-
 class PayableStatus(str, enum.Enum):
     pending = "pending"
     paid = "paid"
     overdue = "overdue"
     cancelled = "cancelled"
+
 
 class StorePayable(Base, TimestampMixin):
     __tablename__ = "store_payables"
@@ -543,18 +526,17 @@ class StorePayable(Base, TimestampMixin):
 
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
 
-
     title: Mapped[str] = mapped_column()
-    description: Mapped[str] = mapped_column( default="")
+    description: Mapped[str] = mapped_column(default="")
 
-    amount: Mapped[float] = mapped_column()                    # Valor original
+    amount: Mapped[float] = mapped_column()  # Valor original
     discount: Mapped[float] = mapped_column(default=0.0)
     addition: Mapped[float] = mapped_column(default=0.0)
 
     due_date: Mapped[date] = mapped_column()
     payment_date: Mapped[date] = mapped_column(nullable=True)
 
-    barcode: Mapped[str | None] = mapped_column( nullable=True)
+    barcode: Mapped[str | None] = mapped_column(nullable=True)
 
     status: Mapped[PayableStatus] = mapped_column(default=PayableStatus.pending)
 
@@ -565,7 +547,6 @@ class StorePayable(Base, TimestampMixin):
     store: Mapped["Store"] = relationship(back_populates="payables")
 
 
-
 class CashierSession(Base, TimestampMixin):
     __tablename__ = "cashier_sessions"
 
@@ -573,19 +554,17 @@ class CashierSession(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     user_opened_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     user_closed_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
-    opened_at: Mapped[datetime] = mapped_column(default=datetime.now(timezone.utc),)
+    opened_at: Mapped[datetime] = mapped_column(default=datetime.now(timezone.utc), )
     closed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     opening_amount: Mapped[float] = mapped_column()
     cash_added: Mapped[float] = mapped_column(default=0.0)
     cash_removed: Mapped[float] = mapped_column(default=0.0)
-
 
     cash_difference: Mapped[float] = mapped_column(default=0.0)
     expected_amount: Mapped[float] = mapped_column(default=0.0)
     informed_amount: Mapped[float] = mapped_column(default=0.0)
 
     status: Mapped[str] = mapped_column(default="open")
-
 
     store: Mapped["Store"] = relationship("Store", back_populates="cashier_sessions")
 
@@ -622,7 +601,6 @@ class CashierTransaction(Base, TimestampMixin):
     payment_method: Mapped["StorePaymentMethods"] = relationship("StorePaymentMethods")
 
 
-
 class Customer(Base):
     __tablename__ = "customers"
 
@@ -632,14 +610,15 @@ class Customer(Base):
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     photo: Mapped[str | None] = mapped_column(nullable=True)
 
-    customer_addresses: Mapped[list["Address"]] = relationship("Address", back_populates="customer", cascade="all, delete-orphan")
+    customer_addresses: Mapped[list["Address"]] = relationship("Address", back_populates="customer",
+                                                               cascade="all, delete-orphan")
 
     store_ratings: Mapped[List["StoreRating"]] = relationship(back_populates="customer")
     product_ratings: Mapped[List["ProductRating"]] = relationship(back_populates="customer")
 
-
     # no Customer
     store_customers = relationship("StoreCustomer", back_populates="customer")
+
 
 class Address(Base):
     __tablename__ = "customer_addresses"
@@ -654,12 +633,12 @@ class Address(Base):
     reference: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     delivery_scope: Mapped[str] = mapped_column(String(20), nullable=False, default='city')
 
-    neighborhood_id: Mapped[Optional[int]] = mapped_column(ForeignKey("store_neighborhoods.id", ondelete="SET NULL"), nullable=True)
+    neighborhood_id: Mapped[Optional[int]] = mapped_column(ForeignKey("store_neighborhoods.id", ondelete="SET NULL"),
+                                                           nullable=True)
     neighborhood_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     customer: Mapped["Customer"] = relationship("Customer", back_populates="customer_addresses")
     neighborhood: Mapped[Optional["StoreNeighborhood"]] = relationship("StoreNeighborhood", lazy="joined")
-
 
 
 class Banner(Base, TimestampMixin):
@@ -685,10 +664,7 @@ class Banner(Base, TimestampMixin):
     category: Mapped[Category | None] = relationship()
     store: Mapped[Store] = relationship()
 
-class ConsumptionType(str, enum.Enum):
-    local = "local"         # consumo no local
-    retirada = "retirada"   # cliente vem buscar
-    delivery = "delivery"   # entrega
+
 
 class Order(Base, TimestampMixin):
     __tablename__ = "orders"
@@ -712,15 +688,13 @@ class Order(Base, TimestampMixin):
     neighborhood: Mapped[str] = mapped_column()
     city: Mapped[str] = mapped_column()
 
-
-
     attendant_name: Mapped[str | None] = mapped_column(nullable=True)  # Só para PDV/Mesa
 
     order_type: Mapped[str] = mapped_column()  # Ex: "cardapio_digital", "mesa", "pdv"
     delivery_type: Mapped[str] = mapped_column()  # Ex: "retirada", "delivery"
 
     total_price: Mapped[int] = mapped_column()
-    discounted_total_price : Mapped[int] = mapped_column()
+    discounted_total_price: Mapped[int] = mapped_column()
 
     # totem_id: Mapped[int | None] = mapped_column(
     #     ForeignKey("totem_authorizations.id", ondelete="SET NULL"),
@@ -751,7 +725,6 @@ class Order(Base, TimestampMixin):
     observation: Mapped[str | None] = mapped_column(nullable=True)
     delivery_fee: Mapped[int] = mapped_column(default=0)
 
-
     products: Mapped[list["OrderProduct"]] = relationship(backref="order")
 
     store = relationship("Store", back_populates="orders")
@@ -762,16 +735,13 @@ class Order(Base, TimestampMixin):
     scheduled_for: Mapped[datetime | None] = mapped_column(nullable=True)
 
     # ✅ Tipo de consumo (onde o cliente vai comer)
-    consumption_type: Mapped[ConsumptionType] = mapped_column(
-        SQLAlchemyEnum(ConsumptionType), default=ConsumptionType.local
-    )
-
-
+    consumption_type: Mapped[str] = mapped_column(default="dine_in")
 
     # @property
     # def totem_name(self):
     #     return self.totem.totem_name if self.totem else None
     #
+
 
 class OrderProduct(Base, TimestampMixin):
     __tablename__ = "order_products"
@@ -797,7 +767,6 @@ class OrderProduct(Base, TimestampMixin):
     variants: Mapped[list["OrderVariant"]] = relationship(backref="product")
 
 
-
 class OrderVariant(Base, TimestampMixin):
     __tablename__ = "order_variants"
 
@@ -813,12 +782,10 @@ class OrderVariant(Base, TimestampMixin):
 
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
 
-
     name: Mapped[str] = mapped_column()
 
     options: Mapped[list["OrderVariantOption"]] = relationship(backref="variant")
     order_product: Mapped[OrderProduct] = relationship()
-
 
 
 class OrderVariantOption(Base, TimestampMixin):
@@ -835,8 +802,6 @@ class OrderVariantOption(Base, TimestampMixin):
     )
 
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-
-
 
     name: Mapped[str] = mapped_column()
     price: Mapped[int] = mapped_column()
@@ -862,36 +827,6 @@ class OrderVariantOption(Base, TimestampMixin):
 #
 #
 #
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 class StoreRating(Base, TimestampMixin):
@@ -942,7 +877,6 @@ class ProductRating(Base, TimestampMixin):
     )
 
 
-
 class StoreCustomer(Base, TimestampMixin):
     __tablename__ = "store_customers"
 
@@ -956,51 +890,15 @@ class StoreCustomer(Base, TimestampMixin):
     customer = relationship("Customer", back_populates="store_customers")
 
 
-
-
-
-
 class StoreSettings(Base, TimestampMixin):
     __tablename__ = "store_settings"
     store = relationship("Store", back_populates="settings", uselist=False)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), primary_key=True)
 
-    is_delivery_active: Mapped[bool] = mapped_column( default=True)
-    is_takeout_active: Mapped[bool] = mapped_column( default=True)
-    is_table_service_active: Mapped[bool] = mapped_column( default=True)
-    is_store_open: Mapped[bool] = mapped_column( default=True)
+    is_delivery_active: Mapped[bool] = mapped_column(default=True)
+    is_takeout_active: Mapped[bool] = mapped_column(default=True)
+    is_table_service_active: Mapped[bool] = mapped_column(default=True)
+    is_store_open: Mapped[bool] = mapped_column(default=True)
 
-    auto_accept_orders: Mapped[bool] = mapped_column( default=False)
-    auto_print_orders: Mapped[bool] = mapped_column( default=False)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    auto_accept_orders: Mapped[bool] = mapped_column(default=False)
+    auto_print_orders: Mapped[bool] = mapped_column(default=False)

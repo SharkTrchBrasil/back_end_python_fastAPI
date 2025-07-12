@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.core.models import ConsumptionType
+
 
 
 class OrderVariantOption(BaseModel):
@@ -78,8 +78,7 @@ class Order(BaseModel):
     is_scheduled: Optional[bool] = False
     scheduled_for: Optional[datetime] = None
 
-    consumption_type: Optional[ConsumptionType] = Field(default=ConsumptionType.local)
-
+    consumption_type: str = "dine_in"
 
     attendant_name: str | None = None
     order_type: str
