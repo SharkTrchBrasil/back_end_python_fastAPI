@@ -60,7 +60,7 @@ class Order(BaseModel):
     discounted_total_price: int
     created_at: datetime
     updated_at: datetime
-
+    scheduled_for: datetime
 
     # ✅ Novos campos desnormalizados
     customer_name: str | None = None           # 👈 Nome do cliente no momento do pedido
@@ -75,8 +75,8 @@ class Order(BaseModel):
     city: str
 
     # ✅ Novos campos
-    is_scheduled: Optional[bool] = False
-    scheduled_for: Optional[datetime] = None
+    is_scheduled: bool | False
+
 
     consumption_type: str = "dine_in"
 
