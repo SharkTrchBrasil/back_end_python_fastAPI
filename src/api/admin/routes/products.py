@@ -77,6 +77,7 @@ async def create_product(
         min_stock=min_stock,
         max_stock=max_stock,
         unit=unit,
+        sold_count=0,
 
         file_key=file_key,
     )
