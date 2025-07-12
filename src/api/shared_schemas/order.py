@@ -60,48 +60,37 @@ class Order(BaseModel):
     updated_at: datetime
     scheduled_for: datetime | None = None
 
+    # Campos desnormalizados
+    customer_name: str | None = None
+    customer_phone: str | None = None
+    payment_method_name: str | None = None
 
-    # ✅ Novos campos desnormalizados
-    customer_name: str | None = None           # 👈 Nome do cliente no momento do pedido
-    customer_phone: str | None = None          # 👈 Telefone do cliente
-    payment_method_name: str | None = None     # 👈 Ex: "Pix via MercadoPago"
-
-    # ✅ Dados do endereço fixos no pedido
+    # Endereço
     street: str
     number: str | None = None
     complement: str | None = None
     neighborhood: str
     city: str
 
+    # Status
     is_scheduled: bool | None = False
-
     consumption_type: str = "dine_in"
-
     attendant_name: str | None = None
     order_type: str
     delivery_type: str
     total_price: int
     payment_status: str
     order_status: str
-
-    #totem_id: int | None = None
-
     payment_method_id: int
 
-    model_config = ConfigDict(
-        from_attributes=True,
-        json_encoders={
-            datetime: lambda v: v.isoformat() if v else None
-        }
-    )
+    @field_serializer('scheduled_for', 'created_at', 'updated_at')
+    def serialize_dates(self, value: datetime | None) -> str | None:
+        return value.isoformat() if value else None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class OrderDetails(Order):
     products: list[OrderProduct]
+    model_config = ConfigDict(from_attributes=True)
 
-
-    @field_serializer('created_at', 'updated_at', 'scheduled_for')
-    def serialize_dates(self, dt: datetime | None, _info):
-        if dt is None:
-            return None
-        return dt.isoformat()

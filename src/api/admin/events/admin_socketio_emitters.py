@@ -1,4 +1,5 @@
 from datetime import datetime
+from venv import logger
 from zoneinfo import ZoneInfo
 
 
@@ -177,20 +178,10 @@ async def admin_product_list_all(db, store_id: int, sid: str | None = None):
 
 async def admin_emit_order_updated_from_obj(order: models.Order):
     try:
-        # Converte o modelo SQLAlchemy para Pydantic
-        order_details = OrderDetails.model_validate(order)
-
-        # Serializa para dict com tratamento de datas
-        payload = order_details.model_dump(mode='json')
-
-        # Emite o evento
-        await sio.emit("order_updated", payload, namespace='/admin', room=f"admin_store_{order.store_id}")
-
-
+        order_data = OrderDetails.model_validate(order).model_dump(mode='json')
+        await sio.emit("order_updated", order_data, namespace='/admin', room=f"admin_store_{order.store_id}")
     except Exception as e:
-        print(f'❌ Erro ao emitir order_updated: {str(e)}')
-
-
+        logger.error(f'Erro ao emitir order_updated: {e}')
 
 async def admin_emit_store_updated(store: models.Store):
     try:
