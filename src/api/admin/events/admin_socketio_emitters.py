@@ -180,10 +180,13 @@ async def admin_product_list_all(db, store_id: int, sid: str | None = None):
 async def admin_emit_order_updated_from_obj(order: models.Order):
     try:
 
-        payload = OrderDetails.model_validate(order).model_dump(mode='json')
-        print(orjson.dumps(payload))
-        await sio.emit("order_updated", orjson.loads(orjson.dumps(payload)), namespace='/admin',
-                   room=f"admin_store_{order.store_id}")
+        # Transforma o Order em JSON string (com datetime convertido)
+        json_bytes = OrderDetails.model_validate(order).model_dump_json().encode()
+
+        # Decodifica de volta para dict com tudo pronto pro Socket.IO
+        payload = orjson.loads(json_bytes)
+
+        await sio.emit("order_updated", payload, namespace='/admin', room=f"admin_store_{order.store_id}")
 
 
     except Exception as e:
