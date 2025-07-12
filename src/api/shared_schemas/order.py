@@ -60,7 +60,8 @@ class Order(BaseModel):
     discounted_total_price: int
     created_at: datetime
     updated_at: datetime
-    scheduled_for: datetime
+    scheduled_for: datetime | None = None
+
 
     # ✅ Novos campos desnormalizados
     customer_name: str | None = None           # 👈 Nome do cliente no momento do pedido
