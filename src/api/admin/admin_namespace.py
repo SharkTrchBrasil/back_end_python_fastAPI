@@ -19,6 +19,12 @@ from src.core.database import get_db_manager
 
 
 class AdminNamespace(AsyncNamespace):
+
+    def __init__(self, namespace=None):
+        super().__init__(namespace)
+        self.environ = {}  # Armazena o environ de cada conexão pelo sid
+
+
     async def on_connect(self, sid, environ):
         print(f"[ADMIN] Conexão estabelecida: {sid}")
         query = parse_qs(environ.get("QUERY_STRING", ""))
@@ -26,6 +32,9 @@ class AdminNamespace(AsyncNamespace):
 
         if not token:
             raise ConnectionRefusedError("Token obrigatório")
+
+        self.environ[sid] = environ  # GUARDA O ENVIRON PARA EVENTOS FUTUROS
+
 
         with get_db_manager() as db:
             try:
@@ -38,13 +47,7 @@ class AdminNamespace(AsyncNamespace):
 
                 admin_id = totem_auth_user.id
 
-                # 1. Obter os roles do usuário para saber se ele é um admin
-                # Você precisaria de uma query para verificar se o usuário tem a role 'admin'
-                # ou se authorize_admin já garante isso. Para esta lógica, assumiremos que totem_auth_user.id é um admin_id válido.
 
-                # 2. Recuperar TODAS as lojas às quais este admin tem acesso através da tabela StoreAccess
-                # Assumimos que 'admin' role_id é necessário para gerenciar
-                # OU que StoreAccess já implica acesso administrativo
                 admin_role = db.query(models.Role).filter_by(machine_name='admin').first()
                 if not admin_role:
                     print("❌ Role 'admin' não encontrada no banco de dados.")
@@ -57,10 +60,6 @@ class AdminNamespace(AsyncNamespace):
                     ).all()
                 ]
 
-                # Se o admin não tiver StoreAccess específico como 'admin', mas authorize_admin já o validou
-                # como admin principal de UMA loja (totem_auth_user.store_id), podemos adicioná-la.
-                # Isso depende do seu fluxo de authorize_admin e como o admin principal de uma loja é definido.
-                # Se StoreAccess for a única fonte de verdade para acesso a lojas, remova essa parte.
                 if not all_accessible_store_ids and totem_auth_user.store_id:
                     all_accessible_store_ids.append(totem_auth_user.store_id)
 
@@ -158,6 +157,8 @@ class AdminNamespace(AsyncNamespace):
                     db.delete(session)
                     db.commit()
                     print(f"✅ Session removida para sid {sid}")
+
+                    self.environ.pop(sid, None)  # LIMPA AO DESCONECTAR
             except Exception as e:
                 print(f"❌ Erro na desconexão: {str(e)}")
                 db.rollback()
