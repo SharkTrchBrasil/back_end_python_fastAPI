@@ -182,7 +182,7 @@ async def admin_emit_order_updated_from_obj(order: models.Order):
     try:
 
         payload = OrderDetails.model_validate(order).model_dump(mode='json')
-
+        print(orjson.dumps(payload))
         await sio.emit("order_updated", orjson.loads(orjson.dumps(payload)), namespace='/admin',
                    room=f"admin_store_{order.store_id}")
 
