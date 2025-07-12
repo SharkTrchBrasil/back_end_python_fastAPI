@@ -1,9 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
-
-
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class OrderVariantOption(BaseModel):
@@ -90,8 +88,20 @@ class Order(BaseModel):
 
     payment_method_id: int
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={
+            datetime: lambda v: v.isoformat() if v else None
+        }
+    )
 
 
 class OrderDetails(Order):
     products: list[OrderProduct]
+
+
+    @field_serializer('created_at', 'updated_at', 'scheduled_for')
+    def serialize_dates(self, dt: datetime | None, _info):
+        if dt is None:
+            return None
+        return dt.isoformat()

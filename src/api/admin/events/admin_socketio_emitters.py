@@ -175,22 +175,21 @@ async def admin_product_list_all(db, store_id: int, sid: str | None = None):
             await sio.emit("products_updated", {"store_id": store_id, "products": []}, namespace='/admin', room=f"admin_store_{store_id}")
 
 
-
-
 async def admin_emit_order_updated_from_obj(order: models.Order):
     try:
+        # Converte o modelo SQLAlchemy para Pydantic
+        order_details = OrderDetails.model_validate(order)
 
-        # Transforma o Order em JSON string (com datetime convertido)
-        json_bytes = OrderDetails.model_validate(order).model_dump_json().encode()
+        # Serializa para dict com tratamento de datas
+        payload = order_details.model_dump(mode='json')
 
-        # Decodifica de volta para dict com tudo pronto pro Socket.IO
-        payload = orjson.loads(json_bytes)
-
+        # Emite o evento
         await sio.emit("order_updated", payload, namespace='/admin', room=f"admin_store_{order.store_id}")
 
 
     except Exception as e:
         print(f'❌ Erro ao emitir order_updated: {str(e)}')
+
 
 
 async def admin_emit_store_updated(store: models.Store):
