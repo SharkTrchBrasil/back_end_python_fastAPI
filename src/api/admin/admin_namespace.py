@@ -71,13 +71,24 @@ class AdminNamespace(AsyncNamespace):
                     )
                 ).scalars())
 
-                # Se não houver lojas selecionadas para consolidação, por padrão,
-                # selecione todas as lojas às quais ele tem acesso se forem poucas, ou a principal.
-                # Vamos usar a lógica de se não houver seleção consolidada, use todas as acessíveis.
+                # 4. Se vazio, seleciona a primeira loja da lista de acessíveis e salva no DB
                 if not consolidated_store_ids and all_accessible_store_ids:
-                    consolidated_store_ids = list(all_accessible_store_ids)
-                elif not consolidated_store_ids and totem_auth_user.store_id:  # Fallback para a principal se nada mais
-                    consolidated_store_ids.append(totem_auth_user.store_id)
+                    loja_padrao = all_accessible_store_ids[0]  # Pega sempre a primeira loja da lista
+
+                    try:
+                        nova_selecao = models.AdminConsolidatedStoreSelection(
+                            admin_id=admin_id,
+                            store_id=loja_padrao
+                        )
+                        db.add(nova_selecao)
+                        db.commit()
+                        consolidated_store_ids = [loja_padrao]
+                        print(f"✅ Loja padrão {loja_padrao} atribuída ao admin {admin_id}")
+                    except Exception as e:
+                        db.rollback()
+                        print(f"❌ Erro ao definir loja padrão: {e}")
+
+
 
                 # 4. Criar/atualizar sessão na tabela store_sessions
                 session = db.query(models.StoreSession).filter_by(sid=sid).first()
