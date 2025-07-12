@@ -27,6 +27,7 @@ class Product(BaseModel):
     max_stock: int
 
     unit: str
+    sold_count: int
 
 
     model_config = {

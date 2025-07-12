@@ -194,7 +194,7 @@ class Product(Base, TimestampMixin):
     tag: Mapped[str] = mapped_column(default="")
 
     product_ratings: Mapped[List["ProductRating"]] = relationship(back_populates="product")
-    sold_count: Mapped[int] = mapped_column()
+    sold_count: Mapped[int] = mapped_column( nullable=False, default=0)
 
 class Variant(Base, TimestampMixin):
     __tablename__ = "variants"
