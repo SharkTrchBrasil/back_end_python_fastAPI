@@ -1,66 +1,111 @@
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload
+from sqlalchemy import select, delete
 from datetime import datetime
 from urllib.parse import parse_qs
 from socketio import AsyncNamespace
-
 from src.api.admin.schemas.store_settings import StoreSettingsBase
 from src.api.app.events.socketio_emitters import emit_store_updated
-from src.core import models  # Importe models para acessar TotemAuthorization
+from src.core import models
 from src.api.admin.events.admin_socketio_emitters import (
-
-    admin_emit_orders_initial, admin_product_list_all, admin_emit_store_full_updated, admin_emit_order_updated_from_obj,
-    admin_emit_store_updated)
-from src.api.admin.services.authorize_admin import authorize_admin, update_sid
+    admin_emit_orders_initial,
+    admin_product_list_all,
+    admin_emit_store_full_updated,
+    admin_emit_order_updated_from_obj,
+    admin_emit_store_updated,
+)
+from src.api.admin.services.authorize_admin import authorize_admin
 from src.core.database import get_db_manager
+
+
+
+
 
 
 class AdminNamespace(AsyncNamespace):
     async def on_connect(self, sid, environ):
         print(f"[ADMIN] Conexão estabelecida: {sid}")
-        query = parse_qs(environ.get('QUERY_STRING', ''))
-        token = query.get('admin_token', [None])[0]
+        query = parse_qs(environ.get("QUERY_STRING", ""))
+        token = query.get("admin_token", [None])[0]
 
         if not token:
             raise ConnectionRefusedError("Token obrigatório")
 
         with get_db_manager() as db:
             try:
-                totem = await authorize_admin(db, token)
-                if not totem or not totem.stores: # Verifica se há lojas
-                    # AQUI ESTÁ A CORREÇÃO: Removido o "{str(e)}" pois 'e' não está definido aqui.
-                    print(f"⚠️ Admin {sid} conectado, mas sem lojas ou totem.")
-                    raise ConnectionRefusedError("Acesso negado: Nenhuma loja associada ou totem inválido.")
+                # Use joinedload para buscar as lojas do admin e evitar N+1 queries
+                totem_auth = await authorize_admin(db, token)
+                if not totem_auth or not totem_auth.store_id or not totem_auth.id:
+                    print(f"⚠️ Admin {sid} conectado, mas sem lojas ou admin_id.")
+                    raise ConnectionRefusedError(
+                        "Acesso negado: Nenhuma loja associada ou admin inválido."
+                    )
+
+                # Recupera as lojas que o admin selecionou para consolidação
+                # Usamos totem_auth.id para buscar as seleções
+                consolidated_store_ids = [
+                    s.store_id
+                    for s in db.execute(
+                        select(models.AdminConsolidatedStoreSelection.store_id).where(
+                            models.AdminConsolidatedStoreSelection.admin_id == totem_auth.id
+                        )
+                    ).scalars()
+                ]
+
+                # Se não houver lojas selecionadas para consolidação, por padrão, selecione a loja do admin
+                if not consolidated_store_ids:
+                    consolidated_store_ids.append(totem_auth.store_id)
 
                 # Criar/atualizar sessão na tabela store_sessions
+                # A store_id na sessão agora pode representar a "loja ativa principal" ou a primeira da lista consolidada
+                # Mas para o propósito de rooms, vamos gerenciar via loop abaixo.
                 session = db.query(models.StoreSession).filter_by(sid=sid).first()
                 if not session:
                     session = models.StoreSession(
                         sid=sid,
-                        store_id=totem.stores[0].id, # Define a primeira loja como a loja 'ativa' inicial
-                        client_type='admin'
+                        store_id=consolidated_store_ids[0]
+                        if consolidated_store_ids
+                        else None,  # Defina a primeira loja da consolidação como ativa inicial
+                        client_type="admin",
                     )
                     db.add(session)
                 else:
-                    session.store_id = totem.stores[0].id # Atualiza para a primeira loja também na reconexão
-                    session.client_type = 'admin'
+                    session.store_id = (
+                        consolidated_store_ids[0] if consolidated_store_ids else None
+                    )
+                    session.client_type = "admin"
                     session.updated_at = datetime.utcnow()
 
                 db.commit()
-                print(f"✅ Session criada/atualizada para sid {sid} com loja inicial {session.store_id}")
+                print(
+                    f"✅ Session criada/atualizada para sid {sid} com lojas consolidadas:"
+                    f" {consolidated_store_ids}"
+                )
 
-                # NOVO: Entrar apenas na sala da PRIMEIRA loja e emitir dados APENAS para ela
-                initial_store_id = totem.stores[0].id
-                initial_room = f"admin_store_{initial_store_id}"
-                await self.enter_room(sid, initial_room)
-                print(f"✅ Admin entrou na room inicial: {initial_room}")
-                await self._emit_initial_data(db, initial_store_id, sid) # Emite dados APENAS para a loja inicial e para este SID
+                # Fazer o SID entrar nas rooms de TODAS as lojas consolidadas
+                for store_id_to_join in consolidated_store_ids:
+                    room = f"admin_store_{store_id_to_join}"
+                    await self.enter_room(sid, room)
+                    print(f"✅ Admin {sid} entrou na room para consolidação: {room}")
+                    # Opcional: Emitir dados iniciais para CADA UMA das lojas consolidadas para este SID
+                    # Isso garante que o frontend receba os dados de todas elas.
+                    # Você precisará ajustar _emit_initial_data para ser chamado várias vezes.
+                    # Ou o frontend fará uma requisição para dados consolidados.
+                    # Para manter o fluxo atual, vamos emitir para cada uma:
+                    await self._emit_initial_data(db, store_id_to_join, sid)
 
-                # Opcional: Você pode querer enviar a lista COMPLETA de lojas que o admin tem acesso
-                # para que o frontend possa popular o seletor de lojas. Isso não incluiria os dados de pedidos/produtos.
-                # Exemplo (assumindo que você tem um schema StoreListOut e um evento 'admin_stores_list'):
-                # stores_list_data = [StoreSummarySchema.model_validate(s).model_dump() for s in totem.stores]
-                # await sio.emit('admin_stores_list', {'stores': stores_list_data}, namespace='/admin', to=sid)
+                # Enviar a lista COMPLETA de lojas que o admin tem acesso (para o seletor)
+                # e quais estão ativas para consolidação
+                # Assuming totem_auth.store is the main store, and you don't have a list of stores.
+                stores_list_data = [{
+                    "id": totem_auth.store_id,  # Use totem_auth.store_id
+                    "name": totem_auth.store.name,  # Use totem_auth.store.name
+                    "is_consolidated": totem_auth.store_id in consolidated_store_ids,  # Verifique using totem_auth.store_id
+                }]
+                await self.emit("admin_stores_list", {"stores": stores_list_data}, to=sid)
+                print(f"✅ Lista de lojas e seleção consolidada enviada para {sid}")
 
-            except Exception as e: # Aqui 'e' está definido para o bloco inteiro
+            except Exception as e:
                 db.rollback()
                 print(f"❌ Erro na conexão: {str(e)}")
                 raise
@@ -71,14 +116,147 @@ class AdminNamespace(AsyncNamespace):
             try:
                 session = db.query(models.StoreSession).filter_by(sid=sid).first()
                 if session:
-                    # Sair apenas da sala que estava ativa para aquela sessão
-                    await self.leave_room(sid, f"admin_store_{session.store_id}")
+                    # Recuperar TODAS as lojas que este admin poderia ter selecionado para consolidação
+                    # Isso é importante porque a sessão.store_id pode ser apenas UMA loja.
+                    # Você precisará do admin_id para isso.
+                    # Ou, uma abordagem mais simples: o socketio automaticamente remove o sid de todas as rooms ao desconectar.
+                    # No entanto, se você quiser ser explícito ou ter lógica adicional, precisaria do admin_id.
+
+                    # Para o propósito imediato, o Socket.IO já faz a limpeza das rooms automaticamente na desconexão.
+                    # Podemos simplesmente remover a sessão do DB.
                     db.delete(session)
                     db.commit()
-                    print(f"✅ Session removida para sid {sid} da loja {session.store_id}")
+                    print(f"✅ Session removida para sid {sid}")
             except Exception as e:
                 print(f"❌ Erro na desconexão: {str(e)}")
                 db.rollback()
+
+    async def on_set_consolidated_stores(self, sid, data):
+        try:
+            selected_store_ids = data.get("store_ids", [])
+            if not isinstance(selected_store_ids, list):
+                print("❌ 'store_ids' deve ser uma lista em on_set_consolidated_stores")
+                return {"error": "'store_ids' deve ser uma lista"}
+
+            with get_db_manager() as db:
+                session = db.query(models.StoreSession).filter_by(sid=sid, client_type="admin").first()
+                if not session:
+                    print(f"❌ Sessão não encontrada para sid {sid} em on_set_consolidated_stores")
+                    return {"error": "Sessão não autorizada"}
+
+                # Você precisará do admin_id.  Para simplificar, vamos recuperá-lo via token novamente.
+                query = parse_qs(self.environ[sid].get("QUERY_STRING", ""))  # 'self.environ[sid]' acessa o environ da conexão
+                token = query.get("admin_token", [None])[0]
+                if not token:
+                    return {"error": "Token obrigatório para esta operação"}
+                totem_auth = await authorize_admin(db, token)
+                if not totem_auth or not totem_auth.id:
+                    return {"error": "Admin não autorizado"}
+
+                admin_id = totem_auth.id
+
+                # Recupera as seleções atuais do admin no DB
+                current_consolidated_selections = db.execute(
+                    select(models.AdminConsolidatedStoreSelection).where(
+                        models.AdminConsolidatedStoreSelection.admin_id == admin_id
+                    )
+                ).scalars().all()
+                current_consolidated_ids_in_db = {
+                    s.store_id for s in current_consolidated_selections
+                }
+
+                # Lojas para remover da seleção e das rooms
+                to_remove_ids = current_consolidated_ids_in_db - set(selected_store_ids)
+                for store_id_to_remove in to_remove_ids:
+                    room = f"admin_store_{store_id_to_remove}"
+                    await self.leave_room(sid, room)
+                    db.execute(
+                        delete(models.AdminConsolidatedStoreSelection).where(
+                            models.AdminConsolidatedStoreSelection.admin_id == admin_id,
+                            models.AdminConsolidatedStoreSelection.store_id == store_id_to_remove,
+                        )
+                    )
+                    print(
+                        f"🚪 Admin {sid} saiu da sala e removeu seleção da loja:"
+                        f" {store_id_to_remove}"
+                    )
+
+                # Lojas para adicionar à seleção e às rooms
+                to_add_ids = set(selected_store_ids) - current_consolidated_ids_in_db
+                for store_id_to_add in to_add_ids:
+                    # Valide se o admin realmente tem acesso a esta loja
+                    if store_id_to_add != totem_auth.store_id:  # Use totem_auth.store_id
+                        print(
+                            f"⚠️ Admin {sid} tentou adicionar loja {store_id_to_add}"
+                            f" sem permissão."
+                        )
+                        continue  # Pula esta loja
+
+                    room = f"admin_store_{store_id_to_add}"
+                    await self.enter_room(sid, room)
+                    try:
+                        new_selection = models.AdminConsolidatedStoreSelection(
+                            admin_id=admin_id, store_id=store_id_to_add
+                        )
+                        db.add(new_selection)
+                        db.commit()  # Commit individual para capturar IntegrityError imediatamente
+                        print(
+                            f"✅ Admin {sid} entrou na sala e adicionou seleção da loja:"
+                            f" {store_id_to_add}"
+                        )
+                        # Opcional: Emitir dados iniciais para a loja recém-adicionada
+                        await self._emit_initial_data(db, store_id_to_add, sid)
+                    except IntegrityError:
+                        db.rollback()  # Rollback da transação atual para a falha específica
+                        print(
+                            f"⚠️ Seleção de loja {store_id_to_add} já existia para admin"
+                            f" {admin_id}."
+                        )
+                        # Se já existia, podemos apenas garantir que ele esteja na room
+                        await self.enter_room(sid, room)
+                    except Exception as add_e:
+                        db.rollback()
+                        print(
+                            f"❌ Erro ao adicionar seleção da loja {store_id_to_add}:"
+                            f" {str(add_e)}"
+                        )
+
+                # Emitir a nova lista de lojas consolidadas para o frontend
+                # para que ele possa atualizar o estado.
+                updated_consolidated_ids = [
+                    s.store_id
+                    for s in db.execute(
+                        select(models.AdminConsolidatedStoreSelection.store_id).where(
+                            models.AdminConsolidatedStoreSelection.admin_id == admin_id
+                        )
+                    ).scalars()
+                ]
+                await self.emit(
+                    "consolidated_stores_updated",
+                    {"store_ids": updated_consolidated_ids},
+                    to=sid,
+                )
+                print(
+                    f"✅ Seleção consolidada atualizada para {sid}:"
+                    f" {updated_consolidated_ids}"
+                )
+
+                return {"success": True, "selected_stores": updated_consolidated_ids}
+
+        except Exception as e:
+            db.rollback()
+            print(f"❌ Erro em on_set_consolidated_stores: {str(e)}")
+            return {"error": f"Falha interna: {str(e)}"}
+
+    async def _emit_initial_data(self, db, store_id, sid):
+        await admin_emit_store_full_updated(db, store_id, sid)
+        await admin_product_list_all(db, store_id, sid)
+        await admin_emit_orders_initial(db, store_id, sid)
+
+
+
+
+
 
     async def on_join_store_room(self, sid, data):
         try:
@@ -115,9 +293,7 @@ class AdminNamespace(AsyncNamespace):
         except Exception as e:
             print(f"❌ Erro ao entrar na sala da loja {store_id}: {e}")
 
-    # on_leave_store_room agora é redundante se on_join_store_room gerencia a saída da sala antiga.
-    # Você pode mantê-lo para casos de uso específicos ou removê-lo para simplificar.
-    # Se mantiver, ele seria chamado do frontend apenas se o admin quiser "desativar" a escuta de uma loja.
+
     async def on_leave_store_room(self, sid, data):
         try:
             store_id = data.get("store_id")
@@ -145,10 +321,6 @@ class AdminNamespace(AsyncNamespace):
             print(f"❌ Erro ao sair da sala da loja {store_id}: {e}")
 
 
-    async def _emit_initial_data(self, db, store_id, sid):
-        await admin_emit_store_full_updated(db, store_id, sid)
-        await admin_product_list_all(db, store_id, sid)
-        await admin_emit_orders_initial(db, store_id, sid)
 
     async def on_update_order_status(self, sid, data):
         with get_db_manager() as db:

@@ -320,6 +320,21 @@ class StoreSession(Base, TimestampMixin):
     client_type: Mapped[str] = mapped_column()  # 'admin' ou 'totem'
     sid: Mapped[str] = mapped_column(unique=True)
 
+class AdminConsolidatedStoreSelection(Base, TimestampMixin): # Adicionei TimestampMixin aqui também para padronizar
+    __tablename__ = 'admin_consolidated_store_selection'
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+
+    admin_id: Mapped[int] = mapped_column(ForeignKey("totem_authorizations.id"), nullable=False)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), nullable=False)
+
+
+    __table_args__ = (UniqueConstraint('admin_id', 'store_id', name='uq_admin_store_selection'),)
+
+    admin_authorization: Mapped[TotemAuthorization] = relationship(backref="consolidated_selections")
+    store: Mapped[Store] = relationship()
+
+
 
 class StoreTheme(Base, TimestampMixin):
     __tablename__ = "store_themes"
