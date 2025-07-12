@@ -65,14 +65,11 @@ class AdminNamespace(AsyncNamespace):
                     all_accessible_store_ids.append(totem_auth_user.store_id)
 
                 # 3. Recupera as lojas que o admin selecionou para consolidação (persistido no DB)
-                consolidated_store_ids = [
-                    s.store_id
-                    for s in db.execute(
-                        select(models.AdminConsolidatedStoreSelection.store_id).where(
-                            models.AdminConsolidatedStoreSelection.admin_id == admin_id
-                        )
-                    ).scalars()
-                ]
+                consolidated_store_ids = list(db.execute(
+                    select(models.AdminConsolidatedStoreSelection.store_id).where(
+                        models.AdminConsolidatedStoreSelection.admin_id == admin_id
+                    )
+                ).scalars())
 
                 # Se não houver lojas selecionadas para consolidação, por padrão,
                 # selecione todas as lojas às quais ele tem acesso se forem poucas, ou a principal.
@@ -258,14 +255,12 @@ class AdminNamespace(AsyncNamespace):
                         )
 
                 # Emitir a nova lista de lojas consolidadas para o frontend
-                updated_consolidated_ids = [
-                    s.store_id
-                    for s in db.execute(
-                        select(models.AdminConsolidatedStoreSelection.store_id).where(
-                            models.AdminConsolidatedStoreSelection.admin_id == admin_id
-                        )
-                    ).scalars()
-                ]
+                updated_consolidated_ids = list(db.execute(
+                    select(models.AdminConsolidatedStoreSelection.store_id).where(
+                        models.AdminConsolidatedStoreSelection.admin_id == admin_id
+                    )
+                ).scalars())
+
                 await self.emit(
                     "consolidated_stores_updated",
                     {"store_ids": updated_consolidated_ids},
