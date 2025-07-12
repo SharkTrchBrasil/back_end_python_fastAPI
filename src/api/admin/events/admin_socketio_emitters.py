@@ -176,7 +176,6 @@ async def admin_product_list_all(db, store_id: int, sid: str | None = None):
 
 
 
-# As outras funções permanecem inalteradas, só alterei admin_emit_order_updated_from_obj para sempre emitir na room (pois em geral você quer notificar todos admins conectados):
 
 async def admin_emit_order_updated_from_obj(order: models.Order):
     try:
