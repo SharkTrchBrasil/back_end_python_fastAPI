@@ -74,9 +74,7 @@ class Order(BaseModel):
     neighborhood: str
     city: str
 
-    # ✅ Novos campos
-    is_scheduled: bool | False
-
+    is_scheduled: bool | None = False
 
     consumption_type: str = "dine_in"
 

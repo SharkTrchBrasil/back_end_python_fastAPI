@@ -63,8 +63,8 @@ class NewOrder(BaseModel):
     city: str | None = None
 
     # ✅ Novos campos
-    is_scheduled: bool = False
-    scheduled_for: datetime = None
+    is_scheduled: bool | None = False
+    scheduled_for: datetime | None = None
 
     consumption_type: str = "dine_in"
 
