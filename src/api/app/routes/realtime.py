@@ -1,4 +1,3 @@
-import asyncio
 # Correto - Importe datetime corretamente
 from datetime import datetime, timezone
 
@@ -33,11 +32,10 @@ from src.core import models
 from src.core.database import get_db_manager
 
 from src.api.app.services.authorize_totem import authorize_totem
-from src.core.models import Coupon
 from src.api.app.schemas.coupon import Coupon as CouponSchema
 from src.socketio_instance import sio
 
-from src.api.app.schemas.order import Order as OrderSchema
+from src.api.shared_schemas.order import Order as OrderSchema
 
 
 # Evento de conexão do Socket.IO
@@ -224,6 +222,10 @@ async def send_order(sid, data):
                 complement=new_order.complement or "",
                 neighborhood=new_order.neighborhood,
                 city=new_order.city,
+                # ✅ Novos campos aqui:
+                is_scheduled=new_order.is_scheduled,
+                scheduled_for=new_order.scheduled_for,
+                consumption_type=new_order.consumption_type,
             )
 
             # 6. Configuração automática da loja

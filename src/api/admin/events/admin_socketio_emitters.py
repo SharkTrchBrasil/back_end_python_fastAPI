@@ -1,10 +1,11 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from src.api.admin.schemas.order import OrderDetails
+
 from src.api.admin.schemas.store_settings import StoreSettingsBase
 
 from src.api.app.services.rating import get_product_ratings_summary, get_store_ratings_summary
+from src.api.shared_schemas.order import OrderDetails
 from src.api.shared_schemas.rating import RatingsSummaryOut
 from src.socketio_instance import sio
 from src.core import models

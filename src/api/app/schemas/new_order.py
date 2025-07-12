@@ -1,4 +1,5 @@
 # new_order.py
+from datetime import datetime
 from typing import Annotated, List, Optional
 from pydantic import BaseModel, Field, ValidationError, root_validator, model_validator
 
@@ -61,14 +62,18 @@ class NewOrder(BaseModel):
 
     city: str | None = None
 
+    # ✅ Novos campos
+    is_scheduled: Optional[bool] = False
+    scheduled_for: Optional[datetime] = None
+
+    consumption_type: Optional[str] = Field(default="local", pattern="^(local|retirada|delivery)$")
+
     @model_validator(mode='after')
     def validate_order_details(self):
         if self.delivery_type == 'delivery':
-            # Valida campos soltos ao invés do objeto 'address'
             if not (self.street and self.neighborhood and self.city):
-                raise ValueError(
-                    "Campos de endereço (street, neighborhood, city) são obrigatórios para pedidos de delivery.")
-        # validação do troco continua igual
+                raise ValueError("Campos de endereço (street, neighborhood, city) são obrigatórios para pedidos de delivery.")
+
         if self.needs_change:
             if self.change_for is None:
                 raise ValueError("Informe o valor que o cliente irá pagar em dinheiro (change_for).")
@@ -78,4 +83,8 @@ class NewOrder(BaseModel):
             if self.change_for is not None:
                 raise ValueError("Você marcou que não precisa de troco, então não deve informar o campo change_for.")
 
+        if self.is_scheduled and not self.scheduled_for:
+            raise ValueError("Você marcou como agendado, mas não informou o horário (scheduled_for).")
+
         return self
+

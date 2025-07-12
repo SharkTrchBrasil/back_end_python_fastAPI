@@ -5,6 +5,7 @@ from typing import Optional, List
 from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric, String, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from sqlalchemy import Enum as SQLAlchemyEnum
 
 
 
@@ -684,7 +685,10 @@ class Banner(Base, TimestampMixin):
     category: Mapped[Category | None] = relationship()
     store: Mapped[Store] = relationship()
 
-
+class ConsumptionType(str, enum.Enum):
+    local = "local"         # consumo no local
+    retirada = "retirada"   # cliente vem buscar
+    delivery = "delivery"   # entrega
 
 class Order(Base, TimestampMixin):
     __tablename__ = "orders"
@@ -753,6 +757,14 @@ class Order(Base, TimestampMixin):
     store = relationship("Store", back_populates="orders")
     transactions: Mapped[list["CashierTransaction"]] = relationship(back_populates="order")
 
+    # ✅ Agendamento (tipo iFood)
+    is_scheduled: Mapped[bool] = mapped_column(default=False)
+    scheduled_for: Mapped[datetime | None] = mapped_column(nullable=True)
+
+    # ✅ Tipo de consumo (onde o cliente vai comer)
+    consumption_type: Mapped[ConsumptionType] = mapped_column(
+        SQLAlchemyEnum(ConsumptionType), default=ConsumptionType.local
+    )
 
 
 
