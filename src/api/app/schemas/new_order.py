@@ -4,7 +4,7 @@ from typing import Annotated, List, Optional
 from pydantic import BaseModel, Field, ValidationError, root_validator, model_validator
 
 from src.api.app.schemas.customer import AddressOut
-
+from src.core.models import ConsumptionType
 
 
 class NewOrderVariantOption(BaseModel):
@@ -66,7 +66,7 @@ class NewOrder(BaseModel):
     is_scheduled: Optional[bool] = False
     scheduled_for: Optional[datetime] = None
 
-    consumption_type: Optional[str] = Field(default="local", pattern="^(local|retirada|delivery)$")
+    consumption_type: Optional[ConsumptionType] = Field(default=ConsumptionType.local)
 
     @model_validator(mode='after')
     def validate_order_details(self):

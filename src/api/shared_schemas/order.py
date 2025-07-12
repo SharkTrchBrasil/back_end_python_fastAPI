@@ -1,5 +1,9 @@
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from src.core.models import ConsumptionType
 
 
 class OrderVariantOption(BaseModel):
@@ -70,7 +74,11 @@ class Order(BaseModel):
     neighborhood: str
     city: str
 
+    # ✅ Novos campos
+    is_scheduled: Optional[bool] = False
+    scheduled_for: Optional[datetime] = None
 
+    consumption_type: Optional[ConsumptionType] = Field(default=ConsumptionType.local)
 
 
     attendant_name: str | None = None
