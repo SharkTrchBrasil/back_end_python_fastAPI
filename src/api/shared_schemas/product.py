@@ -110,6 +110,7 @@ class ProductOut(Product):
             min_stock=orm_product.min_stock,
             max_stock=orm_product.max_stock,
             unit=orm_product.unit,
+            sold_count=orm_product.sold_count,
 
             file_key=orm_product.file_key,
 
