@@ -15,6 +15,7 @@ from src.api.shared_schemas.product import ProductOut
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm import selectinload
 
+import orjson
 
 async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = None):
     print(f"🔄 [Admin] emit_store_full_updated para store_id: {store_id}")
@@ -179,7 +180,10 @@ async def admin_product_list_all(db, store_id: int, sid: str | None = None):
 
 async def admin_emit_order_updated_from_obj(order: models.Order):
     try:
-        payload = OrderDetails.model_validate(order).model_dump(mode='json')
+        # payload = OrderDetails.model_validate(order).model_dump(mode='json')
+        #
+        payload = orjson.loads(OrderDetails.model_validate(order).model_dump_json())
+
         await sio.emit("order_updated", payload, namespace='/admin', room=f"admin_store_{order.store_id}")
     except Exception as e:
         print(f'❌ Erro ao emitir order_updated: {str(e)}')
