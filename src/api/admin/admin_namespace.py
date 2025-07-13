@@ -1,12 +1,12 @@
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import joinedload  # Já importado, bom para joins complexos
+from sqlalchemy.orm import joinedload
 from sqlalchemy import select, delete
 from datetime import datetime
 from urllib.parse import parse_qs
 from socketio import AsyncNamespace
 from src.api.admin.schemas.store_settings import StoreSettingsBase
 from src.api.app.events.socketio_emitters import emit_store_updated
-from src.core import models  # Importa seus modelos (User, Role, StoreAccess, etc.)
+from src.core import models
 from src.api.admin.events.admin_socketio_emitters import (
     admin_emit_orders_initial,
     admin_product_list_all,
@@ -24,7 +24,6 @@ class AdminNamespace(AsyncNamespace):
         super().__init__(namespace)
         self.environ = {}  # Armazena o environ de cada conexão pelo sid
 
-
     async def on_connect(self, sid, environ):
         print(f"[ADMIN] Conexão estabelecida: {sid}")
         query = parse_qs(environ.get("QUERY_STRING", ""))
@@ -35,33 +34,36 @@ class AdminNamespace(AsyncNamespace):
 
         self.environ[sid] = environ  # GUARDA O ENVIRON PARA EVENTOS FUTUROS
 
-
         with get_db_manager() as db:
             try:
-                # authorize_admin agora precisa retornar o objeto AdminUser (ou User) com seu ID e papel
-                # Supondo que authorize_admin já valida se é um admin e retorna o objeto User autenticado
-                totem_auth_user = await authorize_admin(db, token)  # Renomeado para evitar confusão com 'totem'
+                totem_auth_user = await authorize_admin(db, token)
                 if not totem_auth_user or not totem_auth_user.id:
                     print(f"⚠️ Admin {sid} conectado, mas sem admin_id.")
                     raise ConnectionRefusedError("Acesso negado: Admin inválido.")
 
                 admin_id = totem_auth_user.id
 
-
-                admin_role = db.query(models.Role).filter_by(machine_name='admin').first()
-                if not admin_role:
-                    print("❌ Role 'admin' não encontrada no banco de dados.")
-                    raise ConnectionRefusedError("Configuração de roles inválida.")
-
+                # Busca todas as lojas às quais o admin tem acesso com a role 'admin'
                 all_accessible_store_ids = [
                     sa.store_id
-                    for sa in db.query(models.StoreAccess).filter_by(
-                        user_id=admin_id, role_id=admin_role.id  # Garante que só pega lojas que o user é 'admin'
-                    ).all()
+                    for sa in db.query(models.StoreAccess)
+                    .join(models.Role)
+                    .filter(
+                        models.StoreAccess.user_id == admin_id,
+                        models.Role.machine_name == 'admin'
+                    )
+                    .all()
                 ]
 
+                print(
+                    f"DEBUG: all_accessible_store_ids para admin {admin_id} (por machine_name): {all_accessible_store_ids}")
+
+                # Fallback: Se não houver StoreAccess explícito para role 'admin',
+                # adiciona a loja principal associada diretamente ao usuário autenticado (se houver).
                 if not all_accessible_store_ids and totem_auth_user.store_id:
                     all_accessible_store_ids.append(totem_auth_user.store_id)
+                    print(
+                        f"DEBUG: Adicionada store_id do usuário autenticado como fallback: {totem_auth_user.store_id}")
 
                 # 3. Recupera as lojas que o admin selecionou para consolidação (persistido no DB)
                 consolidated_store_ids = list(db.execute(
@@ -70,9 +72,9 @@ class AdminNamespace(AsyncNamespace):
                     )
                 ).scalars())
 
-                # 4. Se vazio, seleciona a primeira loja da lista de acessíveis e salva no DB
+                # 4. Se vazio, seleciona a primeira loja da lista de acessíveis e salva no DB como padrão
                 if not consolidated_store_ids and all_accessible_store_ids:
-                    loja_padrao = all_accessible_store_ids[0]  # Pega sempre a primeira loja da lista
+                    loja_padrao = all_accessible_store_ids[0]
 
                     try:
                         nova_selecao = models.AdminConsolidatedStoreSelection(
@@ -87,14 +89,12 @@ class AdminNamespace(AsyncNamespace):
                         db.rollback()
                         print(f"❌ Erro ao definir loja padrão: {e}")
 
-
-
                 # 4. Criar/atualizar sessão na tabela store_sessions
                 session = db.query(models.StoreSession).filter_by(sid=sid).first()
                 if not session:
                     session = models.StoreSession(
                         sid=sid,
-                        store_id=consolidated_store_ids[0] if consolidated_store_ids else None,  # Loja ATIVA padrão
+                        store_id=consolidated_store_ids[0] if consolidated_store_ids else None,
                         client_type="admin",
                     )
                     db.add(session)
@@ -120,7 +120,6 @@ class AdminNamespace(AsyncNamespace):
 
                 # 6. Enviar a lista COMPLETA de lojas que o admin tem acesso (para o seletor)
                 stores_list_data = []
-                # Precisamos carregar os nomes das lojas a partir dos IDs
                 accessible_stores_objs = db.query(models.Store).filter(
                     models.Store.id.in_(all_accessible_store_ids)).all()
 
@@ -131,13 +130,18 @@ class AdminNamespace(AsyncNamespace):
                         "is_consolidated": store.id in consolidated_store_ids,
                     })
 
-                # Se ainda não houver lojas (muito improvável aqui), e totem_auth_user.store_id existir, adicione a principal
-                if not stores_list_data and totem_auth_user.store_id:
-                    stores_list_data.append({
-                        "id": totem_auth_user.store_id,
-                        "name": totem_auth_user.store.name,  # Assumindo que totem_auth_user.store tem um nome
-                        "is_consolidated": totem_auth_user.store_id in consolidated_store_ids,
-                    })
+                # Se ainda não houver lojas na lista (muito improvável após os filtros),
+                # e totem_auth_user.store_id existir e não estiver já na lista, adicione a principal.
+                # Isso cobre casos onde all_accessible_store_ids foi populado apenas pelo fallback.
+                if totem_auth_user.store_id and totem_auth_user.store_id not in [s['id'] for s in stores_list_data]:
+                     # Garante que 'store' está carregado no totem_auth_user
+                    user_main_store = db.query(models.Store).filter_by(id=totem_auth_user.store_id).first()
+                    if user_main_store:
+                        stores_list_data.append({
+                            "id": user_main_store.id,
+                            "name": user_main_store.name,
+                            "is_consolidated": user_main_store.id in consolidated_store_ids,
+                        })
 
                 await self.emit("admin_stores_list", {"stores": stores_list_data}, to=sid)
                 await self.emit("consolidated_stores_updated", {"store_ids": consolidated_store_ids}, to=sid)
@@ -158,7 +162,7 @@ class AdminNamespace(AsyncNamespace):
                     db.commit()
                     print(f"✅ Session removida para sid {sid}")
 
-                    self.environ.pop(sid, None)  # LIMPA AO DESCONECTAR
+                    self.environ.pop(sid, None)
             except Exception as e:
                 print(f"❌ Erro na desconexão: {str(e)}")
                 db.rollback()
@@ -186,21 +190,27 @@ class AdminNamespace(AsyncNamespace):
 
                 admin_id = totem_auth_user.id
 
-                # Obter a role 'admin'
-                admin_role = db.query(models.Role).filter_by(machine_name='admin').first()
-                if not admin_role:
-                    return {"error": "Configuração de roles inválida: 'admin' role não encontrada."}
-
-                # Buscar TODAS as lojas que este admin TEM PERMISSÃO para gerenciar
+                # Busca todas as lojas às quais o admin tem acesso com a role 'admin'
                 all_accessible_store_ids_for_admin = [
                     sa.store_id
-                    for sa in db.query(models.StoreAccess).filter_by(
-                        user_id=admin_id, role_id=admin_role.id
-                    ).all()
+                    for sa in db.query(models.StoreAccess)
+                    .join(models.Role)
+                    .filter(
+                        models.StoreAccess.user_id == admin_id,
+                        models.Role.machine_name == 'admin'
+                    )
+                    .all()
                 ]
-                # Fallback para a loja principal se não houver StoreAccess explícito
+
+                print(
+                    f"DEBUG: all_accessible_store_ids para admin {admin_id} (por machine_name): {all_accessible_store_ids_for_admin}")
+
+                # Fallback para adicionar a loja principal do usuário se não estiver nas acessíveis
                 if not all_accessible_store_ids_for_admin and totem_auth_user.store_id:
                     all_accessible_store_ids_for_admin.append(totem_auth_user.store_id)
+                    print(
+                        f"DEBUG: Adicionada store_id do usuário autenticado como fallback: {totem_auth_user.store_id}")
+
 
                 # Recupera as seleções atuais do admin no DB
                 current_consolidated_selections = db.execute(
@@ -231,7 +241,7 @@ class AdminNamespace(AsyncNamespace):
                 # Lojas para adicionar à seleção e às rooms
                 to_add_ids = set(selected_store_ids) - current_consolidated_ids_in_db
                 for store_id_to_add in to_add_ids:
-                    # **NOVA VALIDAÇÃO**: Valide se o admin realmente tem acesso a esta loja
+                    # VALIDAÇÃO: Valide se o admin realmente tem acesso a esta loja
                     if store_id_to_add not in all_accessible_store_ids_for_admin:
                         print(
                             f"⚠️ Admin {sid} tentou adicionar loja {store_id_to_add}"
@@ -368,24 +378,26 @@ class AdminNamespace(AsyncNamespace):
 
                 admin_id = totem_auth_user.id
 
-                # Obter a role 'admin'
-                admin_role = db.query(models.Role).filter_by(machine_name='admin').first()
-                if not admin_role:
-                    return {"error": "Configuração de roles inválida: 'admin' role não encontrada."}
-
-                # Buscar TODAS as lojas que este admin TEM PERMISSÃO para gerenciar
+                # Busca todas as lojas às quais o admin tem acesso com a role 'admin'
                 all_accessible_store_ids_for_admin = [
                     sa.store_id
-                    for sa in db.query(models.StoreAccess).filter_by(
-                        user_id=admin_id, role_id=admin_role.id
-                    ).all()
+                    for sa in db.query(models.StoreAccess)
+                    .join(models.Role)
+                    .filter(
+                        models.StoreAccess.user_id == admin_id,
+                        models.Role.machine_name == 'admin'
+                    )
+                    .all()
                 ]
-                # Fallback para a loja principal se não houver StoreAccess explícito
+
+                print(
+                    f"DEBUG: all_accessible_store_ids para admin {admin_id} (por machine_name): {all_accessible_store_ids_for_admin}")
+
+                # Fallback para adicionar a loja principal do usuário se não estiver nas acessíveis
                 if not all_accessible_store_ids_for_admin and totem_auth_user.store_id:
                     all_accessible_store_ids_for_admin.append(totem_auth_user.store_id)
-
-                if not all_accessible_store_ids_for_admin:
-                    return {'error': 'Admin não possui lojas acessíveis para gerenciar pedidos.'}
+                    print(
+                        f"DEBUG: Adicionada store_id do usuário autenticado como fallback: {totem_auth_user.store_id}")
 
                 order = db.query(models.Order).filter_by(id=data['order_id']).first()
 
@@ -394,7 +406,6 @@ class AdminNamespace(AsyncNamespace):
 
                 if order.store_id not in all_accessible_store_ids_for_admin:
                     return {'error': 'Acesso negado: Pedido não pertence a uma das suas lojas.'}
-
 
                 valid_statuses = [
                     'pending',  # Criado
@@ -412,8 +423,8 @@ class AdminNamespace(AsyncNamespace):
 
                 order.order_status = data['new_status']
 
-                # Lógica de baixa de estoque quando o status é 'ready'
-                if data['new_status'] == 'delivered' and old_status != 'delivered':  # Garante que só baixe uma vez
+                # Lógica de baixa de estoque quando o status é 'delivered'
+                if data['new_status'] == 'delivered' and old_status != 'delivered':
                     for order_product in order.products:
                         product = db.query(models.Product).filter_by(id=order_product.product_id).first()
                         if product and product.stock_control_enabled:
@@ -421,15 +432,13 @@ class AdminNamespace(AsyncNamespace):
                             print(
                                 f"Baixado {order_product.quantity} de {product.name}. Novo estoque: {product.stock_quantity}")
 
-                # 🔽 Lógica de REVERSÃO de estoque, se o pedido for marcado como 'canceled'
-                if data[
-                    'new_status'] == 'canceled' and old_status != 'canceled':  # Só reverte se não estava cancelado antes
-
-                    if old_status in ['ready', 'on_route', 'delivered']:
+                # Lógica de REVERSÃO de estoque, se o pedido for marcado como 'canceled'
+                if data['new_status'] == 'canceled' and old_status != 'canceled':
+                    if old_status in ['ready', 'on_route', 'delivered']: # Só reverte se já havia sido 'tirado' do estoque
                         for order_product in order.products:
                             product = db.query(models.Product).filter_by(id=order_product.product_id).first()
                             if product and product.stock_control_enabled:
-                                product.stock_quantity += order_product.quantity  # Adiciona de volta ao estoque
+                                product.stock_quantity += order_product.quantity
                                 print(
                                     f"Estoque de {product.name} revertido em {order_product.quantity}. Novo estoque: {product.stock_quantity}")
 
@@ -469,20 +478,22 @@ class AdminNamespace(AsyncNamespace):
 
             admin_id = totem_auth_user.id
 
-            # Obter a role 'admin'
-            admin_role = db.query(models.Role).filter_by(machine_name='admin').first()
-            if not admin_role:
-                return {"error": "Configuração de roles inválida: 'admin' role não encontrada."}
-
+            # *** CORREÇÃO APLICADA AQUI: Adicionar a lógica de busca de lojas acessíveis ***
             all_accessible_store_ids_for_admin = [
                 sa.store_id
-                for sa in db.query(models.StoreAccess).filter_by(
-                    user_id=admin_id, role_id=admin_role.id
-                ).all()
+                for sa in db.query(models.StoreAccess)
+                .join(models.Role)
+                .filter(
+                    models.StoreAccess.user_id == admin_id,
+                    models.Role.machine_name == 'admin'
+                )
+                .all()
             ]
-            # Fallback para a loja principal se não houver StoreAccess explícito
+
+            # Fallback para adicionar a loja principal do usuário se não estiver nas acessíveis
             if not all_accessible_store_ids_for_admin and totem_auth_user.store_id:
                 all_accessible_store_ids_for_admin.append(totem_auth_user.store_id)
+
 
             if requested_store_id not in all_accessible_store_ids_for_admin:
                 return {'error': 'Acesso negado: Você não tem permissão para gerenciar esta loja.'}
@@ -505,7 +516,7 @@ class AdminNamespace(AsyncNamespace):
 
                 db.commit()
                 db.refresh(settings)
-                db.refresh(store)
+                db.refresh(store) # Refresh na store para garantir que as configurações sejam atualizadas ao emitir
 
                 await admin_emit_store_updated(store)
                 await admin_emit_store_full_updated(db, store.id)
