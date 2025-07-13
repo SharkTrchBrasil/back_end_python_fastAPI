@@ -395,15 +395,49 @@ class AdminNamespace(AsyncNamespace):
                 if order.store_id not in all_accessible_store_ids_for_admin:
                     return {'error': 'Acesso negado: Pedido não pertence a uma das suas lojas.'}
 
-                valid_statuses = ['pending', 'preparing', 'ready', 'delivered']
+
+                valid_statuses = [
+                    'pending',  # Criado
+                    'preparing',  # Sendo preparado
+                    'ready',  # Pronto para entrega/retirada
+                    'on_route',  # Está a caminho
+                    'delivered',  # Entregue com sucesso
+                    'canceled'  # Cancelado por qualquer motivo
+                ]
+
                 if data['new_status'] not in valid_statuses:
                     return {'error': 'Status inválido'}
 
+                old_status = order.order_status  # Salva o status atual antes de mudar
+
                 order.order_status = data['new_status']
+
+                # Lógica de baixa de estoque quando o status é 'ready'
+                if data['new_status'] == 'delivered' and old_status != 'delivered':  # Garante que só baixe uma vez
+                    for order_product in order.products:
+                        product = db.query(models.Product).filter_by(id=order_product.product_id).first()
+                        if product and product.stock_control_enabled:
+                            product.stock_quantity = max(0, product.stock_quantity - order_product.quantity)
+                            print(
+                                f"Baixado {order_product.quantity} de {product.name}. Novo estoque: {product.stock_quantity}")
+
+                # 🔽 Lógica de REVERSÃO de estoque, se o pedido for marcado como 'canceled'
+                if data[
+                    'new_status'] == 'canceled' and old_status != 'canceled':  # Só reverte se não estava cancelado antes
+
+                    if old_status in ['ready', 'on_route', 'delivered']:
+                        for order_product in order.products:
+                            product = db.query(models.Product).filter_by(id=order_product.product_id).first()
+                            if product and product.stock_control_enabled:
+                                product.stock_quantity += order_product.quantity  # Adiciona de volta ao estoque
+                                print(
+                                    f"Estoque de {product.name} revertido em {order_product.quantity}. Novo estoque: {product.stock_quantity}")
+
                 db.commit()
                 db.refresh(order)
 
                 await admin_emit_order_updated_from_obj(order)
+
                 print(
                     f"✅ [Session {sid}] Pedido {order.id} da loja {order.store_id} atualizado para: {data['new_status']}")
 

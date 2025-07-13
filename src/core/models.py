@@ -15,14 +15,15 @@ class Base(DeclarativeBase):
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=text("TIMEZONE('America/Sao_Paulo', NOW())")
+        server_default=func.now()  # Usa o timezone do servidor
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=text("TIMEZONE('America/Sao_Paulo', NOW())"),
-        server_onupdate=text("TIMEZONE('America/Sao_Paulo', NOW())")  # <- aqui o ajuste!
+        server_default=func.now(),
+        onupdate=func.now()  # Esta é a forma correta para auto-update
     )
+
 
 
 class Store(Base, TimestampMixin):
