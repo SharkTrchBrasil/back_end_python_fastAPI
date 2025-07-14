@@ -770,6 +770,9 @@ class Order(Base, TimestampMixin):
         )
     command: Mapped[Optional["Command"]] = relationship(back_populates="orders")
 
+    partial_payments: Mapped[list["OrderPartialPayment"]] = relationship(back_populates="order")
+
+
 class OrderProduct(Base, TimestampMixin):
     __tablename__ = "order_products"
 
