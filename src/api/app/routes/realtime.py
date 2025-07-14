@@ -232,7 +232,7 @@ async def send_order(sid, data):
             # 6. Configuração automática da loja
             store_settings = db.query(models.StoreSettings).filter_by(store_id=session.store_id).first()
             if store_settings and store_settings.auto_accept_orders:
-                db_order.order_status = 'preparing'
+                db_order.order_status = OrderStatus.PREPARING
 
             # 7. Validação de produtos
             products_from_db = db.query(models.Product).filter(

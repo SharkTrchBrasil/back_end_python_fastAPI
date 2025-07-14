@@ -670,11 +670,12 @@ class Banner(Base, TimestampMixin):
 
 
 class OrderStatus(enum.Enum):
-    PENDING = "pending"
-    PREPARING = "preparing"
-    READY = "ready"
-    DELIVERED = "delivered"
-    CANCELED = "canceled"
+    PENDING = "pending"           # Criado
+    PREPARING = "preparing"       # Sendo preparado
+    READY = "ready"               # Pronto para entrega/retirada
+    ON_ROUTE = "on_route"         # Está a caminho
+    DELIVERED = "delivered"       # Entregue com sucesso
+    CANCELED = "canceled"         # Cancelado por qualquer motivo
 
 
 
