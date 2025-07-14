@@ -764,7 +764,11 @@ class Order(Base, TimestampMixin):
 
     table: Mapped[Optional["Table"]] = relationship(back_populates="orders")
 
-
+    command_id: Mapped[int | None] = mapped_column(
+            ForeignKey("commands.id", ondelete="SET NULL"),
+            nullable=True
+        )
+    command: Mapped["Command" | None] = relationship(back_populates="orders")
 
 class OrderProduct(Base, TimestampMixin):
     __tablename__ = "order_products"
