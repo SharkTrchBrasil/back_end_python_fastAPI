@@ -33,6 +33,7 @@ from src.core.database import get_db_manager
 
 from src.api.app.services.authorize_totem import authorize_totem
 from src.api.app.schemas.coupon import Coupon as CouponSchema
+from src.core.models import OrderStatus
 from src.socketio_instance import sio
 
 from src.api.shared_schemas.order import Order as OrderSchema
@@ -210,7 +211,7 @@ async def send_order(sid, data):
                 total_price=new_order.total_price,
                 payment_method_id=new_order.payment_method_id,
                 payment_status='pending',
-                order_status='pending',
+                order_status=OrderStatus.PENDING,
                 needs_change=new_order.needs_change,
                 change_amount=new_order.change_for,
                 observation=new_order.observation,

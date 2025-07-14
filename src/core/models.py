@@ -1,3 +1,4 @@
+from sqlalchemy import Enum
 import enum
 from datetime import datetime, date, timezone
 from typing import Optional, List
@@ -668,6 +669,14 @@ class Banner(Base, TimestampMixin):
     store: Mapped[Store] = relationship()
 
 
+class OrderStatus(enum.Enum):
+    PENDING = "pending"
+    PREPARING = "preparing"
+    READY = "ready"
+    DELIVERED = "delivered"
+    CANCELED = "canceled"
+
+
 
 class Order(Base, TimestampMixin):
     __tablename__ = "orders"
@@ -706,7 +715,11 @@ class Order(Base, TimestampMixin):
     # totem: Mapped[TotemAuthorization | None] = relationship()
 
     payment_status: Mapped[str] = mapped_column()
-    order_status: Mapped[str] = mapped_column()
+
+    order_status: Mapped[OrderStatus] = mapped_column(
+        Enum(OrderStatus, native_enum=False),
+        default=OrderStatus.PENDING
+    )
 
     payment_method_id: Mapped[int | None] = mapped_column(
         ForeignKey("store_payment_methods.id", ondelete="SET NULL"),
@@ -744,10 +757,12 @@ class Order(Base, TimestampMixin):
     # def totem_name(self):
     #     return self.totem.totem_name if self.totem else None
     #
-    table_id: Mapped[int | None] = mapped_column(
+    table_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("tables.id", ondelete="SET NULL"), nullable=True
     )
-    table: Mapped["Table" | None] = relationship(back_populates="orders")
+
+    table: Mapped[Optional["Table"]] = relationship(back_populates="orders")
+
 
 
 class OrderProduct(Base, TimestampMixin):
@@ -817,7 +832,7 @@ class OrderVariantOption(Base, TimestampMixin):
     order_variant: Mapped[OrderVariant] = relationship()
 
 
-class TableStatus(Enum):
+class TableStatus(enum.Enum):
     AVAILABLE = "available"
     OCCUPIED = "occupied"
     RESERVED = "reserved"
@@ -834,7 +849,11 @@ class Table(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(String(50))
-    status: Mapped[TableStatus] = mapped_column(Enum(TableStatus), default=TableStatus.AVAILABLE)
+    status: Mapped[TableStatus] = mapped_column(
+        Enum(TableStatus, native_enum=False),
+        default=TableStatus.AVAILABLE,
+    )
+
     max_capacity: Mapped[int] = mapped_column(default=4)
     current_capacity: Mapped[int] = mapped_column(default=0)
     opened_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
@@ -847,7 +866,7 @@ class Table(Base, TimestampMixin):
     commands: Mapped[list["Command"]] = relationship(back_populates="table")
     history: Mapped[list["TableHistory"]] = relationship(back_populates="table")
 
-class CommandStatus(Enum):
+class CommandStatus(enum.Enum):
     ACTIVE = "active"
     CLOSED = "closed"
     CANCELED = "canceled"
@@ -863,7 +882,10 @@ class Command(Base, TimestampMixin):
     table_id: Mapped[int | None] = mapped_column(ForeignKey("tables.id", ondelete="SET NULL"), nullable=True)
     customer_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     customer_contact: Mapped[str | None] = mapped_column(String(50), nullable=True)  # Telefone/email
-    status: Mapped[CommandStatus] = mapped_column(Enum(CommandStatus), default=CommandStatus.ACTIVE)
+    status: Mapped[CommandStatus] = mapped_column(
+        Enum(CommandStatus, native_enum=False),
+        default=CommandStatus.ACTIVE,
+    )
     attendant_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)  # Observações especiais
 
@@ -871,13 +893,6 @@ class Command(Base, TimestampMixin):
     table: Mapped["Table | None"] = relationship(back_populates="commands")
     orders: Mapped[list["Order"]] = relationship(back_populates="command")
     attendant: Mapped["User | None"] = relationship()
-
-class OrderStatus(Enum):
-    PENDING = "pending"
-    PREPARING = "preparing"
-    READY = "ready"
-    DELIVERED = "delivered"
-    CANCELED = "canceled"
 
 
 
