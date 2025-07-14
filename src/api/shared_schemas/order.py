@@ -33,6 +33,7 @@ class OrderProduct(BaseModel):
 
     id: int
     name: str
+    note: str | None = None
     quantity: int
     variants: list[OrderProductVariant]
    # tickets: list[OrderProductTickets]
@@ -59,7 +60,7 @@ class Order(BaseModel):
     created_at: datetime
     updated_at: datetime
     scheduled_for: datetime | None = None
-
+    observation: str | None = None
     # Campos desnormalizados
     customer_name: str | None = None
     customer_phone: str | None = None
