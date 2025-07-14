@@ -427,7 +427,7 @@ class AdminNamespace(AsyncNamespace):
                 if data['new_status'] == 'delivered' and old_status != 'delivered':
                     for order_product in order.products:
                         product = db.query(models.Product).filter_by(id=order_product.product_id).first()
-                        if product and product.stock_control_enabled:
+                        if product and product.control_stock:
                             product.stock_quantity = max(0, product.stock_quantity - order_product.quantity)
                             print(
                                 f"Baixado {order_product.quantity} de {product.name}. Novo estoque: {product.stock_quantity}")
@@ -437,7 +437,7 @@ class AdminNamespace(AsyncNamespace):
                     if old_status in ['ready', 'on_route', 'delivered']: # Só reverte se já havia sido 'tirado' do estoque
                         for order_product in order.products:
                             product = db.query(models.Product).filter_by(id=order_product.product_id).first()
-                            if product and product.stock_control_enabled:
+                            if product and product.control_stock:
                                 product.stock_quantity += order_product.quantity
                                 print(
                                     f"Estoque de {product.name} revertido em {order_product.quantity}. Novo estoque: {product.stock_quantity}")
