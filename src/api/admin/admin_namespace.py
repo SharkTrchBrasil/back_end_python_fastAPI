@@ -12,7 +12,7 @@ from src.api.admin.events.admin_socketio_emitters import (
     admin_product_list_all,
     admin_emit_store_full_updated,
     admin_emit_order_updated_from_obj,
-    admin_emit_store_updated,
+    admin_emit_store_updated, admin_emit_tables_and_commands,
 )
 from src.api.admin.services.authorize_admin import authorize_admin
 from src.core.database import get_db_manager
@@ -304,6 +304,7 @@ class AdminNamespace(AsyncNamespace):
         await admin_emit_store_full_updated(db, store_id, sid=sid)
         await admin_product_list_all(db, store_id, sid=sid)
         await admin_emit_orders_initial(db, store_id, sid=sid)
+        await admin_emit_tables_and_commands(db, store_id, sid)
 
     async def on_join_store_room(self, sid, data):
         try:

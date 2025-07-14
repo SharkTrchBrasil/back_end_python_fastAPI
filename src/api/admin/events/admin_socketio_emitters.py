@@ -2,8 +2,9 @@ from datetime import datetime
 from venv import logger
 from zoneinfo import ZoneInfo
 
-
+from src.api.admin.schemas.command import CommandOut
 from src.api.admin.schemas.store_settings import StoreSettingsBase
+from src.api.admin.schemas.table import TableOut
 
 from src.api.app.services.rating import get_product_ratings_summary, get_store_ratings_summary
 from src.api.shared_schemas.order import OrderDetails
@@ -195,14 +196,31 @@ async def admin_emit_store_updated(store: models.Store):
         print(f'❌ Erro ao emitir store_updated: {str(e)}')
 
 
-async def admin_emit_theme_updated(theme: models.StoreTheme):
+
+
+async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = None):
+    print(f"🔄 [Admin] emit_tables_and_commands para store_id: {store_id}")
     try:
-        pydantic_theme = StoreThemeOut.model_validate(theme).model_dump()
-        await sio.emit(
-            'theme_updated',
-            pydantic_theme,
-            namespace='/admin',
-            room=f'admin_store_{theme.store_id}'
-        )
+        tables = db.query(models.Table).filter_by(store_id=store_id, is_deleted=False).all()
+        commands = db.query(models.Command).filter_by(store_id=store_id).all()
+
+        tables_data = [TableOut.model_validate(table).model_dump(mode='json') for table in tables]
+        commands_data = [CommandOut.model_validate(cmd).model_dump(mode='json') for cmd in commands]
+
+        payload = {
+            "store_id": store_id,
+            "tables": tables_data,
+            "commands": commands_data,
+        }
+
+        if sid:
+            await sio.emit("tables_and_commands", payload, namespace="/admin", to=sid)
+        else:
+            await sio.emit("tables_and_commands", payload, namespace="/admin", room=f"admin_store_{store_id}")
+
     except Exception as e:
-        print(f'❌ Erro ao emitir theme_updated: {str(e)}')
+        print(f'❌ Erro em emit_tables_and_commands: {str(e)}')
+        if sid:
+            await sio.emit("tables_and_commands", {"store_id": store_id, "tables": [], "commands": []}, namespace="/admin", to=sid)
+        else:
+            await sio.emit("tables_and_commands", {"store_id": store_id, "tables": [], "commands": []}, namespace="/admin", room=f"admin_store_{store_id}")

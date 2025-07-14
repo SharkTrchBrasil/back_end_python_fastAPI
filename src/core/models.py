@@ -2,10 +2,10 @@ import enum
 from datetime import datetime, date, timezone
 from typing import Optional, List
 
-from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric, String, text, Enum
+from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric, String, text, Enum, \
+    CheckConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from sqlalchemy import Enum as SQLAlchemyEnum
 
 
 class Base(DeclarativeBase):
@@ -103,6 +103,8 @@ class Store(Base, TimestampMixin):
     settings: Mapped["StoreSettings"] = relationship(
         back_populates="store", uselist=False, cascade="all, delete-orphan"
     )
+
+    commands: Mapped[list["Command"]] = relationship(back_populates="store")
 
 
 class User(Base, TimestampMixin):
@@ -742,6 +744,10 @@ class Order(Base, TimestampMixin):
     # def totem_name(self):
     #     return self.totem.totem_name if self.totem else None
     #
+    table_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tables.id", ondelete="SET NULL"), nullable=True
+    )
+    table: Mapped["Table" | None] = relationship(back_populates="orders")
 
 
 class OrderProduct(Base, TimestampMixin):
@@ -809,6 +815,103 @@ class OrderVariantOption(Base, TimestampMixin):
     quantity: Mapped[int] = mapped_column()
 
     order_variant: Mapped[OrderVariant] = relationship()
+
+
+class TableStatus(Enum):
+    AVAILABLE = "available"
+    OCCUPIED = "occupied"
+    RESERVED = "reserved"
+    MAINTENANCE = "maintenance"
+    CLEANING = "cleaning"
+
+class Table(Base, TimestampMixin):
+    __tablename__ = "tables"
+    __table_args__ = (
+        CheckConstraint("max_capacity > 0", name="check_max_capacity_positive"),
+        Index("idx_table_store", "store_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(50))
+    status: Mapped[TableStatus] = mapped_column(Enum(TableStatus), default=TableStatus.AVAILABLE)
+    max_capacity: Mapped[int] = mapped_column(default=4)
+    current_capacity: Mapped[int] = mapped_column(default=0)
+    opened_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    closed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    is_deleted: Mapped[bool] = mapped_column(default=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    location_description: Mapped[str | None] = mapped_column(String(100), nullable=True)  # Ex: "Perto da janela"
+
+    orders: Mapped[list["Order"]] = relationship(back_populates="table")
+    commands: Mapped[list["Command"]] = relationship(back_populates="table")
+    history: Mapped[list["TableHistory"]] = relationship(back_populates="table")
+
+class CommandStatus(Enum):
+    ACTIVE = "active"
+    CLOSED = "closed"
+    CANCELED = "canceled"
+
+class Command(Base, TimestampMixin):
+    __tablename__ = "commands"
+    __table_args__ = (
+        Index("idx_command_store", "store_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
+    table_id: Mapped[int | None] = mapped_column(ForeignKey("tables.id", ondelete="SET NULL"), nullable=True)
+    customer_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    customer_contact: Mapped[str | None] = mapped_column(String(50), nullable=True)  # Telefone/email
+    status: Mapped[CommandStatus] = mapped_column(Enum(CommandStatus), default=CommandStatus.ACTIVE)
+    attendant_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    notes: Mapped[str | None] = mapped_column(String(500), nullable=True)  # Observações especiais
+
+    store: Mapped["Store"] = relationship(back_populates="commands")
+    table: Mapped["Table | None"] = relationship(back_populates="commands")
+    orders: Mapped[list["Order"]] = relationship(back_populates="command")
+    attendant: Mapped["User | None"] = relationship()
+
+class OrderStatus(Enum):
+    PENDING = "pending"
+    PREPARING = "preparing"
+    READY = "ready"
+    DELIVERED = "delivered"
+    CANCELED = "canceled"
+
+
+
+class OrderPartialPayment(Base, TimestampMixin):
+    __tablename__ = "order_partial_payments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"))
+    amount: Mapped[int] = mapped_column()  # em centavos
+    payment_method_id: Mapped[int | None] = mapped_column(ForeignKey("store_payment_methods.id", ondelete="SET NULL"), nullable=True)
+    received_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    transaction_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_confirmed: Mapped[bool] = mapped_column(default=True)
+
+    order: Mapped["Order"] = relationship(back_populates="partial_payments")
+    payment_method: Mapped["StorePaymentMethods | None"] = relationship()
+
+class TableHistory(Base):
+    __tablename__ = "table_histories"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    table_id: Mapped[int] = mapped_column(ForeignKey("tables.id"))
+    status: Mapped[str] = mapped_column(String(20))
+    changed_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    changed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    table: Mapped["Table"] = relationship(back_populates="history")
+    user: Mapped["User | None"] = relationship()
+
+
+
+
 
 
 # class OrderProductTicket(Base, TimestampMixin):
