@@ -10,6 +10,7 @@ class OrderVariantOption(BaseModel):
     id: int
     name: str
     quantity: int
+    price: int
 
 
 class OrderProductVariant(BaseModel):
