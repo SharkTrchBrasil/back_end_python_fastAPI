@@ -16,6 +16,7 @@ from src.api.admin.events.admin_socketio_emitters import (
 )
 from src.api.admin.services.authorize_admin import authorize_admin
 from src.core.database import get_db_manager
+from src.core.models import OrderStatus
 
 
 class AdminNamespace(AsyncNamespace):
@@ -408,13 +409,13 @@ class AdminNamespace(AsyncNamespace):
                 if order.store_id not in all_accessible_store_ids_for_admin:
                     return {'error': 'Acesso negado: Pedido não pertence a uma das suas lojas.'}
 
-                valid_statuses = [
-                    'pending',  # Criado
-                    'preparing',  # Sendo preparado
-                    'ready',  # Pronto para entrega/retirada
-                    'on_route',  # Está a caminho
-                    'delivered',  # Entregue com sucesso
-                    'canceled'  # Cancelado por qualquer motivo
+                valid_statuses = [  # Usar o Enum diretamente aqui
+                    OrderStatus.PENDING.value,
+                    OrderStatus.PREPARING.value,
+                    OrderStatus.READY.value,
+                    OrderStatus.ON_ROUTE.value,
+                    OrderStatus.DELIVERED.value,
+                    OrderStatus.CANCELED.value,
                 ]
 
                 if data['new_status'] not in valid_statuses:
@@ -422,7 +423,7 @@ class AdminNamespace(AsyncNamespace):
 
                 old_status = order.order_status  # Salva o status atual antes de mudar
 
-                order.order_status = data['new_status']
+                order.order_status = OrderStatus(data['new_status'])
 
                 # Lógica de baixa de estoque quando o status é 'delivered'
                 if data['new_status'] == 'delivered' and old_status != 'delivered':
