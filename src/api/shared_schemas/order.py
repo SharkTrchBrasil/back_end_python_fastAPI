@@ -83,6 +83,10 @@ class Order(BaseModel):
     payment_status: str
     order_status: str
     payment_method_id: int
+    needs_change: bool = False
+    change_amount: float | None = None
+
+
 
     @field_serializer('scheduled_for', 'created_at', 'updated_at')
     def serialize_dates(self, value: datetime | None) -> str | None:
