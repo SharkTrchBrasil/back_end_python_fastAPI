@@ -107,6 +107,47 @@ class Store(Base, TimestampMixin):
 
     commands: Mapped[list["Command"]] = relationship(back_populates="store")
 
+    subscription: Mapped["StoreSubscription"] = relationship(
+        "StoreSubscription",
+        uselist=False,
+        primaryjoin="and_(Store.id == StoreSubscription.store_id, StoreSubscription.status.in_(['active', 'new_charge']))"
+    )
+
+class SubscriptionPlan(Base, TimestampMixin):
+    __tablename__ = "subscription_plans"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    max_totems: Mapped[int | None] = mapped_column()
+    style_guide: Mapped[bool] = mapped_column()
+    available: Mapped[bool] = mapped_column()
+
+    plan_name: Mapped[str | None] = mapped_column()
+    price: Mapped[int] = mapped_column()
+    interval: Mapped[int] = mapped_column()
+    repeats: Mapped[int | None] = mapped_column()
+
+
+
+
+class StoreSubscription(Base, TimestampMixin):
+    __tablename__ = "store_subscriptions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+    subscription_plan_id: Mapped[int] = mapped_column(ForeignKey("subscription_plans.id"))
+
+    subscription_id: Mapped[int | None] = mapped_column()
+    status: Mapped[str] = mapped_column()
+
+    store: Mapped[Store] = relationship()
+    plan: Mapped[SubscriptionPlan] = relationship()
+    current_period_start: Mapped[datetime] = mapped_column()
+    current_period_end: Mapped[datetime] = mapped_column()
+    is_recurring: Mapped[bool] = mapped_column(default=False)
+
+
+
 
 class User(Base, TimestampMixin):
     __tablename__ = "users"

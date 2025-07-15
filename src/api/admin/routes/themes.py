@@ -1,7 +1,7 @@
 import asyncio
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from src.api.app.events.socketio_emitters import emit_theme_updated
 from src.api.shared_schemas.store import Roles
@@ -19,6 +19,10 @@ def get_store_theme(
     db: GetDBDep,
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))]
 ):
+
+    if not store.subscription.plan.style_guide:
+        return None
+
     store_theme = db.query(models.StoreTheme).filter(
         models.StoreTheme.store_id == store.id
     ).first()
@@ -31,6 +35,10 @@ async def update_store_theme(
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
     theme: StoreThemeIn,
 ):
+
+    if not store.subscription.plan.style_guide:
+        raise HTTPException(status_code=403, detail="This store does not support custom themes.")
+
     store_theme = db.query(models.StoreTheme).filter(
         models.StoreTheme.store_id == store.id
     ).first()

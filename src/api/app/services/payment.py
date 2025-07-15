@@ -4,6 +4,7 @@ import time
 from efipay import EfiPay
 
 from src.api.admin.schemas.pix_config import StorePixConfig
+from src.core.config import config
 
 
 def get_efi_pay(pix_config):
@@ -23,6 +24,17 @@ def get_efi_pay(pix_config):
         return efi
 
 
+def get_master_efi_pay():
+    credentials = {
+        'client_id': config.MASTER_CLIENT_ID,
+        'client_secret':  config.MASTER_CLIENT_SECRET,
+        'sandbox': config.MASTER_SANDBOX,
+        'certificate': '',
+    }
+
+    return EfiPay(credentials)
+
+
 def create_webhook(
     store_id: int,
     pix_config: StorePixConfig,
@@ -40,11 +52,12 @@ def create_webhook(
 
     # TODO: IMPLEMENTAR PROD
     body = {
-        'webhookUrl': 'https://webhook.site/20b9a155-e6f0-4bb8-be5e-9334ab7c8cbc'
+        'webhookUrl': 'https://webhook.site/d633e08d-7129-4b49-8a2e-37ec2c140af6'
     }
 
     response = efi.pix_config_webhook(params=params, body=body, headers=headers)
-    print(response)
+
+    print('WEBHOOK RESPONSE', response)
 
     return response
 
@@ -103,3 +116,72 @@ def resend_events(pix_config, e2eids):
     }
 
     return efi.pix_resend_webhook(body=body)
+
+
+def list_plans(name):
+    efi = get_master_efi_pay()
+
+    body = {
+        'limit': 100,
+        'offset': 0,
+        'name': name
+    }
+
+    result = efi.list_plans(body=body)
+    print('RESULT PLANS', result)
+    return result['data']
+
+
+def create_plan(name, repeats, interval):
+    efi = get_master_efi_pay()
+
+    body = {
+        'name': name,
+        'repeats': repeats,
+        'interval': interval
+    }
+
+    result = efi.create_plan(body=body)
+    return result['data']
+
+
+def create_subscription(efi_plan_id, plan, payment_token, customer, address):
+    efi = get_master_efi_pay()
+
+    params = {
+        'id': efi_plan_id
+    }
+
+    body = {
+        'items': [
+            {
+                'name': plan.name,
+                'value': plan.price,
+                'amount': 1
+            }
+        ],
+        'metadata': {
+            'notification_url': 'https://webhook.site/7ce010b3-7951-4f6d-aa31-496435cdaffe'
+        },
+        'payment': {
+            'credit_card': {
+                'payment_token': payment_token,
+                'billing_address': address.dict(),
+                'customer': customer.dict()
+            }
+        }
+    }
+
+    result = efi.create_one_step_subscription(params=params, body=body)
+    print('RESULT', result)
+    return result['data']
+
+
+def cancel_subscription(subscription_id):
+    efi = get_master_efi_pay()
+
+    params = {
+        'id': subscription_id
+    }
+
+    return efi.cancel_subscription(params=params)

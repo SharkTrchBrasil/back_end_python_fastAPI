@@ -33,6 +33,10 @@ from src.api.admin.routes.store_ratings import router as store_ratings_router
 from src.api.admin.routes.orders import router as orders_router
 from src.api.admin.routes.store_customer import router as store_customer_router
 
+from src.api.admin.routes.plans import router as plans_router
+from src.api.admin.routes.subscriptions import router as subscriptions_router
+from src.api.admin.routes.zipcode import router as zipcode_router
+
 
 router = APIRouter(prefix="/admin")
 router.include_router(stores_router)
@@ -49,7 +53,9 @@ router.include_router(themes_router)
 router.include_router(pix_configs_router)
 router.include_router(webhook_router)
 
-
+router.include_router(plans_router)
+router.include_router(subscriptions_router)
+router.include_router(zipcode_router)
 
 
 

@@ -14,6 +14,9 @@ class Config(BaseSettings):
     AWS_REGION: str
     AWS_BUCKET_NAME: str
     RESEND_API_KEY: str
+    MASTER_CLIENT_ID: str
+    MASTER_CLIENT_SECRET: str
+    MASTER_SANDBOX: bool = False
 
 
 config = Config()

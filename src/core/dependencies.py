@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Header
@@ -56,16 +57,61 @@ class GetStore:
         self.roles = roles
 
     def __call__(self, db: GetDBDep, user: GetCurrentUserDep, store_id: int):
-        db_store_access = db.query(models.StoreAccess).filter(models.StoreAccess.user == user,
-                                                              models.StoreAccess.store_id == store_id).first()
+        db_store_access = db.query(models.StoreAccess).filter(
+            models.StoreAccess.user == user,
+            models.StoreAccess.store_id == store_id
+        ).first()
+
         if db_store_access is None:
-            raise HTTPException(status_code=403, detail={'message': 'User does not have access to this store',
-                                                         'code': 'NO_ACCESS_STORE'})
-        elif db_store_access.role.machine_name not in [e.value for e in self.roles]:
-            raise HTTPException(status_code=403, detail={'message': f'User must be the {[e.value for e in self.roles]} to execute this action',
-                                                         'code': 'REQUIRES_ANOTHER_ROLE'})
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    'message': 'User does not have access to this store',
+                    'code': 'NO_ACCESS_STORE'
+                }
+            )
+
+        if db_store_access.role.machine_name not in [e.value for e in self.roles]:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    'message': f'User must be the {[e.value for e in self.roles]} to execute this action',
+                    'code': 'REQUIRES_ANOTHER_ROLE'
+                }
+            )
+
+        # 🔒 Verificação da assinatura
+        subscription = db.query(models.StoreSubscription).filter(
+            models.StoreSubscription.store_id == store_id
+        ).order_by(models.StoreSubscription.created_at.desc()).first()
+
+        if not subscription or subscription.current_period_end < datetime.utcnow():
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    'message': 'A assinatura desta loja expirou. Por favor, renove para continuar usando.',
+                    'code': 'PLAN_EXPIRED'
+                }
+            )
 
         return db_store_access.store
+
+
+# class GetStore:
+#     def __init__(self, roles: list[Roles]):
+#         self.roles = roles
+#
+#     def __call__(self, db: GetDBDep, user: GetCurrentUserDep, store_id: int):
+#         db_store_access = db.query(models.StoreAccess).filter(models.StoreAccess.user == user,
+#                                                               models.StoreAccess.store_id == store_id).first()
+#         if db_store_access is None:
+#             raise HTTPException(status_code=403, detail={'message': 'User does not have access to this store',
+#                                                          'code': 'NO_ACCESS_STORE'})
+#         elif db_store_access.role.machine_name not in [e.value for e in self.roles]:
+#             raise HTTPException(status_code=403, detail={'message': f'User must be the {[e.value for e in self.roles]} to execute this action',
+#                                                          'code': 'REQUIRES_ANOTHER_ROLE'})
+#
+#         return db_store_access.store
 
 
 get_store = GetStore([Roles.OWNER, Roles.ADMIN])
