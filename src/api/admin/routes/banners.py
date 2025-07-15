@@ -2,10 +2,10 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
-from sqlalchemy.orm import joinedload
+
 
 from src.api.shared_schemas.banner import BannerOut
-from src.api.shared_schemas.coupon import CouponCreate, Coupon, CouponUpdate
+
 from src.core import models
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
