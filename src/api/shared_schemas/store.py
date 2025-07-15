@@ -1,5 +1,5 @@
 from enum import Enum
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, ConfigDict
 from typing import Optional
 
 from src.api.admin.schemas.subscription import StoreSubscriptionOut
@@ -67,7 +67,10 @@ class StoreCreate(StoreBase):
 # Usado na resposta (GET etc)
 class Store(StoreBase):
     id: int
-    subscription: Optional[StoreSubscriptionOut]
+
+    subscription: Optional[StoreSubscriptionOut] = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 # Role e Store com role (exibição do cargo do usuário)
 class Role(BaseModel):

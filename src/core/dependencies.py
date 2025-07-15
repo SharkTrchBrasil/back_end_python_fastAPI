@@ -51,18 +51,23 @@ def get_optional_user(db: GetDBDep, authorization: Annotated[str | None, Header(
 GetCurrentUserDep = Annotated[models.User, Depends(get_current_user)]
 GetOptionalUserDep = Annotated[models.User | None, Depends(get_optional_user)]
 
-
 class GetStore:
     def __init__(self, roles: list[Roles]):
         self.roles = roles
 
     def __call__(self, db: GetDBDep, user: GetCurrentUserDep, store_id: int):
-        db_store_access = db.query(models.StoreAccess).filter(
+        # Carrega tudo em uma única query
+        db_store_access = db.query(models.StoreAccess).options(
+            joinedload(models.StoreAccess.store)
+                .joinedload(models.Store.subscriptions)
+                .joinedload(models.StoreSubscription.plan),
+            joinedload(models.StoreAccess.role)
+        ).filter(
             models.StoreAccess.user == user,
             models.StoreAccess.store_id == store_id
         ).first()
 
-        if db_store_access is None:
+        if not db_store_access:
             raise HTTPException(
                 status_code=403,
                 detail={
@@ -80,12 +85,16 @@ class GetStore:
                 }
             )
 
-        # 🔒 Verificação da assinatura
-        subscription = db.query(models.StoreSubscription).filter(
-            models.StoreSubscription.store_id == store_id
-        ).order_by(models.StoreSubscription.created_at.desc()).first()
+        # Verificação otimizada da assinatura
+        store = db_store_access.store
+        active_sub = next(
+            (sub for sub in store.subscriptions
+             if sub.status in ['active', 'new_charge'] and
+                sub.current_period_end >= datetime.utcnow()),
+            None
+        )
 
-        if not subscription or subscription.current_period_end < datetime.utcnow():
+        if not active_sub:
             raise HTTPException(
                 status_code=403,
                 detail={
@@ -94,9 +103,7 @@ class GetStore:
                 }
             )
 
-        return db_store_access.store
-
-
+        return store
 # class GetStore:
 #     def __init__(self, roles: list[Roles]):
 #         self.roles = roles
