@@ -67,7 +67,7 @@ class StoreCreate(StoreBase):
 # Usado na resposta (GET etc)
 class Store(StoreBase):
     id: int
-    subscription: StoreSubscriptionOut
+    subscription: Optional[StoreSubscriptionOut]  # <- Mude para Optional
 
 # Role e Store com role (exibição do cargo do usuário)
 class Role(BaseModel):
