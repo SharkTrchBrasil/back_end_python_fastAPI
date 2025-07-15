@@ -2,9 +2,10 @@ from enum import Enum
 from pydantic import BaseModel, Field, computed_field
 from typing import Optional
 
+from src.api.admin.schemas.subscription import StoreSubscriptionOut
 from src.api.shared_schemas.store_delivery_options import StoreDeliveryConfig
 from src.core.aws import get_presigned_url
-from src.api.admin.schemas.subscription import StoreSubscription
+
 
 
 class Roles(Enum):
@@ -66,7 +67,7 @@ class StoreCreate(StoreBase):
 # Usado na resposta (GET etc)
 class Store(StoreBase):
     id: int
-    subscription: StoreSubscription
+    subscription: StoreSubscriptionOut
 
 # Role e Store com role (exibição do cargo do usuário)
 class Role(BaseModel):
