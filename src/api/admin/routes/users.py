@@ -5,7 +5,7 @@ from src.core.database import GetDBDep
 from src.core.dependencies import GetCurrentUserDep
 from src.api.admin.schemas.user import UserCreate, User, UserUpdate
 
-from src.api.admin.services.email_service import send_verification_email
+from src.api.admin.utils.email_service import send_verification_email
 from src.core.security import generate_verification_code, get_password_hash  # novo import
 
 router = APIRouter(prefix="/users", tags=["Users"])

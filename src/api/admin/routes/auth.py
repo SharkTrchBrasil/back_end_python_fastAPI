@@ -7,7 +7,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from starlette import status
 
 from src.api.admin.schemas.auth import TokenResponse
-from src.api.admin.services.auth import authenticate_user
+from src.api.admin.utils.auth import authenticate_user
 from src.api.app.schemas.auth import TotemAuthorizationResponse, AuthenticateByUrlRequest, TotemCheckTokenResponse
 from src.core import models
 from src.core.database import GetDBDep

@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, Header
 from sqlalchemy.orm import Session, joinedload
-
+from starlette import status
 
 from src.api.shared_schemas.store import Roles
 from src.core import models
@@ -116,6 +116,27 @@ class GetStore:
 
 get_store = GetStore([Roles.OWNER, Roles.ADMIN])
 GetStoreDep = Annotated[models.Store, Depends(get_store)]
+
+
+def check_subscription_status(store: GetStoreDep, db: GetDBDep):
+    """Verifica se a loja tem uma assinatura ativa"""
+    subscription = db.query(models.StoreSubscription).filter(
+        models.StoreSubscription.store_id == store.id,
+        models.StoreSubscription.status == 'active',
+        models.StoreSubscription.current_period_end >= datetime.utcnow()
+    ).first()
+
+    if not subscription:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Assinatura vencida ou inativa. Renove seu plano para continuar usando o serviço."
+        )
+
+    return store
+
+
+# Dependência que pode ser usada nas rotas
+GetActiveStoreDep = Annotated[models.Store, Depends(check_subscription_status)]
 
 
 def get_product(

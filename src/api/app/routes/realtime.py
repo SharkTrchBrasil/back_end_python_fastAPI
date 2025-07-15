@@ -10,8 +10,8 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError
 from sqlalchemy.orm import joinedload
 
-from src.api.admin.events.admin_socketio_emitters import admin_emit_order_updated_from_obj
-from src.api.admin.services.order_code import generate_unique_public_id, gerar_sequencial_do_dia
+from src.api.admin.socketio.emitters import admin_emit_order_updated_from_obj
+from src.api.admin.utils.order_code import generate_unique_public_id, gerar_sequencial_do_dia
 from src.api.app.events.socketio_emitters import refresh_product_list
 
 from src.api.app.schemas.new_order import NewOrder

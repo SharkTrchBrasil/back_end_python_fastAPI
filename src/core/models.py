@@ -57,8 +57,7 @@ class Store(Base, TimestampMixin):
     facebook: Mapped[Optional[str]] = mapped_column(nullable=True)
     tiktok: Mapped[Optional[str]] = mapped_column(nullable=True)
 
-    # Plano
-    plan_type: Mapped[str] = mapped_column(default="free", nullable=False)
+
     store_url: Mapped[Optional[str]] = mapped_column(nullable=False)
     # Relacionamentos
 
@@ -113,20 +112,24 @@ class Store(Base, TimestampMixin):
         primaryjoin="and_(Store.id == StoreSubscription.store_id, StoreSubscription.status.in_(['active', 'new_charge']))"
     )
 
+
+
 class SubscriptionPlan(Base, TimestampMixin):
     __tablename__ = "subscription_plans"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    description: Mapped[str | None] = mapped_column()
 
-    max_totems: Mapped[int | None] = mapped_column()
-    style_guide: Mapped[bool] = mapped_column()
     available: Mapped[bool] = mapped_column()
-
     plan_name: Mapped[str | None] = mapped_column()
     price: Mapped[int] = mapped_column()
     interval: Mapped[int] = mapped_column()
     repeats: Mapped[int | None] = mapped_column()
 
+    features: Mapped[list["SubscriptionPlanFeature"]] = relationship(
+        back_populates="plan",
+        cascade="all, delete-orphan"
+    )
 
 
 
@@ -147,6 +150,15 @@ class StoreSubscription(Base, TimestampMixin):
     is_recurring: Mapped[bool] = mapped_column(default=False)
 
 
+class SubscriptionPlanFeature(Base, TimestampMixin):
+    __tablename__ = "subscription_plan_features"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    subscription_plan_id: Mapped[int] = mapped_column(ForeignKey("subscription_plans.id"))
+    feature_key: Mapped[str] = mapped_column()  # ex: "chatbot", "totem", "style_guide"
+    is_enabled: Mapped[bool] = mapped_column(default=True)
+
+    plan: Mapped["SubscriptionPlan"] = relationship(back_populates="features")
 
 
 class User(Base, TimestampMixin):

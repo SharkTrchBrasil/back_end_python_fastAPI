@@ -1,10 +1,9 @@
 # routes/verify_code.py
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import select
 
 from src.api.admin.schemas.resend_code import ResendCodeRequest
-from src.api.admin.services.email_service import send_verification_email
+from src.api.admin.utils.email_service import send_verification_email
 from src.core.database import GetDBDep # Supondo que esse seja o nome correto do dependente
 from src.core.models import User
 from src.core.security import generate_verification_code
