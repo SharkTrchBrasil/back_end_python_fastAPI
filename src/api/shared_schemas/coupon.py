@@ -13,7 +13,14 @@ class DiscountType(str, Enum):
 
 
 class CouponBase(BaseModel):
-    code: str = Field(..., min_length=3, max_length=20, regex=r'^[A-Z0-9]+$')
+    code: str = Field(
+        ...,
+        min_length=3,
+        max_length=20,
+        pattern=r'^[A-Z0-9]+$',  # Alterado de 'regex' para 'pattern'
+        description="Código do cupom em maiúsculas sem espaços ou caracteres especiais"
+    )
+
     discount_type: DiscountType = Field(default=DiscountType.PERCENTAGE)
     discount_value: int = Field(..., gt=0, description="Valor do desconto em centavos ou percentual")
 
