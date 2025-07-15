@@ -38,6 +38,7 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
             print(f"❌ Loja {store_id} não encontrada")
             return
 
+        # Configurações padrão se não existirem
         settings = db.query(models.StoreSettings).filter_by(store_id=store_id).first()
         if not settings:
             settings = models.StoreSettings(
@@ -53,8 +54,10 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
             db.commit()
             print(f"⚙️ Configurações padrão criadas para loja {store_id}")
 
+        # Valida o schema da loja
         store_schema = StoreDetails.model_validate(store)
 
+        # Adiciona informações de avaliação (com fallback)
         try:
             store_schema.ratingsSummary = RatingsSummaryOut(
                 **get_store_ratings_summary(db, store_id=store.id)
@@ -67,35 +70,47 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
                 ratings=[]
             )
 
-        # ----- ADICIONANDO INFORMAÇÕES DA ASSINATURA ATIVA -----
+        # Encontra a assinatura ativa mais recente
         active_sub = None
         for sub in store.subscriptions:
             if sub.status in ['active', 'new_charge']:
                 if not active_sub or (sub.current_period_end > active_sub.current_period_end):
                     active_sub = sub
 
+        # Prepara as informações da assinatura
+        store_subscription_info = None
         if active_sub:
             plan = active_sub.plan
+            features_list = [
+                {"feature_key": f.feature_key, "is_enabled": f.is_enabled}
+                for f in plan.features
+            ]
+
             store_subscription_info = {
-                "plan_name": plan.plan_name,
-                "price": plan.price,
-                "interval": plan.interval,
+                "id": active_sub.id,
                 "status": active_sub.status,
                 "current_period_start": active_sub.current_period_start.isoformat(),
                 "current_period_end": active_sub.current_period_end.isoformat(),
                 "is_recurring": active_sub.is_recurring,
-                "features": {feature.feature_key: feature.is_enabled for feature in plan.features}
+                "plan": {
+                    "id": plan.id,
+                    "plan_name": plan.plan_name,
+                    "price": plan.price,
+                    "interval": plan.interval,
+                    "repeats": plan.repeats,
+                    "features": features_list
+                }
             }
-        else:
-            store_subscription_info = None
 
+        # Prepara o payload final
         payload = {
             "store_id": store_id,
             "store": store_schema.model_dump(),
-            "subscription": store_subscription_info  # Inserindo no payload
+            "subscription": store_subscription_info
         }
         payload['store']['store_settings'] = StoreSettingsBase.model_validate(settings).model_dump(mode='json')
 
+        # Emite os dados
         if sid:
             await sio.emit("store_full_updated", payload, namespace='/admin', to=sid)
         else:
@@ -103,12 +118,15 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
 
     except Exception as e:
         print(f'❌ Erro crítico em emit_store_full_updated: {str(e)}')
+        error_payload = {
+            "store_id": store_id,
+            "store": {},
+            "error": str(e)
+        }
         if sid:
-            await sio.emit("store_full_updated", {"store_id": store_id, "store": {}}, namespace='/admin', to=sid)
+            await sio.emit("store_full_updated", error_payload, namespace='/admin', to=sid)
         else:
-            await sio.emit("store_full_updated", {"store_id": store_id, "store": {}}, namespace='/admin', room=f"admin_store_{store_id}")
-
-
+            await sio.emit("store_full_updated", error_payload, namespace='/admin', room=f"admin_store_{store_id}")
 
 async def admin_emit_orders_initial(db, store_id: int, sid: str | None = None):
     print(f"🔄 [Admin] emit_orders_initial para store_id: {store_id}")
