@@ -33,10 +33,10 @@ from src.core.database import get_db_manager
 
 from src.api.app.services.authorize_totem import authorize_totem
 from src.api.app.schemas.coupon import Coupon as CouponSchema
-from src.core.models import OrderStatus
+
 from src.socketio_instance import sio
 
-from src.api.shared_schemas.order import Order as OrderSchema
+from src.api.shared_schemas.order import Order as OrderSchema, OrderStatus
 
 
 # Evento de conexão do Socket.IO
@@ -297,7 +297,7 @@ async def send_order(sid, data):
                     price=int(final_price),
                     quantity=order_product_data.quantity,
                     note=order_product_data.note,
-                    image_url=product_db.file_key,  # Salva a URL da imagem
+                    image_url=product_db.image_url,  # Salva a URL da imagem
                     original_price=int(original_price),
                     discount_amount=product_discount,
                     discount_percentage=(product_discount / original_price * 100) if original_price > 0 else 0,

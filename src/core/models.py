@@ -7,6 +7,7 @@ from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueCon
     CheckConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from src.api.shared_schemas.order import OrderStatus
 
 
 class Base(DeclarativeBase):
@@ -763,16 +764,6 @@ class Banner(Base, TimestampMixin):
     product: Mapped[Product | None] = relationship()
     category: Mapped[Category | None] = relationship()
     store: Mapped[Store] = relationship()
-
-
-class OrderStatus(enum.Enum):
-    PENDING = "pending"           # Criado
-    PREPARING = "preparing"       # Sendo preparado
-    READY = "ready"               # Pronto para entrega/retirada
-    ON_ROUTE = "on_route"         # Está a caminho
-    DELIVERED = "delivered"       # Entregue com sucesso
-    CANCELED = "canceled"         # Cancelado por qualquer motivo
-
 
 
 class Order(Base, TimestampMixin):

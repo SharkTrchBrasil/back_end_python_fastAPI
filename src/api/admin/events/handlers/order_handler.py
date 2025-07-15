@@ -1,6 +1,7 @@
 
 from urllib.parse import parse_qs
 
+from src.api.shared_schemas.order import OrderStatus
 from src.core import models
 from src.api.admin.socketio.emitters import (
 
@@ -9,7 +10,7 @@ from src.api.admin.socketio.emitters import (
 )
 from src.api.admin.utils.authorize_admin import authorize_admin
 from src.core.database import get_db_manager
-from src.core.models import OrderStatus
+
 
 
 
