@@ -321,32 +321,64 @@ class Coupon(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    code: Mapped[str] = mapped_column(unique=True)
+    # Código do cupom (único)
+    code: Mapped[str] = mapped_column(unique=True, index=True)
 
-    discount_percent: Mapped[int | None] = mapped_column()
-    discount_fixed: Mapped[int | None] = mapped_column()
+    # Tipo e valor do desconto
+    discount_type: Mapped[str] = mapped_column(  # 'percentage' ou 'fixed'
+        default='percentage'
+    )
+    discount_value: Mapped[int] = mapped_column()  # Valor em centavos ou percentual
 
-    max_uses: Mapped[int] = mapped_column()
-
+    # Limites de uso
+    max_uses: Mapped[int | None] = mapped_column(default=None)  # None = ilimitado
     used: Mapped[int] = mapped_column(default=0)
+    max_uses_per_customer: Mapped[int | None] = mapped_column(default=1)
 
-    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"))
-    #add aqui para buscar o produto selecionado
-    product: Mapped[Product] = relationship()
-    # ///
-    start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Validações
+    min_order_value: Mapped[int | None] = mapped_column(default=None)  # Valor mínimo em centavos
 
-    # new campos
-    maxUsesPerCustomer: Mapped[int | None] = mapped_column()
+    # Período de validade
+    start_date: Mapped[datetime] = mapped_column()
+    end_date: Mapped[datetime] = mapped_column()
 
-    minOrderValue: Mapped[int | None] = mapped_column()
+    # Status
+    is_active: Mapped[bool] = mapped_column(default=True)
 
-    available: Mapped[bool] = mapped_column(default=True)
+    # Restrições (opcionais)
+    only_first_purchase: Mapped[bool] = mapped_column(default=False)
 
-    onlyNewCustomers: Mapped[bool] = mapped_column(default=False)
-    orders: Mapped[list["Order"]] = relationship(back_populates="coupon")
+    # Relacionamentos (opcionais)
+    store_id: Mapped[int | None] = mapped_column(
+        ForeignKey("stores.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    store: Mapped["Store"] = relationship()
+
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    product: Mapped["Product"] = relationship()
+
+    # Histórico de uso (se necessário)
+    orders: Mapped[list["Order"]] = relationship(
+        back_populates="coupon",
+        cascade="all, delete-orphan"  # Permite apagar o cupom mesmo com pedidos
+    )
+
+    @property
+    def is_expired(self) -> bool:
+        return datetime.now() > self.end_date
+
+    @property
+    def is_fully_used(self) -> bool:
+        return self.max_uses is not None and self.used >= self.max_uses
+
+    @property
+    def can_be_deleted(self) -> bool:
+        """Verifica se o cupom pode ser apagado sem restrições"""
+        return len(self.orders) == 0  # Ou outra lógica conforme sua regra de negócio
 
 
 class TotemAuthorization(Base, TimestampMixin):
@@ -818,6 +850,21 @@ class Order(Base, TimestampMixin):
     # ✅ Tipo de consumo (onde o cliente vai comer)
     consumption_type: Mapped[str] = mapped_column(default="dine_in")
 
+    discount_amount: Mapped[int] = mapped_column(default=0)  # Valor total do desconto em centavos
+    discount_percentage: Mapped[float | None] = mapped_column(nullable=True)  # Porcentagem se aplicável
+    discount_type: Mapped[str | None] = mapped_column(nullable=True)  # 'coupon', 'promotion', etc.
+    discount_reason: Mapped[str | None] = mapped_column(nullable=True)  # Descrição do desconto
+
+
+
+
+
+
+
+
+
+
+
     # @property
     # def totem_name(self):
     #     return self.totem.totem_name if self.totem else None
@@ -857,9 +904,12 @@ class OrderProduct(Base, TimestampMixin):
     price: Mapped[int] = mapped_column()
     quantity: Mapped[int] = mapped_column()
     note: Mapped[str] = mapped_column(default='', nullable=False)
-
+    image_url: Mapped[str | None] = mapped_column(nullable=True)  # URL da imagem do produto no momento do pedido
     variants: Mapped[list["OrderVariant"]] = relationship(backref="product")
 
+    original_price: Mapped[int] = mapped_column()  # Preço antes de descontos
+    discount_amount: Mapped[int] = mapped_column(default=0)  # Valor do desconto neste item
+    discount_percentage: Mapped[float | None] = mapped_column(nullable=True)
 
 class OrderVariant(Base, TimestampMixin):
     __tablename__ = "order_variants"

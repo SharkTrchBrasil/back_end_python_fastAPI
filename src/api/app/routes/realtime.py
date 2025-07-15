@@ -196,12 +196,11 @@ async def send_order(sid, data):
                     store_id=session.store_id
                 ).first()
 
-            # 5. Cria o pedido
+            # 5. Cria o pedido com todos os novos campos
             db_order = models.Order(
                 sequential_id=gerar_sequencial_do_dia(db, session.store_id),
                 public_id=generate_unique_public_id(db, session.store_id),
                 store_id=session.store_id,
-               # totem_id=session.totem_id if session.client_type == 'totem' else None,
                 customer_id=new_order.customer_id,
                 customer_name=new_order.customer_name,
                 customer_phone=new_order.customer_phone,
@@ -223,10 +222,15 @@ async def send_order(sid, data):
                 complement=new_order.complement or "",
                 neighborhood=new_order.neighborhood,
                 city=new_order.city,
-                # ✅ Novos campos aqui:
                 is_scheduled=new_order.is_scheduled,
                 scheduled_for=new_order.scheduled_for if new_order.scheduled_for else None,
                 consumption_type=new_order.consumption_type,
+                # Novos campos de desconto
+                discount_amount=0,  # Será calculado abaixo
+                discount_percentage=None,  # Será calculado abaixo
+                discount_type=None,  # Será definido abaixo
+                discount_reason=None,  # Será definido abaixo
+                discounted_total_price=new_order.total_price,  # Valor inicial
             )
 
             # 6. Configuração automática da loja
@@ -256,6 +260,7 @@ async def send_order(sid, data):
             coupon_map = {c.code: c for c in coupons}
 
             total_price_calculated_backend = 0
+            total_discount_amount = 0
 
             # 9. Processamento de produtos e variantes
             for order_product_data in new_order.products:
@@ -265,30 +270,41 @@ async def send_order(sid, data):
                 if not product_db:
                     return {'error': f"Produto com ID {order_product_data.product_id} não encontrado."}
 
+                # Define preços originais e com desconto
+                original_price = product_db.promotion_price or product_db.base_price
+                final_price = original_price
+                product_discount = 0
+
                 # Aplica cupom de produto se existir
                 if order_product_data.coupon_code:
                     coupon = coupon_map.get(order_product_data.coupon_code)
                     if coupon and coupon.product_id == product_db.id:
-                        price_with_coupon = apply_coupon(coupon, product_db.base_price)
+                        final_price = apply_coupon(coupon, original_price)
+                        product_discount = original_price - final_price
+                        total_discount_amount += product_discount * order_product_data.quantity
                     else:
                         return {'error': f"Cupom inválido para o produto {product_db.name}"}
-                else:
-                    price_with_coupon = product_db.promotion_price or product_db.base_price
 
-                if price_with_coupon != order_product_data.price:
-                    return {'error': f"Preço inválido para {product_db.name}. Esperado: {price_with_coupon}, Recebido: {order_product_data.price}"}
+                if final_price != order_product_data.price:
+                    return {
+                        'error': f"Preço inválido para {product_db.name}. Esperado: {final_price}, Recebido: {order_product_data.price}"}
 
+                # Cria o produto do pedido com todos os campos
                 db_product_entry = models.OrderProduct(
                     store_id=session.store_id,
                     product_id=product_db.id,
                     name=product_db.name,
-                    price=int(price_with_coupon),
+                    price=int(final_price),
                     quantity=order_product_data.quantity,
                     note=order_product_data.note,
+                    image_url=product_db.file_key,  # Salva a URL da imagem
+                    original_price=int(original_price),
+                    discount_amount=product_discount,
+                    discount_percentage=(product_discount / original_price * 100) if original_price > 0 else 0,
                 )
                 db_order.products.append(db_product_entry)
 
-                current_product_total = price_with_coupon * order_product_data.quantity
+                current_product_total = final_price * order_product_data.quantity
                 variants_price = 0
 
                 # Processa variantes
@@ -340,10 +356,27 @@ async def send_order(sid, data):
                 if potential_order_coupon and potential_order_coupon.product_id is None:
                     order_coupon = potential_order_coupon
                     discounted_total = apply_coupon(order_coupon, total_price_calculated_backend)
+                    # Calcula desconto total do cupom
+                    order_discount = total_price_calculated_backend - discounted_total
+                    total_discount_amount += order_discount
+
+                    # Atualiza campos de desconto do pedido
+                    db_order.discount_amount = total_discount_amount
+                    db_order.discount_percentage = (
+                                order_discount / total_price_calculated_backend * 100) if total_price_calculated_backend > 0 else 0
+                    db_order.discount_type = 'coupon'
+                    db_order.discount_reason = f"Cupom {order_coupon.code}"
                 else:
                     return {"error": "Cupom geral inválido para o pedido."}
             else:
                 discounted_total = total_price_calculated_backend
+                # Se não tem cupom mas tem descontos em produtos
+                if total_discount_amount > 0:
+                    db_order.discount_amount = total_discount_amount
+                    db_order.discount_percentage = (
+                                total_discount_amount / total_price_calculated_backend * 100) if total_price_calculated_backend > 0 else 0
+                    db_order.discount_type = 'product_discount'
+                    db_order.discount_reason = 'Desconto em produtos'
 
             # 11. Adiciona taxa de entrega e valida total
             if new_order.delivery_fee:
@@ -352,7 +385,7 @@ async def send_order(sid, data):
             if new_order.total_price != discounted_total:
                 return {"error": f"Total incorreto. Esperado: {discounted_total}, Recebido: {new_order.total_price}"}
 
-            db_order.total_price = discounted_total
+            db_order.total_price = total_price_calculated_backend + (new_order.delivery_fee or 0)
             db_order.coupon_id = order_coupon.id if order_coupon else None
             db_order.discounted_total_price = discounted_total
 
@@ -390,6 +423,16 @@ async def send_order(sid, data):
             db.rollback()
             print(f"❌ Erro inesperado ao criar pedido: {str(e)}")
             return {"error": "Erro interno ao processar pedido"}
+
+
+
+
+
+
+
+
+
+
 
 # @sio.event
 # async def send_order(sid, data):

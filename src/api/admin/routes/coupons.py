@@ -1,14 +1,14 @@
 from fastapi import APIRouter, HTTPException
 from sqlalchemy.orm import joinedload
 
-from src.api.shared_schemas.coupon import CouponCreate, Coupon, CouponUpdate
+from src.api.shared_schemas.coupon import CouponCreate, CouponUpdate, CouponOut
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 
 router = APIRouter(tags=["Coupons"], prefix="/stores/{store_id}/coupons")
 
-@router.post("", response_model=Coupon)
+@router.post("", response_model=CouponOut)
 def create_coupon(
         db: GetDBDep,
         store: GetStoreDep,
@@ -49,7 +49,7 @@ def create_coupon(
 
 
 # alterado do original para buscar o produto vinculado
-@router.get("", response_model=list[Coupon])
+@router.get("", response_model=list[CouponOut])
 def get_coupons(
         db: GetDBDep,
         store: GetStoreDep,
@@ -68,7 +68,7 @@ def get_coupons(
 
     return coupons
 
-@router.get("/{coupon_id}", response_model=Coupon)
+@router.get("/{coupon_id}", response_model=CouponOut)
 def get_coupon(
         db: GetDBDep,
         store: GetStoreDep,
@@ -85,7 +85,7 @@ def get_coupon(
     return coupon
 
 
-@router.patch("/{coupon_id}", response_model=Coupon)
+@router.patch("/{coupon_id}", response_model=CouponOut)
 def patch_coupon(
     db: GetDBDep,
     store: GetStoreDep,
