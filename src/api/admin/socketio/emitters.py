@@ -23,12 +23,15 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
     print(f"🔄 [Admin] emit_store_full_updated para store_id: {store_id}")
 
     try:
+        # Carrega todas as relações necessárias
         store = db.query(models.Store).options(
             joinedload(models.Store.payment_methods),
             joinedload(models.Store.delivery_config),
             joinedload(models.Store.hours),
             joinedload(models.Store.cities).joinedload(models.StoreCity.neighborhoods),
-            joinedload(models.Store.subscriptions).joinedload(models.StoreSubscription.plan).joinedload(models.SubscriptionPlan.features),  # Carregar plano + features
+            joinedload(models.Store.subscriptions)
+                .joinedload(models.StoreSubscription.plan)
+                .joinedload(models.SubscriptionPlan.features),
         ).filter_by(id=store_id).first()
 
         if not store:
