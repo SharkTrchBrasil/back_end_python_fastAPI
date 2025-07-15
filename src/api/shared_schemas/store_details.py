@@ -3,6 +3,7 @@ from typing import Optional
 from pydantic import Field
 
 from src.api.admin.schemas.store_settings import StoreSettingsBase
+from src.api.admin.schemas.subscription import StoreSubscription
 from src.api.shared_schemas.payment_method import StorePaymentMethods
 from src.api.shared_schemas.rating import RatingsSummaryOut
 from src.api.shared_schemas.store import Store
@@ -21,6 +22,9 @@ class StoreDetails(Store):
     store_settings: StoreSettingsBase | None = None
 
     ratingsSummary: Optional[RatingsSummaryOut] = Field(None, alias="ratingsSummary")
+
+    # ADICIONE AQUI:
+    subscription: Optional[StoreSubscription] = None  # ajuste o nome do schema para assinatura
 
 
 
