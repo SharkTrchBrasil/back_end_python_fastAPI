@@ -28,6 +28,7 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
             joinedload(models.Store.delivery_config),
             joinedload(models.Store.hours),
             joinedload(models.Store.cities).joinedload(models.StoreCity.neighborhoods),
+            joinedload(models.Store.subscriptions).joinedload(models.StoreSubscription.plan).joinedload(models.SubscriptionPlan.features),  # Carregar plano + features
         ).filter_by(id=store_id).first()
 
         if not store:
@@ -63,9 +64,32 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
                 ratings=[]
             )
 
+        # ----- ADICIONANDO INFORMAÇÕES DA ASSINATURA ATIVA -----
+        active_sub = None
+        for sub in store.subscriptions:
+            if sub.status in ['active', 'new_charge']:
+                if not active_sub or (sub.current_period_end > active_sub.current_period_end):
+                    active_sub = sub
+
+        if active_sub:
+            plan = active_sub.plan
+            store_subscription_info = {
+                "plan_name": plan.plan_name,
+                "price": plan.price,
+                "interval": plan.interval,
+                "status": active_sub.status,
+                "current_period_start": active_sub.current_period_start.isoformat(),
+                "current_period_end": active_sub.current_period_end.isoformat(),
+                "is_recurring": active_sub.is_recurring,
+                "features": {feature.feature_key: feature.is_enabled for feature in plan.features}
+            }
+        else:
+            store_subscription_info = None
+
         payload = {
             "store_id": store_id,
             "store": store_schema.model_dump(),
+            "subscription": store_subscription_info  # Inserindo no payload
         }
         payload['store']['store_settings'] = StoreSettingsBase.model_validate(settings).model_dump(mode='json')
 
