@@ -108,7 +108,9 @@ class Store(Base, TimestampMixin):
 
     # Relacionamento com TODAS as assinaturas
     subscriptions: Mapped[list["StoreSubscription"]] = relationship(
-        back_populates="store", cascade="all, delete-orphan"
+        back_populates="store",
+        cascade="all, delete-orphan",
+        lazy="joined"  # Carrega automaticamente com a store
     )
 
     # Relacionamento com assinatura ativa (para uso prático no sistema)

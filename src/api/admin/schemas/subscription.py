@@ -1,9 +1,9 @@
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
+from typing import Optional, List
 
 
-class SubscriptionPlanFeaturesOut(BaseModel):
+class SubscriptionPlanFeatureOut(BaseModel):
     feature_key: str
     is_enabled: bool
 
@@ -14,20 +14,26 @@ class SubscriptionPlanOut(BaseModel):
     price: int
     interval: int
     repeats: Optional[int] = None
-    features: list[SubscriptionPlanFeaturesOut] = []
+    features: List[SubscriptionPlanFeatureOut] = []
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class StoreSubscriptionOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
     id: int
     status: str
     current_period_start: datetime
     current_period_end: datetime
     is_recurring: bool
     plan: SubscriptionPlanOut
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+
+
+
+
 
 
 # Mantenha suas classes existentes

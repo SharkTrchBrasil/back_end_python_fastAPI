@@ -12,7 +12,7 @@ from sqlalchemy.orm import joinedload
 
 from src.api.admin.schemas.store_access import StoreAccess
 from src.api.app.events.socketio_emitters import emit_store_updated
-from src.api.shared_schemas.store import StoreWithRole, StoreCreate, Store, Roles
+from src.api.shared_schemas.store import StoreWithRole, StoreCreate, Store, Roles, Role
 from src.core import models
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
@@ -144,14 +144,47 @@ def create_store(
 
 
 @router.get("", response_model=list[StoreWithRole])
-def list_stores(
-    db: GetDBDep,
-    user: GetCurrentUserDep,
-):
-    db_store_accesses = db.query(models.StoreAccess).filter(models.StoreAccess.user == user).all()
-    return db_store_accesses
+def list_stores(db: GetDBDep, user: GetCurrentUserDep):
+    # Apenas carrega o essencial para listagem
+    store_accesses = db.query(models.StoreAccess).options(
+        joinedload(models.StoreAccess.store).load_only(
+            models.Store.id,
+            models.Store.name,
+            models.Store.phone,
+            models.Store.is_active
+        ),
+        joinedload(models.StoreAccess.role).load_only(
+            models.Role.machine_name
+        ),
+        joinedload(models.StoreAccess.store)
+        .joinedload(models.Store.active_subscription)  # Usa o relationship viewonly
+    ).filter(models.StoreAccess.user == user).all()
 
+    result = []
+    for access in store_accesses:
+        store = access.store
+        subscription_info = None
 
+        if store.active_subscription:
+            sub = store.active_subscription
+            subscription_info = {
+                "status": sub.status,
+                "plan_name": sub.plan.plan_name,
+                "current_period_end": sub.current_period_end.isoformat()
+                # Não carrega features aqui (só para listagem)
+            }
+
+        result.append(StoreWithRole(
+            store=Store(
+                id=store.id,
+                name=store.name,
+                phone=store.phone,
+                subscription=subscription_info
+            ),
+            role=Role(machine_name=access.role.machine_name)
+        ))
+
+    return result
 @router.get("/{store_id}", response_model=Store)
 def get_store(
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
