@@ -106,12 +106,19 @@ class Store(Base, TimestampMixin):
 
     commands: Mapped[list["Command"]] = relationship(back_populates="store")
 
-    subscription: Mapped["StoreSubscription"] = relationship(
-        "StoreSubscription",
-        uselist=False,
-        primaryjoin="and_(Store.id == StoreSubscription.store_id, StoreSubscription.status.in_(['active', 'new_charge']))"
+    # Relacionamento com TODAS as assinaturas
+    subscriptions: Mapped[list["StoreSubscription"]] = relationship(
+        back_populates="store", cascade="all, delete-orphan"
     )
 
+    # Relacionamento com assinatura ativa (para uso prático no sistema)
+    active_subscription: Mapped[Optional["StoreSubscription"]] = relationship(
+        "StoreSubscription",
+        uselist=False,
+        primaryjoin="and_(Store.id == foreign(StoreSubscription.store_id), "
+                    "StoreSubscription.status.in_(['active', 'new_charge']))",
+        viewonly=True
+    )
 
 
 class SubscriptionPlan(Base, TimestampMixin):
@@ -131,6 +138,10 @@ class SubscriptionPlan(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
 
+    subscriptions: Mapped[list["StoreSubscription"]] = relationship(
+        back_populates="plan", cascade="all, delete-orphan"
+    )
+
 
 
 class StoreSubscription(Base, TimestampMixin):
@@ -139,12 +150,10 @@ class StoreSubscription(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     subscription_plan_id: Mapped[int] = mapped_column(ForeignKey("subscription_plans.id"))
-
-    subscription_id: Mapped[int | None] = mapped_column()
     status: Mapped[str] = mapped_column()
+    store: Mapped["Store"] = relationship(back_populates="subscriptions")
+    plan: Mapped["SubscriptionPlan"] = relationship(back_populates="subscriptions")
 
-    store: Mapped[Store] = relationship()
-    plan: Mapped[SubscriptionPlan] = relationship()
     current_period_start: Mapped[datetime] = mapped_column()
     current_period_end: Mapped[datetime] = mapped_column()
     is_recurring: Mapped[bool] = mapped_column(default=False)
