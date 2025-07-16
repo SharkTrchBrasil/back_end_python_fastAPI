@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 from typing import Optional
 
 from src.api.shared_schemas.product import ProductOut
@@ -34,11 +34,13 @@ class CouponBase(BaseModel):
 
     is_active: bool = Field(default=True, description="Se o cupom está ativo")
 
+    @field_serializer('start_date', 'end_date')
+    def serialize_datetime(self, value: datetime | None) -> str | None:
+        return value.isoformat() if value else None
+
     class Config:
-        allow_population_by_field_name = True
         json_encoders = {datetime: lambda v: v.isoformat()}
-
-
+        from_attributes = True  # Para suportar ORM
 class CouponCreate(CouponBase):
     product_id: Optional[int] = Field(None, description="ID do produto específico, se aplicável")
 

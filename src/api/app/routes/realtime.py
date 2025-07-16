@@ -708,12 +708,10 @@ async def check_coupon(sid, data):
 async def list_coupons(sid):
     with get_db_manager() as db:
         try:
-            # 1. Verifica a sessão ativa
             session = db.query(models.StoreSession).filter_by(sid=sid).first()
             if not session or not session.store_id:
                 return {'error': 'Sessão não autorizada'}
 
-            # 2. Busca cupons válidos
             now = datetime.utcnow()
 
             coupons = db.query(models.Coupon).filter(
@@ -729,11 +727,9 @@ async def list_coupons(sid):
                 )
             ).all()
 
-            # 3. Formata resposta
             return {
                 'coupons': [
                     CouponOut.model_validate(c).model_dump(mode="json")
-
                     for c in coupons
                 ]
             }
