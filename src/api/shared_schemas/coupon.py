@@ -36,10 +36,6 @@ class CouponBase(BaseModel):
         None, gt=0, alias="minOrderValue",
         description="Valor mínimo do pedido em centavos"
     )
-    only_for_specific_product: bool = Field(
-        default=False,
-        description="Se o cupom é válido apenas para um produto específico"
-    )
 
     # Período de validade
     start_date: datetime
