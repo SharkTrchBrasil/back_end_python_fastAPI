@@ -291,6 +291,7 @@ async def send_order(sid, data):
                     return {
                         'error': f"Preço inválido para {product_db.name}. Esperado: {final_price}, Recebido: {order_product_data.price}"}
 
+                print(dir(product_db))  # This will show all available attributes
                 # Cria o produto do pedido com todos os campos
                 db_product_entry = models.OrderProduct(
                     store_id=session.store_id,
@@ -299,7 +300,7 @@ async def send_order(sid, data):
                     price=int(final_price),
                     quantity=order_product_data.quantity,
                     note=order_product_data.note,
-                    image_url=product_db.imageUrl,  # Salva a URL da imagem
+                    image_url=product_db.image_path,
                     original_price=int(original_price),
                     discount_amount=product_discount,
                     discount_percentage=(product_discount / original_price * 100) if original_price > 0 else 0,
