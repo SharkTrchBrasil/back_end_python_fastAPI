@@ -770,109 +770,70 @@ class Order(Base, TimestampMixin):
     __tablename__ = "orders"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-
-    sequential_id: Mapped[int] = mapped_column()  # Número sequencial por dia
-    public_id: Mapped[str] = mapped_column(unique=True)  # Código público aleatório (tipo ABC123)
-
+    sequential_id: Mapped[int] = mapped_column()
+    public_id: Mapped[str] = mapped_column(unique=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-
     customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True)
 
+    # Campos desnormalizados
     customer_name: Mapped[str | None] = mapped_column(nullable=True)
     customer_phone: Mapped[str | None] = mapped_column(nullable=True)
+    payment_method_name: Mapped[str | None] = mapped_column(nullable=True)
 
-    # ✅ Campos fixos de endereço no pedido
+    # Endereço
     street: Mapped[str] = mapped_column()
     number: Mapped[str | None] = mapped_column(nullable=True)
     complement: Mapped[str | None] = mapped_column(nullable=True)
     neighborhood: Mapped[str] = mapped_column()
     city: Mapped[str] = mapped_column()
 
-    attendant_name: Mapped[str | None] = mapped_column(nullable=True)  # Só para PDV/Mesa
+    # Informações do pedido
+    attendant_name: Mapped[str | None] = mapped_column(nullable=True)
+    order_type: Mapped[str] = mapped_column()
+    delivery_type: Mapped[str] = mapped_column()
+    observation: Mapped[str | None] = mapped_column(nullable=True)
 
-    order_type: Mapped[str] = mapped_column()  # Ex: "cardapio_digital", "mesa", "pdv"
-    delivery_type: Mapped[str] = mapped_column()  # Ex: "retirada", "delivery"
-
+    # Valores monetários
     total_price: Mapped[int] = mapped_column()
+    subtotal_price: Mapped[int] = mapped_column()  # Novo campo adicionado
     discounted_total_price: Mapped[int] = mapped_column()
-
-    # totem_id: Mapped[int | None] = mapped_column(
-    #     ForeignKey("totem_authorizations.id", ondelete="SET NULL"),
-    #     nullable=True
-    # )
-    # totem: Mapped[TotemAuthorization | None] = relationship()
-
-    payment_status: Mapped[str] = mapped_column()
-
-    order_status: Mapped[OrderStatus] = mapped_column(
-        Enum(OrderStatus, native_enum=False),
-        default=OrderStatus.PENDING
-    )
-
-    payment_method_id: Mapped[int | None] = mapped_column(
-        ForeignKey("store_payment_methods.id", ondelete="SET NULL"),
-        nullable=True
-    )
-    payment_method = relationship("StorePaymentMethods", back_populates="orders")
-
-    payment_method_name: Mapped[str | None] = mapped_column(nullable=True)
-
-    coupon_id: Mapped[int | None] = mapped_column(
-        ForeignKey("coupons.id", ondelete="SET NULL"),
-        nullable=True
-    )
-    coupon = relationship("Coupon", back_populates="orders")
-
-    needs_change: Mapped[bool] = mapped_column(default=False)
+    delivery_fee: Mapped[int] = mapped_column(default=0)
     change_amount: Mapped[float | None] = mapped_column(nullable=True)
 
-    observation: Mapped[str | None] = mapped_column(nullable=True)
-    delivery_fee: Mapped[int] = mapped_column(default=0)
+    # Descontos
+    discount_amount: Mapped[int] = mapped_column(default=0)
+    discount_percentage: Mapped[float | None] = mapped_column(nullable=True)
+    discount_type: Mapped[str | None] = mapped_column(nullable=True)
+    discount_reason: Mapped[str | None] = mapped_column(nullable=True)
 
+    # Status e pagamento
+    payment_status: Mapped[str] = mapped_column()
+    order_status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus, native_enum=False), default=OrderStatus.PENDING)
+    needs_change: Mapped[bool] = mapped_column(default=False)
+
+    # Relacionamentos
+    payment_method_id: Mapped[int | None] = mapped_column(ForeignKey("store_payment_methods.id", ondelete="SET NULL"),
+                                                          nullable=True)
+    payment_method = relationship("StorePaymentMethods", back_populates="orders")
+    coupon_id: Mapped[int | None] = mapped_column(ForeignKey("coupons.id", ondelete="SET NULL"), nullable=True)
+    coupon = relationship("Coupon", back_populates="orders")
     products: Mapped[list["OrderProduct"]] = relationship(backref="order")
-
     store = relationship("Store", back_populates="orders")
     transactions: Mapped[list["CashierTransaction"]] = relationship(back_populates="order")
 
-    # ✅ Agendamento (tipo iFood)
+    # Agendamento e consumo
     is_scheduled: Mapped[bool] = mapped_column(default=False)
     scheduled_for: Mapped[datetime | None] = mapped_column(nullable=True)
-
-    # ✅ Tipo de consumo (onde o cliente vai comer)
     consumption_type: Mapped[str] = mapped_column(default="dine_in")
 
-    discount_amount: Mapped[int] = mapped_column(default=0)  # Valor total do desconto em centavos
-    discount_percentage: Mapped[float | None] = mapped_column(nullable=True)  # Porcentagem se aplicável
-    discount_type: Mapped[str | None] = mapped_column(nullable=True)  # 'coupon', 'promotion', etc.
-    discount_reason: Mapped[str | None] = mapped_column(nullable=True)  # Descrição do desconto
-
-
-
-
-
-
-
-
-
-
-
-    # @property
-    # def totem_name(self):
-    #     return self.totem.totem_name if self.totem else None
-    #
-    table_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("tables.id", ondelete="SET NULL"), nullable=True
-    )
-
+    # Mesas/comandas
+    table_id: Mapped[int | None] = mapped_column(ForeignKey("tables.id", ondelete="SET NULL"), nullable=True)
     table: Mapped[Optional["Table"]] = relationship(back_populates="orders")
-
-    command_id: Mapped[int | None] = mapped_column(
-            ForeignKey("commands.id", ondelete="SET NULL"),
-            nullable=True
-        )
+    command_id: Mapped[int | None] = mapped_column(ForeignKey("commands.id", ondelete="SET NULL"), nullable=True)
     command: Mapped[Optional["Command"]] = relationship(back_populates="orders")
-
     partial_payments: Mapped[list["OrderPartialPayment"]] = relationship(back_populates="order")
+
+
 
 
 class OrderProduct(Base, TimestampMixin):
