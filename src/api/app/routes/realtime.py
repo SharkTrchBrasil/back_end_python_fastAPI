@@ -220,7 +220,6 @@ async def send_order(sid, data):
                 observation=new_order.observation,
                 delivery_fee=int(new_order.delivery_fee or 0),
                 coupon_id=optional_coupon.id if optional_coupon else None,
-                coupon_code = new_order.coupon_code if new_order.coupon_code else None,
                 street=new_order.street,
                 number=new_order.number,
                 attendant_name=new_order.attendant_name or "",
@@ -374,8 +373,10 @@ async def send_order(sid, data):
                     db_order.discount_amount = total_discount_amount
                     db_order.discount_percentage = (
                                 order_discount / total_price_calculated_backend * 100) if total_price_calculated_backend > 0 else 0
-                    db_order.discount_type = 'coupon'
+                    db_order.discount_type = order_coupon.discount_type  # 'fixed' ou 'percentage'
+
                     db_order.discount_reason = f"Cupom {order_coupon.code}"
+                    db_order.coupon_code = order_coupon.code
                 else:
                     return {"error": "Cupom geral inválido para o pedido."}
             else:
@@ -394,7 +395,8 @@ async def send_order(sid, data):
 
             expected_total = round(discounted_total, 2)
 
-            if abs(new_order.total_price - expected_total) > 1:
+            if round(new_order.total_price) != round(expected_total):
+
                 return {"error": f"Total incorreto. Esperado: {expected_total}, Recebido: {new_order.total_price}"}
 
             db_order.total_price = total_price_calculated_backend + (new_order.delivery_fee or 0)
