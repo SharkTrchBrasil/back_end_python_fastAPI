@@ -15,6 +15,7 @@ from src.api.admin.utils.order_code import generate_unique_public_id, gerar_sequ
 from src.api.app.events.socketio_emitters import refresh_product_list
 
 from src.api.app.schemas.new_order import NewOrder
+from src.api.shared_schemas.coupon import CouponOut
 from src.api.shared_schemas.store_details import StoreDetails
 from src.api.app.services.add_customer_store import register_customer_store_relationship
 from src.api.app.services.check_variants import validate_order_variants
@@ -33,7 +34,7 @@ from src.core.aws import get_presigned_url
 from src.core.database import get_db_manager
 
 from src.api.app.services.authorize_totem import authorize_totem
-from src.api.app.schemas.coupon import Coupon as CouponSchema
+
 
 from src.socketio_instance import sio
 
@@ -696,7 +697,7 @@ async def check_coupon(sid, data):
                 return {'error': 'Cupom expirado'}
 
             # 5. Retorna o cupom válido
-            return jsonable_encoder(CouponSchema.model_validate(coupon))
+            return jsonable_encoder(CouponOut.model_validate(coupon))
 
         except Exception as e:
             print(f"❌ Erro ao verificar cupom: {str(e)}")
@@ -731,7 +732,7 @@ async def list_coupons(sid):
             # 3. Formata resposta
             return {
                 'coupons': [
-                    jsonable_encoder(CouponSchema.model_validate(c))
+                    jsonable_encoder(CouponOut.model_validate(c))
                     for c in coupons
                 ]
             }
