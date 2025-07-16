@@ -732,7 +732,7 @@ async def list_coupons(sid):
             # 3. Formata resposta
             return {
                 'coupons': [
-                    CouponOut.model_validate(c).model_dump()
+                    CouponOut.model_validate(c).model_dump(mode="json")
 
                     for c in coupons
                 ]
