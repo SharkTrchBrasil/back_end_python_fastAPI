@@ -29,6 +29,7 @@ from src.api.shared_schemas.rating import RatingsSummaryOut
 from src.api.shared_schemas.store_theme import StoreThemeOut
 
 from src.core import models
+from src.core.aws import get_presigned_url
 from src.core.database import get_db_manager
 
 from src.api.app.services.authorize_totem import authorize_totem

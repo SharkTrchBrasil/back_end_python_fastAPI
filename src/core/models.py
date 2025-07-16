@@ -5,6 +5,7 @@ from typing import Optional, List
 
 from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric, String, text, Enum, \
     CheckConstraint
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from src.api.shared_schemas.order import OrderStatus
@@ -258,6 +259,12 @@ class Product(Base, TimestampMixin):
 
     product_ratings: Mapped[List["ProductRating"]] = relationship(back_populates="product")
     sold_count: Mapped[int] = mapped_column(nullable=False, default=0)
+
+
+    @hybrid_property
+    def image_path(self):
+        from src.core.aws import get_presigned_url
+        return get_presigned_url(self.file_key) if self.file_key else None
 
 
 class Variant(Base, TimestampMixin):

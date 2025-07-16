@@ -65,12 +65,12 @@ async def handle_update_order_status(self, sid, data):
                 return {'error': 'Acesso negado: Pedido não pertence a uma das suas lojas.'}
 
             valid_statuses = [  # Usar o Enum diretamente aqui
-                OrderStatus.PENDING.value,
-                OrderStatus.PREPARING.value,
-                OrderStatus.READY.value,
-                OrderStatus.ON_ROUTE.value,
-                OrderStatus.DELIVERED.value,
-                OrderStatus.CANCELED.value,
+                OrderStatus.PENDING,
+                OrderStatus.PREPARING,
+                OrderStatus.READY,
+                OrderStatus.ON_ROUTE,
+                OrderStatus.DELIVERED,
+                OrderStatus.CANCELED,
             ]
 
             if data['new_status'] not in valid_statuses:
