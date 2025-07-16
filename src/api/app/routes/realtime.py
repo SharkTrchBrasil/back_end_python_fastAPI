@@ -302,6 +302,7 @@ async def send_order(sid, data):
                     quantity=order_product_data.quantity,
                     note=order_product_data.note,
                     image_url=product_db.image_path,
+                   # file_key=product_db.file_key,
                     original_price=int(original_price),
                     discount_amount=product_discount,
                     discount_percentage=(product_discount / original_price * 100) if original_price > 0 else 0,

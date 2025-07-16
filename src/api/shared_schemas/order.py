@@ -46,6 +46,7 @@ class OrderProduct(BaseModel):
     price: int
     # Novos campos
     image_url: str | None = None
+
     original_price: int = Field(..., description="Preço antes de descontos")
     discount_amount: int = Field(0, description="Valor do desconto neste item")
     discount_percentage: float | None = Field(

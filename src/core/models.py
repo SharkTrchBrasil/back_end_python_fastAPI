@@ -871,11 +871,15 @@ class OrderProduct(Base, TimestampMixin):
     quantity: Mapped[int] = mapped_column()
     note: Mapped[str] = mapped_column(default='', nullable=False)
     image_url: Mapped[str | None] = mapped_column(nullable=True)  # URL da imagem do produto no momento do pedido
+   # file_key: Mapped[str] = mapped_column(String(255))
     variants: Mapped[list["OrderVariant"]] = relationship(backref="product")
 
     original_price: Mapped[int] = mapped_column()  # Preço antes de descontos
     discount_amount: Mapped[int] = mapped_column(default=0)  # Valor do desconto neste item
     discount_percentage: Mapped[float | None] = mapped_column(nullable=True)
+
+
+
 
 class OrderVariant(Base, TimestampMixin):
     __tablename__ = "order_variants"
