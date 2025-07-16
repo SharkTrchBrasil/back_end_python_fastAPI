@@ -48,6 +48,13 @@ class CouponOut(CouponBase):
     used: int = Field(0, description="Número de vezes que o cupom foi usado")
     product: Optional[ProductOut] = None
 
+
+
+    class Config:
+        from_attributes = True  # ✅ Isso permite aceitar ORM direto
+
+
+
     @property
     def is_expired(self) -> bool:
         return datetime.now() > self.end_date
