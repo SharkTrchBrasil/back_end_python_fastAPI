@@ -820,6 +820,7 @@ class Order(Base, TimestampMixin):
                                                           nullable=True)
     payment_method = relationship("StorePaymentMethods", back_populates="orders")
     coupon_id: Mapped[int | None] = mapped_column(ForeignKey("coupons.id", ondelete="SET NULL"), nullable=True)
+    coupon_code: Mapped[str | None] = mapped_column(nullable=True)
     coupon = relationship("Coupon", back_populates="orders")
     products: Mapped[list["OrderProduct"]] = relationship(backref="order")
     store = relationship("Store", back_populates="orders")

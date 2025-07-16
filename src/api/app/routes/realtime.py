@@ -220,6 +220,7 @@ async def send_order(sid, data):
                 observation=new_order.observation,
                 delivery_fee=int(new_order.delivery_fee or 0),
                 coupon_id=optional_coupon.id if optional_coupon else None,
+                coupon_code = new_order.coupon_code if new_order.coupon_code else None,
                 street=new_order.street,
                 number=new_order.number,
                 attendant_name=new_order.attendant_name or "",
