@@ -299,7 +299,7 @@ async def send_order(sid, data):
                     price=int(final_price),
                     quantity=order_product_data.quantity,
                     note=order_product_data.note,
-                    image_url=product_db.file_key,  # Salva a URL da imagem
+                    image_url=product_db.image_path,  # Salva a URL da imagem
                     original_price=int(original_price),
                     discount_amount=product_discount,
                     discount_percentage=(product_discount / original_price * 100) if original_price > 0 else 0,
