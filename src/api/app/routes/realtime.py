@@ -196,6 +196,8 @@ async def send_order(sid, data):
                     store_id=session.store_id
                 ).first()
 
+
+
             # 5. Cria o pedido com todos os novos campos
             db_order = models.Order(
                 sequential_id=gerar_sequencial_do_dia(db, session.store_id),
@@ -349,6 +351,9 @@ async def send_order(sid, data):
 
                 total_price_calculated_backend += current_product_total + variants_price
 
+            # 9.5 Calcular subtotal_price
+            db_order.subtotal_price = int(total_price_calculated_backend)
+
             # 10. Aplica cupom geral (de pedido)
             order_coupon = None
             if new_order.coupon_code:
@@ -382,8 +387,11 @@ async def send_order(sid, data):
             if new_order.delivery_fee:
                 discounted_total += new_order.delivery_fee
 
-            if new_order.total_price != discounted_total:
-                return {"error": f"Total incorreto. Esperado: {discounted_total}, Recebido: {new_order.total_price}"}
+
+            expected_total = round(discounted_total, 2)
+            if round(new_order.total_price, 2) != expected_total:
+                return {"error": f"Total incorreto. Esperado: {expected_total}, Recebido: {new_order.total_price}"}
+
 
             db_order.total_price = total_price_calculated_backend + (new_order.delivery_fee or 0)
             db_order.coupon_id = order_coupon.id if order_coupon else None

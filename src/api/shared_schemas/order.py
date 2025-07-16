@@ -95,7 +95,7 @@ class Order(BaseModel):
 
     # Valores monetários
     total_price: int
-    subtotal_price: int
+    subtotal_price: int | None = None  # Opcional no input
     discounted_total_price: int
     delivery_fee: int = 0
     change_amount: float | None = None

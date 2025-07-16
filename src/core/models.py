@@ -795,7 +795,14 @@ class Order(Base, TimestampMixin):
 
     # Valores monetários
     total_price: Mapped[int] = mapped_column()
-    subtotal_price: Mapped[int] = mapped_column()  # Novo campo adicionado
+    subtotal_price: Mapped[int] = mapped_column(
+        server_default='0',  # Valor padrão no banco
+        default=0  # Valor padrão no Python
+    )
+
+
+
+
     discounted_total_price: Mapped[int] = mapped_column()
     delivery_fee: Mapped[int] = mapped_column(default=0)
     change_amount: Mapped[float | None] = mapped_column(nullable=True)
