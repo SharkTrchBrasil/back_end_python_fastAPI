@@ -32,7 +32,7 @@ class CouponBase(BaseModel):
     only_new_customers: bool = Field(default=False, alias="onlyNewCustomers",
                                     description="Se o cupom é válido apenas para novos clientes")
 
-    available: bool = Field(default=True, description="Se o cupom está ativo")
+    is_active: bool = Field(default=True, description="Se o cupom está ativo")
 
     class Config:
         allow_population_by_field_name = True
@@ -70,5 +70,5 @@ class CouponUpdate(BaseModel):
     end_date: Optional[datetime] = None
 
     only_new_customers: Optional[bool] = Field(None, alias="onlyNewCustomers")
-    available: Optional[bool] = None
+    is_active: Optional[bool] = None
     product_id: Optional[int] = None
