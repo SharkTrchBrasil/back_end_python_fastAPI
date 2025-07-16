@@ -324,39 +324,31 @@ class ProductVariantProduct(Base):
     variant: Mapped["Variant"] = relationship(back_populates="product_links")
 
 
+
 class Coupon(Base, TimestampMixin):
     __tablename__ = "coupons"
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    # Código do cupom (único)
     code: Mapped[str] = mapped_column(unique=True, index=True)
 
-    # Tipo e valor do desconto
-    discount_type: Mapped[str] = mapped_column(  # 'percentage' ou 'fixed'
-        default='percentage'
-    )
-    discount_value: Mapped[int] = mapped_column()  # Valor em centavos ou percentual
+    discount_type: Mapped[str] = mapped_column(default='percentage')  # 'percentage' ou 'fixed'
+    discount_value: Mapped[int] = mapped_column()  # valor em centavos ou percentual
 
-    # Limites de uso
     max_uses: Mapped[int | None] = mapped_column(default=None)  # None = ilimitado
     used: Mapped[int] = mapped_column(default=0)
     max_uses_per_customer: Mapped[int | None] = mapped_column(default=1)
 
-    # Validações
-    min_order_value: Mapped[int | None] = mapped_column(default=None)  # Valor mínimo em centavos
+    min_order_value: Mapped[int | None] = mapped_column(default=None)  # valor mínimo em centavos
 
-    # Período de validade
     start_date: Mapped[datetime] = mapped_column()
     end_date: Mapped[datetime] = mapped_column()
 
-    # Status
     is_active: Mapped[bool] = mapped_column(default=True)
 
-    # Restrições (opcionais)
-    only_first_purchase: Mapped[bool] = mapped_column(default=False)
+    # Renomeado para manter coerência com o schema Pydantic
+    only_new_customers: Mapped[bool] = mapped_column(default=False)
 
-    # Relacionamentos (opcionais)
     store_id: Mapped[int | None] = mapped_column(
         ForeignKey("stores.id", ondelete="SET NULL"),
         nullable=True
@@ -369,10 +361,9 @@ class Coupon(Base, TimestampMixin):
     )
     product: Mapped["Product"] = relationship()
 
-    # Histórico de uso (se necessário)
     orders: Mapped[list["Order"]] = relationship(
         back_populates="coupon",
-        cascade="all, delete-orphan"  # Permite apagar o cupom mesmo com pedidos
+        cascade="all, delete-orphan"
     )
 
     @property
@@ -385,8 +376,7 @@ class Coupon(Base, TimestampMixin):
 
     @property
     def can_be_deleted(self) -> bool:
-        """Verifica se o cupom pode ser apagado sem restrições"""
-        return len(self.orders) == 0  # Ou outra lógica conforme sua regra de negócio
+        return len(self.orders) == 0
 
 
 class TotemAuthorization(Base, TimestampMixin):
