@@ -154,10 +154,10 @@ async def disconnect(sid, reason):
 
 
 def apply_coupon(coupon, price: float) -> float:
-    if coupon.discount_percent:
-        return round(price * (1 - coupon.discount_percent / 100), 2)
-    elif coupon.discount_fixed:
-        return max(0, price - coupon.discount_fixed)
+    if coupon.discount_type == 'percentage':
+        return round(price * (1 - coupon.discount_value / 100), 2)
+    elif coupon.discount_type == 'fixed':
+        return max(0, price - coupon.discount_value)
     return price
 
 
@@ -391,11 +391,10 @@ async def send_order(sid, data):
             if new_order.delivery_fee:
                 discounted_total += new_order.delivery_fee
 
-
             expected_total = round(discounted_total, 2)
-            if round(new_order.total_price, 2) != expected_total:
-                return {"error": f"Total incorreto. Esperado: {expected_total}, Recebido: {new_order.total_price}"}
 
+            if abs(new_order.total_price - expected_total) > 1:
+                return {"error": f"Total incorreto. Esperado: {expected_total}, Recebido: {new_order.total_price}"}
 
             db_order.total_price = total_price_calculated_backend + (new_order.delivery_fee or 0)
             db_order.coupon_id = order_coupon.id if order_coupon else None
