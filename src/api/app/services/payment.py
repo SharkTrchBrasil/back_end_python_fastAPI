@@ -161,7 +161,7 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
             }
         ],
         'metadata': {
-            'notification_url': 'https://webhook.site/7ce010b3-7951-4f6d-aa31-496435cdaffe'
+            'notification_url': 'https://api-pdvix-production.up.railway.app/webhook/efi'
         },
         'payment': {
             'credit_card': {

@@ -128,6 +128,8 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
         else:
             await sio.emit("store_full_updated", error_payload, namespace='/admin', room=f"admin_store_{store_id}")
 
+
+
 async def admin_emit_orders_initial(db, store_id: int, sid: str | None = None):
     print(f"🔄 [Admin] emit_orders_initial para store_id: {store_id}")
 
@@ -151,10 +153,19 @@ async def admin_emit_orders_initial(db, store_id: int, sid: str | None = None):
             .all()
         )
 
-        orders_data = [
-            OrderDetails.model_validate(order).model_dump(mode='json')
-            for order in orders
-        ]
+        orders_data = []
+
+        for order in orders:
+            # 🧠 Busca o total de pedidos do cliente na loja
+            store_customer = db.query(models.StoreCustomer).filter_by(
+                store_id=store_id,
+                customer_id=order.customer_id
+            ).first()
+
+            order_dict = OrderDetails.model_validate(order).model_dump(mode='json')
+            order_dict["customer_order_count"] = store_customer.total_orders if store_customer else 1
+
+            orders_data.append(order_dict)
 
         payload = {
             "store_id": store_id,
@@ -173,6 +184,12 @@ async def admin_emit_orders_initial(db, store_id: int, sid: str | None = None):
         else:
             await sio.emit("orders_initial", {"store_id": store_id, "orders": []}, namespace='/admin', room=f"admin_store_{store_id}")
 
+async def admin_emit_order_updated_from_obj(order: models.Order):
+    try:
+        order_data = OrderDetails.model_validate(order).model_dump(mode='json')
+        await sio.emit("order_updated", order_data, namespace='/admin', room=f"admin_store_{order.store_id}")
+    except Exception as e:
+        logger.error(f'Erro ao emitir order_updated: {e}')
 
 
 async def admin_product_list_all(db, store_id: int, sid: str | None = None):
@@ -222,12 +239,6 @@ async def admin_product_list_all(db, store_id: int, sid: str | None = None):
             await sio.emit("products_updated", {"store_id": store_id, "products": []}, namespace='/admin', room=f"admin_store_{store_id}")
 
 
-async def admin_emit_order_updated_from_obj(order: models.Order):
-    try:
-        order_data = OrderDetails.model_validate(order).model_dump(mode='json')
-        await sio.emit("order_updated", order_data, namespace='/admin', room=f"admin_store_{order.store_id}")
-    except Exception as e:
-        logger.error(f'Erro ao emitir order_updated: {e}')
 
 async def admin_emit_store_updated(store: models.Store):
     try:

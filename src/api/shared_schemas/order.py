@@ -135,7 +135,7 @@ class Order(BaseModel):
 
 class OrderDetails(Order):
     products: list[OrderProduct]
-
+    customer_order_count: Optional[int] = 1
     @field_validator('products', mode='before')
     def validate_products(cls, v):
         if not v:
