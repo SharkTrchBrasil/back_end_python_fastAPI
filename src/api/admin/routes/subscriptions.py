@@ -27,12 +27,12 @@ def new_subscription(
     previous_subscription = db.query(models.StoreSubscription).filter(models.StoreSubscription.status.in_(['active', 'new_charge']), models.StoreSubscription.store_id == store.id).first()
 
     if plan.price > 0:
-        efi_payment_plans = payment_services.list_plans(plan.name)
+        efi_payment_plans = payment_services.list_plans(plan.plan_name)
         efi_payment_plan = next(iter(p for p in efi_payment_plans if p['interval'] == plan.interval
                                      and p['repeats'] == plan.repeats), None)
 
         if not efi_payment_plan:
-            efi_payment_plan = payment_services.create_plan(plan.name, plan.repeats, plan.interval)
+            efi_payment_plan = payment_services.create_plan(plan.plan_name, plan.repeats, plan.interval)
 
         subscription = payment_services.create_subscription(efi_payment_plan['plan_id'], plan,
                                                             subscription.card.payment_token,
@@ -41,14 +41,13 @@ def new_subscription(
         db_subscription = models.StoreSubscription(
             store_id=store.id,
             subscription_plan_id=plan.id,
-            subscription_id=subscription['subscription_id'],
+
             status=subscription['status'],
         )
     else:
         db_subscription = models.StoreSubscription(
             store_id=store.id,
             subscription_plan_id=plan.id,
-            subscription_id=None,
             status='active',
         )
 

@@ -155,7 +155,7 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
     body = {
         'items': [
             {
-                'name': plan.name,
+                'name': plan.plan_name,
                 'value': plan.price,
                 'amount': 1
             }
