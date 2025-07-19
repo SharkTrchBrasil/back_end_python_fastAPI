@@ -1,3 +1,19 @@
+# --- INÍCIO DO ARQUIVO ---
+import logging
+
+# Configuração de logging para o SQLAlchemy (e outros loggers)
+# O nível WARNING vai mostrar apenas avisos e erros, ocultando as queries INFO.
+logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
+
+# Se precisar de um logger para suas próprias mensagens (substituindo prints), você pode configurar aqui:
+# logger = logging.getLogger(__name__)
+# logger.setLevel(logging.INFO) # Para ver seus logs INFO, WARNING, ERROR
+
+
+
+
+
+
 import socketio
 import uvicorn
 import logging # Importe o módulo logging
@@ -10,14 +26,6 @@ from src.socketio_instance import sio
 
 from src.api.admin import router as admin_router
 from src.api.app import router as app_router
-
-
-logging.basicConfig(level=logging.INFO) # Ou logging.DEBUG para ver mais detalhes
-
-# Reduzir o nível de log do SQLAlchemy para não mostrar todas as queries
-logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
-# Se quiser desabilitar completamente as queries SQL:
-# logging.getLogger('sqlalchemy.engine').setLevel(logging.ERROR)
 
 
 
