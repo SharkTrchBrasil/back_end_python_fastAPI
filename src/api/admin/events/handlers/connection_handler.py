@@ -116,6 +116,8 @@ async def handle_admin_connect(self, sid, environ):
             # Se ainda não houver lojas na lista (muito improvável após os filtros),
             # e totem_auth_user.store_id existir e não estiver já na lista, adicione a principal.
             # Isso cobre casos onde all_accessible_store_ids foi populado apenas pelo fallback.
+
+            print(f"DEBUG BACKEND: [3] stores_list_data ANTES do fallback user_main_store: {stores_list_data}")
             if totem_auth_user.store_id and totem_auth_user.store_id not in [s['id'] for s in stores_list_data]:
                 # Garante que 'store' está carregado no totem_auth_user
                 user_main_store = db.query(models.Store).filter_by(id=totem_auth_user.store_id).first()
@@ -125,7 +127,7 @@ async def handle_admin_connect(self, sid, environ):
                         "name": user_main_store.name,
                         "is_consolidated": user_main_store.id in consolidated_store_ids,
                     })
-
+            print(f"DEBUG BACKEND: [4] stores_list_data FINAL enviado via 'admin_stores_list': {stores_list_data}")
             await self.emit("admin_stores_list", {"stores": stores_list_data}, to=sid)
             await self.emit("consolidated_stores_updated", {"store_ids": consolidated_store_ids}, to=sid)
             print(f"✅ Lista de lojas e seleção consolidada enviada para {sid}")
