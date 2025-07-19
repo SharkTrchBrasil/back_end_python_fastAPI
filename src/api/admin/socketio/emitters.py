@@ -20,7 +20,7 @@ from sqlalchemy.orm import selectinload
 import orjson
 
 async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = None):
-    print(f"🔄 [Admin] emit_store_full_updated para store_id: {store_id}")
+  #  print(f"🔄 [Admin] emit_store_full_updated para store_id: {store_id}")
 
     try:
         # Carrega todas as relações necessárias
@@ -131,7 +131,7 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
 
 
 async def admin_emit_orders_initial(db, store_id: int, sid: str | None = None):
-    print(f"🔄 [Admin] emit_orders_initial para store_id: {store_id}")
+   # print(f"🔄 [Admin] emit_orders_initial para store_id: {store_id}")
 
     try:
         now = datetime.now(ZoneInfo("America/Sao_Paulo"))
@@ -193,7 +193,7 @@ async def admin_emit_order_updated_from_obj(order: models.Order):
 
 
 async def admin_product_list_all(db, store_id: int, sid: str | None = None):
-    print(f"🔄 [Admin] product_list_all para store_id: {store_id}")
+   # print(f"🔄 [Admin] product_list_all para store_id: {store_id}")
 
     try:
         products = db.query(models.Product).options(
@@ -255,7 +255,7 @@ async def admin_emit_store_updated(store: models.Store):
 
 
 async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = None):
-    print(f"🔄 [Admin] emit_tables_and_commands para store_id: {store_id}")
+  #  print(f"🔄 [Admin] emit_tables_and_commands para store_id: {store_id}")
     try:
         tables = db.query(models.Table).filter_by(store_id=store_id, is_deleted=False).all()
         commands = db.query(models.Command).filter_by(store_id=store_id).all()
