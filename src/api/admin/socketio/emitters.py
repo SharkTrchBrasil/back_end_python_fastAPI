@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 from venv import logger
 from zoneinfo import ZoneInfo
 
@@ -130,13 +131,23 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
 
 
 
-async def admin_emit_orders_initial(db, store_id: int, sid: str | None = None):
-   # print(f"🔄 [Admin] emit_orders_initial para store_id: {store_id}")
 
+async def admin_emit_orders_initial(db, store_id: int, sid: Optional[str] = None):
+    """
+    Emite os pedidos iniciais ativos para um admin, focando em pedidos que
+    ainda requerem atenção, independentemente da data de criação.
+
+    Args:
+        db: A sessão do banco de dados.
+        store_id (int): O ID da loja para a qual os pedidos serão emitidos.
+        sid (Optional[str]): O ID da sessão do Socket.IO para emitir para um cliente específico.
+                             Se None, emite para a room da loja.
+    """
     try:
-        now = datetime.now(ZoneInfo("America/Sao_Paulo"))
-        start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+        # Define os status de pedidos que são considerados "ativos" e precisam de atenção do admin.
+        # Ajuste esta lista para refletir os status que você deseja exibir por padrão.
+        # Exemplos comuns: 'pending', 'preparing', 'ready', 'on_route', 'confirmed'
+        active_order_statuses = ['pending', 'preparing', 'ready', 'on_route']
 
         orders = (
             db.query(models.Order)
@@ -147,8 +158,7 @@ async def admin_emit_orders_initial(db, store_id: int, sid: str | None = None):
             )
             .filter(
                 models.Order.store_id == store_id,
-                models.Order.created_at >= start_of_day,
-                models.Order.created_at <= end_of_day,
+                models.Order.order_status.in_(active_order_statuses) # ✨ Filtra por status ativos
             )
             .all()
         )
@@ -156,12 +166,15 @@ async def admin_emit_orders_initial(db, store_id: int, sid: str | None = None):
         orders_data = []
 
         for order in orders:
-            # 🧠 Busca o total de pedidos do cliente na loja
+            # Busca o total de pedidos do cliente na loja
+            # Considere se esta informação é sempre necessária para CADA pedido inicial.
+            # Se for, mantenha. Se não, pode ser otimizado ou buscado sob demanda.
             store_customer = db.query(models.StoreCustomer).filter_by(
                 store_id=store_id,
                 customer_id=order.customer_id
             ).first()
 
+            # Assumindo que OrderDetails é um Pydantic model para validação e serialização
             order_dict = OrderDetails.model_validate(order).model_dump(mode='json')
             order_dict["customer_order_count"] = store_customer.total_orders if store_customer else 1
 
@@ -175,14 +188,26 @@ async def admin_emit_orders_initial(db, store_id: int, sid: str | None = None):
         if sid:
             await sio.emit("orders_initial", payload, namespace='/admin', to=sid)
         else:
+            # Emite para a room da loja, alcançando todos os admins conectados a essa loja.
             await sio.emit("orders_initial", payload, namespace='/admin', room=f"admin_store_{store_id}")
 
     except Exception as e:
-        print(f'❌ Erro em emit_orders_initial: {str(e)}')
+        # Loga o erro detalhadamente para depuração no servidor
+        print(f'❌ Erro ao emitir pedidos iniciais para loja {store_id} (SID: {sid}): {e.__class__.__name__}: {str(e)}')
+        # Sempre emite uma resposta para o frontend, mesmo em caso de erro,
+        # para que o frontend possa reagir (e.g., mostrar mensagem de erro, tela vazia).
+        error_payload = {
+            "store_id": store_id,
+            "orders": [], # Garante que a lista de pedidos seja sempre enviada como lista vazia em caso de erro
+            "error": str(e), # Opcional: envia a mensagem de erro para o frontend se útil para depuração
+            "message": "Não foi possível carregar os pedidos iniciais. Tente novamente." # Mensagem amigável
+        }
         if sid:
-            await sio.emit("orders_initial", {"store_id": store_id, "orders": []}, namespace='/admin', to=sid)
+            await sio.emit("orders_initial", error_payload, namespace='/admin', to=sid)
         else:
-            await sio.emit("orders_initial", {"store_id": store_id, "orders": []}, namespace='/admin', room=f"admin_store_{store_id}")
+            await sio.emit("orders_initial", error_payload, namespace='/admin', room=f"admin_store_{store_id}")
+
+
 
 async def admin_emit_order_updated_from_obj(order: models.Order):
     try:
