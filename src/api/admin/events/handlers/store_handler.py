@@ -326,7 +326,7 @@ async def handle_update_store_settings(self, sid, data):
 
 # O nome do método deve ser o padrão da biblioteca para ser chamado
 # pelo evento 'join_store_room' emitido pelo Flutter.
-async def on_join_store_room(self, sid, data):
+async def handle_join_store_room(self, sid, data):
     """
     Inscreve um admin na sala de uma loja específica para receber dados detalhados.
     Este evento é chamado pelo cliente quando o usuário troca de loja na UI.
@@ -373,7 +373,7 @@ async def on_join_store_room(self, sid, data):
         return {'status': 'error', 'message': 'Erro interno do servidor.'}
 
 
-async def on_leave_store_room(self, sid, data):
+async def handle_leave_store_room(self, sid, data):
     """
     Remove um admin da sala de uma loja específica.
     Usa a lógica segura da versão original com o feedback da segunda versão.
