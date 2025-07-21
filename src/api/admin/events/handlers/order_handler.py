@@ -5,7 +5,7 @@ from src.api.shared_schemas.order import OrderStatus
 from src.core import models
 from src.api.admin.socketio.emitters import (
 
-    admin_emit_order_updated_from_obj,
+    admin_emit_order_updated_from_obj, emit_new_order_notification,
 
 )
 from src.api.admin.utils.authorize_admin import authorize_admin
@@ -102,7 +102,13 @@ async def handle_update_order_status(self, sid, data):
             db.commit()
             db.refresh(order)
 
+            # --- NOVO: Chamar o emitter de notificação ---
+            # Chame isso especialmente para status importantes como 'received' ou 'confirmed'.
+            if data['new_status'] in ['pending']:
+                await emit_new_order_notification(db, store_id=order.store_id, order_id=order.id)
+            # --- FIM DA MUDANÇA ---
             await admin_emit_order_updated_from_obj(order)
+
 
             print(
                 f"✅ [Session {sid}] Pedido {order.id} da loja {order.store_id} atualizado para: {data['new_status']}")

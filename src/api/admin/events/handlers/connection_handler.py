@@ -39,6 +39,14 @@ async def handle_admin_connect(self, sid, environ):
 
             admin_id = totem_auth_user.id
 
+            # --- NOVO: Entrar na sala de notificações pessoal e global ---
+            # Este é o canal para notificações leves de TODAS as lojas do admin.
+            notification_room = f"admin_notifications_{admin_id}"
+            await self.enter_room(sid, notification_room)
+            print(f"✅ Admin {sid} (ID: {admin_id}) entrou na sala de notificações: {notification_room}")
+            # --- FIM DA MUDANÇA ---
+
+
             # Busca todas as lojas às quais o admin tem acesso com a role 'admin'
             all_accessible_store_ids = StoreAccessService.get_accessible_store_ids_with_fallback(
                 db, totem_auth_user
@@ -94,12 +102,13 @@ async def handle_admin_connect(self, sid, environ):
                 f" {consolidated_store_ids}"
             )
 
-            # 5. Fazer o SID entrar nas rooms de TODAS as lojas consolidadas
-            for store_id_to_join in consolidated_store_ids:
-                room = f"admin_store_{store_id_to_join}"
-                await self.enter_room(sid, room)
-                print(f"✅ Admin {sid} entrou na room para consolidação: {room}")
-                await self._emit_initial_data(db, store_id_to_join, sid)
+
+            # # 5. Fazer o SID entrar nas rooms de TODAS as lojas consolidadas
+            # for store_id_to_join in consolidated_store_ids:
+            #     room = f"admin_store_{store_id_to_join}"
+            #     await self.enter_room(sid, room)
+            #     print(f"✅ Admin {sid} entrou na room para consolidação: {room}")
+            #     await self._emit_initial_data(db, store_id_to_join, sid)
 
             # 6. Enviar a lista COMPLETA de lojas que o admin tem acesso (para o seletor)
             stores_list_data = []
