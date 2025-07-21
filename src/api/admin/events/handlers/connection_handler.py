@@ -35,6 +35,7 @@ async def handle_admin_connect(self, sid, environ):
                 print(f"⚠️ Admin {sid} conectado, mas sem admin_id.")
                 raise ConnectionRefusedError("Acesso negado: Admin inválido.")
 
+
             admin_id = totem_auth_user.id
 
             # --- NOVO: Entrar na sala de notificações pessoal e global ---
