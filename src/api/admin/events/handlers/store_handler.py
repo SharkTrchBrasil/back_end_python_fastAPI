@@ -324,51 +324,84 @@ async def handle_update_store_settings(self, sid, data):
             return {"error": str(e)}
 
 
-async def handle_join_store_room(self, sid, data):
+# O nome do método deve ser o padrão da biblioteca para ser chamado
+# pelo evento 'join_store_room' emitido pelo Flutter.
+async def on_join_store_room(self, sid, data):
     """
     Inscreve um admin na sala de uma loja específica para receber dados detalhados.
     Este evento é chamado pelo cliente quando o usuário troca de loja na UI.
     """
-    store_id = data.get("store_id")
-    if not store_id:
-        return {'error': 'store_id é obrigatório'}
+    try:
+        store_id = data.get("store_id")
+        if not store_id:
+            print(f"❌ [join_store_room] sid {sid} enviou um pedido sem store_id.")
+            # É uma boa prática retornar um erro para o cliente saber o que aconteceu.
+            return {'status': 'error', 'message': 'store_id é obrigatório'}
 
-    with get_db_manager() as db:
-        try:
-            # 1. Obter admin_id da sessão
-            session = SessionService.get_session(db, sid)
-            if not session or not session.admin_id:
-                return {'error': 'Sessão inválida ou admin não autenticado.'}
+        with get_db_manager() as db:
+            # Busca a sessão atual do admin para saber em qual sala ele está.
+            session = SessionService.get_session(db, sid, client_type="admin")
 
-            # 2. Verificar se o admin tem permissão para acessar esta loja
-            has_access = StoreAccessService.admin_has_access_to_store(db, session.admin_id, store_id)
-            if not has_access:
-                return {'error': 'Acesso negado a esta loja.'}
+            if not session:
+                print(f"❌ [join_store_room] Sessão não encontrada para sid {sid}.")
+                return {'status': 'error', 'message': 'Sessão inválida.'}
 
-            # 3. Entrar na sala de dados da loja
-            room = f"admin_store_{store_id}"
-            await self.enter_room(sid, room)
-            print(f"✅ Admin {sid} (ID: {session.admin_id}) entrou na sala de dados: {room}")
+            # Se o admin já estava ouvindo outra loja, remove ele da sala antiga.
+            # Isso evita que ele continue recebendo dados de uma loja que não está mais vendo.
+            if session.store_id and session.store_id != store_id:
+                old_room = f"admin_store_{session.store_id}"
+                await self.leave_room(sid, old_room)
+                print(f"🚪 [join_store_room] Admin {sid} saiu da sala antiga: {old_room}")
 
-            # 4. Enviar a carga de dados inicial completa para a loja recém-selecionada
-            # Usando o método que já existe na sua classe AdminNamespace
+            # Entra na nova sala para começar a receber os dados da loja selecionada.
+            new_room = f"admin_store_{store_id}"
+            await self.enter_room(sid, new_room)
+            print(f"✅ [join_store_room] Admin {sid} entrou na sala dinâmica: {new_room}")
+
+            # Atualiza a sessão no banco de dados para registrar qual loja está ativa.
+            SessionService.create_or_update_session(db, sid, store_id, client_type="admin")
+
+            # Envia a carga inicial de dados (pedidos, produtos, etc.) para a nova sala.
             await self._emit_initial_data(db, store_id, sid)
 
-            # 5. Retornar sucesso ao cliente
-            return {'status': 'success', 'joined_room': room}
+            # Retorna sucesso para o cliente.
+            return {'status': 'success', 'joined_room': new_room}
 
-        except Exception as e:
-            print(f"❌ Erro em handle_join_store_room: {e}")
-            return {'error': str(e)}
+    except Exception as e:
+        print(f"❌ [join_store_room] Erro ao processar para a loja {data.get('store_id')}: {e}")
+        # Informa o cliente que algo deu errado no servidor.
+        return {'status': 'error', 'message': 'Erro interno do servidor.'}
 
 
-# handle_leave_store_room também é importante
-async def handle_leave_store_room(self, sid, data):
-    store_id = data.get("store_id")
-    if not store_id:
-        return {'error': 'store_id é obrigatório'}
+async def on_leave_store_room(self, sid, data):
+    """
+    Remove um admin da sala de uma loja específica.
+    Usa a lógica segura da versão original com o feedback da segunda versão.
+    """
+    try:
+        store_id = data.get("store_id")
+        if not store_id:
+            print(f"❌ [leave_store_room] sid {sid} enviou um pedido sem store_id.")
+            return {'status': 'error', 'message': 'store_id é obrigatório'}
 
-    room = f"admin_store_{store_id}"
-    await self.leave_room(sid, room)
-    print(f"🔌 Admin {sid} saiu da sala de dados: {room}")
-    return {'status': 'success', 'left_room': room}
+        with get_db_manager() as db:
+            session = SessionService.get_session(db, sid, client_type="admin")
+
+            if not session:
+                print(f"❌ [leave_store_room] Sessão não encontrada para sid {sid}.")
+                return {'status': 'error', 'message': 'Sessão inválida.'}
+
+            # Verifica se a loja que o cliente quer sair é a mesma que o servidor tem registrada.
+            if session.store_id == store_id:
+                room = f"admin_store_{store_id}"
+                await self.leave_room(sid, room)
+                print(f"🚪 [leave_store_room] Admin {sid} saiu da sala: {room}")
+                return {'status': 'success', 'left_room': room}
+            else:
+                # Informa o cliente e o log do servidor sobre a inconsistência.
+                print(f"⚠️ [leave_store_room] Admin {sid} tentou sair da loja {store_id}, mas a loja ativa era {session.store_id}.")
+                return {'status': 'error', 'message': 'Inconsistência de estado da loja.'}
+
+    except Exception as e:
+        print(f"❌ [leave_store_room] Erro ao processar para a loja {data.get('store_id')}: {e}")
+        return {'status': 'error', 'message': 'Erro interno do servidor.'}
