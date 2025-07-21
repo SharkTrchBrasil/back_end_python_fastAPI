@@ -18,7 +18,7 @@ from src.core.database import get_db_manager
 
 
 
-async def handle_admin_connect(self, sid, environ, auth):
+async def handle_admin_connect(self, sid, environ):
     print(f"[ADMIN] Conexão estabelecida: {sid}")
     query = parse_qs(environ.get("QUERY_STRING", ""))
     token = query.get("admin_token", [None])[0]
