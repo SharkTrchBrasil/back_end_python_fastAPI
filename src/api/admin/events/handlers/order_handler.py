@@ -102,11 +102,7 @@ async def handle_update_order_status(self, sid, data):
             db.commit()
             db.refresh(order)
 
-            # --- NOVO: Chamar o emitter de notificação ---
-            # Chame isso especialmente para status importantes como 'received' ou 'confirmed'.
-            if data['new_status'] in ['pending']:
-                await emit_new_order_notification(db, store_id=order.store_id, order_id=order.id)
-            # --- FIM DA MUDANÇA ---
+
             await admin_emit_order_updated_from_obj(order)
 
 

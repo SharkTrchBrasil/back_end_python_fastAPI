@@ -10,7 +10,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError
 from sqlalchemy.orm import joinedload
 
-from src.api.admin.socketio.emitters import admin_emit_order_updated_from_obj
+from src.api.admin.socketio.emitters import admin_emit_order_updated_from_obj, emit_new_order_notification
 from src.api.admin.utils.order_code import generate_unique_public_id, gerar_sequencial_do_dia
 from src.api.app.events.socketio_emitters import refresh_product_list
 
@@ -421,7 +421,17 @@ async def send_order(sid, data):
 
             # 14. Notifica atualização
             await admin_emit_order_updated_from_obj(db_order)
+
             db.refresh(db_order)
+
+
+            # ✨ CORREÇÃO E LUGAR PERFEITO PARA A NOTIFICAÇÃO ✨
+            # Não precisamos do 'if', pois sempre queremos notificar um novo pedido.
+            # Apenas usamos a variável correta ('db_order').
+            await emit_new_order_notification(db, store_id=db_order.store_id, order_id=db_order.id)
+
+
+
 
             return {
                 "success": True,

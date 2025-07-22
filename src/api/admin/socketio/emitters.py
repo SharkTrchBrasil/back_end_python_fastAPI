@@ -253,12 +253,6 @@ async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = No
         else:
             await sio.emit("tables_and_commands", {"store_id": store_id, "tables": [], "commands": []}, namespace="/admin", room=f"admin_store_{store_id}")
 
-
-# Importe o 'sio' se ainda não estiver no escopo do arquivo
-from src.socketio_instance import sio
-from src.core import models
-
-
 async def emit_new_order_notification(db, store_id: int, order_id: int):
     """
     Encontra todos os admins com acesso à loja e emite uma notificação
