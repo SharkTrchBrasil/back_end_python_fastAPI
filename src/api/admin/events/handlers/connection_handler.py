@@ -15,7 +15,7 @@ from src.api.admin.socketio.emitters import (
 )
 from src.api.admin.utils.authorize_admin import authorize_admin
 from src.core.database import get_db_manager
-
+from src.socketio_instance import sio
 
 
 async def handle_admin_connect(self, sid, environ):
@@ -37,6 +37,26 @@ async def handle_admin_connect(self, sid, environ):
 
 
             admin_id = totem_auth_user.id
+
+            # ✨ LÓGICA DE SESSÃO ÚNICA ✨
+            # 1. Procura por sessões ANTIGAS do mesmo usuário
+            old_sessions = db.query(models.StoreSession).filter(
+                models.StoreSession.user_id == admin_id,
+                models.StoreSession.client_type == 'admin',
+                models.StoreSession.sid != sid  # Exclui a sessão atual que estamos criando
+            ).all()
+
+            if old_sessions:
+                print(
+                    f"🔌 Encontrada(s) {len(old_sessions)} sessão(ões) antiga(s) para o admin {admin_id}. Desconectando...")
+                for old_session in old_sessions:
+                    # 2. Manda um comando para o cliente antigo se desconectar
+                    await sio.disconnect(old_session.sid, namespace='/admin')
+                    # 3. Remove a sessão antiga do banco de dados
+                    db.delete(old_session)
+                db.commit()
+
+
 
             # --- NOVO: Entrar na sala de notificações pessoal e global ---
             # Este é o canal para notificações leves de TODAS as lojas do admin.

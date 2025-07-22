@@ -403,10 +403,22 @@ class StoreSession(Base, TimestampMixin):
     __tablename__ = "store_sessions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+
+    # ✨ CAMPO ADICIONADO ✨
+    # Vincula a sessão a um usuário específico.
+    # 'index=True' melhora a performance ao buscar sessões por usuário.
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+
+    # ✨ MELHORIA ✨
+    # Tornamos o store_id opcional (nullable=True), pois uma sessão de admin pode
+    # existir antes de uma loja ser selecionada.
+    store_id: Mapped[Optional[int]] = mapped_column(ForeignKey("stores.id"), nullable=True)
+
     client_type: Mapped[str] = mapped_column()  # 'admin' ou 'totem'
     sid: Mapped[str] = mapped_column(unique=True)
 
+    # Opcional: Adicionar um relationship para facilitar o acesso ao usuário
+    # user: Mapped["User"] = relationship()
 
 class AdminConsolidatedStoreSelection(Base, TimestampMixin):  # Adicionei TimestampMixin aqui também para padronizar
     __tablename__ = 'admin_consolidated_store_selection'

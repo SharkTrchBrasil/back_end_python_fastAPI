@@ -6,24 +6,33 @@ from src.core import models
 class SessionService:
 
     @staticmethod
-    def create_or_update_session(db: Session, sid: str, store_id: int, client_type: str = "admin"):
-        """Cria ou atualiza uma sessão de admin"""
+    def create_or_update_session(
+        db: Session,
+        sid: str,
+        client_type: str,
+        user_id: int,              # ✨ PARÂMETRO ADICIONADO
+        store_id: int = None       # Tornamos opcional, pois o user_id é mais importante
+    ):
+        """Cria ou atualiza uma sessão de admin, agora salvando o user_id."""
         session = db.query(models.StoreSession).filter_by(sid=sid).first()
 
         if not session:
             session = models.StoreSession(
                 sid=sid,
+                user_id=user_id,       # ✨ CAMPO ADICIONADO NA CRIAÇÃO
                 store_id=store_id,
                 client_type=client_type
             )
             db.add(session)
         else:
+            session.user_id = user_id    # ✨ CAMPO ADICIONADO NA ATUALIZAÇÃO
             session.store_id = store_id
             session.client_type = client_type
             session.updated_at = datetime.utcnow()
 
         db.commit()
         return session
+
 
     @staticmethod
     def remove_session(db: Session, sid: str):
