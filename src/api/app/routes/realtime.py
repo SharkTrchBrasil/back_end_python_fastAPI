@@ -62,13 +62,15 @@ async def connect(sid, environ):
                 session = models.StoreSession(
                     sid=sid,
                     store_id=totem.store.id,
-                    client_type='totem'
+                    client_type='totem',
+
                 )
                 db.add(session)
             else:
                 session.store_id = totem.store.id
                 session.client_type = 'totem'
                 session.updated_at = datetime.utcnow()
+
 
 
 

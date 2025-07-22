@@ -404,14 +404,10 @@ class StoreSession(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    # ✨ CAMPO ADICIONADO ✨
-    # Vincula a sessão a um usuário específico.
-    # 'index=True' melhora a performance ao buscar sessões por usuário.
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    # ✨ CORREÇÃO: Tornamos o user_id opcional (pode ser nulo) no banco
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
 
-    # ✨ MELHORIA ✨
-    # Tornamos o store_id opcional (nullable=True), pois uma sessão de admin pode
-    # existir antes de uma loja ser selecionada.
+
     store_id: Mapped[Optional[int]] = mapped_column(ForeignKey("stores.id"), nullable=True)
 
     client_type: Mapped[str] = mapped_column()  # 'admin' ou 'totem'
