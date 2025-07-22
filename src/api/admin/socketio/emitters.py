@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 from venv import logger
@@ -277,13 +278,17 @@ async def emit_new_order_notification(db, store_id: int, order_id: int):
 
         print(f"🔔 Notificando {len(admin_ids)} admins sobre novo pedido na loja {store_id}.")
 
+        # ✨ 1. Gera um ID único para esta notificação
+        notification_uuid = str(uuid.uuid4())
+
         # Buscamos a loja aqui apenas para pegar o nome para o payload da notificação.
         store = db.query(models.Store).filter(models.Store.id == store_id).first()
 
         payload = {
             'store_id': store_id,
             'order_id': order_id,
-            'store_name': store.name if store else "uma de suas lojas"
+            'store_name': store.name if store else "uma de suas lojas",
+                                                   'notification_uuid': notification_uuid  # ✨ 2. Adiciona o ID ao payl
         }
 
         # Emite para a sala de notificação pessoal de cada admin
