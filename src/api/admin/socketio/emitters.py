@@ -297,32 +297,30 @@ async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = No
 #
 #
 
+
+
 async def emit_new_order_notification(db, store_id: int, order_id: int):
     """
     Encontra todos os admins com acesso à loja e emite uma notificação
     leve para suas salas de notificação pessoais.
     """
     try:
-        # Encontra todos os StoreAccess para a loja
+        # Esta consulta já busca TODOS os usuários com acesso à loja.
+        # O dono da loja deve ter um registro aqui com a role de "owner" ou "admin".
         store_accesses = db.query(models.StoreAccess).filter(
             models.StoreAccess.store_id == store_id
         ).all()
 
-        # ✨ CORREÇÃO APLICADA AQUI ✨
-        # O nome do campo correto no modelo StoreAccess é 'user_id'.
         admin_ids = {access.user_id for access in store_accesses}
 
-        # Fallback: Adiciona o dono da loja se não estiver na lista de acesso
-        store = db.query(models.Store).filter(models.Store.id == store_id).first()
-
-        if store and store.user_id:
-            admin_ids.add(store.user_id)
-
         if not admin_ids:
-            print(f"🔔 Nenhum admin encontrado para notificar sobre a loja {store_id}.")
+            print(f"🔔 Nenhum admin com acesso encontrado para notificar sobre a loja {store_id}.")
             return
 
         print(f"🔔 Notificando {len(admin_ids)} admins sobre novo pedido na loja {store_id}.")
+
+        # Buscamos a loja aqui apenas para pegar o nome para o payload da notificação.
+        store = db.query(models.Store).filter(models.Store.id == store_id).first()
 
         payload = {
             'store_id': store_id,
@@ -336,5 +334,4 @@ async def emit_new_order_notification(db, store_id: int, order_id: int):
             await sio.emit('new_order_notification', payload, to=notification_room, namespace='/admin')
 
     except Exception as e:
-        # Adiciona a classe do erro para facilitar a depuração
         print(f"❌ Erro ao emitir notificação de novo pedido: {e.__class__.__name__}: {e}")
