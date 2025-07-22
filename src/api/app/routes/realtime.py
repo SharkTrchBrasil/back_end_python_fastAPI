@@ -424,10 +424,6 @@ async def send_order(sid, data):
 
             db.refresh(db_order)
 
-
-            # ✨ CORREÇÃO E LUGAR PERFEITO PARA A NOTIFICAÇÃO ✨
-            # Não precisamos do 'if', pois sempre queremos notificar um novo pedido.
-            # Apenas usamos a variável correta ('db_order').
             await emit_new_order_notification(db, store_id=db_order.store_id, order_id=db_order.id)
 
 

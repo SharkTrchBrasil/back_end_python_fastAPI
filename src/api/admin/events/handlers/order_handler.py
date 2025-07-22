@@ -5,7 +5,7 @@ from src.api.shared_schemas.order import OrderStatus
 from src.core import models
 from src.api.admin.socketio.emitters import (
 
-    admin_emit_order_updated_from_obj, emit_new_order_notification,
+    admin_emit_order_updated_from_obj
 
 )
 from src.api.admin.utils.authorize_admin import authorize_admin
