@@ -32,7 +32,7 @@ async def handle_set_consolidated_stores(self, sid, data):
             if not session or not session.admin_id:
                 return {"error": "Sessão não autorizada"}
 
-            admin_id = session.admin_id
+            admin_id = session.admin_idh
 
             # Deleta todas as seleções antigas do admin de uma vez
             db.execute(

@@ -7,6 +7,8 @@ class SubscriptionPlanFeatureOut(BaseModel):
     feature_key: str
     is_enabled: bool
 
+    # ADICIONE ESTA LINHA PARA CORRIGIR O ERRO
+    model_config = ConfigDict(from_attributes=True)
 
 class SubscriptionPlanOut(BaseModel):
     id: int
