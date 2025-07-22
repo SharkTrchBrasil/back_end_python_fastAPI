@@ -254,6 +254,11 @@ async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = No
             await sio.emit("tables_and_commands", {"store_id": store_id, "tables": [], "commands": []}, namespace="/admin", room=f"admin_store_{store_id}")
 
 
+# Importe o 'sio' se ainda não estiver no escopo do arquivo
+from src.socketio_instance import sio
+from src.core import models
+
+
 async def emit_new_order_notification(db, store_id: int, order_id: int):
     """
     Encontra todos os admins com acesso à loja e emite uma notificação
@@ -268,19 +273,24 @@ async def emit_new_order_notification(db, store_id: int, order_id: int):
         admin_ids = {access.admin_id for access in store_accesses}
 
         # Fallback: Adiciona o dono da loja se não estiver na lista de acesso
-        store_owner = db.query(models.Store).filter(models.Store.id == store_id).first()
-        if store_owner and store_owner.user_id:
-            admin_ids.add(store_owner.user_id)
+        # Esta consulta já busca o objeto completo da loja
+        store = db.query(models.Store).filter(models.Store.id == store_id).first()
+
+        if store and store.user_id:
+            admin_ids.add(store.user_id)
 
         if not admin_ids:
-            print(f"🔔 Nenhuma admin encontrado para notificar sobre a loja {store_id}.")
+            print(f"🔔 Nenhum admin encontrado para notificar sobre a loja {store_id}.")
             return
 
         print(f"🔔 Notificando {len(admin_ids)} admins sobre novo pedido na loja {store_id}.")
 
+        # ✨ CORREÇÃO APLICADA AQUI ✨
+        # Prepara o payload com os dados ricos, incluindo o nome da loja
         payload = {
             'store_id': store_id,
             'order_id': order_id,
+            'store_name': store.name if store else "uma de suas lojas"  # Adiciona o nome da loja
         }
 
         # Emite para a sala de notificação pessoal de cada admin
@@ -290,4 +300,3 @@ async def emit_new_order_notification(db, store_id: int, order_id: int):
 
     except Exception as e:
         print(f"❌ Erro ao emitir notificação de novo pedido: {e}")
-
