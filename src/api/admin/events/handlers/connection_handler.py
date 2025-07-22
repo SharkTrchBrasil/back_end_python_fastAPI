@@ -16,7 +16,7 @@ async def handle_admin_connect(self, sid, environ):
     print(f"[ADMIN] Conexão estabelecida: {sid}")
 
     query = parse_qs(environ.get("QUERY_STRING", ""))
-    token = query.get("totem_token", [None])[0]
+    token = query.get("admin_token", [None])[0]
 
 
     if not token:
