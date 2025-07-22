@@ -324,8 +324,6 @@ async def handle_update_store_settings(self, sid, data):
             return {"error": str(e)}
 
 
-# O nome do método deve ser o padrão da biblioteca para ser chamado
-# pelo evento 'join_store_room' emitido pelo Flutter.
 async def handle_join_store_room(self, sid, data):
     """
     Inscreve um admin na sala de uma loja específica para receber dados detalhados.
@@ -335,42 +333,46 @@ async def handle_join_store_room(self, sid, data):
         store_id = data.get("store_id")
         if not store_id:
             print(f"❌ [join_store_room] sid {sid} enviou um pedido sem store_id.")
-            # É uma boa prática retornar um erro para o cliente saber o que aconteceu.
             return {'status': 'error', 'message': 'store_id é obrigatório'}
 
         with get_db_manager() as db:
-            # Busca a sessão atual do admin para saber em qual sala ele está.
             session = SessionService.get_session(db, sid, client_type="admin")
 
             if not session:
                 print(f"❌ [join_store_room] Sessão não encontrada para sid {sid}.")
                 return {'status': 'error', 'message': 'Sessão inválida.'}
 
-            # Se o admin já estava ouvindo outra loja, remove ele da sala antiga.
-            # Isso evita que ele continue recebendo dados de uma loja que não está mais vendo.
             if session.store_id and session.store_id != store_id:
                 old_room = f"admin_store_{session.store_id}"
                 await self.leave_room(sid, old_room)
                 print(f"🚪 [join_store_room] Admin {sid} saiu da sala antiga: {old_room}")
 
-            # Entra na nova sala para começar a receber os dados da loja selecionada.
             new_room = f"admin_store_{store_id}"
             await self.enter_room(sid, new_room)
             print(f"✅ [join_store_room] Admin {sid} entrou na sala dinâmica: {new_room}")
 
-            # Atualiza a sessão no banco de dados para registrar qual loja está ativa.
-            SessionService.create_or_update_session(db, sid, store_id, client_type="admin")
+            # ✨ CORREÇÃO APLICADA AQUI ✨
+            # Usamos o novo método, mais simples e específico para esta tarefa.
+            # Ele apenas atualiza o store_id da sessão existente.
+            SessionService.update_session_store(db, sid=sid, store_id=store_id)
 
             # Envia a carga inicial de dados (pedidos, produtos, etc.) para a nova sala.
             await self._emit_initial_data(db, store_id, sid)
 
-            # Retorna sucesso para o cliente.
             return {'status': 'success', 'joined_room': new_room}
 
     except Exception as e:
         print(f"❌ [join_store_room] Erro ao processar para a loja {data.get('store_id')}: {e}")
-        # Informa o cliente que algo deu errado no servidor.
         return {'status': 'error', 'message': 'Erro interno do servidor.'}
+
+
+
+
+
+
+
+
+
 
 
 async def handle_leave_store_room(self, sid, data):

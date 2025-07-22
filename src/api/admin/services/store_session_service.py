@@ -51,3 +51,15 @@ class SessionService:
         if client_type:
             query = query.filter_by(client_type=client_type)
         return query.first()
+
+
+
+    @staticmethod
+    def update_session_store(db: Session, sid: str, store_id: int):
+        """Atualiza o store_id de uma sessão existente."""
+        session = db.query(models.StoreSession).filter_by(sid=sid).first()
+        if session:
+            session.store_id = store_id
+            session.updated_at = datetime.utcnow()
+            db.commit()
+        return session
