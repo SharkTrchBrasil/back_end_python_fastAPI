@@ -63,3 +63,4 @@ class SessionService:
             session.updated_at = datetime.utcnow()
             db.commit()
         return session
+

@@ -15,12 +15,9 @@ from src.api.admin.utils.authorize_admin import authorize_admin
 from src.core.database import get_db_manager
 
 
-# Em: src/api/admin/handlers/store_handler.py
-
 async def handle_set_consolidated_stores(self, sid, data):
     """
     Atualiza as PREFERÊNCIAS de lojas consolidadas de um admin no banco de dados.
-    Esta função NÃO gerencia mais a entrada/saída de salas.
     """
     try:
         selected_store_ids = set(data.get("store_ids", []))
@@ -29,10 +26,13 @@ async def handle_set_consolidated_stores(self, sid, data):
 
         with get_db_manager() as db:
             session = SessionService.get_session(db, sid)
-            if not session or not session.admin_id:
+
+            # ✨ CORREÇÃO AQUI: Verificamos 'user_id'
+            if not session or not session.user_id:
                 return {"error": "Sessão não autorizada"}
 
-            admin_id = session.admin_idh
+            # ✨ E AQUI: Usamos 'user_id'
+            admin_id = session.user_id
 
             # Deleta todas as seleções antigas do admin de uma vez
             db.execute(
@@ -42,7 +42,6 @@ async def handle_set_consolidated_stores(self, sid, data):
             )
 
             # Adiciona as novas seleções
-            # (Opcional: você pode validar se o admin tem acesso a estas lojas)
             for store_id in selected_store_ids:
                 new_selection = models.AdminConsolidatedStoreSelection(
                     admin_id=admin_id, store_id=store_id
@@ -53,8 +52,6 @@ async def handle_set_consolidated_stores(self, sid, data):
 
             print(f"✅ Preferências de consolidação do admin {admin_id} atualizadas para: {selected_store_ids}")
 
-            # Apenas notifica o cliente sobre a mudança na lista de IDs consolidados.
-            # O cliente usará isso para atualizar a UI (ex: marcar/desmarcar checkboxes).
             await self.emit(
                 "consolidated_stores_updated",
                 {"store_ids": list(selected_store_ids)},
@@ -64,199 +61,10 @@ async def handle_set_consolidated_stores(self, sid, data):
             return {"success": True, "selected_stores": list(selected_store_ids)}
 
     except Exception as e:
-        # Garante o rollback em caso de erro na transação
         if 'db' in locals() and db.is_active:
             db.rollback()
         print(f"❌ Erro em on_set_consolidated_stores: {str(e)}")
         return {"error": f"Falha interna: {str(e)}"}
-
-
-# async def handle_set_consolidated_stores(self, sid, data):
-#     try:
-#         selected_store_ids = data.get("store_ids", [])
-#         if not isinstance(selected_store_ids, list):
-#             print("❌ 'store_ids' deve ser uma lista em on_set_consolidated_stores")
-#             return {"error": "'store_ids' deve ser uma lista"}
-#
-#         with get_db_manager() as db:
-#
-#             session = db.query(models.StoreSession).filter_by(sid=sid, client_type="admin").first()
-#             if not session:
-#                 print(f"❌ Sessão não encontrada para sid {sid} em on_set_consolidated_stores")
-#                 return {"error": "Sessão não autorizada"}
-#
-#             query = parse_qs(self.environ[sid].get("QUERY_STRING", ""))
-#             token = query.get("admin_token", [None])[0]
-#             if not token:
-#                 return {"error": "Token obrigatório para esta operação"}
-#             totem_auth_user = await authorize_admin(db, token)
-#             if not totem_auth_user or not totem_auth_user.id:
-#                 return {"error": "Admin não autorizado"}
-#
-#             admin_id = totem_auth_user.id
-#
-#             # Busca todas as lojas às quais o admin tem acesso com a role 'admin'
-#
-#             all_accessible_store_ids_for_admin = StoreAccessService.get_accessible_store_ids_with_fallback(
-#                 db, totem_auth_user
-#             )
-#
-#             print(
-#                 f"DEBUG: all_accessible_store_ids para admin {admin_id} (por machine_name): {all_accessible_store_ids_for_admin}")
-#
-#             # Fallback para adicionar a loja principal do usuário se não estiver nas acessíveis
-#             if not all_accessible_store_ids_for_admin and totem_auth_user.store_id:
-#                 all_accessible_store_ids_for_admin.append(totem_auth_user.store_id)
-#                 print(
-#                     f"DEBUG: Adicionada store_id do usuário autenticado como fallback: {totem_auth_user.store_id}")
-#
-#             # Recupera as seleções atuais do admin no DB
-#             current_consolidated_selections = db.execute(
-#                 select(models.AdminConsolidatedStoreSelection).where(
-#                     models.AdminConsolidatedStoreSelection.admin_id == admin_id
-#                 )
-#             ).scalars().all()
-#             current_consolidated_ids_in_db = {
-#                 s.store_id for s in current_consolidated_selections
-#             }
-#
-#             # Lojas para remover da seleção e das rooms
-#             to_remove_ids = current_consolidated_ids_in_db - set(selected_store_ids)
-#             for store_id_to_remove in to_remove_ids:
-#                 room = f"admin_store_{store_id_to_remove}"
-#                 await self.leave_room(sid, room)
-#                 db.execute(
-#                     delete(models.AdminConsolidatedStoreSelection).where(
-#                         models.AdminConsolidatedStoreSelection.admin_id == admin_id,
-#                         models.AdminConsolidatedStoreSelection.store_id == store_id_to_remove,
-#                     )
-#                 )
-#                 print(
-#                     f"🚪 Admin {sid} saiu da sala e removeu seleção da loja:"
-#                     f" {store_id_to_remove}"
-#                 )
-#
-#             # Lojas para adicionar à seleção e às rooms
-#             to_add_ids = set(selected_store_ids) - current_consolidated_ids_in_db
-#             for store_id_to_add in to_add_ids:
-#                 # VALIDAÇÃO: Valide se o admin realmente tem acesso a esta loja
-#                 if store_id_to_add not in all_accessible_store_ids_for_admin:
-#                     print(
-#                         f"⚠️ Admin {sid} tentou adicionar loja {store_id_to_add}"
-#                         f" sem permissão."
-#                     )
-#                     continue
-#
-#                 room = f"admin_store_{store_id_to_add}"
-#                 await self.enter_room(sid, room)
-#                 try:
-#                     new_selection = models.AdminConsolidatedStoreSelection(
-#                         admin_id=admin_id, store_id=store_id_to_add
-#                     )
-#                     db.add(new_selection)
-#                     db.commit()
-#                     print(
-#                         f"✅ Admin {sid} entrou na sala e adicionou seleção da loja:"
-#                         f" {store_id_to_add}"
-#                     )
-#                     await self._emit_initial_data(db, store_id_to_add, sid)
-#                 except IntegrityError:
-#                     db.rollback()
-#                     print(
-#                         f"⚠️ Seleção de loja {store_id_to_add} já existia para admin"
-#                         f" {admin_id}."
-#                     )
-#                     await self.enter_room(sid, room)
-#                 except Exception as add_e:
-#                     db.rollback()
-#                     print(
-#                         f"❌ Erro ao adicionar seleção da loja {store_id_to_add}:"
-#                         f" {str(add_e)}"
-#                     )
-#
-#             # Emitir a nova lista de lojas consolidadas para o frontend
-#             updated_consolidated_ids = list(db.execute(
-#                 select(models.AdminConsolidatedStoreSelection.store_id).where(
-#                     models.AdminConsolidatedStoreSelection.admin_id == admin_id
-#                 )
-#             ).scalars())
-#
-#             await self.emit(
-#                 "consolidated_stores_updated",
-#                 {"store_ids": updated_consolidated_ids},
-#                 to=sid,
-#             )
-#             print(
-#                 f"✅ Seleção consolidada atualizada para {sid}:"
-#                 f" {updated_consolidated_ids}"
-#             )
-#
-#             return {"success": True, "selected_stores": updated_consolidated_ids}
-#
-#     except Exception as e:
-#         db.rollback()
-#         print(f"❌ Erro em on_set_consolidated_stores: {str(e)}")
-#         return {"error": f"Falha interna: {str(e)}"}
-
-#
-# async def handle_join_store_room(self, sid, data):
-#     try:
-#         store_id = data.get("store_id")
-#         if not store_id:
-#             print("❌ store_id ausente em join_store_room")
-#             return
-#
-#         with get_db_manager() as db:
-#
-#             session = SessionService.get_session(db, sid, client_type="admin")
-#
-#             if not session:
-#                 print(f"❌ Sessão não encontrada para sid {sid} para join_store_room")
-#                 return
-#
-#
-#             if session.store_id and session.store_id != store_id:
-#                 old_room = f"admin_store_{session.store_id}"
-#                 await self.leave_room(sid, old_room)
-#                 print(f"🚪 Admin {sid} saiu da sala antiga: {old_room}")
-#
-#             new_room = f"admin_store_{store_id}"
-#             await self.enter_room(sid, new_room)
-#             print(f"✅ Admin {sid} entrou na sala dinâmica: {new_room}")
-#
-#
-#             SessionService.create_or_update_session(db, sid, store_id, client_type="admin")
-#
-#
-#             await self._emit_initial_data(db, store_id, sid)
-#
-#     except Exception as e:
-#         print(f"❌ Erro ao entrar na sala da loja {store_id}: {e}")
-
-
-# async def handle_leave_store_room(self, sid, data):
-#     try:
-#         store_id = data.get("store_id")
-#         if not store_id:
-#             print("❌ store_id ausente em leave_store_room")
-#             return
-#
-#         with get_db_manager() as db:
-#             session = SessionService.get_session(db, sid, client_type="admin")
-#
-#             if not session:
-#                 print(f"❌ Sessão não encontrada para sid {sid} para leave_store_room")
-#                 return
-#
-#             if session.store_id == store_id:
-#                 room = f"admin_store_{store_id}"
-#                 await self.leave_room(sid, room)
-#                 print(f"🚪 Admin {sid} saiu da sala: {room}")
-#             else:
-#                 print(f"⚠️ Admin {sid} tentou sair da loja {store_id}, mas a loja ativa era {session.store_id}.")
-#     except Exception as e:
-#         print(f"❌ Erro ao sair da sala da loja {store_id}: {e}")
-
 
 async def handle_update_store_settings(self, sid, data):
     with get_db_manager() as db:
@@ -364,14 +172,6 @@ async def handle_join_store_room(self, sid, data):
     except Exception as e:
         print(f"❌ [join_store_room] Erro ao processar para a loja {data.get('store_id')}: {e}")
         return {'status': 'error', 'message': 'Erro interno do servidor.'}
-
-
-
-
-
-
-
-
 
 
 
