@@ -47,16 +47,6 @@ async def connect(sid, environ):
     query = parse_qs(environ.get("QUERY_STRING", ""))
     token = query.get("totem_token", [None])[0]
 
-    # quando tiver mexendo no cardápio mudar lá e desconmentar aqui
-    # # ✨ ADICIONE ESTE BLOCO NO LUGAR ✨
-    # auth_header = environ.get("HTTP_AUTHORIZATION", "")
-    # token = None
-    #
-    # # Verifica se o cabeçalho existe e está no formato "Bearer <token>"
-    # if auth_header.startswith("Bearer "):
-    #     token = auth_header.split(" ")[1]
-    #
-    #
 
     if not token:
         raise ConnectionRefusedError("Missing token")
