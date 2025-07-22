@@ -110,6 +110,7 @@ async def handle_admin_connect(self, sid, environ):
             SessionService.create_or_update_session(
                 db,
                 sid=sid,
+                user_id=admin_id,  # Adicione este parâmetro
                 store_id=consolidated_store_ids[0] if consolidated_store_ids else None,
                 client_type="admin"
             )
