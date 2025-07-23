@@ -20,7 +20,7 @@ def new_subscription(
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
     subscription: CreateStoreSubscription,
 ):
-    plan = db.query(models.SubscriptionPlan).filter_by(id=subscription.plan_id, available=True).first()
+    plan = db.query(models.Plans).filter_by(id=subscription.plan_id, available=True).first()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found/available")
 

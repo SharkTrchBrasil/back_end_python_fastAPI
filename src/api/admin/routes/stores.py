@@ -121,7 +121,7 @@ def create_store(
     db_store_access = models.StoreAccess(user=user, role=db_role, store=db_store)
     db.add(db_store_access)
 
-    subscription_plan = db.query(models.SubscriptionPlan).filter(models.SubscriptionPlan.available, models.SubscriptionPlan.price == 0).first()
+    subscription_plan = db.query(models.Plans).filter(models.Plans.available, models.Plans.price == 0).first()
     if subscription_plan is None:
         raise HTTPException(status_code=404, detail="Base subscription plan not found")
 

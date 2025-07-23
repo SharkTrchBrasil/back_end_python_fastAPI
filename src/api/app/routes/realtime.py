@@ -10,6 +10,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError
 from sqlalchemy.orm import joinedload
 
+from src.api.admin.events.handlers.order_handler import process_new_order_automations
 from src.api.admin.socketio.emitters import admin_emit_order_updated_from_obj, emit_new_order_notification
 from src.api.admin.utils.order_code import generate_unique_public_id, gerar_sequencial_do_dia
 from src.api.app.events.socketio_emitters import refresh_product_list
@@ -30,7 +31,7 @@ from src.api.shared_schemas.rating import RatingsSummaryOut
 from src.api.shared_schemas.store_theme import StoreThemeOut
 
 from src.core import models
-from src.core.aws import get_presigned_url
+
 from src.core.database import get_db_manager
 
 from src.api.app.services.authorize_totem import authorize_totem
@@ -41,12 +42,10 @@ from src.socketio_instance import sio
 from src.api.shared_schemas.order import Order as OrderSchema, OrderStatus
 
 
-# Evento de conexão do Socket.IO
 @sio.event
 async def connect(sid, environ):
     query = parse_qs(environ.get("QUERY_STRING", ""))
     token = query.get("totem_token", [None])[0]
-
 
     if not token:
         raise ConnectionRefusedError("Missing token")
@@ -71,8 +70,6 @@ async def connect(sid, environ):
                 session.store_id = totem.store.id
                 session.client_type = 'totem'
                 session.updated_at = datetime.utcnow()
-
-
 
 
             db.commit()
@@ -240,10 +237,7 @@ async def send_order(sid, data):
                 discounted_total_price=new_order.total_price,  # Valor inicial
             )
 
-            # 6. Configuração automática da loja
-            store_settings = db.query(models.StoreSettings).filter_by(store_id=session.store_id).first()
-            if store_settings and store_settings.auto_accept_orders:
-                db_order.order_status = OrderStatus.PREPARING
+
 
             # 7. Validação de produtos
             products_from_db = db.query(models.Product).filter(
@@ -422,14 +416,16 @@ async def send_order(sid, data):
 
             db.commit()
 
-            # 14. Notifica atualização
-            await admin_emit_order_updated_from_obj(db_order)
 
             db.refresh(db_order)
 
+
+            # Passamos o objeto 'db_order' que agora já tem um ID.
+            await process_new_order_automations(db, db_order)
+            # 14. Notifica atualização
+            await admin_emit_order_updated_from_obj(db_order)
+
             await emit_new_order_notification(db, store_id=db_order.store_id, order_id=db_order.id)
-
-
 
 
             return {

@@ -1,22 +1,19 @@
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import joinedload
 
 from src.api.admin.schemas.store_subscription import StoreSubscriptionSchema
 from src.core import models
-from src.core.models import StoreSubscription
+
 
 
 class SubscriptionService:
 
     @staticmethod
     def get_subscription_details(db, store_id: int) -> tuple[dict, bool]:
-        """
-        Verifica a assinatura, monta o payload detalhado e retorna o payload
-        junto com um booleano indicando se a loja pode operar.
-        """
+
         subscription_db = db.query(models.StoreSubscription).options(
             joinedload(models.StoreSubscription.plan)
-            .joinedload(models.SubscriptionPlan.features)
+            .joinedload(models.Plans.included_features)
         ).filter(
             models.StoreSubscription.store_id == store_id
         ).order_by(models.StoreSubscription.current_period_end.desc()).first()
