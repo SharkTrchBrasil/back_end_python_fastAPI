@@ -46,58 +46,62 @@ class AdminNamespace(AsyncNamespace):
 
 
 
+    async def _check_store_subscription(self, db, store_id: int) -> models.StoreSubscription:
 
-    async def _check_store_subscription(self, db, store_id):
-        """Verifica se a loja tem assinatura ativa com tratamento de grace period"""
-        subscription = db.query(models.StoreSubscription).filter(
-            models.StoreSubscription.store_id == store_id,
-            models.StoreSubscription.status == 'active'
-        ).order_by(models.StoreSubscription.current_period_end.desc()).first()
+        # Passo 1: Busca a loja para poder usar a hybrid_property
+        store = db.query(models.Store).filter(models.Store.id == store_id).first()
+        if not store:
+            raise ConnectionRefusedError("Loja não encontrada.")
 
+        # Passo 2: Acessa a assinatura ativa de forma simples e direta
+        subscription = store.active_subscription
         if not subscription:
-            raise ConnectionRefusedError("Nenhuma assinatura encontrada para esta loja")
+            raise ConnectionRefusedError("Nenhuma assinatura ativa encontrada para esta loja.")
 
+        # Passo 3: A lógica do período de carência (grace period) continua a mesma
         now = datetime.utcnow()
+        grace_period_end = subscription.current_period_end + timedelta(days=3)
 
-
-
-
-        # Verifica se está no período ativo ou no grace period (3 dias após expiração)
-        if now > subscription.current_period_end + timedelta(days=3):
+        if now > grace_period_end:
+            # Atualiza o status no banco para 'expired' para futuras consultas serem mais rápidas
+            subscription.status = 'expired'
+            db.commit()
             raise ConnectionRefusedError("Assinatura vencida. Renove seu plano para continuar.")
 
         return subscription
 
-
-    async def _check_and_notify_subscription(self, db, store_id, sid):
-        """Verifica assinatura e envia notificações se necessário"""
+    async def _check_and_notify_subscription(self, db, store_id: int, sid: str) -> bool:
+        """
+        Verifica a assinatura e envia avisos de vencimento. Agora usa a função refatorada.
+        """
         try:
+            # A chamada principal agora é muito mais limpa
             subscription = await self._check_store_subscription(db, store_id)
+
+            # O resto da lógica de notificação permanece idêntico
             now = datetime.utcnow()
             remaining_days = (subscription.current_period_end - now).days
 
-            # Notificações proativas
-            if remaining_days <= 3:
-                message = (
-                    f"Sua assinatura vencerá em {remaining_days} dias" if remaining_days > 0
-                    else "Sua assinatura venceu hoje"
-                )
+            if remaining_days <= 3 and remaining_days >= -3:  # Notifica durante o grace period também
+                if remaining_days >= 0:
+                    message = f"Sua assinatura vencerá em {remaining_days + 1} dia(s)."
+                else:
+                    message = "Sua assinatura venceu! Renove para não perder o acesso."
 
                 await self.emit('subscription_warning', {
                     'message': message,
-                    'critical': remaining_days <= 1,
-                    'expiration_date': subscription.current_period_end.isoformat(),
-                    'remaining_days': remaining_days
+                    'critical': remaining_days < 1,
                 }, to=sid)
 
+            # Retorna se a loja está operacional (período ativo, sem contar carência)
             return now <= subscription.current_period_end
 
         except ConnectionRefusedError as e:
-            await self.emit('subscription_warning', {
-                'message': str(e),
-                'critical': True
-            }, to=sid)
+            await self.emit('subscription_warning', {'message': str(e), 'critical': True}, to=sid)
             return False
+
+
+
 
 
     async def _emit_initial_data(self, db, store_id, sid):

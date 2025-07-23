@@ -904,7 +904,6 @@ class OrderPrintLog(Base, TimestampMixin):
 
 
 
-
 class TableStatus(enum.Enum):
     AVAILABLE = "available"
     OCCUPIED = "occupied"

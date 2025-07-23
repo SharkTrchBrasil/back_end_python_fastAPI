@@ -238,3 +238,47 @@ async def process_new_order_automations(db, order):
     if jobs_to_emit:
         # Emite o NOVO evento com a ordem para imprimir
         await admin_emit_new_print_jobs(order.store_id, order.id, jobs_to_emit)
+
+
+async def claim_specific_print_job(sid, data):
+    """
+    Permite que um cliente reivindique um trabalho de impressão específico pelo seu ID.
+    Esta operação é atômica para evitar que dois dispositivos reivindiquem o mesmo trabalho.
+    """
+    print(f"📠 [Session {sid}] Recebida reivindicação para o trabalho de impressão: {data}")
+
+    with get_db_manager() as db:
+        try:
+            if 'job_id' not in data:
+                return {'error': 'ID do trabalho de impressão não fornecido'}
+
+            job_id = data['job_id']
+
+            # --- Início da Transação Atômica ---
+            # Usamos 'with_for_update()' para bloquear a linha no banco de dados,
+            # garantindo que nenhum outro processo possa modificá-la ao mesmo tempo.
+            job_to_claim = db.query(models.OrderPrintLog).filter(
+                models.OrderPrintLog.id == job_id
+            ).with_for_update().first()
+            # --- Fim da Transação Atômica ---
+
+            if not job_to_claim:
+                return {'error': f'Trabalho de impressão com ID {job_id} não encontrado.'}
+
+            # Verifica se o trabalho ainda está pendente
+            if job_to_claim.status == 'pending':
+                # Venceu! Muda o status para 'claimed' e salva.
+                job_to_claim.status = 'claimed'
+                db.commit()
+                print(f"✅ [Session {sid}] Reivindicou com sucesso o trabalho de impressão #{job_id}")
+                return {'status': 'claim_successful', 'success': True}
+            else:
+                # Outro dispositivo foi mais rápido.
+                print(f"❌ [Session {sid}] Falha ao reivindicar trabalho #{job_id}. Status atual: {job_to_claim.status}")
+                db.rollback()  # Desfaz o bloqueio sem salvar nada
+                return {'status': 'already_claimed', 'success': False}
+
+        except Exception as e:
+            db.rollback()
+            print(f"❌ Erro inesperado em claim_specific_print_job: {str(e)}")
+            return {'error': 'Falha interna ao processar a reivindicação'}
