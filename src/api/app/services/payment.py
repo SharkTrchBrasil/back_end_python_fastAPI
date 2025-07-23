@@ -50,9 +50,11 @@ def create_webhook(
         'chave': pix_config.pix_key
     }
 
-    # TODO: IMPLEMENTAR PROD
+    # A URL do seu backend + a rota específica para webhooks de PIX
+    webhook_url_pix = "https://api-pdvix-production.up.railway.app/webhook/pix"
+
     body = {
-        'webhookUrl': 'https://webhook.site/d633e08d-7129-4b49-8a2e-37ec2c140af6'
+        'webhookUrl': webhook_url_pix
     }
 
     response = efi.pix_config_webhook(params=params, body=body, headers=headers)
@@ -148,6 +150,10 @@ def create_plan(name, repeats, interval):
 def create_subscription(efi_plan_id, plan, payment_token, customer, address):
     efi = get_master_efi_pay()
 
+
+    # A URL do seu backend + a rota específica para webhooks de assinaturas
+    notification_url_subscriptions = "https://api-pdvix-production.up.railway.app/webhook/subscriptions"
+
     params = {
         'id': efi_plan_id
     }
@@ -161,7 +167,7 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
             }
         ],
         'metadata': {
-            'notification_url': 'https://api-pdvix-production.up.railway.app/webhook/efi'
+            'notification_url': notification_url_subscriptions
         },
         'payment': {
             'credit_card': {
@@ -185,3 +191,14 @@ def cancel_subscription(subscription_id):
     }
 
     return efi.cancel_subscription(params=params)
+
+
+def get_notification(token):
+    efi = get_master_efi_pay()
+
+    params = {
+        'token': token
+    }
+
+    result = efi.get_notification(params=params)
+    return result['data']

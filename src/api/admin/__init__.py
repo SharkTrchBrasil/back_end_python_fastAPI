@@ -36,6 +36,7 @@ from src.api.admin.routes.store_customer import router as store_customer_router
 from src.api.admin.routes.plans import router as plans_router
 from src.api.admin.routes.subscriptions import router as subscriptions_router
 from src.api.admin.routes.zipcode import router as zipcode_router
+from src.api.admin.routes.master_webhook import router as master_webhook_router
 
 
 router = APIRouter(prefix="/admin")
@@ -56,12 +57,6 @@ router.include_router(webhook_router)
 router.include_router(plans_router)
 router.include_router(subscriptions_router)
 router.include_router(zipcode_router)
-
-
-
-
-
-#minhas features
 
 router.include_router(payment_methods_router)
 router.include_router(store_hours_router)
@@ -87,3 +82,5 @@ router.include_router(orders_router)
 
 
 router.include_router(store_customer_router)
+
+router.include_router(master_webhook_router)
