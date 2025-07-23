@@ -900,6 +900,7 @@ class OrderPrintLog(Base, TimestampMixin):
     printed_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     printer_name: Mapped[str | None] = mapped_column()  # Ex: "cozinha", "balcao"
     is_reprint: Mapped[bool] = mapped_column(default=False)
+    order: Mapped["Order"] = relationship(back_populates="print_logs")
 
 
 
@@ -982,6 +983,9 @@ class OrderPartialPayment(Base, TimestampMixin):
 
     order: Mapped["Order"] = relationship(back_populates="partial_payments")
     payment_method: Mapped["StorePaymentMethods | None"] = relationship()
+
+
+
 
 class TableHistory(Base):
     __tablename__ = "table_histories"
