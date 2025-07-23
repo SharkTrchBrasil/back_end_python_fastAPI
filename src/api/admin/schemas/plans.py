@@ -6,12 +6,12 @@ from src.api.admin.schemas.plans_feature import FeatureSchema
 
 
 # Este schema intermediário nos ajuda a extrair a feature da associação
-class _SubscriptionPlanFeatureAssociationSchema(BaseModel):
+class PlanFeatureAssociationSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     feature: FeatureSchema
 
 
-class SubscriptionPlanSchema(BaseModel):
+class PlanSchema(BaseModel):
     """Schema para um plano de assinatura, mostrando as features inclusas."""
     model_config = ConfigDict(from_attributes=True)
 
@@ -22,7 +22,7 @@ class SubscriptionPlanSchema(BaseModel):
     available: bool
 
     # Campo "real" que vem do SQLAlchemy
-    included_features: list[_SubscriptionPlanFeatureAssociationSchema]
+    included_features: list[PlanFeatureAssociationSchema]
 
     # ✨ Campo "virtual" que criamos para deixar a API mais limpa
     @computed_field
