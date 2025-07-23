@@ -23,9 +23,7 @@ from src.api.app.services.check_variants import validate_order_variants
 
 from src.api.app.services.rating import (
     get_store_ratings_summary,
-
 )
-
 
 from src.api.shared_schemas.rating import RatingsSummaryOut
 from src.api.shared_schemas.store_theme import StoreThemeOut
@@ -149,17 +147,12 @@ async def disconnect(sid, reason):
             db.rollback()
             print(f"❌ Erro na desconexão do totem: {str(e)}")
 
-
-
-
-
 def apply_coupon(coupon, price: float) -> float:
     if coupon.discount_type == 'percentage':
         return round(price * (1 - coupon.discount_value / 100), 2)
     elif coupon.discount_type == 'fixed':
         return max(0, price - coupon.discount_value)
     return price
-
 
 @sio.event
 async def send_order(sid, data):
