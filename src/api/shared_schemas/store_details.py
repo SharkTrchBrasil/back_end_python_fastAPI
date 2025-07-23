@@ -3,7 +3,7 @@ from typing import Optional
 from pydantic import Field, ConfigDict
 
 from src.api.admin.schemas.store_settings import StoreSettingsBase
-from src.api.admin.schemas.subscription import StoreSubscriptionOut
+from src.api.admin.schemas.store_subscription import StoreSubscriptionSchema
 
 from src.api.shared_schemas.payment_method import StorePaymentMethods
 from src.api.shared_schemas.rating import RatingsSummaryOut
@@ -21,7 +21,7 @@ class StoreDetails(Store):
     cities: list[StoreCitySchema] = []
     store_settings: StoreSettingsBase | None = None
     ratingsSummary: Optional[RatingsSummaryOut] = Field(None, alias="ratingsSummary")
-    subscription: Optional[StoreSubscriptionOut] = None
+    subscription: Optional[StoreSubscriptionSchema] = None
 
     model_config = ConfigDict(
         from_attributes=True,

@@ -1,4 +1,4 @@
-from sqlalchemy import Enum
+from sqlalchemy import Enum, select
 import enum
 from datetime import datetime, date, timezone
 from typing import Optional, List
@@ -31,6 +31,7 @@ class TimestampMixin:
 
 class Store(Base, TimestampMixin):
     __tablename__ = "stores"
+
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column()
@@ -108,70 +109,30 @@ class Store(Base, TimestampMixin):
 
     commands: Mapped[list["Command"]] = relationship(back_populates="store")
 
-    # Relacionamento com TODAS as assinaturas
     subscriptions: Mapped[list["StoreSubscription"]] = relationship(
+        "StoreSubscription",  # <-- Use a string aqui
         back_populates="store",
-        cascade="all, delete-orphan",
-        lazy="joined"  # Carrega automaticamente com a store
+        lazy="select"
     )
 
-    # Relacionamento com assinatura ativa (para uso prático no sistema)
-    active_subscription: Mapped[Optional["StoreSubscription"]] = relationship(
-        "StoreSubscription",
-        uselist=False,
-        primaryjoin="and_(Store.id == foreign(StoreSubscription.store_id), "
-                    "StoreSubscription.status.in_(['active', 'new_charge']))",
-        viewonly=True
-    )
+    @hybrid_property
+    def active_subscription(self) -> Optional["StoreSubscription"]:  # <- Use a string aqui também
+        """
+        Retorna a primeira assinatura ativa ou em cobrança encontrada para esta loja.
+        """
+        active_statuses = {'active', 'new_charge', 'trialing'}
+        for sub in self.subscriptions:
+            if sub.status in active_statuses:
+                return sub
+        return None
 
+    @active_subscription.expression
+    def active_subscription(cls):
 
-class SubscriptionPlan(Base, TimestampMixin):
-    __tablename__ = "subscription_plans"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    description: Mapped[str | None] = mapped_column()
-
-    available: Mapped[bool] = mapped_column()
-    plan_name: Mapped[str | None] = mapped_column()
-    price: Mapped[int] = mapped_column()
-    interval: Mapped[int] = mapped_column()
-    repeats: Mapped[int | None] = mapped_column()
-
-    features: Mapped[list["SubscriptionPlanFeature"]] = relationship(
-        back_populates="plan",
-        cascade="all, delete-orphan"
-    )
-
-    subscriptions: Mapped[list["StoreSubscription"]] = relationship(
-        back_populates="plan", cascade="all, delete-orphan"
-    )
-
-
-
-class StoreSubscription(Base, TimestampMixin):
-    __tablename__ = "store_subscriptions"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    subscription_plan_id: Mapped[int] = mapped_column(ForeignKey("subscription_plans.id"))
-    status: Mapped[str] = mapped_column()
-    store: Mapped["Store"] = relationship(back_populates="subscriptions")
-    plan: Mapped["SubscriptionPlan"] = relationship(back_populates="subscriptions")
-
-    current_period_start: Mapped[datetime] = mapped_column()
-    current_period_end: Mapped[datetime] = mapped_column()
-    is_recurring: Mapped[bool] = mapped_column(default=False)
-
-
-class SubscriptionPlanFeature(Base, TimestampMixin):
-    __tablename__ = "subscription_plan_features"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    subscription_plan_id: Mapped[int] = mapped_column(ForeignKey("subscription_plans.id"))
-    feature_key: Mapped[str] = mapped_column()  # ex: "chatbot", "totem", "style_guide"
-    is_enabled: Mapped[bool] = mapped_column(default=True)
-
-    plan: Mapped["SubscriptionPlan"] = relationship(back_populates="features")
+        return select(StoreSubscription).where(
+            StoreSubscription.store_id == cls.id,
+            StoreSubscription.status.in_(['active', 'new_charge', 'trialing'])
+        ).correlate_except(StoreSubscription).as_scalar()
 
 
 class User(Base, TimestampMixin):
@@ -846,7 +807,13 @@ class Order(Base, TimestampMixin):
     command: Mapped[Optional["Command"]] = relationship(back_populates="orders")
     partial_payments: Mapped[list["OrderPartialPayment"]] = relationship(back_populates="order")
 
+    # NOVO RELACIONAMENTO
+    print_logs: Mapped[list["OrderPrintLog"]] = relationship(back_populates="order")
 
+    # Você ainda pode manter a propriedade para uma checagem rápida
+    @hybrid_property
+    def is_printed(self) -> bool:
+        return len(self.print_logs) > 0
 
 
 class OrderProduct(Base, TimestampMixin):
@@ -921,6 +888,20 @@ class OrderVariantOption(Base, TimestampMixin):
     quantity: Mapped[int] = mapped_column()
 
     order_variant: Mapped[OrderVariant] = relationship()
+
+
+class OrderPrintLog(Base, TimestampMixin):
+    __tablename__ = "order_print_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"))
+    printer_destination: Mapped[str] = mapped_column()  # Ex: "cozinha", "balcao"
+    status: Mapped[str] = mapped_column(default='pending', nullable=False)
+    printed_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    printer_name: Mapped[str | None] = mapped_column()  # Ex: "cozinha", "balcao"
+    is_reprint: Mapped[bool] = mapped_column(default=False)
+
+
 
 
 class TableStatus(enum.Enum):
@@ -1112,3 +1093,110 @@ class StoreSettings(Base, TimestampMixin):
 
     auto_accept_orders: Mapped[bool] = mapped_column(default=False)
     auto_print_orders: Mapped[bool] = mapped_column(default=False)
+    main_printer_destination: Mapped[str | None] = mapped_column(nullable=True)
+    kitchen_printer_destination: Mapped[str | None] = mapped_column(nullable=True)
+    bar_printer_destination: Mapped[str | None] = mapped_column(nullable=True)
+
+
+class Feature(Base, TimestampMixin):
+    __tablename__ = "features"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    # A chave única para uso interno no código (ex: "chatbot", "custom_reports")
+    feature_key: Mapped[str] = mapped_column(unique=True, index=True)
+
+    # O nome amigável para exibir na interface (ex: "Chatbot com IA")
+    name: Mapped[str] = mapped_column()
+
+    # Descrição detalhada do que a funcionalidade faz.
+    description: Mapped[str | None] = mapped_column()
+
+    # Define se esta feature pode ser comprada como um add-on.
+    is_addon: Mapped[bool] = mapped_column(default=False)
+
+    # Preço do add-on em CENTAVOS para evitar problemas com ponto flutuante.
+    # Ex: R$ 29,90 seria armazenado como 2990.
+    addon_price: Mapped[int | None] = mapped_column()
+
+    # Relacionamentos para saber em quais planos esta feature está inclusa
+    # e quais assinaturas a contrataram como add-on.
+    plan_associations: Mapped[list["PlansFeature"]] = relationship(back_populates="feature")
+    addon_subscriptions: Mapped[list["PlansAddon"]] = relationship(back_populates="feature")
+
+
+class PlansFeature(Base, TimestampMixin):
+    __tablename__ = "plans_features"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    # Chaves estrangeiras que criam a ligação
+    subscription_plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    feature_id: Mapped[int] = mapped_column(ForeignKey("features.id"))
+
+    # Relacionamentos para navegar facilmente para o plano e para a feature
+    plan: Mapped["Plans"] = relationship(back_populates="included_features")
+    feature: Mapped["Feature"] = relationship(back_populates="plan_associations")
+
+
+class StoreSubscription(Base, TimestampMixin):
+    __tablename__ = "store_subscriptions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+    subscription_plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    store: Mapped["Store"] = relationship(back_populates="subscriptions")
+    status: Mapped[str] = mapped_column()  # ex: "active", "past_due", "canceled"
+    current_period_start: Mapped[datetime] = mapped_column()
+    current_period_end: Mapped[datetime] = mapped_column()
+
+    # Relacionamento com o plano principal assinado
+    plan: Mapped["Plans"] = relationship(back_populates="subscriptions")
+
+    # NOVO: Relacionamento para ver todos os add-ons contratados nesta assinatura
+    subscribed_addons: Mapped[list["PlansAddon"]] = relationship(
+        back_populates="store_subscription",
+        cascade="all, delete-orphan"
+    )
+
+class Plans(Base, TimestampMixin):
+    __tablename__ = "plans"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_name: Mapped[str] = mapped_column()
+    price: Mapped[int] = mapped_column()  # Preço do plano em CENTAVOS
+    interval: Mapped[int] = mapped_column()  # Intervalo em dias/meses
+    available: Mapped[bool] = mapped_column(default=True)
+
+    # Relacionamento para ver as features INCLUSAS neste plano.
+    included_features: Mapped[list["PlansFeature"]] = relationship(
+        back_populates="plan",
+        cascade="all, delete-orphan"
+    )
+
+    # Relacionamento para ver todas as assinaturas ativas deste plano.
+    subscriptions: Mapped[list["StoreSubscription"]] = relationship(
+        back_populates="plan"
+    )
+
+
+class PlansAddon(Base, TimestampMixin):
+    __tablename__ = "plans_addons"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    # A qual assinatura este add-on pertence
+    store_subscription_id: Mapped[int] = mapped_column(ForeignKey("store_subscriptions.id"))
+
+    # Qual feature foi contratada como add-on
+    feature_id: Mapped[int] = mapped_column(ForeignKey("features.id"))
+
+    # Preço em CENTAVOS no momento da contratação do add-on.
+    # Importante para não afetar o cliente se o preço do add-on mudar no futuro.
+    price_at_subscription: Mapped[int] = mapped_column()
+
+    subscribed_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    # Relacionamentos para navegar para a assinatura e para a feature
+    store_subscription: Mapped["StoreSubscription"] = relationship(back_populates="subscribed_addons")
+    feature: Mapped["Feature"] = relationship(back_populates="addon_subscriptions")

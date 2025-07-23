@@ -2,7 +2,7 @@ from enum import Enum
 from pydantic import BaseModel, Field, computed_field, ConfigDict
 from typing import Optional
 
-from src.api.admin.schemas.subscription import StoreSubscriptionOut
+from src.api.admin.schemas.store_subscription import StoreSubscriptionSchema
 from src.api.shared_schemas.store_delivery_options import StoreDeliveryConfig
 from src.core.aws import get_presigned_url
 
@@ -68,7 +68,7 @@ class StoreCreate(StoreBase):
 class Store(StoreBase):
     id: int
 
-    subscription: Optional[StoreSubscriptionOut] = None
+    subscription: Optional[StoreSubscriptionSchema] = None
 
     model_config = ConfigDict(from_attributes=True)
 

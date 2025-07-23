@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session, joinedload
 
+from src.api.admin.schemas.store_subscription import StoreSubscriptionSchema
 from src.core import models
-from src.api.admin.schemas.subscription import StoreSubscriptionOut
+from src.core.models import StoreSubscription
 
 
 class SubscriptionService:
@@ -30,7 +31,7 @@ class SubscriptionService:
             return payload, False
 
         # Validação com Pydantic
-        validated_sub = StoreSubscriptionOut.model_validate(subscription_db)
+        validated_sub = StoreSubscriptionSchema.model_validate(subscription_db)
 
         # Lógica de status dinâmico
         now = datetime.utcnow()

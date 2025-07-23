@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from src.api.admin.schemas.command import CommandOut
 from src.api.admin.schemas.store_settings import StoreSettingsBase
-from src.api.admin.schemas.subscription import StoreSubscriptionOut
+
 from src.api.admin.schemas.table import TableOut
 from src.api.admin.services.subscription_service import SubscriptionService
 
@@ -84,16 +84,7 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
         # Lógica de erro continua a mesma...
 
 async def admin_emit_orders_initial(db, store_id: int, sid: Optional[str] = None):
-    """
-    Emite os pedidos iniciais ativos para um admin, focando em pedidos que
-    ainda requerem atenção, independentemente da data de criação.
 
-    Args:
-        db: A sessão do banco de dados.
-        store_id (int): O ID da loja para a qual os pedidos serão emitidos.
-        sid (Optional[str]): O ID da sessão do Socket.IO para emitir para um cliente específico.
-                             Se None, emite para a room da loja.
-    """
     try:
         # Define os status de pedidos que são considerados "ativos" e precisam de atenção do admin.
         # Ajuste esta lista para refletir os status que você deseja exibir por padrão.
@@ -298,3 +289,20 @@ async def emit_new_order_notification(db, store_id: int, order_id: int):
 
     except Exception as e:
         print(f"❌ Erro ao emitir notificação de novo pedido: {e.__class__.__name__}: {e}")
+
+
+# no seu arquivo de emitters
+
+async def admin_emit_new_print_jobs(store_id: int, order_id: int, jobs: list):
+    """
+    Emite um evento para os clientes de uma loja, informando sobre novos
+    trabalhos de impressão disponíveis.
+    """
+    room = f"admin_store_{store_id}"
+    event = "new_print_jobs_available"
+    payload = {
+        "order_id": order_id,
+        "jobs": jobs
+    }
+    await sio.emit(event, payload, room=room)
+    print(f"Evento '{event}' emitido para a sala {room} com payload: {payload}")

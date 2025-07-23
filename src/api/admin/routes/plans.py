@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from src.api.admin.schemas.subscription_plan import SubscriptionPlan
+from src.api.admin.schemas.plans import SubscriptionPlan
 from src.core import models
 from src.core.database import GetDBDep
 
