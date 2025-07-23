@@ -2,8 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
-
-from src.api.admin.schemas.subscription import CreateStoreSubscription
+from src.api.admin.schemas.store_subscription import CreateStoreSubscription
 from src.api.shared_schemas.store import Roles
 from src.core import models
 from src.core.database import GetDBDep

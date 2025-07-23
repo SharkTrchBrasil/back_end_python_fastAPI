@@ -21,3 +21,34 @@ class StoreSubscriptionSchema(BaseModel):
 
     # Aninha uma lista com os schemas dos add-ons contratados
     subscribed_addons: list[SubscribedAddonSchema]
+
+
+
+class Address(BaseModel):
+    number: str
+    complement: str
+    zipcode: str
+    city: str
+    state: str
+    neighborhood: str
+    street: str
+
+
+class Customer(BaseModel):
+    name: str
+    cpf: str
+    email: str
+    birth: str
+    phone_number: str
+
+
+class TokenizedCard(BaseModel):
+    payment_token: str
+    card_mask: str
+
+
+class CreateStoreSubscription(BaseModel):
+    plan_id: int
+    address: Address
+    customer: Customer
+    card: TokenizedCard
