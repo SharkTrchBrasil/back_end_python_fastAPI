@@ -26,17 +26,30 @@ import orjson
 
 async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = None):
     try:
-        # Carrega as relações necessárias, mas sem a subscription, pois o serviço cuidará disso.
+        # ✅ 1. SUPER CONSULTA: Carrega a loja e TODAS as suas relações necessárias de uma vez.
         store = db.query(models.Store).options(
+            # Relações que você já tinha
             joinedload(models.Store.payment_methods),
             joinedload(models.Store.delivery_config),
             joinedload(models.Store.hours),
             joinedload(models.Store.cities).joinedload(models.StoreCity.neighborhoods),
+            joinedload(models.Store.settings),
+
+            # ✅ Relações de assinatura adicionadas à consulta principal
+            joinedload(models.Store.subscriptions)
+            .joinedload(models.StoreSubscription.plan)
+            .joinedload(models.Plans.included_features)
+            .joinedload(models.PlansFeature.feature),
+            joinedload(models.Store.subscriptions)
+            .joinedload(models.StoreSubscription.subscribed_addons)
+            .joinedload(models.PlansAddon.feature)
+
         ).filter_by(id=store_id).first()
 
         if not store:
             print(f"❌ Loja {store_id} não encontrada")
             return
+
 
         # Lógica para criar configurações padrão (settings) continua a mesma...
         settings = db.query(models.StoreSettings).filter_by(store_id=store_id).first()
@@ -48,14 +61,12 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
             db.commit()
             print(f"⚙️ Configurações padrão criadas para loja {store_id}")
 
-        # ✨ 1. CHAME O SERVIÇO DE ASSINATURA PRIMEIRO
-        subscription_payload, is_operational = SubscriptionService.get_subscription_details(db, store_id)
+        # ✅ 2. CHAMA O SERVIÇO COM O OBJETO JÁ CARREGADO
+        # A chamada agora é mais limpa e não acessa mais o banco.
+        subscription_payload, is_operational = SubscriptionService.get_subscription_details(store)
 
-        # Se a loja não estiver operacional, você pode decidir o que fazer.
-        # Por exemplo, emitir um evento de bloqueio e parar a execução.
         if not is_operational:
             print(f"🔒 Loja {store_id} não pode operar. Assinatura: {subscription_payload.get('status')}")
-            # Você poderia emitir um evento de 'loja bloqueada' aqui e retornar.
 
         # Validação do schema da loja e obtenção de ratings...
         store_schema = StoreDetails.model_validate(store)
