@@ -158,12 +158,18 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
         'id': efi_plan_id
     }
 
-    # ✅ CORREÇÃO APLICADA AQUI
-    # Cria uma cópia do dicionário de endereço para poder modificá-lo
+    # ✅ CORREÇÃO 1: Limpa o CEP do endereço
     billing_address_data = address.dict()
-    # Limpa o CEP, removendo tudo que não for um dígito
     if 'zipcode' in billing_address_data:
         billing_address_data['zipcode'] = re.sub(r'\D', '', billing_address_data['zipcode'])
+
+    # ✅ CORREÇÃO 2: Limpa o CPF do cliente
+    customer_data = customer.dict()
+    if 'cpf' in customer_data:
+        customer_data['cpf'] = re.sub(r'\D', '', customer_data['cpf'])
+    # Você pode adicionar a limpeza de outros campos formatados aqui, como o 'phoneNumber'
+    if 'phoneNumber' in customer_data:
+        customer_data['phoneNumber'] = re.sub(r'\D', '', customer_data['phoneNumber'])
 
     body = {
         'items': [
@@ -179,9 +185,9 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
         'payment': {
             'credit_card': {
                 'payment_token': payment_token,
-                # ✅ Usa o dicionário de endereço com o CEP já limpo
+                # ✅ Usa os dados de endereço e cliente já limpos
                 'billing_address': billing_address_data,
-                'customer': customer.dict()
+                'customer': customer_data
             }
         }
     }
@@ -206,8 +212,6 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
         )
 
     return result['data']
-
-
 
 
 def cancel_subscription(subscription_id):
