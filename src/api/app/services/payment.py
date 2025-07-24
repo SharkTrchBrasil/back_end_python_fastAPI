@@ -157,6 +157,13 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
         'id': efi_plan_id
     }
 
+    # ✅ CORREÇÃO APLICADA AQUI
+    # Cria uma cópia do dicionário de endereço para poder modificá-lo
+    billing_address_data = address.dict()
+    # Limpa o CEP, removendo tudo que não for um dígito
+    if 'zipcode' in billing_address_data:
+        billing_address_data['zipcode'] = re.sub(r'\D', '', billing_address_data['zipcode'])
+
     body = {
         'items': [
             {
@@ -171,7 +178,8 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
         'payment': {
             'credit_card': {
                 'payment_token': payment_token,
-                'billing_address': address.dict(),
+                # ✅ Usa o dicionário de endereço com o CEP já limpo
+                'billing_address': billing_address_data,
                 'customer': customer.dict()
             }
         }
@@ -179,23 +187,16 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
 
     result = efi.create_one_step_subscription(params=params, body=body)
 
-    # Adiciona um print mais descritivo para ajudar na depuração
     print('GATEWAY SUBSCRIPTION RESULT:', result)
 
-    # ✅ CORREÇÃO PRINCIPAL: Verifica se a resposta da Efí é um erro
-    # A biblioteca da Efí pode retornar um dicionário com a chave 'error' ou um código de status >= 400
+    # A lógica de tratamento de erro que implementamos antes continua aqui
     if 'error' in result or result.get('code', 200) >= 400:
-        # Pega a descrição do erro fornecida pela Efí, ou uma mensagem padrão
         error_description = result.get('error_description', 'Ocorreu um erro com o gateway de pagamento.')
-
-        # A melhor prática no FastAPI é levantar uma HTTPException.
-        # Isso enviará uma resposta de erro limpa (ex: 400 Bad Request) para o seu app Flutter.
         raise HTTPException(
             status_code=400,
             detail=f"Falha na criação da assinatura: {error_description}"
         )
 
-    # Se a resposta não for um erro, mas não contiver a chave 'data', é um problema inesperado.
     if 'data' not in result:
         print("ERRO INESPERADO: Resposta da Efí sem 'error' e sem 'data'. Resposta completa:", result)
         raise HTTPException(
@@ -203,8 +204,13 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
             detail="Resposta inesperada do gateway de pagamento."
         )
 
-    # Se tudo deu certo, retorna os dados da assinatura
     return result['data']
+
+
+
+
+
+
 
 def cancel_subscription(subscription_id):
     efi = get_master_efi_pay()
