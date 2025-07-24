@@ -1152,7 +1152,7 @@ class StoreSubscription(Base, TimestampMixin):
     status: Mapped[str] = mapped_column()  # ex: "active", "past_due", "canceled"
     current_period_start: Mapped[datetime] = mapped_column()
     current_period_end: Mapped[datetime] = mapped_column()
-
+    gateway_subscription_id: Mapped[str] = mapped_column()  # Preço do plano em CENTAVOS
     # Relacionamento com o plano principal assinado
     plan: Mapped["Plans"] = relationship(back_populates="subscriptions")
 

@@ -48,19 +48,22 @@ def new_subscription(
         )
         # --- Fim da lógica do Gateway ---
 
+        # Calcula a data de fim do primeiro período
+        start_date = datetime.utcnow()
+        # O 'interval' do seu plano está em meses
+        end_date = start_date + timedelta(days=plan.interval * 30)  # Estimativa de 30 dias/mês
+
         db_subscription = models.StoreSubscription(
             store_id=store.id,
             subscription_plan_id=plan.id,
             status=gateway_sub_response['status'],
+            gateway_subscription_id=gateway_sub_response.get('subscription_id'),
 
-            # ✅ CORREÇÃO CRÍTICA: Adiciona as datas retornadas pelo gateway
-            # (Ajuste os nomes das chaves 'start_date' e 'end_date' para corresponder à resposta real da sua API de pagamento)
-            current_period_start=gateway_sub_response.get('start_date', datetime.utcnow()),
-            current_period_end=gateway_sub_response.get('end_date'),
-
-            # ✅ SUGESTÃO: Usa o nome mais claro e salva o ID do gateway
-           # gateway_subscription_id=gateway_sub_response.get('subscription_id')
+            # ✅ CORREÇÃO: Usa as datas calculadas para o registro inicial
+            current_period_start=start_date,
+            current_period_end=end_date,
         )
+
     else:  # Lógica para plano gratuito
         # ✅ CORREÇÃO CRÍTICA: Define um período de validade para o plano gratuito
         start_date = datetime.utcnow()
@@ -69,7 +72,7 @@ def new_subscription(
         db_subscription = models.StoreSubscription(
             store_id=store.id,
             subscription_plan_id=plan.id,
-          #  gateway_subscription_id=None,
+            gateway_subscription_id= '',
             status='active',
             current_period_start=start_date,
             current_period_end=end_date,
