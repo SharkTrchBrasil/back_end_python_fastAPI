@@ -158,24 +158,8 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
         'id': efi_plan_id
     }
 
-    # Limpa o CEP do endereço
-    billing_address_data = address.dict()
-    if 'zipcode' in billing_address_data:
-        billing_address_data['zipcode'] = re.sub(r'\D', '', billing_address_data['zipcode'])
-
-    # Limpa os dados formatados do cliente
     customer_data = customer.dict()
-    if 'cpf' in customer_data:
-        customer_data['cpf'] = re.sub(r'\D', '', customer_data['cpf'])
-
-    # ✅ CORREÇÃO APLICADA AQUI: Renomeia e limpa o número de telefone
-    if 'phoneNumber' in customer_data:
-        # Pega o valor formatado da chave original
-        phone_number_value = customer_data['phoneNumber']
-        # Remove a chave original 'phoneNumber'
-        del customer_data['phoneNumber']
-        # Adiciona a nova chave 'phone_number' com o valor já limpo
-        customer_data['phone_number'] = re.sub(r'\D', '', phone_number_value)
+    billing_address_data = address.dict()
 
     body = {
         'items': [
@@ -192,7 +176,7 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
             'credit_card': {
                 'payment_token': payment_token,
                 'billing_address': billing_address_data,
-                'customer': customer_data  # Contém CPF e Telefone já limpos e renomeados
+                'customer': customer_data
             }
         }
     }
@@ -201,7 +185,7 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
 
     print('GATEWAY SUBSCRIPTION RESULT:', result)
 
-    # Lógica de tratamento de erro
+    # Lógica de tratamento de erro (mantida por segurança)
     if 'error' in result or result.get('code', 200) >= 400:
         error_description = result.get('error_description', 'Ocorreu um erro com o gateway de pagamento.')
         raise HTTPException(
@@ -217,6 +201,9 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
         )
 
     return result['data']
+
+
+
 
 def cancel_subscription(subscription_id):
     efi = get_master_efi_pay()
