@@ -47,8 +47,9 @@ class SubscriptionService:
             dynamic_status = "expired"
             warning_message = "Assinatura expirada. Funcionalidades bloqueadas."
 
-        # Construção do payload final
+
         payload = {
+            "plan_id": subscription_db.plan.id,  # 👈 novo campo
             "plan_name": subscription_db.plan.plan_name,
             "expiry_date": expiry_date.isoformat() + "Z",
             "features": all_features,
