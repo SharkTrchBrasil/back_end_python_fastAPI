@@ -167,7 +167,8 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
     customer_data = customer.dict()
     if 'cpf' in customer_data:
         customer_data['cpf'] = re.sub(r'\D', '', customer_data['cpf'])
-    # Você pode adicionar a limpeza de outros campos formatados aqui, como o 'phoneNumber'
+
+    # ✅ CORREÇÃO APLICADA AQUI: Limpa o número de telefone
     if 'phoneNumber' in customer_data:
         customer_data['phoneNumber'] = re.sub(r'\D', '', customer_data['phoneNumber'])
 
