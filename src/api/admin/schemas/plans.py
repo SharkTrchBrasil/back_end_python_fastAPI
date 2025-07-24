@@ -24,6 +24,8 @@ class PlanSchema(BaseModel):
 
 
 
+
+
     # Campo "real" que vem do SQLAlchemy
     included_features: list[PlanFeatureAssociationSchema]
 
