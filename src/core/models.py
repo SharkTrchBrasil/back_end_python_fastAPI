@@ -1162,23 +1162,28 @@ class StoreSubscription(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
 
+
 class Plans(Base, TimestampMixin):
     __tablename__ = "plans"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     plan_name: Mapped[str] = mapped_column()
     price: Mapped[int] = mapped_column()  # Preço do plano em CENTAVOS
-    interval: Mapped[int] = mapped_column()  # Intervalo em dias/meses
+    interval: Mapped[int] = mapped_column()  # Intervalo em meses
     available: Mapped[bool] = mapped_column(default=True)
 
+    # ✅ Campo 'repeats' adicionado com a nova sintaxe e como opcional
+    # Permite 'None' para assinaturas infinitas
+    repeats: Mapped[int | None] = mapped_column(nullable=True)
+
     # Relacionamento para ver as features INCLUSAS neste plano.
-    included_features: Mapped[list["PlansFeature"]] = relationship(
+    included_features: Mapped[List["PlansFeature"]] = relationship(
         back_populates="plan",
         cascade="all, delete-orphan"
     )
 
     # Relacionamento para ver todas as assinaturas ativas deste plano.
-    subscriptions: Mapped[list["StoreSubscription"]] = relationship(
+    subscriptions: Mapped[List["StoreSubscription"]] = relationship(
         back_populates="plan"
     )
 

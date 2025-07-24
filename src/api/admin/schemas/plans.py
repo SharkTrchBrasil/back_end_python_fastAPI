@@ -19,7 +19,10 @@ class PlanSchema(BaseModel):
     plan_name: str
     price: int
     interval: int
+    repeats: int
     available: bool
+
+
 
     # Campo "real" que vem do SQLAlchemy
     included_features: list[PlanFeatureAssociationSchema]
