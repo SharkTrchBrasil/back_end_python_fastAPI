@@ -9,7 +9,9 @@ from src.core.database import GetDBDep
 router = APIRouter(tags=["Subscriptions"], prefix="/webhook")
 
 
-@router.post("")
+# ✅ CORREÇÃO APLICADA AQUI:
+# A rota agora é "/subscriptions", resultando na URL final "/webhook/subscriptions"
+@router.post("/subscriptions")
 def post_notification(
         db: GetDBDep,
         notification: Annotated[str, Form()]
@@ -41,9 +43,9 @@ def post_notification(
             print(f"Webhook com dados incompletos: {last_subscription_event}")
             return Response(status_code=status.HTTP_200_OK)
 
-        # ✅ 4. Busca a assinatura no seu banco usando a coluna correta
+        # 4. Busca a assinatura no seu banco usando a coluna correta
         db_subscription = db.query(models.StoreSubscription).filter_by(
-            gateway_subscription_id=gateway_subscription_id
+            gateway_subscription_id=str(gateway_subscription_id) # Garante que o tipo é string
         ).first()
 
         if not db_subscription:
@@ -54,19 +56,15 @@ def post_notification(
         db_subscription.status = new_status
         print(f"Assinatura {db_subscription.id} atualizada para o status: {new_status}")
 
-        # ✅ 6. LÓGICA DE DOWNGRADE CORRIGIDA
+        # 6. Lógica de Downgrade
         if new_status == 'canceled':
-            # Busca o plano gratuito disponível
             free_plan = db.query(models.Plans).filter_by(price=0, available=True).first()
 
             if free_plan:
                 print(f"Realizando downgrade da loja {db_subscription.store_id} para o plano gratuito.")
-                # Modifica a assinatura EXISTENTE em vez de criar uma nova
                 db_subscription.subscription_plan_id = free_plan.id
-                db_subscription.gateway_subscription_id = None  # Limpa o ID do gateway antigo
-                db_subscription.status = 'active'  # A assinatura agora está ativa no plano gratuito
-
-                # Define um novo período de validade longo para o plano gratuito
+                db_subscription.gateway_subscription_id = None
+                db_subscription.status = 'active'
                 db_subscription.current_period_start = datetime.utcnow()
                 db_subscription.current_period_end = datetime.utcnow() + timedelta(days=365 * 100)
             else:
@@ -75,11 +73,10 @@ def post_notification(
         db.commit()
 
     except Exception as e:
-        # Em caso de qualquer erro, desfaz as alterações e registra o problema
         db.rollback()
         print(f"❌ Erro crítico ao processar webhook: {e}")
-        # Ainda retorna 200 para que o gateway não tente reenviar
+        # Retorna 500 para indicar um erro interno, mas o gateway pode tentar reenviar.
+        # Em produção, você pode querer manter 200 para evitar reenvios em loop.
         return Response(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    # 💡 Boa prática: Sempre retorne 200 OK para o gateway para confirmar o recebimento.
     return Response(status_code=status.HTTP_200_OK)
