@@ -1,3 +1,4 @@
+import re
 import tempfile
 import time
 
@@ -205,9 +206,6 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
         )
 
     return result['data']
-
-
-
 
 
 
