@@ -302,7 +302,7 @@ async def emit_new_order_notification(db, store_id: int, order_id: int):
         print(f"❌ Erro ao emitir notificação de novo pedido: {e.__class__.__name__}: {e}")
 
 
-# no seu arquivo de emitters
+
 
 async def admin_emit_new_print_jobs(store_id: int, order_id: int, jobs: list):
     """
