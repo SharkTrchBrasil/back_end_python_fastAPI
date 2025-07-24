@@ -2,6 +2,7 @@ import tempfile
 import time
 
 from efipay import EfiPay
+from fastapi import HTTPException
 
 from src.api.admin.schemas.pix_config import StorePixConfig
 from src.core.config import config
@@ -150,8 +151,6 @@ def create_plan(name, repeats, interval):
 def create_subscription(efi_plan_id, plan, payment_token, customer, address):
     efi = get_master_efi_pay()
 
-
-    # A URL do seu backend + a rota específica para webhooks de assinaturas
     notification_url_subscriptions = "https://api-pdvix-production.up.railway.app/webhook/subscriptions"
 
     params = {
@@ -179,9 +178,33 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
     }
 
     result = efi.create_one_step_subscription(params=params, body=body)
-    print('RESULT', result)
-    return result['data']
 
+    # Adiciona um print mais descritivo para ajudar na depuração
+    print('GATEWAY SUBSCRIPTION RESULT:', result)
+
+    # ✅ CORREÇÃO PRINCIPAL: Verifica se a resposta da Efí é um erro
+    # A biblioteca da Efí pode retornar um dicionário com a chave 'error' ou um código de status >= 400
+    if 'error' in result or result.get('code', 200) >= 400:
+        # Pega a descrição do erro fornecida pela Efí, ou uma mensagem padrão
+        error_description = result.get('error_description', 'Ocorreu um erro com o gateway de pagamento.')
+
+        # A melhor prática no FastAPI é levantar uma HTTPException.
+        # Isso enviará uma resposta de erro limpa (ex: 400 Bad Request) para o seu app Flutter.
+        raise HTTPException(
+            status_code=400,
+            detail=f"Falha na criação da assinatura: {error_description}"
+        )
+
+    # Se a resposta não for um erro, mas não contiver a chave 'data', é um problema inesperado.
+    if 'data' not in result:
+        print("ERRO INESPERADO: Resposta da Efí sem 'error' e sem 'data'. Resposta completa:", result)
+        raise HTTPException(
+            status_code=500,
+            detail="Resposta inesperada do gateway de pagamento."
+        )
+
+    # Se tudo deu certo, retorna os dados da assinatura
+    return result['data']
 
 def cancel_subscription(subscription_id):
     efi = get_master_efi_pay()
