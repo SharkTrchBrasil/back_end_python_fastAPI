@@ -158,19 +158,24 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
         'id': efi_plan_id
     }
 
-    # ✅ CORREÇÃO 1: Limpa o CEP do endereço
+    # Limpa o CEP do endereço
     billing_address_data = address.dict()
     if 'zipcode' in billing_address_data:
         billing_address_data['zipcode'] = re.sub(r'\D', '', billing_address_data['zipcode'])
 
-    # ✅ CORREÇÃO 2: Limpa o CPF do cliente
+    # Limpa os dados formatados do cliente
     customer_data = customer.dict()
     if 'cpf' in customer_data:
         customer_data['cpf'] = re.sub(r'\D', '', customer_data['cpf'])
 
-    # ✅ CORREÇÃO APLICADA AQUI: Limpa o número de telefone
+    # ✅ CORREÇÃO APLICADA AQUI: Renomeia e limpa o número de telefone
     if 'phoneNumber' in customer_data:
-        customer_data['phoneNumber'] = re.sub(r'\D', '', customer_data['phoneNumber'])
+        # Pega o valor formatado da chave original
+        phone_number_value = customer_data['phoneNumber']
+        # Remove a chave original 'phoneNumber'
+        del customer_data['phoneNumber']
+        # Adiciona a nova chave 'phone_number' com o valor já limpo
+        customer_data['phone_number'] = re.sub(r'\D', '', phone_number_value)
 
     body = {
         'items': [
@@ -186,9 +191,8 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
         'payment': {
             'credit_card': {
                 'payment_token': payment_token,
-                # ✅ Usa os dados de endereço e cliente já limpos
                 'billing_address': billing_address_data,
-                'customer': customer_data
+                'customer': customer_data  # Contém CPF e Telefone já limpos e renomeados
             }
         }
     }
@@ -197,7 +201,7 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
 
     print('GATEWAY SUBSCRIPTION RESULT:', result)
 
-    # A lógica de tratamento de erro que implementamos antes continua aqui
+    # Lógica de tratamento de erro
     if 'error' in result or result.get('code', 200) >= 400:
         error_description = result.get('error_description', 'Ocorreu um erro com o gateway de pagamento.')
         raise HTTPException(
@@ -213,7 +217,6 @@ def create_subscription(efi_plan_id, plan, payment_token, customer, address):
         )
 
     return result['data']
-
 
 def cancel_subscription(subscription_id):
     efi = get_master_efi_pay()
