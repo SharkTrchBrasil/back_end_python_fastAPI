@@ -19,7 +19,7 @@ class PlanSchema(BaseModel):
     plan_name: str
     price: int
     interval: int
-    repeats: int
+    repeats: int | None
     available: bool
 
 
