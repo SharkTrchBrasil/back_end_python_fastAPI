@@ -1,46 +1,77 @@
+import jwt
 from src.core import models
-from src.socketio_instance import sio
+# ✅ CORREÇÃO: Importa as constantes do local correto
+from src.core.security import SECRET_KEY, ALGORITHM
 
-
-async def authorize_admin(db, token: str):
+# Esta função é para autorizar TOTENS, não admins. Vamos renomeá-la para clareza.
+async def authorize_totem_by_device_token(db, token: str):
     totem = db.query(models.TotemAuthorization).filter(
         models.TotemAuthorization.totem_token == token,
         models.TotemAuthorization.granted.is_(True),
     ).first()
-
     if not totem or not totem.granted_by_id:
         return None
-
-    # 🔍 Busca todas as lojas que o usuário tem acesso
-    accesses = db.query(models.StoreAccess).filter_by(user_id=totem.granted_by_id).all()
-    totem.stores = [access.store for access in accesses]
     return totem
 
+# ✅ NOVA FUNÇÃO: Esta função sabe como lidar com o JWT do admin.
+async def authorize_admin_by_jwt(db, token: str):
+    """
+    Autoriza um administrador decodificando seu JWT.
+    Retorna o objeto do usuário (models.User) se o token for válido.
+    """
+    try:
+        # Decodifica o payload do JWT usando a chave secreta
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            return None
 
-# async def authorize_admin(db, token: str):
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        # Trata ambos os erros de token inválido ou expirado
+        print(f"Token JWT inválido ou expirado: {token[:10]}...")
+        return None
+
+    # Busca o usuário no banco de dados pelo email (que está no 'sub' do token)
+    user = db.query(models.User).filter(models.User.email == username).first()
+    return user
+
+
+
+
+
+# import jwt
+# from src.core import models
+# # ✅ CORREÇÃO: Importa as constantes do local correto
+# from src.core.security import SECRET_KEY, ALGORITHM
+#
+# # Esta função é para autorizar TOTENS, não admins. Vamos renomeá-la para clareza.
+# async def authorize_totem_by_device_token(db, token: str):
 #     totem = db.query(models.TotemAuthorization).filter(
 #         models.TotemAuthorization.totem_token == token,
 #         models.TotemAuthorization.granted.is_(True),
 #     ).first()
-#     if not totem or not totem.store:
+#     if not totem or not totem.granted_by_id:
 #         return None
 #     return totem
-
-async def update_sid(db, totem, sid: str):
-    totem.sid = sid
-    db.commit()
-
-async def enter_store_room(sid: str, store_id: int, namespace: str = '/admin'):
-    """Versão corrigida que inclui o namespace"""
-    room_name = f"store_{store_id}"
-    try:
-        await sio.enter_room(sid, room_name, namespace=namespace)
-        print(f"✅ [SOCKET.IO] Entrou na room {room_name} (namespace: {namespace})")
-        return room_name
-    except Exception as e:
-        print(f"❌ [SOCKET.IO] Erro ao entrar na room: {str(e)}")
-        raise
-
-
-
-
+#
+# # ✅ NOVA FUNÇÃO: Esta função sabe como lidar com o JWT do admin.
+# async def authorize_admin_by_jwt(db, token: str):
+#     """
+#     Autoriza um administrador decodificando seu JWT.
+#     Retorna o objeto do usuário (models.User) se o token for válido.
+#     """
+#     try:
+#         # Decodifica o payload do JWT usando a chave secreta
+#         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+#         username: str = payload.get("sub")
+#         if username is None:
+#             return None
+#
+#     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+#         # Trata ambos os erros de token inválido ou expirado
+#         print(f"Token JWT inválido ou expirado: {token[:10]}...")
+#         return None
+#
+#     # Busca o usuário no banco de dados pelo email (que está no 'sub' do token)
+#     user = db.query(models.User).filter(models.User.email == username).first()
+#     return user
