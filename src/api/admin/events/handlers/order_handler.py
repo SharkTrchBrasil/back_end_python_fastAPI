@@ -186,6 +186,7 @@ async def handle_claim_print_job(self, sid, data):
 
 
 
+
 async def process_new_order_automations(db, order):
     """
     Processa as automações de auto-accept e auto-print para um novo pedido.
@@ -202,27 +203,38 @@ async def process_new_order_automations(db, order):
     # 2. Lógica de Auto-Print
     jobs_to_emit = []
     if store_settings.auto_print_orders:
-        # (Aqui entra sua lógica para definir os destinos baseados na config da loja)
-        # Exemplo simplificado, usando os campos que criamos no StoreSettings:
         destinations = []
         if store_settings.main_printer_destination:
             destinations.append(store_settings.main_printer_destination)
         if store_settings.kitchen_printer_destination:
             destinations.append(store_settings.kitchen_printer_destination)
+        # Adicione aqui o bar_printer_destination se necessário
 
-        # Garante que não haja destinos duplicados
         unique_destinations = set(destinations)
 
+        # --- LÓGICA CORRIGIDA ---
+
+        # Primeiro, criamos os objetos e os guardamos em uma lista temporária
+        new_job_objects = []
         for dest in unique_destinations:
-            # Cria um "trabalho de impressão" pendente no banco
             new_job = models.OrderPrintLog(
                 order_id=order.id,
                 printer_destination=dest,
                 status='pending'
             )
             db.add(new_job)
-            # Adicionamos à lista para emitir no socket após o commit
-            jobs_to_emit.append({'id': new_job.id, 'destination': dest})
+            new_job_objects.append(new_job)
+
+        # ✅ PASSO CRUCIAL: "Descarrega" a sessão no banco.
+        # Isso força a geração dos IDs para os objetos em new_job_objects
+        # sem finalizar a transação (commit).
+        db.flush()
+
+        # Agora que os IDs existem, montamos a lista para o evento
+        for job in new_job_objects:
+            jobs_to_emit.append({'id': job.id, 'destination': job.destination})
+
+        # --- FIM DA LÓGICA CORRIGIDA ---
 
         print(f"Criados {len(jobs_to_emit)} trabalhos de impressão para o pedido {order.id}.")
 
@@ -238,6 +250,9 @@ async def process_new_order_automations(db, order):
     if jobs_to_emit:
         # Emite o NOVO evento com a ordem para imprimir
         await admin_emit_new_print_jobs(order.store_id, order.id, jobs_to_emit)
+
+
+
 
 
 async def claim_specific_print_job(sid, data):
