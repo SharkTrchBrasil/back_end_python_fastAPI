@@ -185,10 +185,10 @@ async def handle_claim_print_job(self, sid, data):
             return {'error': 'Falha interna'}
 
 
-
-
 async def process_new_order_automations(db, order):
-
+    """
+    Processa as automações de auto-accept e auto-print para um novo pedido.
+    """
     store_settings = order.store.settings
     did_status_change = False
 
@@ -210,9 +210,6 @@ async def process_new_order_automations(db, order):
 
         unique_destinations = set(destinations)
 
-        # --- LÓGICA CORRIGIDA ---
-
-        # Primeiro, criamos os objetos e os guardamos em uma lista temporária
         new_job_objects = []
         for dest in unique_destinations:
             new_job = models.OrderPrintLog(
@@ -223,34 +220,27 @@ async def process_new_order_automations(db, order):
             db.add(new_job)
             new_job_objects.append(new_job)
 
-        # ✅ PASSO CRUCIAL: "Descarrega" a sessão no banco.
-        # Isso força a geração dos IDs para os objetos em new_job_objects
-        # sem finalizar a transação (commit).
         db.flush()
 
         # Agora que os IDs existem, montamos a lista para o evento
         for job in new_job_objects:
-            jobs_to_emit.append({'id': job.id, 'destination': job.destination})
-
-        # --- FIM DA LÓGICA CORRIGIDA ---
+            # ✅ CORREÇÃO APLICADA AQUI:
+            # Usamos 'job.printer_destination' (o nome correto do campo no modelo)
+            # para criar a chave 'destination' no dicionário.
+            jobs_to_emit.append({'id': job.id, 'destination': job.printer_destination})
 
         print(f"Criados {len(jobs_to_emit)} trabalhos de impressão para o pedido {order.id}.")
 
     # 3. Salva as mudanças no banco
     db.commit()
-    db.refresh(order)  # Atualiza o objeto 'order' com os novos dados do DB
+    db.refresh(order)
 
     # 4. Emite os eventos para os clientes
     if did_status_change:
-        # Emite a atualização de status normal para a UI
         await admin_emit_order_updated_from_obj(order)
 
     if jobs_to_emit:
-        # Emite o NOVO evento com a ordem para imprimir
         await admin_emit_new_print_jobs(order.store_id, order.id, jobs_to_emit)
-
-
-
 
 
 async def claim_specific_print_job(sid, data):
