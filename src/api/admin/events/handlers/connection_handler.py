@@ -15,6 +15,7 @@ from src.socketio_instance import sio
 from src.api.admin.utils.authorize_admin import authorize_admin_by_jwt
 
 
+
 async def handle_admin_connect(self, sid, environ):
     print(f"[ADMIN] Tentativa de conexão: {sid}")
 
@@ -28,70 +29,51 @@ async def handle_admin_connect(self, sid, environ):
 
     with get_db_manager() as db:
         try:
-            # ✅ CORREÇÃO: Usa a nova função que entende JWTs
-            totem_auth_user = await authorize_admin_by_jwt(db, token)
+            # ✅ CORREÇÃO 1: A variável agora contém um objeto User.
+            # Renomeado de 'totem_auth_user' para 'admin_user' para maior clareza.
+            admin_user = await authorize_admin_by_jwt(db, token)
 
-            if not totem_auth_user or not totem_auth_user.id:
+            if not admin_user or not admin_user.id:
                 print(f"⚠️ Admin {sid} conectado, mas não autorizado pelo JWT.")
                 raise ConnectionRefusedError("Acesso negado: Admin inválido.")
 
-            admin_id = totem_auth_user.id
-            print(f"✅ Admin {totem_auth_user.email} (ID: {admin_id}) autenticado com sucesso.")
+            admin_id = admin_user.id
+            print(f"✅ Admin {admin_user.email} (ID: {admin_id}) autenticado com sucesso.")
 
-            # ✨ LÓGICA DE SESSÃO ÚNICA ✨
-            # 1. Procura por sessões ANTIGAS do mesmo usuário
+            # Lógica de sessão única
             old_sessions = db.query(models.StoreSession).filter(
                 models.StoreSession.user_id == admin_id,
                 models.StoreSession.client_type == 'admin',
-                models.StoreSession.sid != sid  # Exclui a sessão atual que estamos criando
+                models.StoreSession.sid != sid
             ).all()
 
             if old_sessions:
                 print(
                     f"🔌 Encontrada(s) {len(old_sessions)} sessão(ões) antiga(s) para o admin {admin_id}. Desconectando...")
                 for old_session in old_sessions:
-                    # 2. Manda um comando para o cliente antigo se desconectar
                     await sio.disconnect(old_session.sid, namespace='/admin')
-                    # 3. Remove a sessão antiga do banco de dados
                     db.delete(old_session)
                 db.commit()
 
-
-
-            # --- NOVO: Entrar na sala de notificações pessoal e global ---
-            # Este é o canal para notificações leves de TODAS as lojas do admin.
+            # Entrar na sala de notificações
             notification_room = f"admin_notifications_{admin_id}"
             await self.enter_room(sid, notification_room)
             print(f"✅ Admin {sid} (ID: {admin_id}) entrou na sala de notificações: {notification_room}")
-            # --- FIM DA MUDANÇA ---
 
-
-            # Busca todas as lojas às quais o admin tem acesso com a role 'admin'
+            # ✅ CORREÇÃO 2: Passa o objeto 'admin_user' correto para o serviço.
             all_accessible_store_ids = StoreAccessService.get_accessible_store_ids_with_fallback(
-                db, totem_auth_user
+                db, admin_user
             )
 
-            print(
-                f"DEBUG: all_accessible_store_ids para admin {admin_id} (por machine_name): {all_accessible_store_ids}")
-
-            # Fallback: Se não houver StoreAccess explícito para role 'admin',
-            # adiciona a loja principal associada diretamente ao usuário autenticado (se houver).
-            if not all_accessible_store_ids and totem_auth_user.store_id:
-                all_accessible_store_ids.append(totem_auth_user.store_id)
-                print(
-                    f"DEBUG: Adicionada store_id do usuário autenticado como fallback: {totem_auth_user.store_id}")
-
-            # 3. Recupera as lojas que o admin selecionou para consolidação (persistido no DB)
+            # Lógica de lojas consolidadas
             consolidated_store_ids = list(db.execute(
                 select(models.AdminConsolidatedStoreSelection.store_id).where(
                     models.AdminConsolidatedStoreSelection.admin_id == admin_id
                 )
             ).scalars())
 
-            # 4. Se vazio, seleciona a primeira loja da lista de acessíveis e salva no DB como padrão
             if not consolidated_store_ids and all_accessible_store_ids:
                 loja_padrao = all_accessible_store_ids[0]
-
                 try:
                     nova_selecao = models.AdminConsolidatedStoreSelection(
                         admin_id=admin_id,
@@ -105,32 +87,21 @@ async def handle_admin_connect(self, sid, environ):
                     db.rollback()
                     print(f"❌ Erro ao definir loja padrão: {e}")
 
-            # 4. Criar/atualizar sessão na tabela store_sessions
-
+            # Criar/atualizar sessão
             SessionService.create_or_update_session(
                 db,
                 sid=sid,
-                user_id=admin_id,  # Adicione este parâmetro
+                user_id=admin_id,
                 store_id=consolidated_store_ids[0] if consolidated_store_ids else None,
                 client_type="admin"
             )
-
-
 
             print(
                 f"✅ Session criada/atualizada para sid {sid} com lojas consolidadas:"
                 f" {consolidated_store_ids}"
             )
 
-
-            # # 5. Fazer o SID entrar nas rooms de TODAS as lojas consolidadas
-            # for store_id_to_join in consolidated_store_ids:
-            #     room = f"admin_store_{store_id_to_join}"
-            #     await self.enter_room(sid, room)
-            #     print(f"✅ Admin {sid} entrou na room para consolidação: {room}")
-            #     await self._emit_initial_data(db, store_id_to_join, sid)
-
-            # 6. Enviar a lista COMPLETA de lojas que o admin tem acesso (para o seletor)
+            # Enviar a lista COMPLETA de lojas que o admin tem acesso
             stores_list_data = []
             accessible_stores_objs = db.query(models.Store).filter(
                 models.Store.id.in_(all_accessible_store_ids)).all()
@@ -142,20 +113,11 @@ async def handle_admin_connect(self, sid, environ):
                     "is_consolidated": store.id in consolidated_store_ids,
                 })
 
-            # Se ainda não houver lojas na lista (muito improvável após os filtros),
-            # e totem_auth_user.store_id existir e não estiver já na lista, adicione a principal.
-            # Isso cobre casos onde all_accessible_store_ids foi populado apenas pelo fallback.
+            # ✅ CORREÇÃO 3: O bloco de código que causava o erro foi REMOVIDO.
+            # O objeto 'admin_user' é do tipo 'User' e não tem o atributo 'store_id'.
+            # O 'StoreAccessService' já lida corretamente com a busca de todas as lojas,
+            # tornando este "fallback" desnecessário e incorreto.
 
-            print(f"DEBUG BACKEND: [3] stores_list_data ANTES do fallback user_main_store: {stores_list_data}")
-            if totem_auth_user.store_id and totem_auth_user.store_id not in [s['id'] for s in stores_list_data]:
-                # Garante que 'store' está carregado no totem_auth_user
-                user_main_store = db.query(models.Store).filter_by(id=totem_auth_user.store_id).first()
-                if user_main_store:
-                    stores_list_data.append({
-                        "id": user_main_store.id,
-                        "name": user_main_store.name,
-                        "is_consolidated": user_main_store.id in consolidated_store_ids,
-                    })
             print(f"DEBUG BACKEND: [4] stores_list_data FINAL enviado via 'admin_stores_list': {stores_list_data}")
             await self.emit("admin_stores_list", {"stores": stores_list_data}, to=sid)
             await self.emit("consolidated_stores_updated", {"store_ids": consolidated_store_ids}, to=sid)
