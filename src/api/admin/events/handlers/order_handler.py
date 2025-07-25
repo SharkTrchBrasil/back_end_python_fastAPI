@@ -188,9 +188,7 @@ async def handle_claim_print_job(self, sid, data):
 
 
 async def process_new_order_automations(db, order):
-    """
-    Processa as automações de auto-accept e auto-print para um novo pedido.
-    """
+
     store_settings = order.store.settings
     did_status_change = False
 
