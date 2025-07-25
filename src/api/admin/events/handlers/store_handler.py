@@ -68,8 +68,6 @@ async def handle_set_consolidated_stores(self, sid, data):
 
 async def handle_update_store_settings(self, sid, data):
     with get_db_manager() as db:
-
-
         session = SessionService.get_session(db, sid, client_type="admin")
 
         if not session:
@@ -90,11 +88,9 @@ async def handle_update_store_settings(self, sid, data):
 
         admin_id = totem_auth_user.id
 
-        # *** CORREÇÃO APLICADA AQUI: Adicionar a lógica de busca de lojas acessíveis ***
         all_accessible_store_ids_for_admin = StoreAccessService.get_accessible_store_ids_with_fallback(db,
                                                                                                        totem_auth_user)
 
-        # Fallback para adicionar a loja principal do usuário se não estiver nas acessíveis
         if not all_accessible_store_ids_for_admin and totem_auth_user.store_id:
             all_accessible_store_ids_for_admin.append(totem_auth_user.store_id)
 
@@ -110,16 +106,21 @@ async def handle_update_store_settings(self, sid, data):
             return {"error": "Configurações não encontradas para esta loja."}
 
         try:
-            for field in [
+            # ✅ CORREÇÃO APLICADA AQUI
+            # Adicionamos os novos campos de destino da impressora à lista de campos atualizáveis.
+            updatable_fields = [
                 "is_delivery_active", "is_takeout_active", "is_table_service_active",
-                "is_store_open", "auto_accept_orders", "auto_print_orders"
-            ]:
+                "is_store_open", "auto_accept_orders", "auto_print_orders",
+                "main_printer_destination", "kitchen_printer_destination", "bar_printer_destination"
+            ]
+
+            for field in updatable_fields:
                 if field in data:
                     setattr(settings, field, data[field])
 
             db.commit()
             db.refresh(settings)
-            db.refresh(store)  # Refresh na store para garantir que as configurações sejam atualizadas ao emitir
+            db.refresh(store)
 
             await admin_emit_store_updated(store)
             await admin_emit_store_full_updated(db, store.id)
@@ -130,6 +131,7 @@ async def handle_update_store_settings(self, sid, data):
             db.rollback()
             print(f"❌ Erro ao atualizar configurações da loja: {str(e)}")
             return {"error": str(e)}
+
 
 
 async def handle_join_store_room(self, sid, data):

@@ -121,24 +121,34 @@ def create_store(
     db_store_access = models.StoreAccess(user=user, role=db_role, store=db_store)
     db.add(db_store_access)
 
-    subscription_plan = db.query(models.Plans).filter(models.Plans.available, models.Plans.price == 0).first()
-    if subscription_plan is None:
-        raise HTTPException(status_code=404, detail="Base subscription plan not found")
+    # Busca pelo plano gratuito ("Essencial") no banco de dados
+    free_plan = db.query(models.Plans).filter_by(price=0, available=True).first()
 
-    # Plano gratuito com 7 dias
-    start = datetime.utcnow()
-    end = start + timedelta(days=7)
+    # Validação crítica: Garante que um plano gratuito exista no sistema.
+    # Sem ele, o modelo de negócio não funciona.
+    if not free_plan:
+        db.rollback()  # Desfaz a criação da loja para manter a consistência dos dados
+        raise HTTPException(
+            status_code=500,  # Erro interno do servidor
+            detail="Erro de configuração do sistema: Nenhum plano gratuito foi encontrado."
+        )
 
+    # Define o período da assinatura gratuita como "infinita" (ex: 100 anos)
+    start_date = datetime.utcnow()
+    end_date = start_date + timedelta(days=365 * 100)
+
+    # Cria a assinatura inicial para a nova loja, já no plano gratuito
     store_subscription = models.StoreSubscription(
-        store=db_store,
-        plan=subscription_plan,
+        store=db_store,  # 'db_store' é a loja que acabou de ser criada no passo anterior
+        plan=free_plan,
         status="active",
-        is_recurring=False,
-        current_period_start=start,
-        current_period_end=end
+        current_period_start=start_date,
+        current_period_end=end_date,
+        gateway_subscription_id=None  # Plano gratuito não tem ID de gateway
     )
     db.add(store_subscription)
-    # Comita tudo junto
+
+    # Comita a criação da loja e da sua assinatura inicial juntas
     db.commit()
     return db_store_access
 
