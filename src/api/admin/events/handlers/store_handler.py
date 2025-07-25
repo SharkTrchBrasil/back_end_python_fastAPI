@@ -7,12 +7,9 @@ from src.api.admin.services.store_session_service import SessionService
 from src.api.admin.utils.authorize_admin import authorize_admin_by_jwt
 from src.core import models
 from src.api.admin.socketio.emitters import (
-
     admin_emit_store_full_updated,
-
     admin_emit_store_updated,
 )
-
 from src.core.database import get_db_manager
 
 
@@ -28,21 +25,17 @@ async def handle_set_consolidated_stores(self, sid, data):
         with get_db_manager() as db:
             session = SessionService.get_session(db, sid)
 
-            # ✨ CORREÇÃO AQUI: Verificamos 'user_id'
             if not session or not session.user_id:
                 return {"error": "Sessão não autorizada"}
 
-            # ✨ E AQUI: Usamos 'user_id'
             admin_id = session.user_id
 
-            # Deleta todas as seleções antigas do admin de uma vez
             db.execute(
                 delete(models.AdminConsolidatedStoreSelection).where(
                     models.AdminConsolidatedStoreSelection.admin_id == admin_id
                 )
             )
 
-            # Adiciona as novas seleções
             for store_id in selected_store_ids:
                 new_selection = models.AdminConsolidatedStoreSelection(
                     admin_id=admin_id, store_id=store_id
@@ -67,6 +60,7 @@ async def handle_set_consolidated_stores(self, sid, data):
         print(f"❌ Erro em on_set_consolidated_stores: {str(e)}")
         return {"error": f"Falha interna: {str(e)}"}
 
+
 async def handle_update_store_settings(self, sid, data):
     with get_db_manager() as db:
         session = SessionService.get_session(db, sid, client_type="admin")
@@ -83,17 +77,17 @@ async def handle_update_store_settings(self, sid, data):
         if not admin_token:
             return {"error": "Token de admin não encontrado na sessão."}
 
-        totem_auth_user = await authorize_admin_by_jwt(db, admin_token)
-        if not totem_auth_user or not totem_auth_user.id:
+        # ✅ CORREÇÃO 1: Renomeado para clareza.
+        admin_user = await authorize_admin_by_jwt(db, admin_token)
+        if not admin_user or not admin_user.id:
             return {"error": "Admin não autorizado."}
 
-        admin_id = totem_auth_user.id
-
+        # A fonte de verdade para as lojas acessíveis.
         all_accessible_store_ids_for_admin = StoreAccessService.get_accessible_store_ids_with_fallback(db,
-                                                                                                       totem_auth_user)
+                                                                                                       admin_user)
 
-        if not all_accessible_store_ids_for_admin and totem_auth_user.store_id:
-            all_accessible_store_ids_for_admin.append(totem_auth_user.store_id)
+        # ✅ CORREÇÃO 2: Bloco de fallback que causava o erro foi REMOVIDO.
+        # A linha "if not ... and admin_user.store_id:" foi removida.
 
         if requested_store_id not in all_accessible_store_ids_for_admin:
             return {'error': 'Acesso negado: Você não tem permissão para gerenciar esta loja.'}
@@ -107,8 +101,6 @@ async def handle_update_store_settings(self, sid, data):
             return {"error": "Configurações não encontradas para esta loja."}
 
         try:
-            # ✅ CORREÇÃO APLICADA AQUI
-            # Adicionamos os novos campos de destino da impressora à lista de campos atualizáveis.
             updatable_fields = [
                 "is_delivery_active", "is_takeout_active", "is_table_service_active",
                 "is_store_open", "auto_accept_orders", "auto_print_orders",
@@ -134,23 +126,19 @@ async def handle_update_store_settings(self, sid, data):
             return {"error": str(e)}
 
 
-
 async def handle_join_store_room(self, sid, data):
     """
     Inscreve um admin na sala de uma loja específica para receber dados detalhados.
-    Este evento é chamado pelo cliente quando o usuário troca de loja na UI.
     """
     try:
         store_id = data.get("store_id")
         if not store_id:
-            print(f"❌ [join_store_room] sid {sid} enviou um pedido sem store_id.")
             return {'status': 'error', 'message': 'store_id é obrigatório'}
 
         with get_db_manager() as db:
             session = SessionService.get_session(db, sid, client_type="admin")
 
             if not session:
-                print(f"❌ [join_store_room] Sessão não encontrada para sid {sid}.")
                 return {'status': 'error', 'message': 'Sessão inválida.'}
 
             if session.store_id and session.store_id != store_id:
@@ -162,12 +150,8 @@ async def handle_join_store_room(self, sid, data):
             await self.enter_room(sid, new_room)
             print(f"✅ [join_store_room] Admin {sid} entrou na sala dinâmica: {new_room}")
 
-            # ✨ CORREÇÃO APLICADA AQUI ✨
-            # Usamos o novo método, mais simples e específico para esta tarefa.
-            # Ele apenas atualiza o store_id da sessão existente.
             SessionService.update_session_store(db, sid=sid, store_id=store_id)
 
-            # Envia a carga inicial de dados (pedidos, produtos, etc.) para a nova sala.
             await self._emit_initial_data(db, store_id, sid)
 
             return {'status': 'success', 'joined_room': new_room}
@@ -177,33 +161,27 @@ async def handle_join_store_room(self, sid, data):
         return {'status': 'error', 'message': 'Erro interno do servidor.'}
 
 
-
 async def handle_leave_store_room(self, sid, data):
     """
     Remove um admin da sala de uma loja específica.
-    Usa a lógica segura da versão original com o feedback da segunda versão.
     """
     try:
         store_id = data.get("store_id")
         if not store_id:
-            print(f"❌ [leave_store_room] sid {sid} enviou um pedido sem store_id.")
             return {'status': 'error', 'message': 'store_id é obrigatório'}
 
         with get_db_manager() as db:
             session = SessionService.get_session(db, sid, client_type="admin")
 
             if not session:
-                print(f"❌ [leave_store_room] Sessão não encontrada para sid {sid}.")
                 return {'status': 'error', 'message': 'Sessão inválida.'}
 
-            # Verifica se a loja que o cliente quer sair é a mesma que o servidor tem registrada.
             if session.store_id == store_id:
                 room = f"admin_store_{store_id}"
                 await self.leave_room(sid, room)
                 print(f"🚪 [leave_store_room] Admin {sid} saiu da sala: {room}")
                 return {'status': 'success', 'left_room': room}
             else:
-                # Informa o cliente e o log do servidor sobre a inconsistência.
                 print(f"⚠️ [leave_store_room] Admin {sid} tentou sair da loja {store_id}, mas a loja ativa era {session.store_id}.")
                 return {'status': 'error', 'message': 'Inconsistência de estado da loja.'}
 
