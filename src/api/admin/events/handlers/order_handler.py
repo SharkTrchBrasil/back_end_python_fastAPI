@@ -149,6 +149,10 @@ async def process_new_order_automations(db, order):
     """
     Processa as automações de auto-accept e auto-print para um novo pedido.
     """
+    # ✅ CORREÇÃO: Força o recarregamento das configurações da loja a partir do banco de dados.
+    # Isso garante que a verificação 'auto_print_orders' use sempre o valor mais recente.
+    db.refresh(order.store.settings)
+
     store_settings = order.store.settings
     did_status_change = False
 
