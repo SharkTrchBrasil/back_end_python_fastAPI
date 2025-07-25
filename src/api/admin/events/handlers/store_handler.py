@@ -4,6 +4,7 @@ from urllib.parse import parse_qs
 from src.api.admin.schemas.store_settings import StoreSettingsBase
 from src.api.admin.services.store_access_service import StoreAccessService
 from src.api.admin.services.store_session_service import SessionService
+from src.api.admin.utils.authorize_admin import authorize_admin_by_jwt
 from src.core import models
 from src.api.admin.socketio.emitters import (
 
@@ -11,7 +12,7 @@ from src.api.admin.socketio.emitters import (
 
     admin_emit_store_updated,
 )
-from src.api.admin.utils.authorize_admin import authorize_admin
+
 from src.core.database import get_db_manager
 
 
@@ -82,7 +83,7 @@ async def handle_update_store_settings(self, sid, data):
         if not admin_token:
             return {"error": "Token de admin não encontrado na sessão."}
 
-        totem_auth_user = await authorize_admin(db, admin_token)
+        totem_auth_user = await authorize_admin_by_jwt(db, admin_token)
         if not totem_auth_user or not totem_auth_user.id:
             return {"error": "Admin não autorizado."}
 

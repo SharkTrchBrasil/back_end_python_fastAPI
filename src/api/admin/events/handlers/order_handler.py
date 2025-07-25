@@ -1,6 +1,7 @@
 from datetime import datetime
 from urllib.parse import parse_qs
 
+from src.api.admin.utils.authorize_admin import authorize_admin_by_jwt
 from src.api.shared_schemas.order import OrderStatus
 from src.core import models
 from src.api.admin.socketio.emitters import (
@@ -8,7 +9,7 @@ from src.api.admin.socketio.emitters import (
     admin_emit_order_updated_from_obj, admin_emit_new_print_jobs
 
 )
-from src.api.admin.utils.authorize_admin import authorize_admin
+
 from src.core.database import get_db_manager
 
 
@@ -29,7 +30,7 @@ async def handle_update_order_status(self, sid, data):
             if not admin_token:
                 return {"error": "Token de admin não encontrado na sessão."}
 
-            totem_auth_user = await authorize_admin(db, admin_token)
+            totem_auth_user = await authorize_admin_by_jwt(db, admin_token)
             if not totem_auth_user or not totem_auth_user.id:
                 return {"error": "Admin não autorizado."}
 
@@ -138,7 +139,7 @@ async def handle_claim_print_job(self, sid, data):
             if not admin_token:
                 return {"error": "Token de admin não encontrado na sessão."}
 
-            totem_auth_user = await authorize_admin(db, admin_token)
+            totem_auth_user = await authorize_admin_by_jwt(db, admin_token)
             if not totem_auth_user or not totem_auth_user.id:
                 return {"error": "Admin não autorizado."}
 
