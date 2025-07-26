@@ -8,7 +8,7 @@ from .handlers.connection_handler import (
     handle_admin_disconnect
 )
 # ✅ CORREÇÃO 1: Importa a função de lógica que faltava
-from .handlers.order_handler import handle_update_order_status, claim_specific_print_job
+from .handlers.order_handler import handle_update_order_status, claim_specific_print_job, handle_update_print_job_status
 from .handlers.store_handler import (
     handle_join_store_room,
     handle_leave_store_room,
@@ -53,6 +53,15 @@ class AdminNamespace(AsyncNamespace):
         """
         # O 'return' aqui é crucial para que a resposta seja enviada de volta.
         return await claim_specific_print_job(sid, data)
+
+    # ✅ 2. Adiciona o novo método que recebe o evento do cliente
+    async def on_update_print_job_status(self, sid, data):
+        """
+        Recebe a atualização de status do cliente (completed/failed) e
+        chama a função de lógica, retornando o resultado.
+        """
+        return await handle_update_print_job_status(self, sid, data)
+
 
 
     async def _check_store_subscription(self, db, store_id: int) -> models.StoreSubscription:

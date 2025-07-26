@@ -237,3 +237,70 @@ async def claim_specific_print_job(sid, data):
             db.rollback()
             print(f"❌ Erro inesperado em claim_specific_print_job: {str(e)}")
             return {'error': 'Falha interna ao processar a reivindicação'}
+
+
+
+# ✅ NOVO HANDLER: Adicione esta função ao seu arquivo.
+async def handle_update_print_job_status(self, sid, data):
+    """
+    Recebe uma atualização do cliente sobre o status de um trabalho de impressão
+    (ex: 'completed' ou 'failed').
+    """
+    with get_db_manager() as db:
+        try:
+            # Validação dos dados recebidos
+            if not all(key in data for key in ['job_id', 'status']):
+                return {'error': 'Dados incompletos'}
+
+            job_id = data['job_id']
+            new_status = data['status']
+            valid_statuses = ['completed', 'failed']
+
+            if new_status not in valid_statuses:
+                return {'error': f"Status '{new_status}' inválido."}
+
+            # --- Bloco de Autorização (essencial para segurança) ---
+            session = db.query(models.StoreSession).filter_by(sid=sid, client_type='admin').first()
+            if not session:
+                return {'error': 'Sessão não autorizada'}
+
+            query_params = parse_qs(self.environ[sid].get("QUERY_STRING", ""))
+            admin_token = query_params.get("admin_token", [None])[0]
+            if not admin_token:
+                return {"error": "Token de admin não encontrado."}
+
+            admin_user = await authorize_admin_by_jwt(db, admin_token)
+            if not admin_user:
+                return {"error": "Admin não autorizado."}
+            # --- Fim da Autorização ---
+
+            # Busca o trabalho de impressão no banco
+            job_to_update = db.query(models.OrderPrintLog).filter(
+                models.OrderPrintLog.id == job_id
+            ).first()
+
+            if not job_to_update:
+                return {'error': f'Trabalho de impressão #{job_id} não encontrado.'}
+
+            # Garante que o admin tem permissão para modificar este trabalho
+            accessible_stores = StoreAccessService.get_accessible_store_ids_with_fallback(db, admin_user)
+            if job_to_update.order.store_id not in accessible_stores:
+                return {'error': 'Acesso negado.'}
+
+            # Atualiza o status e salva
+            job_to_update.status = new_status
+            db.commit()
+            db.refresh(job_to_update)
+
+            print(f"✅ Status do trabalho de impressão #{job_id} atualizado para '{new_status}'")
+
+            # Opcional: Emite uma notificação para que outras telas atualizem o ícone de impressão
+            await admin_emit_order_updated_from_obj(job_to_update.order)
+
+            return {'success': True, 'job_id': job_id, 'new_status': new_status}
+
+        except Exception as e:
+            db.rollback()
+            print(f"❌ Erro em handle_update_print_job_status: {str(e)}")
+            return {'error': 'Falha interna'}
+
