@@ -26,22 +26,30 @@ import orjson
 
 async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = None):
     try:
-        # ✅ 1. SUPER CONSULTA: Carrega a loja e TODAS as suas relações necessárias de uma vez.
+        # ✅ SUPER CONSULTA OTIMIZADA E ORGANIZADA
         store = db.query(models.Store).options(
-            # Relações que você já tinha
-            joinedload(models.Store.payment_methods),
+            # --- Configurações da Loja ---
+            selectinload(models.Store.payment_methods),
             joinedload(models.Store.delivery_config),
-            joinedload(models.Store.hours),
-            joinedload(models.Store.cities).joinedload(models.StoreCity.neighborhoods),
+            selectinload(models.Store.hours),
+            selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
             joinedload(models.Store.settings),
 
-            # ✅ Relações de assinatura adicionadas à consulta principal
-            joinedload(models.Store.subscriptions)
+            # --- Catálogo e Cardápio ---
+            selectinload(models.Store.categories),
+            selectinload(models.Store.products).selectinload(models.Product.variant_links)
+            .selectinload(models.ProductVariantProduct.variant)
+            .selectinload(models.Variant.options),
+            selectinload(models.Store.variants).selectinload(models.Variant.options),
+            selectinload(models.Store.coupons),
+
+            # --- Assinatura e Plano (para o SubscriptionService) ---
+            selectinload(models.Store.subscriptions)
             .joinedload(models.StoreSubscription.plan)
-            .joinedload(models.Plans.included_features)
+            .selectinload(models.Plans.included_features)
             .joinedload(models.PlansFeature.feature),
-            joinedload(models.Store.subscriptions)
-            .joinedload(models.StoreSubscription.subscribed_addons)
+            selectinload(models.Store.subscriptions)
+            .selectinload(models.StoreSubscription.subscribed_addons)
             .joinedload(models.PlansAddon.feature)
 
         ).filter_by(id=store_id).first()
@@ -50,25 +58,24 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
             print(f"❌ Loja {store_id} não encontrada")
             return
 
-
-        # Lógica para criar configurações padrão (settings) continua a mesma...
-        settings = db.query(models.StoreSettings).filter_by(store_id=store_id).first()
+        # ✅ LÓGICA DE SETTINGS MAIS EFICIENTE
+        # Usa o 'store.settings' já carregado pela consulta, em vez de buscar novamente.
+        settings = store.settings
         if not settings:
             settings = models.StoreSettings(store_id=store_id, is_delivery_active=False, is_takeout_active=True,
                                             is_table_service_active=False, is_store_open=False,
                                             auto_accept_orders=False, auto_print_orders=False)
             db.add(settings)
             db.commit()
+            db.refresh(settings) # Garante que a sessão tenha a versão mais recente
             print(f"⚙️ Configurações padrão criadas para loja {store_id}")
 
-        # ✅ 2. CHAMA O SERVIÇO COM O OBJETO JÁ CARREGADO
-        # A chamada agora é mais limpa e não acessa mais o banco.
+        # O resto da sua lógica continua perfeita
         subscription_payload, is_operational = SubscriptionService.get_subscription_details(store)
 
         if not is_operational:
             print(f"🔒 Loja {store_id} não pode operar. Assinatura: {subscription_payload.get('status')}")
 
-        # Validação do schema da loja e obtenção de ratings...
         store_schema = StoreDetails.model_validate(store)
         try:
             store_schema.ratingsSummary = RatingsSummaryOut(**get_store_ratings_summary(db, store_id=store.id))
@@ -76,15 +83,13 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
             store_schema.ratingsSummary = RatingsSummaryOut(average_rating=0, total_ratings=0,
                                                             distribution={1: 0, 2: 0, 3: 0, 4: 0, 5: 0}, ratings=[])
 
-        # ✨ 2. PREPARA O PAYLOAD FINAL USANDO OS DADOS DO SERVIÇO
         payload = {
             "store_id": store_id,
             "store": store_schema.model_dump(mode='json'),
-            "subscription": subscription_payload  # <-- CORREÇÃO: Usa o payload do serviço
+            "subscription": subscription_payload
         }
         payload['store']['store_settings'] = StoreSettingsBase.model_validate(settings).model_dump(mode='json')
 
-        # Emite os dados...
         if sid:
             await sio.emit("store_full_updated", payload, namespace='/admin', to=sid)
         else:
@@ -92,7 +97,8 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
 
     except Exception as e:
         print(f'❌ Erro crítico em emit_store_full_updated: {str(e)}')
-        # Lógica de erro continua a mesma...
+
+
 
 
 async def admin_emit_orders_initial(db, store_id: int, sid: Optional[str] = None):
