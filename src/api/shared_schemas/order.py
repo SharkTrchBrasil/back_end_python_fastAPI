@@ -21,7 +21,7 @@ class OrderPrintLogSchema(BaseModel):
     printer_destination: str
     status: str
 
-
+    
 class OrderVariantOption(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int

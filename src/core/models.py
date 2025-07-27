@@ -1171,22 +1171,41 @@ class Plans(Base, TimestampMixin):
     price: Mapped[int] = mapped_column()  # Preço do plano em CENTAVOS
     interval: Mapped[int] = mapped_column()  # Intervalo em meses
     available: Mapped[bool] = mapped_column(default=True)
-
-    # ✅ Campo 'repeats' adicionado com a nova sintaxe e como opcional
-    # Permite 'None' para assinaturas infinitas
     repeats: Mapped[int | None] = mapped_column(nullable=True)
 
-    # Relacionamento para ver as features INCLUSAS neste plano.
+    product_limit: Mapped[int | None] = mapped_column(nullable=True)
+    # Limite de produtos que a loja pode cadastrar no cardápio.
+
+    category_limit: Mapped[int | None] = mapped_column(nullable=True)
+    # Limite de categorias de produtos.
+
+    user_limit: Mapped[int | None] = mapped_column(nullable=True)
+    # Limite de usuários (funcionários) que podem ser cadastrados para gerenciar a loja.
+
+    monthly_order_limit: Mapped[int | None] = mapped_column(nullable=True)
+    # Limite de pedidos que a loja pode receber por mês. Essencial para planos gratuitos.
+
+    location_limit: Mapped[int | None] = mapped_column(nullable=True, default=1)
+    # Limite de lojas/endereços que podem ser gerenciados na mesma conta.
+
+    banner_limit: Mapped[int | None] = mapped_column(nullable=True)
+    # Limite de banners promocionais que podem ser exibidos no cardápio digital.
+
+    max_active_devices: Mapped[int | None] = mapped_column(nullable=True)
+    # Limite de sessões/dispositivos ativos simultaneamente.
+
+    support_type: Mapped[str | None] = mapped_column(nullable=True)
+
+    # --- RELACIONAMENTOS (sem alteração) ---
+
     included_features: Mapped[List["PlansFeature"]] = relationship(
         back_populates="plan",
         cascade="all, delete-orphan"
     )
 
-    # Relacionamento para ver todas as assinaturas ativas deste plano.
     subscriptions: Mapped[List["StoreSubscription"]] = relationship(
         back_populates="plan"
     )
-
 
 class PlansAddon(Base, TimestampMixin):
     __tablename__ = "plans_addons"
