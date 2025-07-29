@@ -77,7 +77,7 @@ async def connect(sid, environ):
 
             room_name = f"store_{totem.store_id}"
             await sio.enter_room(sid, room_name)
-            await sio.enter_room(sid, room_name)
+
 
             # ✅ PASSO 1: FAZEMOS UMA ÚNICA "SUPER CONSULTA" PARA PEGAR TUDO
             print(f"Carregando estado completo para a loja {totem.store_id}...")
@@ -158,6 +158,8 @@ async def disconnect(sid, reason):
         except Exception as e:
             db.rollback()
             print(f"❌ Erro na desconexão do totem: {str(e)}")
+
+
 
 def apply_coupon(coupon, price: float) -> float:
     if coupon.discount_type == 'percentage':
