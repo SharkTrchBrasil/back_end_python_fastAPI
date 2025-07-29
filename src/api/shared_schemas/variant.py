@@ -25,5 +25,5 @@ class Variant(VariantBase):
     options: List["VariantOption"] # Referência circular resolvida no final
 
 
-
+Variant.model_rebuild()
 

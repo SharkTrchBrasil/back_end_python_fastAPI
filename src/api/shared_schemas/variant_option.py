@@ -3,9 +3,6 @@ from typing import Annotated
 
 from pydantic import BaseModel, computed_field, Field
 
-from src.core.models import Variant, ProductVariantLink
-
-
 class ProductMinimal(BaseModel):
     id: int
     name: str
@@ -78,7 +75,5 @@ class VariantOption(VariantOptionBase):
         return f"https://s3.aws.com/bucket/{key_to_use}"
 
 
-# --- Reconstrução Final ---
-# Garante que as referências circulares (strings) sejam resolvidas corretamente
-Variant.model_rebuild()
-ProductVariantLink.model_rebuild()
+
+VariantOption.model_rebuild()

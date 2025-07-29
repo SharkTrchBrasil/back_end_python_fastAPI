@@ -71,7 +71,7 @@ class ProductOut(ProductBase):
     # ✅ CORREÇÃO PRINCIPAL: Inclui a lista de 'ligações de variantes',
     # que contém tanto as regras quanto o template do grupo.
 
-    variant_links: List["ProductVariantLinkOut"] = []
+    variant_links: List["ProductVariantLinkOut"] = []  # <-- Usar aspas
 
     @computed_field
     @property
