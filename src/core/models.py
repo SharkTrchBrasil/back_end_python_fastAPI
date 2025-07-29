@@ -73,13 +73,12 @@ class Store(Base, TimestampMixin):
 
     payment_methods: Mapped[list["StorePaymentMethods"]] = relationship()
     products: Mapped[list["Product"]] = relationship()
-    coupons: Mapped[list["Coupon"]] = relationship()
-
+    coupons: Mapped[List["Coupon"]] = relationship(back_populates="store")
     # no Store
     store_customers = relationship("StoreCustomer", back_populates="store")
 
-    themes: Mapped[list["StoreTheme"]] = relationship()
-
+    theme: Mapped["StoreTheme"] = relationship(back_populates="store", uselist=False, cascade="all, delete-orphan")
+    banners: Mapped[List["Banner"]] = relationship(back_populates="store", cascade="all, delete-orphan")
     payables: Mapped[list["StorePayable"]] = relationship()
 
     orders: Mapped[List["Order"]] = relationship("Order", back_populates="store", cascade="all, delete-orphan")
@@ -361,7 +360,7 @@ class Coupon(Base, TimestampMixin):
         ForeignKey("stores.id", ondelete="SET NULL"),
         nullable=True
     )
-    store: Mapped["Store"] = relationship()
+    store: Mapped["Store"] = relationship(back_populates="coupons")
 
     product_id: Mapped[int | None] = mapped_column(
         ForeignKey("products.id", ondelete="SET NULL"),
@@ -473,7 +472,7 @@ class StoreTheme(Base, TimestampMixin):
     category_layout: Mapped[str] = mapped_column()
     product_layout: Mapped[str] = mapped_column()
     theme_name: Mapped[str] = mapped_column()
-
+    store: Mapped["Store"] = relationship(back_populates="theme")
 
 class StorePixConfig(Base, TimestampMixin):
     __tablename__ = "store_pix_configs"
@@ -776,8 +775,8 @@ class Banner(Base, TimestampMixin):
     # Relacionamentos
     product: Mapped[Product | None] = relationship()
     category: Mapped[Category | None] = relationship()
-    store: Mapped[Store] = relationship()
 
+    store: Mapped["Store"] = relationship(back_populates="banners")
 
 class Order(Base, TimestampMixin):
     __tablename__ = "orders"
@@ -885,12 +884,12 @@ class OrderProduct(Base, TimestampMixin):
     note: Mapped[str] = mapped_column(default='', nullable=False)
     image_url: Mapped[str | None] = mapped_column(nullable=True)  # URL da imagem do produto no momento do pedido
    # file_key: Mapped[str] = mapped_column(String(255))
-    variants: Mapped[list["OrderVariant"]] = relationship(backref="product")
+
 
     original_price: Mapped[int] = mapped_column()  # Preço antes de descontos
     discount_amount: Mapped[int] = mapped_column(default=0)  # Valor do desconto neste item
     discount_percentage: Mapped[float | None] = mapped_column(nullable=True)
-
+    variants: Mapped[List["OrderVariant"]] = relationship(back_populates="order_product")
 
 
 
@@ -911,9 +910,9 @@ class OrderVariant(Base, TimestampMixin):
 
     name: Mapped[str] = mapped_column()
 
-    options: Mapped[list["OrderVariantOption"]] = relationship(backref="variant")
-    order_product: Mapped[OrderProduct] = relationship()
+    options: Mapped[List["OrderVariantOption"]] = relationship(back_populates="order_variant")
 
+    order_product: Mapped["OrderProduct"] = relationship(back_populates="variants")
 
 class OrderVariantOption(Base, TimestampMixin):
     __tablename__ = "order_variant_options"
@@ -934,8 +933,8 @@ class OrderVariantOption(Base, TimestampMixin):
     price: Mapped[int] = mapped_column()
     quantity: Mapped[int] = mapped_column()
 
-    order_variant: Mapped[OrderVariant] = relationship()
 
+    order_variant: Mapped["OrderVariant"] = relationship(back_populates="options")
 
 class OrderPrintLog(Base, TimestampMixin):
     __tablename__ = "order_print_logs"

@@ -16,7 +16,9 @@ from src.api.admin.utils.order_code import generate_unique_public_id, gerar_sequ
 from src.api.app.events.socketio_emitters import emit_products_updated
 
 from src.api.app.schemas.new_order import NewOrder
+from src.api.shared_schemas.banner import BannerOut
 from src.api.shared_schemas.coupon import CouponOut
+from src.api.shared_schemas.product import ProductOut
 from src.api.shared_schemas.store_details import StoreDetails
 from src.api.app.services.add_customer_store import register_customer_store_relationship
 from src.api.app.services.check_variants import validate_order_variants
@@ -75,52 +77,62 @@ async def connect(sid, environ):
 
             room_name = f"store_{totem.store_id}"
             await sio.enter_room(sid, room_name)
+            await sio.enter_room(sid, room_name)
 
-            # Carrega dados completos da loja
+            # ✅ PASSO 1: FAZEMOS UMA ÚNICA "SUPER CONSULTA" PARA PEGAR TUDO
+            print(f"Carregando estado completo para a loja {totem.store_id}...")
             store = db.query(models.Store).options(
-                joinedload(models.Store.payment_methods),
-                joinedload(models.Store.delivery_config),
-                joinedload(models.Store.hours),
-                joinedload(models.Store.cities).joinedload(models.StoreCity.neighborhoods),
-            ).filter_by(id=totem.store_id).first()
+                # Carrega detalhes da loja
+                selectinload(models.Store.payment_methods),
+                joinedload(models.Store.settings),
+                selectinload(models.Store.hours),
+
+                # ✅ Carrega o tema e os banners junto
+                joinedload(models.Store.theme),
+                selectinload(models.Store.banners),
+
+                # Carrega o cardápio completo
+                selectinload(models.Store.products).selectinload(
+                    models.Product.variant_links
+                ).selectinload(
+                    models.ProductVariantLink.variant
+                ).selectinload(
+                    models.Variant.options
+                ).selectinload(
+                    models.VariantOption.linked_product
+                )
+            ).filter(models.Store.id == totem.store_id).first()
 
             if not store:
-                raise ConnectionRefusedError("Store not found")
+                raise ConnectionRefusedError("Store not found after query")
 
-            try:
-                store_schema = StoreDetails.model_validate(store)
-                store_schema.ratingsSummary = RatingsSummaryOut(
-                    **get_store_ratings_summary(db, store_id=store.id)
-                )
-                await sio.emit("store_updated", store_schema.model_dump(), to=sid)
+            # ✅ PASSO 2: MONTAMOS E EMITIMOS TODOS OS EVENTOS A PARTIR DO OBJETO 'store' JÁ CARREGADO
 
-                # Envia tema
-                theme = db.query(models.StoreTheme).filter_by(store_id=totem.store_id).first()
-                if theme:
-                    await sio.emit(
-                        "theme_updated",
-                        StoreThemeOut.model_validate(theme).model_dump(),
-                        to=sid,
-                    )
+            # 1. Emite dados da loja
+            store_schema = StoreDetails.model_validate(store)
+            store_schema.ratingsSummary = RatingsSummaryOut(**get_store_ratings_summary(db, store_id=store.id))
+            await sio.emit("store_updated", store_schema.model_dump(mode='json'), to=sid)
 
-                # Envia produtos e banners
-                await emit_products_updated(db, totem.store_id, sid)
+            # 2. Emite tema (acessando o relacionamento já carregado)
+            if store.theme:
+                await sio.emit("theme_updated", StoreThemeOut.model_validate(store.theme).model_dump(mode='json'),
+                               to=sid)
 
-                banners = db.query(models.Banner).filter_by(store_id=totem.store_id).all()
-                if banners:
-                    from src.api.shared_schemas.banner import BannerOut
-                    banner_payload = [BannerOut.model_validate(b).model_dump() for b in banners]
-                    await sio.emit("banners_updated", banner_payload, to=sid)
+            # 3. Emite produtos (acessando o relacionamento já carregado)
+            products_payload = [ProductOut.model_validate(p).model_dump(mode='json') for p in store.products]
+            await sio.emit("products_updated", products_payload, to=sid)
 
-            except Exception as e:
-                print(f"Erro ao enviar dados iniciais: {e}")
-                raise ConnectionRefusedError(f"Erro interno: {str(e)}")
+            # 4. Emite banners (acessando o relacionamento já carregado)
+            if store.banners:
+                banners_payload = [BannerOut.model_validate(b).model_dump(mode='json') for b in store.banners]
+                await sio.emit("banners_updated", banners_payload, to=sid)
+
+            print(f"✅ Estado inicial enviado com sucesso para o cliente {sid}")
 
         except Exception as e:
             db.rollback()
             print(f"❌ Erro na conexão do totem: {str(e)}")
             raise ConnectionRefusedError(str(e))
-
 
 # Evento de desconexão do Socket.IO
 @sio.event
