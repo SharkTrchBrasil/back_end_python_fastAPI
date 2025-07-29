@@ -1,11 +1,11 @@
 from typing import Optional, List
 from pydantic import BaseModel, Field, ConfigDict, computed_field
 
-
+from .category import Category
 from .product_variant_link import ProductVariantLink as ProductVariantLinkOut
 
 from src.core.aws import get_presigned_url
-from ...core.models import Category
+
 
 
 # --- Configuração Pydantic Base ---
