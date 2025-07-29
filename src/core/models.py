@@ -272,9 +272,7 @@ class Variant(Base, TimestampMixin):
     product_links: Mapped[list["ProductVariantLink"]] = relationship(back_populates="variant",
                                                                      cascade="all, delete-orphan")
 
-    @classmethod
-    def model_rebuild(cls):
-        pass
+
 
 
 class VariantOption(Base, TimestampMixin):
@@ -334,9 +332,6 @@ class ProductVariantLink(Base, TimestampMixin):
     product: Mapped["Product"] = relationship()  # Assumindo que Product tem o back_populates
     variant: Mapped["Variant"] = relationship(back_populates="product_links")
 
-    @classmethod
-    def model_rebuild(cls):
-        pass
 
 
 class Coupon(Base, TimestampMixin):
