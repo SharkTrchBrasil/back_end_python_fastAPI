@@ -1,15 +1,10 @@
-from typing import List
-
-from fastapi import APIRouter, HTTPException, Request, Query
-from fastapi.responses import HTMLResponse
-from sqlalchemy import func
-from sqlalchemy.orm import joinedload
+from fastapi import APIRouter, HTTPException, Request
+from sqlalchemy.orm import selectinload # Use selectinload para coleções
 
 from src import templates
-from src.api.shared_schemas.product import ProductOut, ProductRatingOut, ProductRatingCreate
 from src.core import models
 from src.core.database import GetDBDep
-
+from src.api.shared_schemas.product import ProductOut
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -20,7 +15,7 @@ def get_product_by_subdomain(
     product_id: int,
     db: GetDBDep,
 ):
-    # Busca loja autorizada pelo subdomínio
+    # Busca da loja (seu código original está correto)
     totem_auth = db.query(models.TotemAuthorization).filter(
         models.TotemAuthorization.store_url == subdomain,
         models.TotemAuthorization.granted == True
@@ -31,10 +26,12 @@ def get_product_by_subdomain(
 
     store = totem_auth.store
 
+    # ✅ CONSULTA CORRIGIDA E COMPLETA
     product = db.query(models.Product).options(
-        joinedload(models.Product.variant_links)
-        .joinedload(models.ProductVariantProduct.variant)
-        .joinedload(models.Variant.options)
+        selectinload(models.Product.variant_links)      # Product -> ProductVariantLink (A Regra)
+        .selectinload(models.ProductVariantLink.variant) # -> Variant (O Template)
+        .selectinload(models.Variant.options)            # -> VariantOption (O Item)
+        .selectinload(models.VariantOption.linked_product) # -> Product (Cross-sell)
     ).filter(
         models.Product.id == product_id,
         models.Product.store_id == store.id,
@@ -44,27 +41,21 @@ def get_product_by_subdomain(
     if not product:
         raise HTTPException(status_code=404, detail="Produto não encontrado ou indisponível")
 
-    # VERIFICA O TIPO DE RESPOSTA ESPERADA
     accept = request.headers.get("accept", "")
 
     if "application/json" in accept:
-        # Resposta para app Flutter
-        return ProductOut.from_orm(product)
+        # ✅ CHAMADA Pydantic ATUALIZADA
+        return ProductOut.model_validate(product)
 
-    # Resposta HTML para redes sociais
+    # Resposta HTML para redes sociais (seu código original está correto)
     return templates.TemplateResponse(
         "product_meta.html",
         {
             "request": request,
             "product_name": product.name,
             "product_description": product.description,
-            "product_image": "",  # Aqui você pode colocar a imagem com get_presigned_url(product.file_key)
+            "product_image": product.image_path, # Usando o computed_field do schema
             "store_name": store.name,
             "full_url": str(request.url),
         }
     )
-
-
-
-
-

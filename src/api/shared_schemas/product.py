@@ -16,7 +16,7 @@ class AppBaseModel(BaseModel):
 # 1. Schemas de Produto
 # -------------------------------------------------
 
-class ProductBase(AppBaseModel):
+class Product(AppBaseModel):
     """Campos essenciais que definem um produto."""
     name: str
     description: str
@@ -35,7 +35,7 @@ class ProductBase(AppBaseModel):
     sold_count: int
     file_key: str | None = Field(default=None, exclude=True) # Exclui do JSON de resposta
 
-class ProductCreate(ProductBase):
+class ProductCreate(Product):
     """Schema para criar um novo produto. Note a ausência de 'variant_ids'."""
     category_id: int
     store_id: int # O store_id virá da URL, mas pode ser útil no corpo
@@ -60,7 +60,7 @@ class ProductUpdate(AppBaseModel):
     file_key: Optional[str] = Field(default=None, exclude=True)
 
 
-class ProductOut(ProductBase):
+class ProductOut(Product):
     """
     Schema de resposta da API. É declarativo e poderoso.
     Ele retorna as REGRAS e os complementos aninhados.

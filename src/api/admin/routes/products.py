@@ -8,7 +8,8 @@ from fastapi import APIRouter, Form
 from starlette.responses import JSONResponse
 
 from src.api.admin.schemas.variant_selection import VariantSelectionPayload
-from src.api.app.routes.realtime import refresh_product_list
+from src.api.app.events.socketio_emitters import emit_products_updated
+
 from src.api.shared_schemas.product import ProductOut
 from src.core import models
 from src.core.aws import upload_file, delete_file
@@ -19,7 +20,7 @@ router = APIRouter(prefix="/stores/{store_id}/products", tags=["Products"])
 
 
 from fastapi import UploadFile, File, Depends, HTTPException
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 
 @router.post("", response_model=ProductOut)
@@ -43,7 +44,7 @@ async def create_product(
     min_stock: int | None = Form(None),
     max_stock: int | None = Form(None),
     unit: str | None = Form(None),
-    variant_ids: Optional[List[int]] = Form(None),
+
     image: UploadFile | None = File(None),
 ):
     category = db.query(models.Category).filter(
@@ -82,20 +83,11 @@ async def create_product(
         file_key=file_key,
     )
 
-    if variant_ids:
-        variants = db.query(models.Variant).filter(
-            models.Variant.id.in_(variant_ids),
-            models.Variant.store_id == store.id  # garante que são da loja certa
-        ).all()
-        new_product.variants = variants
-    else:
-        new_product.variants = []  # <- Isso evita o erro de validação
-
     db.add(new_product)
     db.commit()
     db.refresh(new_product)
 
-    await asyncio.create_task(refresh_product_list(db, store.id))
+    await asyncio.create_task(emit_products_updated(db, store.id))
 
     return new_product
 
@@ -113,32 +105,36 @@ def get_minimal_products(store_id: int, db: GetDBDep):
     return [{"id": p.id, "name": p.name} for p in products]
 
 
+# --- Rota de Listagem (Corrigida) ---
+@router.get("", response_model=List[ProductOut])
+def get_products(db: GetDBDep, store: GetStoreDep, skip: int = 0, limit: int = 100):
+    # ✅ CONSULTA CORRIGIDA para usar a estrutura final e carregar tudo eficientemente
+    products = db.query(models.Product).filter(models.Product.store_id == store.id).options(
+        selectinload(models.Product.category),
+        selectinload(models.Product.variant_links)  # Product -> ProductVariantLink (A Regra)
+        .selectinload(models.ProductVariantLink.variant)  # -> Variant (O Template)
+        .selectinload(models.Variant.options)  # -> VariantOption (O Item)
+        .selectinload(models.VariantOption.linked_product)  # -> Product (Cross-sell)
+    ).offset(skip).limit(limit).all()
 
-
-
-
-
-
-@router.get("", response_model=list[ProductOut])
-def get_products(db: GetDBDep, store: GetStoreDep, skip: int = 0, limit: int = 50):
-    query = db.query(models.Product).filter(models.Product.store_id == store.id).options(
-        joinedload(models.Product.category),
-        joinedload(models.Product.variant_links)
-        .joinedload(models.ProductVariantProduct.variant)
-        .joinedload(models.Variant.options)
-    )
-    products = query.offset(skip).limit(limit).all()
-    for product in products:
-        product.variants = [link.variant for link in product.variant_links]
+    # ✅ Não é mais necessário o "product.variants = ...". O schema Pydantic cuida disso.
     return products
 
 
+# --- Rota de Detalhe (Corrigida) ---
 @router.get("/{product_id}", response_model=ProductOut)
-def get_product(
-        product: GetProductDep
-):
-    return product
+def get_product_details(product: GetProductDep, db: GetDBDep):
+    # Para garantir que a resposta tenha todos os dados, fazemos a consulta completa aqui
+    # ao invés de depender da consulta simples da dependência.
+    product_with_details = db.query(models.Product).options(
+        selectinload(models.Product.category),
+        selectinload(models.Product.variant_links)
+        .selectinload(models.ProductVariantLink.variant)
+        .selectinload(models.Variant.options)
+        .selectinload(models.VariantOption.linked_product)
+    ).filter(models.Product.id == product.id).first()
 
+    return product_with_details
 
 @router.patch("/{product_id}", response_model=ProductOut)
 async def patch_product(
@@ -163,7 +159,6 @@ async def patch_product(
     min_stock: int | None = Form(None),
     max_stock: int | None = Form(None),
     unit: str | None = Form(None),
-    variant_ids: Optional[List[int]] = Form(None),
     image: UploadFile | None = File(None),
 ):
     # Atualizar campos presentes
@@ -205,12 +200,6 @@ async def patch_product(
             raise HTTPException(status_code=400, detail="Category not found")
         db_product.category_id = category_id
 
-    if variant_ids is not None:
-        variants = db.query(models.Variant).filter(
-            models.Variant.id.in_(variant_ids),
-            models.Variant.store_id == store.id
-        ).all()
-        db_product.variants = variants
 
     if image:
         old_file_key = db_product.file_key
@@ -222,7 +211,7 @@ async def patch_product(
         db.commit()
 
     db.refresh(db_product)
-    await asyncio.create_task(refresh_product_list(db, store.id))
+    await asyncio.create_task(emit_products_updated(db, store.id))
     return db_product
 
 
@@ -251,7 +240,7 @@ async def save_variants_for_product(
         db.add(models.ProductVariantProduct(product_id=product_id, variant_id=variant_id))
 
     db.commit()
-    await asyncio.create_task(refresh_product_list(db, store_id))
+    await asyncio.create_task(emit_products_updated(db, store_id))
 
 
 
@@ -262,5 +251,5 @@ async def delete_product(product_id: int,  store: GetStoreDep, db: GetDBDep, db_
     db.delete(db_product)
     db.commit()
     delete_file(old_file_key)
-    await asyncio.create_task(refresh_product_list(db, store.id))
+    await asyncio.create_task(emit_products_updated(db, store.id))
     return

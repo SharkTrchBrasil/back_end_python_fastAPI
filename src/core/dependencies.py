@@ -3,14 +3,13 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, Header
 from sqlalchemy.orm import Session, joinedload
-from starlette import status
+
 
 from src.api.shared_schemas.store import Roles
 from src.core import models
 
 from src.core.database import GetDBDep
 
-from fastapi import Request
 
 from src.core.security import verify_access_token, oauth2_scheme
 
@@ -104,46 +103,10 @@ class GetStore:
             )
 
         return store
-# class GetStore:
-#     def __init__(self, roles: list[Roles]):
-#         self.roles = roles
-#
-#     def __call__(self, db: GetDBDep, user: GetCurrentUserDep, store_id: int):
-#         db_store_access = db.query(models.StoreAccess).filter(models.StoreAccess.user == user,
-#                                                               models.StoreAccess.store_id == store_id).first()
-#         if db_store_access is None:
-#             raise HTTPException(status_code=403, detail={'message': 'User does not have access to this store',
-#                                                          'code': 'NO_ACCESS_STORE'})
-#         elif db_store_access.role.machine_name not in [e.value for e in self.roles]:
-#             raise HTTPException(status_code=403, detail={'message': f'User must be the {[e.value for e in self.roles]} to execute this action',
-#                                                          'code': 'REQUIRES_ANOTHER_ROLE'})
-#
-#         return db_store_access.store
-
 
 get_store = GetStore([Roles.OWNER, Roles.ADMIN])
 GetStoreDep = Annotated[models.Store, Depends(get_store)]
 
-
-def check_subscription_status(store: GetStoreDep, db: GetDBDep):
-    """Verifica se a loja tem uma assinatura ativa"""
-    subscription = db.query(models.StoreSubscription).filter(
-        models.StoreSubscription.store_id == store.id,
-        models.StoreSubscription.status == 'active',
-        models.StoreSubscription.current_period_end >= datetime.utcnow()
-    ).first()
-
-    if not subscription:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Assinatura vencida ou inativa. Renove seu plano para continuar usando o serviço."
-        )
-
-    return store
-
-
-# Dependência que pode ser usada nas rotas
-GetActiveStoreDep = Annotated[models.Store, Depends(check_subscription_status)]
 
 
 def get_product(
