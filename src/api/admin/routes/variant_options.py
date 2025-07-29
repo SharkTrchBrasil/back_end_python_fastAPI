@@ -2,9 +2,8 @@ import asyncio
 
 from fastapi import APIRouter
 
-from src.api.app.routes.realtime import refresh_product_list
-from src.api.shared_schemas.variant import VariantOption
-from src.api.shared_schemas.variant_option import VariantOptionCreate, VariantOptionUpdate
+from src.api.app.events.socketio_emitters import emit_products_updated
+from src.api.shared_schemas.variant_option import VariantOptionCreate, VariantOptionUpdate, VariantOption
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetVariantDep, GetVariantOptionDep
@@ -27,7 +26,7 @@ async def create_product_variant_option(
     db.add(db_option)
     db.commit()
 
-    await refresh_product_list(db, db_option.store_id)
+    await emit_products_updated(db, db_option.store_id)
 
     return db_option
 
@@ -48,7 +47,7 @@ async def patch_product_variant_option(
         setattr(option, field, value)
 
     db.commit()
-    await refresh_product_list(db, option.store_id)
+    await emit_products_updated(db, option.store_id)
     return option
 
 
@@ -63,7 +62,7 @@ async def delete_product_variant_option(
     db.delete(option)
     db.commit()
 
-    await refresh_product_list(db, store_id)
+    await emit_products_updated(db, store_id)
 
     return None  # status_code 204 (No Content) não precisa retornar nada
 

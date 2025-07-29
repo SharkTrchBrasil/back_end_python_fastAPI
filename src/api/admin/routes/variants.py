@@ -3,7 +3,7 @@ import asyncio
 from fastapi import APIRouter, HTTPException
 from sqlalchemy.orm import joinedload
 
-from src.api.app.routes.realtime import refresh_product_list
+from src.api.app.events.socketio_emitters import emit_products_updated
 from src.api.shared_schemas.variant import VariantCreate, Variant, VariantUpdate
 from src.core import models
 from src.core.database import GetDBDep
@@ -24,7 +24,7 @@ async def create_product_variant(
 
     db.add(db_variant)
     db.commit()
-    await refresh_product_list(db, db_variant.store_id)
+    await emit_products_updated(db, db_variant.store_id)
     return db_variant
 
 
@@ -45,7 +45,7 @@ async def patch_product_variant(
         setattr(variant, field, value)
 
     db.commit()
-    await refresh_product_list(db, variant.store_id)
+    await emit_products_updated(db, variant.store_id)
     return variant
 
 
@@ -69,6 +69,6 @@ async def delete_product_variant(
 ):
     db.delete(variant)
     db.commit()
-    await refresh_product_list(db, variant.store_id)
+    await emit_products_updated(db, variant.store_id)
 
     return None  # necessário com status 204
