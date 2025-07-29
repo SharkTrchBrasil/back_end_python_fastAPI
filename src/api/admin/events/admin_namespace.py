@@ -15,7 +15,7 @@ from .handlers.store_handler import (
     handle_update_store_settings,
     handle_set_consolidated_stores
 )
-from ..socketio.emitters import admin_emit_store_full_updated, admin_emit_orders_initial, admin_product_list_all, \
+from ..socketio.emitters import admin_emit_store_full_updated, admin_emit_orders_initial, \
     admin_emit_tables_and_commands
 
 
@@ -124,7 +124,7 @@ class AdminNamespace(AsyncNamespace):
                 return False
 
             await admin_emit_store_full_updated(db, store_id, sid=sid)
-            await admin_product_list_all(db, store_id, sid=sid)
+
             await admin_emit_orders_initial(db, store_id, sid=sid)
             await admin_emit_tables_and_commands(db, store_id, sid)
 

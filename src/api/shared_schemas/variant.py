@@ -1,73 +1,29 @@
-from typing import Annotated
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Annotated, List
+
+from pydantic import Field, BaseModel
+
+from src.core.models import VariantType, VariantOption
 
 
-# Variant schemas
 class VariantBase(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    name: Annotated[str, Field(min_length=2, max_length=100, examples=["Variant ABC"])]
-    description: Annotated[str, Field(min_length=0, max_length=255)]
-    min_quantity: int
-    max_quantity: int
-    repeatable: bool
-    available: bool
-
-
-class Variant(VariantBase):
-    model_config = ConfigDict(from_attributes=True, extra="forbid")
-    id: int
-    options: list["VariantOption"]  # use string annotation para evitar problemas
-
+    """Campos base para um template de grupo de complementos."""
+    name: Annotated[str, Field(min_length=2, max_length=100, examples=["Adicionais Premium"])]
+    type: VariantType
 
 class VariantCreate(VariantBase):
-    pass  # herdou extra="forbid"
-
+    """Schema para criar um novo template de grupo na API."""
+    pass
 
 class VariantUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    """Schema para atualizar um template, todos os campos são opcionais."""
+    name: Annotated[str | None, Field(min_length=2, max_length=100)] = None
+    type: VariantType | None = None
 
-    name: Annotated[str | None, Field(min_length=2, max_length=100, examples=["Variant ABC"], default=None)] = None
-    description: Annotated[str | None, Field(min_length=0, max_length=255, default=None)] = None
-    min_quantity: int | None = None
-    max_quantity: int | None = None
-    repeatable: bool | None = None
-    available: bool | None = None
-
-
-# VariantOption schemas
-class VariantOptionBase(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    name: Annotated[str, Field(min_length=1, max_length=100)]
-    description: Annotated[str, Field(min_length=0, max_length=255)]
-    price: int
-    discount_price: int
-    max_quantity: int
-
-    available: bool
-    is_free: bool
-
-
-class VariantOptionCreate(VariantOptionBase):
-    pass  # herdou extra="forbid"
-
-
-class VariantOption(VariantOptionBase):
-    model_config = ConfigDict(from_attributes=True, extra="forbid")
+class Variant(VariantBase):
+    """Schema para ler os dados de um template, incluindo suas opções."""
     id: int
+    options: List["VariantOption"] # Referência circular resolvida no final
 
 
-class VariantOptionUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    name: str | None = None
-    description: str | None = None
-    price: int | None = None
-    discount_price: int | None = None
-    max_quantity: int | None = None
-    available: bool | None = None
-    is_free: bool | None = None
 
 
-Variant.model_rebuild()

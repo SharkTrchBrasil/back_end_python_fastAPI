@@ -1,7 +1,9 @@
-from sqlalchemy import Enum, select
+import uuid
+
+from sqlalchemy import Enum, select, Boolean
 import enum
 from datetime import datetime, date, timezone
-from typing import Optional, List
+from typing import Optional, List, Text
 
 from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric, String, text, Enum, \
     CheckConstraint
@@ -115,6 +117,11 @@ class Store(Base, TimestampMixin):
         lazy="select"
     )
 
+    active_sessions: Mapped[List["ActiveSession"]] = relationship(
+        back_populates="store",
+        cascade="all, delete-orphan"
+    )
+
     @hybrid_property
     def active_subscription(self) -> Optional["StoreSubscription"]:  # <- Use a string aqui também
         """
@@ -204,7 +211,8 @@ class Product(Base, TimestampMixin):
     category: Mapped[Category] = relationship(back_populates="products")
     file_key: Mapped[str] = mapped_column()
 
-    variant_links: Mapped[list["ProductVariantProduct"]] = relationship(
+
+    variant_links: Mapped[List["ProductVariantLink"]] = relationship(
         back_populates="product",
         cascade="all, delete-orphan"
     )
@@ -228,62 +236,107 @@ class Product(Base, TimestampMixin):
         return get_presigned_url(self.file_key) if self.file_key else None
 
 
+
+
+
+class VariantType(enum.Enum):
+    """Define a finalidade do grupo de complementos."""
+    INGREDIENTS = "Ingredientes"      # Adicionar/remover ingredientes
+    SPECIFICATIONS = "Especificações" # Ex: Ponto da carne, com ou sem gelo
+    CROSS_SELL = "Cross-sell"         # Oferecer outros PRODUTOS do cardápio
+
+class UIDisplayMode(enum.Enum):
+    """Define como a interface de seleção deve ser renderizada para o cliente."""
+    SINGLE = "Seleção Única"    # Botões de rádio (a "bolinha")
+    MULTIPLE = "Seleção Múltipla" # Caixas de seleção (checkboxes)
+    QUANTITY = "Seleção com Quantidade" # Botões de +/- para cada opção
+
+
 class Variant(Base, TimestampMixin):
     __tablename__ = "variants"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column()
-    description: Mapped[str] = mapped_column()
-    available: Mapped[bool] = mapped_column()
-    min_quantity: Mapped[int] = mapped_column()
-    max_quantity: Mapped[int] = mapped_column()
-    repeatable: Mapped[bool] = mapped_column()
+
+    name: Mapped[str] = mapped_column(unique=True, doc="Nome único do template. Ex: 'Adicionais', 'Bebidas', 'Molhos'")
+
+    type: Mapped[VariantType] = mapped_column(
+        Enum(VariantType, native_enum=False),  # <--- A MUDANÇA É AQUI
+        doc="Define a finalidade do grupo..."
+    )
+
 
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    store: Mapped["Store"] = relationship()
 
-    options: Mapped[list["VariantOptions"]] = relationship(
-        back_populates="variant",
-        cascade="all, delete-orphan"
-    )
+    # Relacionamentos
+    options: Mapped[list["VariantOption"]] = relationship(back_populates="variant", cascade="all, delete-orphan")
+    product_links: Mapped[list["ProductVariantLink"]] = relationship(back_populates="variant",
+                                                                     cascade="all, delete-orphan")
 
-    product_links: Mapped[list["ProductVariantProduct"]] = relationship(
-        back_populates="variant",
-        cascade="all, delete-orphan"
-    )
+    @classmethod
+    def model_rebuild(cls):
+        pass
 
 
-class VariantOptions(Base, TimestampMixin):
+class VariantOption(Base, TimestampMixin):
     __tablename__ = "variant_options"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column()
-    description: Mapped[str] = mapped_column()
-    available: Mapped[bool] = mapped_column()
-    is_free: Mapped[bool] = mapped_column()
-    price: Mapped[int] = mapped_column()
-    discount_price: Mapped[int] = mapped_column()
-    max_quantity: Mapped[int] = mapped_column()
+
+    # --- FK para o grupo ao qual esta opção pertence ---
     variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id", ondelete="CASCADE"))
     variant: Mapped["Variant"] = relationship(back_populates="options")
 
+    # --- A MÁGICA DO CROSS-SELL ---
+    # Se preenchido, esta opção é um atalho para um produto existente.
+    linked_product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=True,
+                                                   doc="Se não nulo, esta opção representa outro produto (Cross-Sell)")
+    linked_product: Mapped["Product"] = relationship()
+
+    # --- INFORMAÇÕES PRÓPRIAS (usadas se não for um cross-sell ou para sobrepor) ---
+    name_override: Mapped[str] = mapped_column(nullable=True,
+                                               doc="Nome customizado. Se nulo, usa o nome do produto linkado (se houver).")
+    price_override: Mapped[int] = mapped_column(nullable=True,
+                                                doc="Preço em centavos. Se nulo, usa o preço do produto linkado. Se for um ingrediente, este é o preço base.")
+    file_key: Mapped[str] = mapped_column(nullable=True,
+                                          doc="Chave da imagem da opção (se não usar a do produto linkado).")
+    pos_code: Mapped[str] = mapped_column(nullable=True, doc="Código de integração para o sistema PDV.")
+
+    available: Mapped[bool] = mapped_column(default=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    store: Mapped["Store"] = relationship()
 
 
-class ProductVariantProduct(Base):
-    __tablename__ = "product_variants_products"
-    __table_args__ = (
-        UniqueConstraint('product_id', 'variant_id', name='uix_product_variant'),
+class ProductVariantLink(Base, TimestampMixin):
+    __tablename__ = "product_variant_links"
+    __table_args__ = (UniqueConstraint('product_id', 'variant_id', name='uix_product_variant_link'),)
+
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
+    variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id"), primary_key=True)
+
+    # --- REGRAS DE COMPORTAMENTO E INTERFACE ---
+
+    ui_display_mode: Mapped[UIDisplayMode] = mapped_column(
+        Enum(UIDisplayMode, native_enum=False),  # <--- A MUDANÇA É AQUI
+        doc="Define a finalidade do grupo..."
     )
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id", ondelete="CASCADE"))
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"))
 
-    product: Mapped["Product"] = relationship(back_populates="variant_links")
+    min_selected_options: Mapped[int] = mapped_column(default=0,
+                                                      doc="Qtd. mínima de opções. 0=Opcional, >0=Obrigatório.")
+    max_selected_options: Mapped[int] = mapped_column(default=1,
+                                                      doc="Qtd. máxima de OPÇÕES DISTINTAS a serem escolhidas.")
+    max_total_quantity: Mapped[int] = mapped_column(nullable=True,
+                                                    doc="Soma máxima das quantidades (para modo QUANTITY).")
+
+    display_order: Mapped[int] = mapped_column(default=0, doc="Ordem de exibição do grupo no produto.")
+    available: Mapped[bool] = mapped_column(default=True, doc="Se este grupo está ativo neste produto.")
+
+    # Relacionamentos
+    product: Mapped["Product"] = relationship()  # Assumindo que Product tem o back_populates
     variant: Mapped["Variant"] = relationship(back_populates="product_links")
 
+    @classmethod
+    def model_rebuild(cls):
+        pass
 
 
 class Coupon(Base, TimestampMixin):
@@ -1227,3 +1280,39 @@ class PlansAddon(Base, TimestampMixin):
     # Relacionamentos para navegar para a assinatura e para a feature
     store_subscription: Mapped["StoreSubscription"] = relationship(back_populates="subscribed_addons")
     feature: Mapped["Feature"] = relationship(back_populates="addon_subscriptions")
+
+
+class ActiveSession(Base, TimestampMixin):
+
+    __tablename__ = "active_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), index=True)
+
+    device_id: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    socket_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+
+    device_info: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    access_token: Mapped[str] = mapped_column(nullable=False)
+
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now()  # Atualiza automaticamente em escritas no banco
+    )
+
+
+    store: Mapped["Store"] = relationship(back_populates="active_sessions")
+
+
+
+    __table_args__ = (
+        UniqueConstraint('store_id', 'device_id', name='_store_device_uc'),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ActiveSession(id={self.id}, store_id={self.store_id}, device_id='{self.device_id}')>"
+

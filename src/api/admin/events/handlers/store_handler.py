@@ -1,6 +1,9 @@
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from urllib.parse import parse_qs
+
+from sqlalchemy.orm import selectinload
+
 from src.api.admin.schemas.store_settings import StoreSettingsBase
 from src.api.admin.services.store_access_service import StoreAccessService
 from src.api.admin.services.store_session_service import SessionService
@@ -188,3 +191,94 @@ async def handle_leave_store_room(self, sid, data):
     except Exception as e:
         print(f"❌ [leave_store_room] Erro ao processar para a loja {data.get('store_id')}: {e}")
         return {'status': 'error', 'message': 'Erro interno do servidor.'}
+
+
+# ✅ HANDLER CORRIGIDO E ALINHADO COM SEUS MODELOS
+async def handle_register_device(self, sid, data):
+    """
+    Handler para quando um dispositivo cliente tenta se registrar via socket.
+    Valida se a conexão é permitida com base no limite de dispositivos do plano ativo da loja.
+    """
+    print(f"Recebida tentativa de registro do dispositivo para dados: {data}")
+
+    try:
+        store_id = data.get('storeId')
+        device_id = data.get('deviceId')
+
+        if not store_id or not device_id:
+            print(f"[{sid}] Erro: storeId ou deviceId ausente no payload.")
+            await self.emit('registration_failed', {'error': 'Dados inválidos.'}, to=sid)
+            return {"error": "Dados inválidos."}
+
+        with get_db_manager() as db:
+            # --- 1. Obter a loja e sua assinatura ativa de forma otimizada ---
+            # Usamos selectinload para carregar os relacionamentos necessários em uma única consulta
+            # e evitar o problema N+1.
+            stmt = (
+                select(models.Store)
+                .options(
+                    selectinload(models.Store.subscriptions)
+                    .selectinload(models.StoreSubscription.plan)
+                )
+                .where(models.Store.id == store_id)
+            )
+            store = db.execute(stmt).scalar_one_or_none()
+
+            if not store:
+                print(f"[{sid}] Erro: Loja não encontrada para o store_id: {store_id}.")
+                await self.emit('registration_failed', {'error': 'Loja não encontrada.'}, to=sid)
+                return {"error": "Loja não encontrada."}
+
+            # --- 2. Obter o limite de dispositivos usando sua hybrid_property ---
+            active_sub = store.active_subscription
+
+            if not active_sub or not active_sub.plan:
+                print(f"[{sid}] Erro: Assinatura ativa ou plano não encontrado para a loja {store_id}.")
+                await self.emit('registration_failed', {'error': 'Assinatura inválida.'}, to=sid)
+                return {"error": "Assinatura inválida."}
+
+            # Usamos o nome do campo do seu modelo `Plans`: max_active_devices
+            # Usamos 'or 1' como um fallback seguro caso o valor seja None.
+            device_limit = active_sub.plan.max_active_devices or 1
+
+            # --- 3. Contar os dispositivos atualmente ativos para a loja ---
+            active_devices_count = db.query(func.count(models.ActiveSession.id)).filter(
+                models.ActiveSession.store_id == store_id
+            ).scalar()
+
+            # --- 4. Aplicar a lógica de validação ---
+            this_device_session = db.query(models.ActiveSession).filter_by(
+                store_id=store_id, device_id=device_id
+            ).first()
+
+            is_new_device_session = this_device_session is None
+
+            if is_new_device_session and active_devices_count >= device_limit:
+                print(
+                    f"[{sid}] ACESSO NEGADO para device_id {device_id}. Limite de {device_limit} dispositivos atingido.")
+                await self.emit('device_limit_reached', {
+                    'message': f'O plano atual suporta apenas {device_limit} dispositivo(s) conectado(s).'}, to=sid
+                                )
+                return {"error": "Limite de dispositivos atingido."}
+
+            # --- 5. Acesso Permitido: Atualizar a sessão com o socket_id ---
+            if not this_device_session:
+                # Idealmente, a sessão HTTP já deveria ter sido criada no login.
+                # Se este log aparecer com frequência, revise o fluxo de login do app.
+                print(
+                    f"[{sid}] Aviso: Sessão não encontrada para device_id {device_id}. Verifique o fluxo de login HTTP.")
+                return {"error": "Sessão de dispositivo não iniciada. Faça login primeiro."}
+
+            this_device_session.socket_id = sid
+            db.commit()
+
+            print(f"[{sid}] ACESSO PERMITIDO para device_id {device_id}. Sessão atualizada com socket_id.")
+
+            # --- 6. Emitir evento de sucesso ---
+            await self.emit('registration_successful', {'message': 'Dispositivo conectado e autenticado.'}, to=sid)
+            return {"success": True}
+
+    except Exception as e:
+        print(f"❌ Erro em handle_register_device: {str(e)}")
+        await self.emit('registration_failed', {'error': 'Erro interno no servidor.'}, to=sid)
+        return {"error": f"Falha interna: {str(e)}"}
