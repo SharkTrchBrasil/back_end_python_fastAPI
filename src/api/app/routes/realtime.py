@@ -24,7 +24,7 @@ from src.api.app.services.add_customer_store import register_customer_store_rela
 from src.api.app.services.check_variants import validate_order_variants
 
 from src.api.app.services.rating import (
-    get_store_ratings_summary,
+    get_store_ratings_summary, get_product_ratings_summary,
 )
 
 from src.api.shared_schemas.rating import RatingsSummaryOut
@@ -56,28 +56,19 @@ async def connect(sid, environ):
             if not totem or not totem.store:
                 raise ConnectionRefusedError("Invalid or unauthorized token")
 
-            # Cria/atualiza a sessão
+            # Lógica de sessão e entrada na sala (seu código original está perfeito)
             session = db.query(models.StoreSession).filter_by(sid=sid).first()
             if not session:
-                session = models.StoreSession(
-                    sid=sid,
-                    store_id=totem.store.id,
-                    client_type='totem',
-
-                )
+                session = models.StoreSession(sid=sid, store_id=totem.store.id, client_type='totem')
                 db.add(session)
             else:
                 session.store_id = totem.store.id
-                session.client_type = 'totem'
                 session.updated_at = datetime.utcnow()
-
-
             db.commit()
-            print(f"✅ Totem session criada/atualizada para sid {sid}")
 
             room_name = f"store_{totem.store_id}"
             await sio.enter_room(sid, room_name)
-
+            print(f"✅ Cliente {sid} conectado e entrou na sala {room_name}")
 
             # ✅ PASSO 1: FAZEMOS UMA ÚNICA "SUPER CONSULTA" PARA PEGAR TUDO
             print(f"Carregando estado completo para a loja {totem.store_id}...")
@@ -87,11 +78,11 @@ async def connect(sid, environ):
                 joinedload(models.Store.settings),
                 selectinload(models.Store.hours),
 
-                # ✅ Carrega o tema e os banners junto
+                # Carrega o tema e os banners junto
                 joinedload(models.Store.theme),
                 selectinload(models.Store.banners),
 
-                # Carrega o cardápio completo
+                # Carrega o cardápio completo com a estrutura correta
                 selectinload(models.Store.products).selectinload(
                     models.Product.variant_links
                 ).selectinload(
@@ -106,23 +97,28 @@ async def connect(sid, environ):
             if not store:
                 raise ConnectionRefusedError("Store not found after query")
 
-            # ✅ PASSO 2: MONTAMOS E EMITIMOS TODOS OS EVENTOS A PARTIR DO OBJETO 'store' JÁ CARREGADO
+            # ✅ PASSO 2: MONTAMOS E EMITIMOS TODOS OS EVENTOS A PARTIR DO OBJETO 'store'
 
             # 1. Emite dados da loja
             store_schema = StoreDetails.model_validate(store)
             store_schema.ratingsSummary = RatingsSummaryOut(**get_store_ratings_summary(db, store_id=store.id))
             await sio.emit("store_updated", store_schema.model_dump(mode='json'), to=sid)
 
-            # 2. Emite tema (acessando o relacionamento já carregado)
+            # 2. Emite tema
             if store.theme:
                 await sio.emit("theme_updated", StoreThemeOut.model_validate(store.theme).model_dump(mode='json'),
                                to=sid)
 
-            # 3. Emite produtos (acessando o relacionamento já carregado)
-            products_payload = [ProductOut.model_validate(p).model_dump(mode='json') for p in store.products]
+            # 3. Emite produtos (usando a lógica da sua função 'emit_products_updated' aqui)
+            product_ratings = {p.id: get_product_ratings_summary(db, product_id=p.id) for p in store.products}
+            products_payload = []
+            for p in store.products:
+                product_dict = ProductOut.model_validate(p).model_dump(mode='json')
+                product_dict["rating"] = product_ratings.get(p.id)
+                products_payload.append(product_dict)
             await sio.emit("products_updated", products_payload, to=sid)
 
-            # 4. Emite banners (acessando o relacionamento já carregado)
+            # 4. Emite banners
             if store.banners:
                 banners_payload = [BannerOut.model_validate(b).model_dump(mode='json') for b in store.banners]
                 await sio.emit("banners_updated", banners_payload, to=sid)
@@ -133,6 +129,9 @@ async def connect(sid, environ):
             db.rollback()
             print(f"❌ Erro na conexão do totem: {str(e)}")
             raise ConnectionRefusedError(str(e))
+
+
+
 
 # Evento de desconexão do Socket.IO
 @sio.event
