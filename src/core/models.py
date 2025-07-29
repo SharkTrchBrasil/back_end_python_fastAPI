@@ -269,9 +269,8 @@ class Variant(Base, TimestampMixin):
 
     # Relacionamentos
     options: Mapped[list["VariantOption"]] = relationship(back_populates="variant", cascade="all, delete-orphan")
-    product_links: Mapped[list["ProductVariantLink"]] = relationship(back_populates="variant",
-                                                                     cascade="all, delete-orphan")
-
+    product_links: Mapped[list["ProductVariantLink"]] = relationship(back_populates="variant", cascade="all, delete-orphan")
+    store: Mapped["Store"] = relationship(back_populates="variants")
 
 
 
