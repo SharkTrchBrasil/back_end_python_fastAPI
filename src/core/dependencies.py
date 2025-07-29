@@ -162,39 +162,30 @@ def get_product(
 GetProductDep = Annotated[models.Product, Depends(get_product)]
 
 
-def get_product_variant(
-    db: GetDBDep,
-    store_id: int,
-    variant_id: int,
-):
+
+def get_variant_template(db: GetDBDep, store_id: int, variant_id: int):
+    # ✅ NOME ATUALIZADO PARA CLAREZA
     db_variant = db.query(models.Variant).filter(
         models.Variant.id == variant_id,
         models.Variant.store_id == store_id
     ).first()
     if not db_variant:
-        raise HTTPException(status_code=404, detail="Variant not found")
+        raise HTTPException(status_code=404, detail="Variant template not found")
     return db_variant
 
+GetVariantDep = Annotated[models.Variant, Depends(get_variant_template)]
 
-GetVariantDep = Annotated[models.Variant, Depends(get_product_variant)]
-
-
-def get_product_variant_option(
-    db: GetDBDep,
-    variant: GetVariantDep,
-    option_id: int,
-):
-    option = db.query(models.VariantOptions).filter(models.VariantOptions.id == option_id
-                                                          ).first()
-    if option is None:
+def get_variant_option(db: GetDBDep, variant: GetVariantDep, option_id: int):
+    # ✅ CÓDIGO CORRIGIDO E MAIS SEGURO
+    option = db.query(models.VariantOption).filter(
+        models.VariantOption.id == option_id,
+        models.VariantOption.variant_id == variant.id # Garante que a opção pertence à variante correta
+    ).first()
+    if not option:
         raise HTTPException(status_code=404, detail="Option not found")
     return option
 
-
-GetVariantOptionDep = Annotated[models.VariantOptions, Depends(get_product_variant_option)]
-
-
-
+GetVariantOptionDep = Annotated[models.VariantOption, Depends(get_variant_option)]
 
 
 def get_store_from_token(
