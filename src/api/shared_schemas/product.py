@@ -70,7 +70,8 @@ class ProductOut(ProductBase):
 
     # ✅ CORREÇÃO PRINCIPAL: Inclui a lista de 'ligações de variantes',
     # que contém tanto as regras quanto o template do grupo.
-    variant_links: List[ProductVariantLinkOut] = []
+
+    variant_links: List["ProductVariantLinkOut"] = []
 
     @computed_field
     @property
@@ -95,3 +96,6 @@ class ProductRatingOut(ProductRatingBase):
     customer_id: int
     # ✅ Apenas atualizamos o estilo da configuração para Pydantic v2
     # model_config = ConfigDict(from_attributes=True) já é herdado de AppBaseModel
+
+
+ProductOut.model_rebuild()

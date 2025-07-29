@@ -30,4 +30,9 @@ class ProductVariantLinkUpdate(BaseModel):
 
 class ProductVariantLink(ProductVariantLinkBase):
     """Schema para ler as regras de um grupo em um produto, incluindo o template Variant aninhado."""
-    variant: Variant # Retorna o template completo que está sendo usado
+    variant: "Variant"
+
+
+
+
+ProductVariantLink.model_rebuild()
