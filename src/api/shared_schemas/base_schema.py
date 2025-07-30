@@ -1,6 +1,3 @@
-# ===================================================================
-# ARQUIVO: src/api/shared_schemas/base_schema.py (Crie se não existir)
-# ===================================================================
 import enum
 from pydantic import BaseModel, ConfigDict
 
@@ -15,6 +12,7 @@ class VariantType(str, enum.Enum):
     INGREDIENTS = "Ingredientes"
     SPECIFICATIONS = "Especificações"
     CROSS_SELL = "Cross-sell"
+    DISPOSABLES = "Descartáveis" # ✅ ESTA OPÇÃO ESTAVA FALTANDO
 
 class UIDisplayMode(str, enum.Enum):
     SINGLE = "Seleção Única"

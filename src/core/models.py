@@ -10,6 +10,7 @@ from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueCon
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from src.api.shared_schemas.base_schema import VariantType, UIDisplayMode
 from src.api.shared_schemas.order import OrderStatus
 
 
@@ -238,19 +239,6 @@ class Product(Base, TimestampMixin):
 
 
 
-class VariantType(enum.Enum):
-    """Define a finalidade do grupo de complementos."""
-    INGREDIENTS = "Ingredientes"      # Adicionar/remover ingredientes
-    SPECIFICATIONS = "Especificações" # Ex: Ponto da carne, com ou sem gelo
-    CROSS_SELL = "Cross-sell"         # Oferecer outros PRODUTOS do cardápio
-
-class UIDisplayMode(enum.Enum):
-    """Define como a interface de seleção deve ser renderizada para o cliente."""
-    SINGLE = "Seleção Única"    # Botões de rádio (a "bolinha")
-    MULTIPLE = "Seleção Múltipla" # Caixas de seleção (checkboxes)
-    QUANTITY = "Seleção com Quantidade" # Botões de +/- para cada opção
-
-
 class Variant(Base, TimestampMixin):
     __tablename__ = "variants"
 
@@ -259,7 +247,12 @@ class Variant(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(unique=True, doc="Nome único do template. Ex: 'Adicionais', 'Bebidas', 'Molhos'")
 
     type: Mapped[VariantType] = mapped_column(
-        Enum(VariantType, native_enum=False),  # <--- A MUDANÇA É AQUI
+        Enum(
+            VariantType,
+            native_enum=False,
+            # ✅ A LINHA MÁGICA É ESTA:
+            values_callable=lambda obj: [e.value for e in obj]
+        ),
         doc="Define a finalidade do grupo..."
     )
 
