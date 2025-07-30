@@ -19,7 +19,7 @@ async def create_product_variant_option(
 ):
     db_option = models.VariantOption(
         **option.model_dump(),
-        variant_id=variant.id,
+
         store_id=variant.store_id, # usado para fazer refres no socket.io
     )
 

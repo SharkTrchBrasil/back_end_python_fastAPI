@@ -4,7 +4,7 @@ from src.core import models
 from src.api.shared_schemas import product_variant_link as link_schemas  # Usando os schemas finais
 from src.core.dependencies import GetProductDep  # Supondo que você tenha essas dependências
 
-router = APIRouter(tags=["3. Product Variant Links & Rules"], prefix="/products/{product_id}/variants")
+router = APIRouter(tags=["3. Product Variant Links & Rules"], prefix="/stores/{store_id}/products/{product_id}/variants")
 
 
 @router.post("/{variant_id}", response_model=link_schemas.ProductVariantLink, status_code=status.HTTP_201_CREATED,
