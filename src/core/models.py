@@ -195,8 +195,8 @@ class Product(Base, TimestampMixin):
     __tablename__ = "products"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column()
-    description: Mapped[str] = mapped_column()
+    name: Mapped[str] = mapped_column(String(80))
+    description: Mapped[str] = mapped_column(String(1000))
     base_price: Mapped[int] = mapped_column()
     cost_price: Mapped[int] = mapped_column(default=0)
     available: Mapped[bool] = mapped_column()
