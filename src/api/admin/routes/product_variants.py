@@ -41,7 +41,7 @@ async def link_variant_to_product(
     await emit_products_updated(db, store_id)
 
     # Este evento atualiza todos os painéis de admin conectados àquela loja
-    await admin_emit_products_updated(db, store_id=store_id)
+    await admin_emit_products_updated(db, store_id)
 
     return db_link
 

@@ -90,7 +90,7 @@ async def create_product(
 
     await asyncio.create_task(emit_products_updated(db, store.id))
     # Este evento atualiza todos os painéis de admin conectados àquela loja
-    await admin_emit_products_updated(db, store_id=store.id)
+    await admin_emit_products_updated(db, store.id)
     return new_product
 
 
@@ -216,7 +216,7 @@ async def patch_product(
     await asyncio.create_task(emit_products_updated(db, store.id))
 
     # Este evento atualiza todos os painéis de admin conectados àquela loja
-    await admin_emit_products_updated(db, store_id=store.id)
+    await admin_emit_products_updated(db, store.id)
     return db_product
 
 
