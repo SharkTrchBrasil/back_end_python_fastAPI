@@ -8,6 +8,7 @@ from fastapi import APIRouter, Form
 from starlette.responses import JSONResponse
 
 from src.api.admin.schemas.variant_selection import VariantSelectionPayload
+from src.api.admin.socketio.emitters import admin_emit_products_updated
 from src.api.app.events.socketio_emitters import emit_products_updated
 
 from src.api.shared_schemas.product import ProductOut
@@ -88,7 +89,8 @@ async def create_product(
     db.refresh(new_product)
 
     await asyncio.create_task(emit_products_updated(db, store.id))
-
+    # Este evento atualiza todos os painéis de admin conectados àquela loja
+    await admin_emit_products_updated(db, store_id=store.id)
     return new_product
 
 
@@ -212,6 +214,9 @@ async def patch_product(
 
     db.refresh(db_product)
     await asyncio.create_task(emit_products_updated(db, store.id))
+
+    # Este evento atualiza todos os painéis de admin conectados àquela loja
+    await admin_emit_products_updated(db, store_id=store.id)
     return db_product
 
 
