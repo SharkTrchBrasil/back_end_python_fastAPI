@@ -292,43 +292,39 @@ async def admin_emit_new_print_jobs(store_id: int, order_id: int, jobs: list):
     print(f"Evento '{event}' emitido para a sala {room} com payload: {payload}")
 
 
-async def admin_emit_products_updated(db, store_id: int):
+# No seu arquivo de emitters (VERSÃO CORRIGIDA)
 
-    # ✅ CONSULTA CORRIGIDA E COMPLETA
+async def admin_emit_products_updated(db, store_id: int):
+    # A consulta ao banco de dados permanece a mesma
     products = db.query(models.Product).options(
-        selectinload(models.Product.variant_links)      # Product -> ProductVariantLink (A Regra)
-        .selectinload(models.ProductVariantLink.variant) # -> Variant (O Template)
-        .selectinload(models.Variant.options)            # -> VariantOption (O Item)
-        .selectinload(models.VariantOption.linked_product) # -> Product (Cross-sell)
+        selectinload(models.Product.variant_links)
+        .selectinload(models.ProductVariantLink.variant)
+        .selectinload(models.Variant.options)
+        .selectinload(models.VariantOption.linked_product)
     ).filter(
         models.Product.store_id == store_id,
         models.Product.available == True
     ).all()
 
-    # Pega avaliações dos produtos (lógica mantida)
     product_ratings = {
         product.id: get_product_ratings_summary(db, product_id=product.id)
         for product in products
     }
 
     products_data = []
+    # --- Laço para MONTAR a lista de dados ---
     for product in products:
-        # ✅ Validação com o novo schema ProductOut
         product_schema = ProductOut.model_validate(product)
         product_dict = product_schema.model_dump(mode='json')
         product_dict["rating"] = product_ratings.get(product.id)
         products_data.append(product_dict)
 
-        # ✅ PASSO 1: Crie o payload no formato que o Dart espera.
-        payload = {
-            'store_id': store_id,
-            'products': products_data
-        }
+    # ✅ CORREÇÃO: O payload e a emissão agora acontecem FORA do laço, uma única vez.
+    payload = {
+        'store_id': store_id,
+        'products': products_data  # 'products_data' agora está completa
+    }
 
-        # ✅ PASSO 2: Emita o novo payload estruturado.
-        room_name = f'admin_store_{store_id}'
-        await sio.emit('products_updated', payload, to=room_name)  # Emitindo o 'payload' em vez de 'products_data'
-        print(f"✅ Evento 'products_updated' com payload estruturado emitido para a sala: {room_name}")
-
-
-
+    room_name = f'admin_store_{store_id}'
+    await sio.emit('products_updated', payload, to=room_name)
+    print(f"✅ Evento 'products_updated' (completo) emitido para a sala: {room_name}")
