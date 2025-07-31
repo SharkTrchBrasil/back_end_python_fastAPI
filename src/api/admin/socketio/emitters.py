@@ -25,11 +25,7 @@ import orjson
 
 
 async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = None):
-    """
-    Busca TODOS os dados essenciais de uma loja e emite um evento "completo"
-    para sincronizar o painel de administração. Esta é a principal função
-    de sincronização de estado.
-    """
+
     try:
         # ✅ SUPER CONSULTA CORRIGIDA E OTIMIZADA
         store = db.query(models.Store).options(

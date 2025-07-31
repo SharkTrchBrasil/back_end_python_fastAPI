@@ -113,10 +113,6 @@ async def handle_admin_connect(self, sid, environ):
                     "is_consolidated": store.id in consolidated_store_ids,
                 })
 
-            # ✅ CORREÇÃO 3: O bloco de código que causava o erro foi REMOVIDO.
-            # O objeto 'admin_user' é do tipo 'User' e não tem o atributo 'store_id'.
-            # O 'StoreAccessService' já lida corretamente com a busca de todas as lojas,
-            # tornando este "fallback" desnecessário e incorreto.
 
             print(f"DEBUG BACKEND: [4] stores_list_data FINAL enviado via 'admin_stores_list': {stores_list_data}")
             await self.emit("admin_stores_list", {"stores": stores_list_data}, to=sid)

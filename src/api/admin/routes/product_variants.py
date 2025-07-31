@@ -1,4 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
+
+from src.api.admin.socketio.emitters import admin_emit_store_full_updated
+from src.api.app.events.socketio_emitters import emit_products_updated
 from src.core.database import GetDBDep
 from src.core import models
 from src.api.shared_schemas import product_variant_link as link_schemas  # Usando os schemas finais
@@ -6,20 +9,18 @@ from src.core.dependencies import GetProductDep  # Supondo que você tenha essas
 
 router = APIRouter(tags=["3. Product Variant Links & Rules"], prefix="/stores/{store_id}/products/{product_id}/variants")
 
+# No seu arquivo de rotas: src/api/routers/product_variant_link.py (ou similar)
 
 @router.post("/{variant_id}", response_model=link_schemas.ProductVariantLink, status_code=status.HTTP_201_CREATED,
              summary="Liga um grupo a um produto com regras ('Copiar')")
-def link_variant_to_product(
+async def link_variant_to_product(
+        store_id: int,  # ✅ 1. Receba o store_id diretamente da URL
         product: GetProductDep,
         variant_id: int,
-        link_data: link_schemas.ProductVariantLinkCreate,  # O body da requisição contém as REGRAS
+        link_data: link_schemas.ProductVariantLinkCreate,
         db: GetDBDep
 ):
-    """
-    Esta rota implementa a funcionalidade 'Copiar Grupo'.
-    Ela cria uma nova ligação ProductVariantLink, aplicando um template Variant
-    a um Product com um conjunto de regras específico.
-    """
+
     # Verificar se a ligação já existe
     existing_link = db.query(models.ProductVariantLink).filter_by(product_id=product.id, variant_id=variant_id).first()
     if existing_link:
@@ -34,6 +35,14 @@ def link_variant_to_product(
     db.add(db_link)
     db.commit()
     db.refresh(db_link)
+
+    # ✅ 2. Chame os eventos com o store_id correto
+    # Este evento provavelmente notifica os apps dos clientes (se aplicável)
+    await emit_products_updated(db, store_id)
+
+    # Este evento atualiza todos os painéis de admin conectados àquela loja
+    await admin_emit_store_full_updated(db, store_id=store_id)
+
     return db_link
 
 
@@ -62,6 +71,14 @@ def update_link_rules(
 
     db.commit()
     db.refresh(db_link)
+
+    # ✅ 2. Chame os eventos com o store_id correto
+    # Este evento provavelmente notifica os apps dos clientes (se aplicável)
+  #  await emit_products_updated(db, store_id)
+
+    # Este evento atualiza todos os painéis de admin conectados àquela loja
+   # await admin_emit_store_full_updated(db, store_id=store_id)
+
     return db_link
 
 
