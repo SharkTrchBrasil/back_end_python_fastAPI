@@ -326,5 +326,13 @@ async def admin_emit_products_updated(db, store_id: int):
     }
 
     room_name = f'admin_store_{store_id}'
-    await sio.emit('products_updated', payload, to=room_name)
-    print(f"✅ Evento 'products_updated' (completo) emitido para a sala: {room_name}")
+
+    # ✅ A CORREÇÃO CRÍTICA ESTÁ AQUI: Adicione o parâmetro 'namespace'
+    await sio.emit(
+        'products_updated',
+        payload,
+        to=room_name,
+        namespace='/admin'  # 👈 Adicione esta linha
+    )
+
+    print(f"✅ Evento 'products_updated' (completo) emitido para a sala: {room_name} no namespace /admin")
