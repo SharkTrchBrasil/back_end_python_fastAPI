@@ -73,7 +73,13 @@ class Store(Base, TimestampMixin):
     totem_authorizations = relationship("TotemAuthorization", back_populates="store")
 
     payment_methods: Mapped[list["StorePaymentMethods"]] = relationship()
-    products: Mapped[list["Product"]] = relationship()
+
+    products = relationship(
+        "Product",
+        back_populates="store",
+        order_by="asc(Product.priority)"  # Ou "Product.name" para ordem alfabética
+    )
+
     coupons: Mapped[List["Coupon"]] = relationship(back_populates="store")
     # no Store
     store_customers = relationship("StoreCustomer", back_populates="store")
@@ -200,13 +206,16 @@ class Product(Base, TimestampMixin):
     base_price: Mapped[int] = mapped_column()
     cost_price: Mapped[int] = mapped_column(default=0)
     available: Mapped[bool] = mapped_column()
-
+    priority: Mapped[int] = mapped_column()
     promotion_price: Mapped[int] = mapped_column(default=0)
 
     featured: Mapped[bool] = mapped_column()
     activate_promotion: Mapped[bool] = mapped_column()
 
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+    # ✅ ADICIONE ESTA LINHA PARA O RELACIONAMENTO REVERSO
+    store: Mapped["Store"] = relationship(back_populates="products")
+
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
     category: Mapped[Category] = relationship(back_populates="products")
     file_key: Mapped[str] = mapped_column()

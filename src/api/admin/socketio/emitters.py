@@ -304,7 +304,7 @@ async def admin_emit_products_updated(db, store_id: int):
     ).filter(
         models.Product.store_id == store_id,
        # models.Product.available == True
-    ).all()
+    ).order_by(models.Product.priority.asc(), models.Product.name.asc()).all()
 
     product_ratings = {
         product.id: get_product_ratings_summary(db, product_id=product.id)

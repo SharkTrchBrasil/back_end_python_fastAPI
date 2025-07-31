@@ -35,7 +35,7 @@ def get_product_by_subdomain(
     ).filter(
         models.Product.id == product_id,
         models.Product.store_id == store.id,
-        models.Product.available == True
+        #models.Product.available == True
     ).first()
 
     if not product:
