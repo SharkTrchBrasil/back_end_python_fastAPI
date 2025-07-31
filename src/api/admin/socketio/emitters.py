@@ -290,3 +290,40 @@ async def admin_emit_new_print_jobs(store_id: int, order_id: int, jobs: list):
     }
     await sio.emit(event, payload, room=room)
     print(f"Evento '{event}' emitido para a sala {room} com payload: {payload}")
+
+
+async def admin_emit_products_updated(db, store_id: int):
+
+    # ✅ CONSULTA CORRIGIDA E COMPLETA
+    products = db.query(models.Product).options(
+        selectinload(models.Product.variant_links)      # Product -> ProductVariantLink (A Regra)
+        .selectinload(models.ProductVariantLink.variant) # -> Variant (O Template)
+        .selectinload(models.Variant.options)            # -> VariantOption (O Item)
+        .selectinload(models.VariantOption.linked_product) # -> Product (Cross-sell)
+    ).filter(
+        models.Product.store_id == store_id,
+        models.Product.available == True
+    ).all()
+
+    # Pega avaliações dos produtos (lógica mantida)
+    product_ratings = {
+        product.id: get_product_ratings_summary(db, product_id=product.id)
+        for product in products
+    }
+
+    products_data = []
+    for product in products:
+        # ✅ Validação com o novo schema ProductOut
+        product_schema = ProductOut.model_validate(product)
+        product_dict = product_schema.model_dump(mode='json')
+        product_dict["rating"] = product_ratings.get(product.id)
+        products_data.append(product_dict)
+
+        # ✅ CORREÇÃO: Alinhe o nome da sala com o que o Flutter espera.
+        # Apenas adicione o prefixo "admin_" no nome da sala.
+    room_name = f'admin_store_{store_id}'
+    await sio.emit('products_updated', products_data, to=room_name)
+    print(f"✅ Evento 'products_updated' emitido para a sala: {room_name}")
+
+
+

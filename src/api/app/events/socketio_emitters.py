@@ -38,10 +38,7 @@ async def emit_theme_updated(theme: models.StoreTheme):
     )
 
 async def emit_products_updated(db, store_id: int):
-    """
-    Função ÚNICA e OTIMIZADA para buscar e emitir a lista de produtos
-    e TODOS os seus complementos para o cardápio do cliente.
-    """
+
     # ✅ CONSULTA CORRIGIDA E COMPLETA
     products = db.query(models.Product).options(
         selectinload(models.Product.variant_links)      # Product -> ProductVariantLink (A Regra)

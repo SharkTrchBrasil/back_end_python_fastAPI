@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 
-from src.api.admin.socketio.emitters import admin_emit_store_full_updated
+from src.api.admin.socketio.emitters import admin_emit_store_full_updated, admin_emit_products_updated
 from src.api.app.events.socketio_emitters import emit_products_updated
 from src.core.database import GetDBDep
 from src.core import models
@@ -41,7 +41,7 @@ async def link_variant_to_product(
     await emit_products_updated(db, store_id)
 
     # Este evento atualiza todos os painéis de admin conectados àquela loja
-    await admin_emit_store_full_updated(db, store_id=store_id)
+    await admin_emit_products_updated(db, store_id=store_id)
 
     return db_link
 
