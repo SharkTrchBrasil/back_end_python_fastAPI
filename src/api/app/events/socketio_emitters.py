@@ -47,7 +47,7 @@ async def emit_products_updated(db, store_id: int):
         .selectinload(models.VariantOption.linked_product) # -> Product (Cross-sell)
     ).filter(
         models.Product.store_id == store_id,
-        models.Product.available == True
+        #models.Product.available == True
     ).all()
 
     # Pega avaliações dos produtos (lógica mantida)

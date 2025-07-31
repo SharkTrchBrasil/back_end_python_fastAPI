@@ -303,7 +303,7 @@ async def admin_emit_products_updated(db, store_id: int):
         .selectinload(models.VariantOption.linked_product)
     ).filter(
         models.Product.store_id == store_id,
-        models.Product.available == True
+       # models.Product.available == True
     ).all()
 
     product_ratings = {
