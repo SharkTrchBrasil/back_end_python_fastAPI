@@ -319,11 +319,16 @@ async def admin_emit_products_updated(db, store_id: int):
         product_dict["rating"] = product_ratings.get(product.id)
         products_data.append(product_dict)
 
-        # ✅ CORREÇÃO: Alinhe o nome da sala com o que o Flutter espera.
-        # Apenas adicione o prefixo "admin_" no nome da sala.
-    room_name = f'admin_store_{store_id}'
-    await sio.emit('products_updated', products_data, to=room_name)
-    print(f"✅ Evento 'products_updated' emitido para a sala: {room_name}")
+        # ✅ PASSO 1: Crie o payload no formato que o Dart espera.
+        payload = {
+            'store_id': store_id,
+            'products': products_data
+        }
+
+        # ✅ PASSO 2: Emita o novo payload estruturado.
+        room_name = f'admin_store_{store_id}'
+        await sio.emit('products_updated', payload, to=room_name)  # Emitindo o 'payload' em vez de 'products_data'
+        print(f"✅ Evento 'products_updated' com payload estruturado emitido para a sala: {room_name}")
 
 
 
