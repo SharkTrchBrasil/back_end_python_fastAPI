@@ -157,6 +157,7 @@ class User(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column()
     name: Mapped[str] = mapped_column()
+    phone:  Mapped[str] = mapped_column(),
     hashed_password: Mapped[str] = mapped_column()
     is_active: Mapped[bool] = mapped_column(default=False)
     is_email_verified: Mapped[bool] = mapped_column(default=False)
