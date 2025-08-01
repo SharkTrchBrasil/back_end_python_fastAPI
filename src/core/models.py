@@ -75,7 +75,7 @@ class Store(Base, TimestampMixin):
 
     # ✅ ADIÇÃO: Relacionamento reverso para as ativações de pagamento
     payment_activations = relationship("StorePaymentMethodActivation", back_populates="store")
-
+    is_setup_complete: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     products = relationship(
         "Product",

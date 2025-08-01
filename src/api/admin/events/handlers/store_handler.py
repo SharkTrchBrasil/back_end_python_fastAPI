@@ -282,3 +282,62 @@ async def handle_register_device(self, sid, data):
         print(f"❌ Erro em handle_register_device: {str(e)}")
         await self.emit('registration_failed', {'error': 'Erro interno no servidor.'}, to=sid)
         return {"error": f"Falha interna: {str(e)}"}
+
+
+async def check_and_update_setup_status(store_id: int):
+    """
+    Verifica se a loja completou as tarefas essenciais de configuração.
+    Esta função gerencia sua própria sessão de banco de dados.
+    """
+    # ✅ Usa o mesmo padrão de gerenciamento de sessão das outras funções
+    with get_db_manager() as db:
+        try:
+            # Busca a loja para verificar o status atual e o endereço
+            store = db.query(models.Store).filter(models.Store.id == store_id).first()
+            if not store:
+                print(f"❌ Loja {store_id} não encontrada em check_and_update_setup_status.")
+                return
+
+            # Se o setup já foi completado, não faz mais nada
+            if store.is_setup_complete:
+                return
+
+            # ✅ REGRAS DE VERIFICAÇÃO OTIMIZADAS (Consultas mais leves)
+
+            # 1. Verifica se há pelo menos um horário de funcionamento.
+            has_configured_hours = db.query(models.StoreHour).filter(
+                models.StoreHour.store_id == store_id).first() is not None
+
+            # 2. Verifica se pelo menos um método de pagamento foi ativado.
+            has_activated_payment = db.query(models.StorePaymentMethodActivation).filter(
+                models.StorePaymentMethodActivation.store_id == store_id,
+                models.StorePaymentMethodActivation.is_active == True
+            ).first() is not None
+
+            # 3. Verifica se pelo menos um produto foi adicionado.
+            has_added_product = db.query(models.Product).filter(models.Product.store_id == store_id).first() is not None
+
+            # 4. Verifica se o endereço principal da loja foi preenchido.
+            has_set_address = store.street is not None and store.neighborhood is not None
+
+            # 5. Verifica se pelo menos uma área de entrega foi configurada.
+            # Para esta checagem aninhada, carregar o relacionamento ainda é a forma mais limpa.
+            store_with_cities = db.query(models.Store).options(
+                selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods)
+            ).filter(models.Store.id == store_id).first()
+            has_configured_delivery_area = len(store_with_cities.cities) > 0 and any(
+                len(city.neighborhoods) > 0 for city in store_with_cities.cities)
+
+            # Verifica se TODAS as condições são verdadeiras
+            if all([has_configured_hours, has_activated_payment, has_added_product, has_set_address,
+                    has_configured_delivery_area]):
+                print(f"🎉 Loja {store.id} completou todas as tarefas de setup! Liberando o painel completo.")
+                store.is_setup_complete = True
+                db.commit()
+
+                # Emite o evento para notificar o frontend que o status da loja mudou
+                await admin_emit_store_full_updated(db, store.id)
+
+        except Exception as e:
+            # O 'with get_db_manager()' já cuida do rollback em caso de erro.
+            print(f"❌ Erro em check_and_update_setup_status para a loja {store_id}: {e}")

@@ -26,7 +26,7 @@ class StoreDetails(Store):
     store_settings: StoreSettingsBase | None = None
     ratingsSummary: Optional[RatingsSummaryOut] = Field(None, alias="ratingsSummary")
     subscription: Optional[StoreSubscriptionSchema] = None
-
+    is_setup_complete: bool  # ✅ Adicione o campo aqui
     # --- NOVAS RELAÇÕES DO CATÁLOGO ---
     # Adicionamos os campos que agora são carregados pela "super consulta".
     categories: List[Category] = []
