@@ -1380,3 +1380,30 @@ class ActiveSession(Base, TimestampMixin):
     def __repr__(self) -> str:
         return f"<ActiveSession(id={self.id}, store_id={self.store_id}, device_id='{self.device_id}')>"
 
+
+class Segment(Base, TimestampMixin):
+    __tablename__ = "segments"
+
+    # --- Colunas Principais ---
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    # O nome da especialidade (ex: "Pizzaria", "Hamburgueria").
+    # `unique=True` garante que não haverá nomes duplicados.
+    # `index=True` torna as buscas por nome mais rápidas.
+    name: Mapped[str] = mapped_column(unique=True, index=True)
+
+    # Um campo opcional para descrever a especialidade.
+    # Útil para mostrar dicas na UI ou para seu painel de admin.
+    description: Mapped[str | None] = mapped_column(nullable=True)
+
+    # Um campo booleano para "desativar" uma especialidade sem precisar deletá-la.
+    # Muito útil para manter a integridade dos dados de lojas antigas.
+    is_active: Mapped[bool] = mapped_column(default=True)
+
+    # --- Relacionamento (Opcional, mas recomendado) ---
+    # Se você tiver uma tabela `stores` e quiser navegar
+    # dos segmentos para as lojas que pertencem a ele.
+    # stores: Mapped[List["Store"]] = relationship(back_populates="segment")
+
+    def __repr__(self) -> str:
+        return f"<Segment(id={self.id}, name='{self.name}')>"
