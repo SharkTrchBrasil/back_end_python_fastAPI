@@ -13,7 +13,7 @@ from src.api.admin.schemas.cash_transaction import CashierTransactionOut
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep, GetCurrentUserDep
 from src.core.helpers.enums import CashierTransactionType, PaymentMethod
-from src.core.models import CashierSession, CashierTransaction, StorePaymentMethods
+from src.core.models import CashierSession, CashierTransaction
 
 router = APIRouter(prefix="/stores/{store_id}/cashier-sessions", tags=["Sessões de Caixa"])
 
@@ -232,39 +232,39 @@ def remove_cash(
     return transaction
 
 
-@router.get("/{id}/payment-summary")
-def get_payment_summary(id: int, db: GetDBDep, store: GetStoreDep):
-    # Obter os métodos de pagamento ativos da loja
-    store_payment_methods = db.query(StorePaymentMethods).filter(
-        StorePaymentMethods.store_id == store.id,
-        StorePaymentMethods.is_active == True,
-        StorePaymentMethods.active_on_counter == True
-    ).all()
-
-    # Criar um mapeamento de id para nome personalizado
-    custom_names_map = {pm.id: pm.custom_name for pm in store_payment_methods}
-
-    # Obter totais por método de pagamento baseado no ID
-    transaction_sums = (
-        db.query(
-            CashierTransaction.payment_method_id,
-            func.coalesce(func.sum(CashierTransaction.amount), 0).label("total")
-        )
-        .filter(
-            CashierTransaction.cashier_session_id == id,
-            CashierTransaction.type == CashierTransactionType.INFLOW
-        )
-        .group_by(CashierTransaction.payment_method_id)
-        .all()
-    )
-
-    # Montar dicionário com os totais usando os nomes personalizados
-    final_summary = {}
-    for pm in store_payment_methods:
-        total = next(
-            (float(ts.total) for ts in transaction_sums if ts.payment_method_id == pm.id),
-            0.0
-        )
-        final_summary[pm.custom_name] = total
-
-    return final_summary
+# @router.get("/{id}/payment-summary")
+# def get_payment_summary(id: int, db: GetDBDep, store: GetStoreDep):
+#     # Obter os métodos de pagamento ativos da loja
+#     store_payment_methods = db.query(StorePaymentMethods).filter(
+#         StorePaymentMethods.store_id == store.id,
+#         StorePaymentMethods.is_active == True,
+#         StorePaymentMethods.active_on_counter == True
+#     ).all()
+#
+#     # Criar um mapeamento de id para nome personalizado
+#     custom_names_map = {pm.id: pm.custom_name for pm in store_payment_methods}
+#
+#     # Obter totais por método de pagamento baseado no ID
+#     transaction_sums = (
+#         db.query(
+#             CashierTransaction.payment_method_id,
+#             func.coalesce(func.sum(CashierTransaction.amount), 0).label("total")
+#         )
+#         .filter(
+#             CashierTransaction.cashier_session_id == id,
+#             CashierTransaction.type == CashierTransactionType.INFLOW
+#         )
+#         .group_by(CashierTransaction.payment_method_id)
+#         .all()
+#     )
+#
+#     # Montar dicionário com os totais usando os nomes personalizados
+#     final_summary = {}
+#     for pm in store_payment_methods:
+#         total = next(
+#             (float(ts.total) for ts in transaction_sums if ts.payment_method_id == pm.id),
+#             0.0
+#         )
+#         final_summary[pm.custom_name] = total
+#
+#     return final_summary

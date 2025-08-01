@@ -43,25 +43,7 @@ def create_store(
     db.add(db_store)
     db.flush()  # agora sim
 
-    # Cria as formas de pagamento
-    for payment in default_payment_methods:
-        db_payment = models.StorePaymentMethods(
-            store_id=db_store.id,
-            payment_type=payment["payment_type"],
-            custom_name=payment["custom_name"],
-            custom_icon=payment.get("custom_icon"),
 
-
-            is_active=True,
-            active_on_delivery=True,
-            active_on_pickup=True,
-            active_on_counter=True,
-            tax_rate=0.0,
-
-            pix_key='',
-
-        )
-        db.add(db_payment)
 
     # Cria as configurações de entrega usando o id já gerado
     db_delivery_settings = models.StoreDeliveryConfiguration(
