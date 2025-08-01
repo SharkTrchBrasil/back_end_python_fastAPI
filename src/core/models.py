@@ -13,7 +13,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from src.api.shared_schemas.base_schema import VariantType, UIDisplayMode
 from src.api.shared_schemas.order import OrderStatus
-
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy import ForeignKey, Enum, Text
 
 class Base(DeclarativeBase):
     pass
@@ -32,50 +33,68 @@ class TimestampMixin:
     )
 
 
+# Enum para o status de verificação
+class StoreVerificationStatus(enum.Enum):
+    UNVERIFIED = "unverified"
+    PENDING = "pending"
+    VERIFIED = "verified"
+    REJECTED = "rejected"
+
 
 class Store(Base, TimestampMixin):
     __tablename__ = "stores"
 
-
     id: Mapped[int] = mapped_column(primary_key=True)
+
+    # --- Identificação Básica ---
     name: Mapped[str] = mapped_column()
-    phone: Mapped[str] = mapped_column()
+    url_slug: Mapped[str] = mapped_column(unique=True, index=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    phone: Mapped[str | None] = mapped_column(nullable=True)
+    cnpj: Mapped[str | None] = mapped_column(unique=True, index=True, nullable=True)
+    segment_id: Mapped[int | None] = mapped_column(ForeignKey("segments.id"), nullable=True)
 
-    # Ativação
-    is_active: Mapped[bool] = mapped_column(default=False, nullable=False)
-    # store_url: Mapped[str] = mapped_column(unique=True, nullable=False)
-    # Endereço
-    zip_code: Mapped[Optional[str]] = mapped_column(nullable=True)
-    street: Mapped[Optional[str]] = mapped_column(nullable=True)
-    number: Mapped[Optional[str]] = mapped_column(nullable=True)
-    neighborhood: Mapped[Optional[str]] = mapped_column(nullable=True)
-    complement: Mapped[Optional[str]] = mapped_column(nullable=True)
-    reference: Mapped[Optional[str]] = mapped_column(nullable=True)
-    city: Mapped[Optional[str]] = mapped_column(nullable=True)
-    state: Mapped[Optional[str]] = mapped_column(nullable=True)
-    description: Mapped[Optional[str]] = mapped_column(nullable=True)
+    # --- Endereço e Logística ---
+    zip_code: Mapped[str | None] = mapped_column(nullable=True)
+    street: Mapped[str | None] = mapped_column(nullable=True)
+    number: Mapped[str | None] = mapped_column(nullable=True)
+    complement: Mapped[str | None] = mapped_column(nullable=True)
+    neighborhood: Mapped[str | None] = mapped_column(nullable=True)
+    city: Mapped[str | None] = mapped_column(nullable=True)
+    state: Mapped[str | None] = mapped_column(nullable=True)
+    latitude: Mapped[float | None] = mapped_column(nullable=True)
+    longitude: Mapped[float | None] = mapped_column(nullable=True)
+    delivery_radius_km: Mapped[float | None] = mapped_column(nullable=True)
 
-    # Identidade visual
-    file_key: Mapped[Optional[str]] = mapped_column(nullable=True)
-    banner_file_key: Mapped[Optional[str]] = mapped_column(nullable=True)
+    # --- Operacional ---
+    average_preparation_time: Mapped[int | None] = mapped_column(nullable=True)  # Em minutos
+    order_number_prefix: Mapped[str | None] = mapped_column(nullable=True)
+    manual_close_until: Mapped[datetime | None] = mapped_column(nullable=True)
 
-    # Redes sociais
-    instagram: Mapped[Optional[str]] = mapped_column(nullable=True)
-    facebook: Mapped[Optional[str]] = mapped_column(nullable=True)
-    tiktok: Mapped[Optional[str]] = mapped_column(nullable=True)
+    # --- Responsável Operacional ---
+    responsible_name: Mapped[str | None] = mapped_column(nullable=True)
+    responsible_phone: Mapped[str | None] = mapped_column(nullable=True)
 
+    # --- Marketing e SEO ---
+    tags: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    meta_title: Mapped[str | None] = mapped_column(nullable=True)
+    meta_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rating_average: Mapped[float | None] = mapped_column(default=0.0)
+    rating_count: Mapped[int | None] = mapped_column(default=0)
+    file_key: Mapped[str | None] = mapped_column(nullable=True)
+    banner_file_key: Mapped[str | None] = mapped_column(nullable=True)
 
-    store_url: Mapped[Optional[str]] = mapped_column(nullable=False)
-    # Relacionamentos
+    # --- Gerenciamento da Plataforma ---
+    is_active: Mapped[bool] = mapped_column(default=True)
+    is_setup_complete: Mapped[bool] = mapped_column(default=False)
+    is_featured: Mapped[bool] = mapped_column(default=False)
+    verification_status: Mapped[StoreVerificationStatus] = mapped_column(
+        Enum(StoreVerificationStatus), default=StoreVerificationStatus.UNVERIFIED
+    )
+    internal_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    accesses = relationship("StoreAccess", back_populates="store")
-    categories = relationship("Category", back_populates="store")
-    variants = relationship("Variant", back_populates="store")
-    totem_authorizations = relationship("TotemAuthorization", back_populates="store")
-
-    # ✅ ADIÇÃO: Relacionamento reverso para as ativações de pagamento
-    payment_activations = relationship("StorePaymentMethodActivation", back_populates="store")
-    is_setup_complete: Mapped[bool] = mapped_column(default=False, nullable=False)
+    # --- Relacionamentos (Seus relacionamentos existentes) ---
+    segment: Mapped["Segment"] = relationship()
 
     products = relationship(
         "Product",
@@ -131,6 +150,14 @@ class Store(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
 
+
+
+
+
+
+
+
+
     @hybrid_property
     def active_subscription(self) -> Optional["StoreSubscription"]:  # <- Use a string aqui também
         """
@@ -151,19 +178,27 @@ class Store(Base, TimestampMixin):
         ).correlate_except(StoreSubscription).as_scalar()
 
 
+
 class User(Base, TimestampMixin):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    email: Mapped[str] = mapped_column()
+    email: Mapped[str] = mapped_column(unique=True, index=True)
     name: Mapped[str] = mapped_column()
-    phone: Mapped[str] = mapped_column()
+    phone: Mapped[Optional[str]] = mapped_column(nullable=True) # ALTERADO
     hashed_password: Mapped[str] = mapped_column()
-    is_active: Mapped[bool] = mapped_column(default=False)
+    is_active: Mapped[bool] = mapped_column(default=True)
     is_email_verified: Mapped[bool] = mapped_column(default=False)
-    verification_code: Mapped[Optional[str]] = mapped_column(nullable=True)
+    verification_code: Mapped[Optional[str]] = mapped_column(nullable=True) # ALTERADO
+    cpf: Mapped[Optional[str]] = mapped_column(unique=True, index=True, nullable=True) # ALTERADO
+    birth_date: Mapped[Optional[date]] = mapped_column(nullable=True) # ALTERADO
 
+    # --- CAMPOS PARA O SISTEMA DE INDICAÇÃO ---
+    referral_code: Mapped[str] = mapped_column(unique=True, index=True)
+    referred_by_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True) # ALTERADO
 
+    # --- Relacionamentos SQLAlchemy ---
+    referrer: Mapped[Optional["User"]] = relationship(remote_side=[id]) # ALTERADO
 class Role(Base, TimestampMixin):
     __tablename__ = "roles"
 

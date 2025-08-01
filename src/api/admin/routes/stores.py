@@ -4,23 +4,24 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, Form
+from fastapi import  UploadFile, Form
 from fastapi.params import File
-from slugify import slugify
-from sqlalchemy.orm import joinedload
+
+from sqlalchemy import func
 
 
 from src.api.admin.schemas.store_access import StoreAccess
 from src.api.app.events.socketio_emitters import emit_store_updated
 from src.api.shared_schemas.store import StoreWithRole, StoreCreate, Store, Roles
 from src.core import models
+
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
 from src.core.defaults.delivery_methods import default_delivery_settings
-from src.core.defaults.payment_methods import default_payment_methods
+
 from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetStore
 from src.core.utils.unique_slug import generate_unique_slug
-
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 router = APIRouter(prefix="/stores", tags=["Stores"])
 
 
@@ -38,7 +39,7 @@ def create_store(
     db_store = models.Store(
         name=store_create.name,
         phone=store_create.phone,
-        store_url=generate_unique_slug(db, store_create.name)
+        url_slug=store_create.store_url
     )
     db.add(db_store)
     db.flush()  # agora sim
@@ -91,7 +92,7 @@ def create_store(
         totem_name = db_store.name,
         granted=True,
         granted_by_id= user.id,
-        store_url=db_store.store_url,
+        store_url=db_store.url_slug,
     )
     db.add(totem_auth)
 
@@ -179,64 +180,55 @@ async def patch_store(
     description:  str | None = Form(None),
     image: UploadFile | None = File(None),
     banner: UploadFile | None = File(None),
+    # --- ✅ Novos campos do Wizard ---
+    url_slug: str | None = Form(None),
+    segment_id: int | None = Form(None),
+    # Responsável
+    responsible_name: str | None = Form(None),
+    responsible_phone: str | None = Form(None),
+
+    # Flag para saber se o wizard foi concluído
+    is_setup_complete: bool | None = Form(None),
 
 ):
+    # Lógica de upload de arquivos (já estava correta)
     file_key_to_delete = None
-
-    # Se uma nova logo for enviada, faça o upload e substitua
     if image:
         file_key_to_delete = store.file_key
-        new_file_key = upload_file(image)
-        store.file_key = new_file_key
+        store.file_key = upload_file(image)
 
     banner_key_to_delete = None
-
     if banner:
         banner_key_to_delete = store.banner_file_key
-        new_banner_key = upload_file(banner)
-        store.banner_file_key = new_banner_key
+        store.banner_file_key = upload_file(banner)
 
+    # Dicionário com todos os campos para atualizar
+    update_data = {
+        "name": name, "phone": phone, "description": description,
+        "url_slug": url_slug, "cnpj": cnpj, "segment_id": segment_id,
+        "zip_code": zip_code, "street": street, "number": number,
+        "neighborhood": neighborhood, "complement": complement, "city": city, "state": state,
+        "responsible_name": responsible_name, "responsible_phone": responsible_phone,
+        "is_setup_complete": is_setup_complete,
+    }
 
-    if name is not None: store.name = name
-    if phone is not None: store.phone = phone
-    if email is not None: store.email = email
-    if site is not None: store.site = site
-    if instagram is not None: store.instagram = instagram
-    if facebook is not None: store.facebook = facebook
-    if tiktok is not None: store.tiktok = tiktok
-    if whatsapp is not None: store.whatsapp = whatsapp
-    if about is not None: store.about = about
-    if cnpj is not None: store.cnpj = cnpj
-    if description is not None: store.description = description
+    # Itera e atualiza apenas os campos que foram enviados
+    for key, value in update_data.items():
+        if value is not None:
+            setattr(store, key, value)
 
-    # Endereço
-    if zip_code is not None: store.zip_code = zip_code
-    if street is not None: store.street = street
-    if number is not None: store.number = number
-    if neighborhood is not None: store.neighborhood = neighborhood
-    if complement is not None: store.complement = complement
-    if reference is not None: store.reference = reference
-    if city is not None: store.city = city
-    if state is not None: store.state = state
-
-    # Confirmar as mudanças no banco de dados
     db.add(store)
     db.commit()
     db.refresh(store)
 
+    # Lógica para deletar arquivos antigos (já estava correta)
     if file_key_to_delete:
         delete_file(file_key_to_delete)
-
     if banner_key_to_delete:
         delete_file(banner_key_to_delete)
 
-
     await asyncio.create_task(emit_store_updated(store))
-
     return store
-
-
-
 
 
 
@@ -303,4 +295,32 @@ def delete_store_access(
 
 
 
+# src/api/admin/routes/store.py
 
+@router.get(
+    "/check-url/{url_slug}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Verificar a disponibilidade de uma URL para a loja"
+)
+def check_url_availability(url_slug: str,  db: GetDBDep):
+    """
+    Verifica se uma URL (slug) já está em uso por outra loja.
+
+    - **Retorna 204 No Content:** se a URL estiver DISPONÍVEL.
+    - **Retorna 409 Conflict:** se a URL já estiver EM USO.
+    """
+    # ✅ CORREÇÃO: Usamos 'models.Store' para nos referirmos
+    # explicitamente ao modelo do banco de dados.
+    existing_store = db.query(models.Store).filter(
+        func.lower(models.Store.url_slug) == url_slug.lower()
+    ).first()
+
+    # Se encontrou uma loja, significa que a URL já está em uso.
+    if existing_store:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Esta URL já está em uso por outra loja."
+        )
+
+    # Se não encontrou nenhuma loja, a URL está livre.
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
