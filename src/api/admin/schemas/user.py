@@ -19,11 +19,6 @@ class UserCreate(BaseModel):
 
 
 
-    @validator('phone')
-    def validate_phone(self, v):
-        if not re.fullmatch(r'^[1-9]{2}9\d{8}$', v):
-            raise ValueError('Número de celular inválido. Use o formato DDD + 9 dígitos, ex: 11987654321')
-        return v
 
 
 class ChangePasswordData(BaseModel):
