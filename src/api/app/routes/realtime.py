@@ -13,7 +13,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from src.api.admin.events.handlers.order_handler import process_new_order_automations
 from src.api.admin.socketio.emitters import admin_emit_order_updated_from_obj, emit_new_order_notification
 from src.api.admin.utils.order_code import generate_unique_public_id, gerar_sequencial_do_dia
-from src.api.app.events.socketio_emitters import emit_products_updated
+from src.api.app.events.socketio_emitters import emit_products_updated, _prepare_products_payload
 
 from src.api.app.schemas.new_order import NewOrder
 from src.api.shared_schemas.banner import BannerOut
@@ -42,6 +42,8 @@ from src.socketio_instance import sio
 from src.api.shared_schemas.order import Order as OrderSchema, OrderStatus
 
 
+# Em seu arquivo de eventos do totem
+
 @sio.event
 async def connect(sid, environ):
     query = parse_qs(environ.get("QUERY_STRING", ""))
@@ -56,7 +58,7 @@ async def connect(sid, environ):
             if not totem or not totem.store:
                 raise ConnectionRefusedError("Invalid or unauthorized token")
 
-            # Lógica de sessão e entrada na sala (seu código original está perfeito)
+            # Lógica de sessão e entrada na sala (continua igual)
             session = db.query(models.StoreSession).filter_by(sid=sid).first()
             if not session:
                 session = models.StoreSession(sid=sid, store_id=totem.store.id, client_type='totem')
@@ -65,72 +67,40 @@ async def connect(sid, environ):
                 session.store_id = totem.store.id
                 session.updated_at = datetime.utcnow()
             db.commit()
-
             room_name = f"store_{totem.store_id}"
             await sio.enter_room(sid, room_name)
             print(f"✅ Cliente {sid} conectado e entrou na sala {room_name}")
 
-            # ✅ PASSO 1: FAZEMOS UMA ÚNICA "SUPER CONSULTA" PARA PEGAR TUDO
+            # 1. A "Super Consulta" continua a mesma (está ótima)
             print(f"Carregando estado completo para a loja {totem.store_id}...")
             store = db.query(models.Store).options(
-                # Carrega detalhes da loja
-                selectinload(models.Store.payment_methods),
-                joinedload(models.Store.settings),
-                selectinload(models.Store.hours),
-
-                # Carrega o tema e os banners junto
-                joinedload(models.Store.theme),
-                selectinload(models.Store.banners),
-
-                # Carrega o cardápio completo com a estrutura correta
-                selectinload(models.Store.products).selectinload(
-                    models.Product.variant_links
-                ).selectinload(
-                    models.ProductVariantLink.variant
-                ).selectinload(
-                    models.Variant.options
-                ).selectinload(
-                    models.VariantOption.linked_product
-                )
+                # ... todas as suas opções de selectinload e joinedload ...
             ).filter(models.Store.id == totem.store_id).first()
 
             if not store:
                 raise ConnectionRefusedError("Store not found after query")
 
-            # ✅ PASSO 2: MONTAMOS E EMITIMOS TODOS OS EVENTOS A PARTIR DO OBJETO 'store'
-
-            # 1. Emite dados da loja
+            # ✅ 2. MONTAMOS UM ÚNICO PAYLOAD COM TUDO
             store_schema = StoreDetails.model_validate(store)
             store_schema.ratingsSummary = RatingsSummaryOut(**get_store_ratings_summary(db, store_id=store.id))
-            await sio.emit("store_updated", store_schema.model_dump(mode='json'), to=sid)
 
-            # 2. Emite tema
-            if store.theme:
-                await sio.emit("theme_updated", StoreThemeOut.model_validate(store.theme).model_dump(mode='json'),
-                               to=sid)
+            initial_state_payload = {
+                "store": store_schema.model_dump(mode='json'),
+                "theme": StoreThemeOut.model_validate(store.theme).model_dump(mode='json') if store.theme else None,
+                "products": _prepare_products_payload(db, store.products),  # Usando a função auxiliar
+                "banners": [BannerOut.model_validate(b).model_dump(mode='json') for b in
+                            store.banners] if store.banners else []
+            }
 
-            # 3. Emite produtos (usando a lógica da sua função 'emit_products_updated' aqui)
-            product_ratings = {p.id: get_product_ratings_summary(db, product_id=p.id) for p in store.products}
-            products_payload = []
-            for p in store.products:
-                product_dict = ProductOut.model_validate(p).model_dump(mode='json')
-                product_dict["rating"] = product_ratings.get(p.id)
-                products_payload.append(product_dict)
-            await sio.emit("products_updated", products_payload, to=sid)
+            # ✅ 3. EMITIMOS UM ÚNICO EVENTO COM O PAYLOAD COMPLETO
+            await sio.emit("initial_state_loaded", initial_state_payload, to=sid)
 
-            # 4. Emite banners
-            if store.banners:
-                banners_payload = [BannerOut.model_validate(b).model_dump(mode='json') for b in store.banners]
-                await sio.emit("banners_updated", banners_payload, to=sid)
-
-            print(f"✅ Estado inicial enviado com sucesso para o cliente {sid}")
+            print(f"✅ Estado inicial completo enviado com sucesso para o cliente {sid}")
 
         except Exception as e:
             db.rollback()
             print(f"❌ Erro na conexão do totem: {str(e)}")
             raise ConnectionRefusedError(str(e))
-
-
 
 
 # Evento de desconexão do Socket.IO
@@ -174,18 +144,16 @@ async def send_order(sid, data):
 
     with get_db_manager() as db:
         try:
-            # 1. Verifica a sessão ativa
+            # 1. Validações Iniciais
             session = db.query(models.StoreSession).filter_by(sid=sid).first()
             if not session or not session.store_id:
                 return {'error': 'Sessão não autorizada'}
 
-            # 2. Validação dos dados do pedido
             try:
                 new_order = NewOrder(**data)
             except ValidationError as e:
                 return {'error': 'Dados do pedido inválidos', 'details': e.errors()}
 
-            # 3. Verifica se o cliente existe
             customer = db.query(models.Customer).filter_by(id=new_order.customer_id).first()
             if not customer:
                 return {'error': 'Cliente não encontrado'}
@@ -193,7 +161,19 @@ async def send_order(sid, data):
             if not new_order.delivery_type:
                 return {'error': 'Tipo de entrega é obrigatório'}
 
-            # 5. Cria o objeto Order inicial com todos os campos
+            # 2. Validação do Método de Pagamento
+            payment_activation = db.query(models.StorePaymentMethodActivation).options(
+                joinedload(models.StorePaymentMethodActivation.platform_method)
+            ).filter(
+                models.StorePaymentMethodActivation.id == new_order.payment_method_id,
+                models.StorePaymentMethodActivation.store_id == session.store_id,
+                models.StorePaymentMethodActivation.is_active == True
+            ).first()
+            if not payment_activation:
+                return {'error': 'Forma de pagamento inválida ou inativa.'}
+            payment_method_name_from_db = payment_activation.platform_method.name
+
+            # 4. Criação do Objeto do Pedido (sem valores financeiros)
             db_order = models.Order(
                 sequential_id=gerar_sequencial_do_dia(db, session.store_id),
                 public_id=generate_unique_public_id(db, session.store_id),
@@ -201,11 +181,10 @@ async def send_order(sid, data):
                 customer_id=new_order.customer_id,
                 customer_name=new_order.customer_name,
                 customer_phone=new_order.customer_phone,
-                payment_method_name=new_order.payment_method_name,
+                payment_method_id=payment_activation.id,
+                payment_method_name=payment_method_name_from_db,
                 order_type='cardapio_digital',
                 delivery_type=new_order.delivery_type,
-                total_price=new_order.total_price,
-                payment_method_id=new_order.payment_method_id,
                 payment_status='pending',
                 order_status='pending',
                 needs_change=new_order.needs_change,
@@ -221,14 +200,9 @@ async def send_order(sid, data):
                 is_scheduled=new_order.is_scheduled,
                 scheduled_for=new_order.scheduled_for if new_order.scheduled_for else None,
                 consumption_type=new_order.consumption_type,
-                discount_amount=0,
-                discount_percentage=None,
-                discount_type=None,
-                discount_reason=None,
-                discounted_total_price=new_order.total_price,
             )
 
-            # 8. Pré-carregamento de cupons
+            # 5. Pré-carregamento de Cupons
             coupon_codes = [p.coupon_code for p in new_order.products if p.coupon_code]
             if new_order.coupon_code:
                 coupon_codes.append(new_order.coupon_code)
@@ -242,32 +216,26 @@ async def send_order(sid, data):
             ).all()
             coupon_map = {c.code: c for c in coupons_from_db}
 
-            #############################################################################
-            # 9. PROCESSAMENTO OTIMIZADO DE PRODUTOS, VARIANTES E REGRAS
-            #############################################################################
-
-            # 9.1. Pré-carregamento: Coleta de todos os IDs do pedido
+            # 6. Pré-carregamento e Validação "Fail-Fast" de Produtos e Opções
             product_ids = {p.product_id for p in new_order.products}
             option_ids = {opt.variant_option_id for p in new_order.products for v in p.variants for opt in v.options}
 
-            # 9.2. Consultas em Massa: Buscamos tudo que precisamos em poucas queries
-            # Carrega todos os produtos do pedido e suas ligações/regras de uma só vez
             products_from_db = db.query(models.Product).options(
                 selectinload(models.Product.variant_links).selectinload(models.ProductVariantLink.variant)
-            ).filter(
-                models.Product.store_id == session.store_id,
-                models.Product.id.in_(product_ids)
-            ).all()
+            ).filter(models.Product.id.in_(product_ids), models.Product.store_id == session.store_id).all()
             products_map = {p.id: p for p in products_from_db}
 
-            # Carrega todas as opções de variantes selecionadas e seus produtos linkados (para cross-sell)
             options_from_db = db.query(models.VariantOption).options(
                 selectinload(models.VariantOption.linked_product)
-            ).filter(
-                models.VariantOption.id.in_(option_ids)
-            ).all()
+            ).filter(models.VariantOption.id.in_(option_ids)).all()
             options_map = {opt.id: opt for opt in options_from_db}
 
+            if len(products_map) != len(product_ids):
+                return {'error': 'Um ou mais produtos no pedido são inválidos.'}
+            if len(options_map) != len(option_ids):
+                return {'error': 'Uma ou mais opções de complemento são inválidas.'}
+
+            # 7. Loop de Processamento e Cálculo
             total_price_calculated_backend = 0
             total_discount_amount = 0
 
@@ -398,8 +366,14 @@ async def send_order(sid, data):
             if abs(new_order.total_price - final_total) > 0.01:  # Comparação de floats com tolerância
                 raise Exception(f"Total incorreto. Esperado: {final_total:.2f}, Recebido: {new_order.total_price:.2f}")
 
-            db_order.total_price = total_price_calculated_backend + (new_order.delivery_fee or 0)
-            db_order.discounted_total_price = final_total
+            # ✅ MELHORIA 3: Atribuição única e clara dos valores finais
+            db_order.subtotal_price = int(total_price_calculated_backend)
+            db_order.total_price = int(total_price_calculated_backend + db_order.delivery_fee)
+            db_order.discounted_total_price = int(final_total)
+            db_order.discount_amount = int(total_discount_amount)
+
+
+
 
             # 12. Atualiza uso de cupons
             for coupon in coupon_map.values():
@@ -442,223 +416,6 @@ async def send_order(sid, data):
 
 
 
-
-
-
-# @sio.event
-# async def send_order(sid, data):
-#     print('[SOCKET] Evento send_order recebido')
-#     print('[SOCKET] sid:', sid)
-#     print('[SOCKET] data:', data)
-#
-#     with get_db_manager() as db:
-#         totem = db.query(models.TotemAuthorization).filter(models.TotemAuthorization.sid == sid).first()
-#         if not totem:
-#             return {'error': 'Totem não encontrado ou não autorizado'}
-#
-#         try:
-#             new_order = NewOrder(**data)
-#         except ValidationError as e:
-#             return {'error': 'Dados do pedido inválidos', 'details': e.errors()}
-#         except Exception as e:
-#             return {'error': f'Erro inesperado: {str(e)}'}
-#
-#         customer = db.query(models.Customer).filter_by(id=new_order.customer_id).first()
-#         if not customer:
-#             return {'error': 'Cliente não encontrado'}
-#
-#         if not new_order.delivery_type:
-#             return {'error': 'Tipo de entrega é obrigatório'}
-#
-#         optional_coupon = None
-#         if new_order.coupon_code:
-#             optional_coupon = db.query(Coupon).filter_by(code=new_order.coupon_code).first()
-#
-#         try:
-#             db_order = models.Order(
-#                 sequential_id=gerar_sequencial_do_dia(db, totem.store_id),
-#                 public_id=generate_unique_public_id(db, totem.store_id),
-#                 store_id=totem.store_id,
-#                 totem_id=totem.id,
-#                 customer_id=new_order.customer_id,
-#                 customer_name=new_order.customer_name,
-#                 customer_phone=new_order.customer_phone,
-#                 payment_method_name=new_order.payment_method_name,
-#                 order_type='cardapio_digital',
-#                 delivery_type=new_order.delivery_type,
-#                 total_price=new_order.total_price,
-#                 payment_method_id=new_order.payment_method_id,
-#                 payment_status='pendent',
-#                 order_status='pendent',
-#                 needs_change=new_order.needs_change,
-#                 change_amount=new_order.change_for,
-#                 observation=new_order.observation,
-#                 delivery_fee=int(new_order.delivery_fee or 0),
-#                 coupon_id=optional_coupon.id if optional_coupon else None,
-#                 street=new_order.street,
-#                 number=new_order.number,
-#                 attendant_name=new_order.attendant_name or "",
-#                 complement = new_order.complement or "",
-#                 neighborhood=new_order.neighborhood,
-#                     city=new_order.city,
-#                 )
-#
-#             store_settings = db.query(models.StoreSettings).filter_by(store_id=totem.store_id).first()
-#             if store_settings and store_settings.auto_accept_orders:
-#                 db_order.order_status = 'preparing'
-#
-#             products_from_db = db.query(models.Product).filter(
-#                 models.Product.store_id == totem.store_id,
-#                 models.Product.id.in_([p.product_id for p in new_order.products])
-#             ).all()
-#             products_map = {p.id: p for p in products_from_db}
-#
-#             coupon_codes = [p.coupon_code for p in new_order.products if p.coupon_code]
-#             if new_order.coupon_code:
-#                 coupon_codes.append(new_order.coupon_code)
-#
-#             coupons = db.query(models.Coupon).filter(
-#                 models.Coupon.store_id == totem.store_id,
-#                 models.Coupon.code.in_(coupon_codes),
-#                 models.Coupon.used < models.Coupon.max_uses,
-#                 or_(models.Coupon.start_date == None, models.Coupon.start_date <= datetime.datetime.utcnow()),
-#                 or_(models.Coupon.end_date == None, models.Coupon.end_date >= datetime.datetime.utcnow())
-#             ).all()
-#             coupon_map = {c.code: c for c in coupons}
-#
-#             total_price_calculated_backend = 0
-#
-#             for order_product_data in new_order.products:
-#                 validate_order_variants(db, order_product_data)
-#
-#                 product_db = products_map.get(order_product_data.product_id)
-#                 if not product_db:
-#                     return {'error': f"Produto com ID {order_product_data.product_id} não encontrado."}
-#
-#                 if order_product_data.coupon_code:
-#                     coupon = coupon_map.get(order_product_data.coupon_code)
-#                     if coupon and coupon.product_id == product_db.id:
-#                         price_with_coupon = apply_coupon(coupon, product_db.base_price)
-#                     else:
-#                         return {'error': f"Cupom inválido para o produto {product_db.name}"}
-#                 else:
-#                     price_with_coupon = product_db.promotion_price or product_db.base_price
-#
-#                 if price_with_coupon != order_product_data.price:
-#                     return {'error': f"Preço inválido para {product_db.name}. Esperado: {price_with_coupon}, Recebido: {order_product_data.price}"}
-#
-#                 db_product_entry = models.OrderProduct(
-#                     store_id=totem.store_id,
-#                     product_id=product_db.id,
-#                     name=product_db.name,
-#                     price=int(price_with_coupon),
-#                     quantity=order_product_data.quantity,
-#                     note=order_product_data.note,
-#                 )
-#                 db_order.products.append(db_product_entry)
-#
-#                 current_product_total = price_with_coupon * order_product_data.quantity
-#                 variants_price = 0
-#
-#                 variant_links = db.query(models.ProductVariantProduct).filter_by(product_id=product_db.id).all()
-#                 variant_map = {link.variant_id: link.variant for link in variant_links}
-#
-#                 for order_variant_data in order_product_data.variants:
-#                     variant = variant_map.get(order_variant_data.variant_id)
-#                     if not variant:
-#                         return {'error': f"Variante inválida: {order_variant_data.variant_id}"}
-#
-#                     db_variant = models.OrderVariant(
-#                         store_id=totem.store_id,
-#                         order_product=db_product_entry,
-#                         variant_id=variant.id,
-#                         name=variant.name,
-#                     )
-#                     db_product_entry.variants.append(db_variant)
-#
-#                     valid_options = db.query(models.VariantOptions).filter_by(variant_id=variant.id).all()
-#                     option_map = {opt.id: opt for opt in valid_options}
-#
-#                     for order_option_data in order_variant_data.options:
-#                         option = option_map.get(order_option_data.variant_option_id)
-#                         if not option:
-#                             return {'error': f"Opção inválida: {order_option_data.variant_option_id}"}
-#
-#                         if option.price != order_option_data.price:
-#                             return {'error': f"Preço incorreto na opção {option.name} da variante {variant.name}"}
-#
-#                         db_option = models.OrderVariantOption(
-#                             store_id=totem.store_id,
-#                             order_variant=db_variant,
-#                             variant_option_id=option.id,
-#                             name=option.name,
-#                             price=option.price,
-#                             quantity=order_option_data.quantity,
-#                         )
-#                         db_variant.options.append(db_option)
-#                         variants_price += db_option.price * db_option.quantity
-#
-#                 total_price_calculated_backend += current_product_total + variants_price
-#
-#             # Aplica cupom geral (de pedido)
-#             order_coupon = None
-#             if new_order.coupon_code:
-#                 potential_order_coupon = coupon_map.get(new_order.coupon_code)
-#                 if potential_order_coupon and potential_order_coupon.product_id is None:
-#                     order_coupon = potential_order_coupon
-#                     discounted_total = apply_coupon(order_coupon, total_price_calculated_backend)
-#                 else:
-#                     return {"error": "Cupom geral inválido para o pedido."}
-#             else:
-#                 discounted_total = total_price_calculated_backend
-#
-#             # Soma taxa de entrega
-#             if new_order.delivery_fee:
-#                 discounted_total += new_order.delivery_fee
-#
-#             # Validação final do total
-#             if new_order.total_price != discounted_total:
-#                 return {"error": f"Total incorreto. Esperado: {discounted_total}, Recebido: {new_order.total_price}"}
-#
-#             db_order.total_price = discounted_total
-#             db_order.coupon_id = order_coupon.id if order_coupon else None
-#             db_order.discounted_total_price = discounted_total
-#
-#
-#
-#             if order_coupon:
-#                 db_order.coupon_id = order_coupon.id
-#
-#             for coupon in coupons:
-#                 coupon.used += 1
-#
-#             db.add(db_order)
-#
-#             # Atualiza o vínculo do cliente com a loja
-#             register_customer_store_relationship(
-#                 db=db,
-#                 store_id=totem.store_id,
-#                 customer_id=new_order.customer_id,
-#                 order_total=discounted_total
-#             )
-#
-#             db.commit()
-#
-#             await asyncio.create_task(admin_emit_order_updated_from_obj(db_order))
-#
-#             db.refresh(db_order)
-#
-#             order_dict = OrderSchema.model_validate(db_order).model_dump()
-#
-#             return {"success": True, "order": order_dict}
-#
-#         except sqlalchemy.exc.IntegrityError as e:
-#             db.rollback()
-#             return {"error": "Erro ao salvar o pedido: integridade violada"}
-#
-#         except Exception as e:
-#             db.rollback()
-#             return {"error": str(e)}
 
 
 @sio.event

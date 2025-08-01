@@ -1,152 +1,110 @@
-import asyncio
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session, joinedload, selectinload
+from collections import defaultdict
 
-from fastapi import APIRouter, Form, HTTPException
-
-from src.api.app.events.socketio_emitters import emit_store_updated
-from src.api.shared_schemas.payment_method import StorePaymentMethods
+# Importe seus novos modelos e schemas
 from src.core import models
 from src.core.database import GetDBDep
-from src.core.dependencies import GetStoreDep
+from src.api.shared_schemas.payment_method import PaymentMethodGroupOut, \
+ \
+    PaymentMethodCategoryOut, PlatformPaymentMethodOut, StorePaymentMethodActivationOut
+
+...
 
 router = APIRouter(
-    tags=["Payment Methods"],
+    tags=["Payment Methods Config"],
     prefix="/stores/{store_id}/payment-methods"
 )
 
-# ───────────────────────── CREATE ─────────────────────────
-@router.post("", response_model=StorePaymentMethods)
-async def create_payment_method(
-    db: GetDBDep,
-    store: GetStoreDep,
 
-    payment_type: str = Form(..., max_length=20),
-    custom_name: str = Form(...),
-    custom_icon: str | None = Form(None),          # ← nome do asset, ex: 'cash.svg'
+# --- NOVO SCHEMA para receber os dados de ativação ---
+class ActivationUpdateSchema(BaseModel):
+    is_active: bool
+    fee_percentage: float = 0.0
+    details: dict | None = None
+    is_for_delivery: bool
+    is_for_pickup: bool
+    is_for_in_store: bool
 
-    is_active: bool = Form(True),
 
-    active_on_delivery: bool = Form(True),
-    active_on_pickup:   bool = Form(True),
-    active_on_counter:  bool = Form(True),
+# ────────────────  1. LISTAR TODOS OS MÉTODOS E SUAS ATIVAÇÕES  ────────────────
+@router.get("", response_model=list[PaymentMethodGroupOut])
+def list_all_payment_methods_for_store(db: GetDBDep, store_id: int):
+    # 1. Pega TODOS os métodos da plataforma, já com a hierarquia
+    all_platform_methods = db.query(models.PlatformPaymentMethod).options(
+        joinedload(models.PlatformPaymentMethod.category)
+        .joinedload(models.PaymentMethodCategory.group)
+    ).order_by(
+        models.PaymentMethodGroup.priority,
+        models.PaymentMethodCategory.priority,
+        models.PlatformPaymentMethod.name
+    ).all()
 
-    tax_rate: float = Form(0.0),
+    # 2. Pega as ativações específicas desta loja em um mapa para acesso rápido
+    store_activations = db.query(models.StorePaymentMethodActivation).filter(
+        models.StorePaymentMethodActivation.store_id == store_id
+    ).all()
+    activations_map = {act.platform_payment_method_id: act for act in store_activations}
 
-    pix_key: str | None = Form(None),
+    # 3. Combina e estrutura os dados (Lógica de Agrupamento)
+    groups_map = {}
+    for method in all_platform_methods:
+        group = groups_map.setdefault(
+            method.category.group.name,
+            PaymentMethodGroupOut(name=method.category.group.name, categories=[])
+        )
+
+        category = next((c for c in group.categories if c.name == method.category.name), None)
+        if not category:
+            category = PaymentMethodCategoryOut(name=method.category.name, methods=[])
+            group.categories.append(category)
+
+        method_out = PlatformPaymentMethodOut.model_validate(method)
+
+        # Anexa a ativação da loja ao método, se existir
+        if method.id in activations_map:
+            method_out.activation = StorePaymentMethodActivationOut.model_validate(activations_map[method.id])
+
+        category.methods.append(method_out)
+
+    return list(groups_map.values())
+
+
+# ────────────────  2. ATIVAR/DESATIVAR/CONFIGURAR UM MÉTODO  ────────────────
+@router.patch("/{platform_method_id}/activation", response_model=StorePaymentMethodActivationOut)
+async def activate_or_configure_method(
+        db: GetDBDep,
+        store_id: int,
+        platform_method_id: int,
+        data: ActivationUpdateSchema
 ):
-    pm = models.StorePaymentMethods(
-        store_id=store.id,
-        payment_type=payment_type,
-        custom_name=custom_name,
-        custom_icon=custom_icon,       # salva só o identificador
+    # Procura pela ativação existente
+    activation = db.query(models.StorePaymentMethodActivation).filter(
+        models.StorePaymentMethodActivation.store_id == store_id,
+        models.StorePaymentMethodActivation.platform_payment_method_id == platform_method_id
+    ).first()
 
-        is_active=is_active,
+    if not activation:
+        # Se não existe, cria uma nova
+        activation = models.StorePaymentMethodActivation(
+            store_id=store_id,
+            platform_payment_method_id=platform_method_id
+        )
+        db.add(activation)
 
-        active_on_delivery=active_on_delivery,
-        active_on_pickup=active_on_pickup,
-        active_on_counter=active_on_counter,
-        tax_rate=tax_rate,
-        pix_key=pix_key,
-
-    )
-
-    db.add(pm)
-    db.commit()
-    db.refresh(pm)
-    await asyncio.create_task(emit_store_updated(store))
-    return pm
-
-# ───────────────────────── LIST ─────────────────────────
-@router.get("", response_model=list[StorePaymentMethods])
-def list_payment_methods(db: GetDBDep, store: GetStoreDep):
-    return (
-        db.query(models.StorePaymentMethods)
-          .filter(models.StorePaymentMethods.store_id == store.id)
-          .all()
-    )
-
-# ───────────────────────── RETRIEVE ─────────────────────────
-@router.get("/{pm_id}", response_model=StorePaymentMethods)
-def get_payment_method(db: GetDBDep, store: GetStoreDep, pm_id: int):
-    pm = (
-        db.query(models.StorePaymentMethods)
-          .filter(models.StorePaymentMethods.id == pm_id,
-                  models.StorePaymentMethods.store_id == store.id)
-          .first()
-    )
-    if not pm:
-        raise HTTPException(404, detail="Payment method not found")
-    return pm
-
-# ───────────────────────── UPDATE/PATCH ─────────────────────────
-@router.patch("/{pm_id}", response_model=StorePaymentMethods)
-async def update_payment_method(
-    db: GetDBDep,
-    store: GetStoreDep,
-    pm_id: int,
-
-    payment_type: str | None = Form(None),
-    custom_name: str | None = Form(None),
-    custom_icon: str | None = Form(None),      # ← recebe novo asset, se quiser
-
-    is_active: bool | None = Form(None),
-
-    active_on_delivery: bool | None = Form(None),
-    active_on_pickup:   bool | None = Form(None),
-    active_on_counter:  bool | None = Form(None),
-
-    tax_rate: float | None = Form(None),
-
-    pix_key: str | None = Form(None),
-
-):
-    pm = (
-        db.query(models.StorePaymentMethods)
-          .filter(models.StorePaymentMethods.id == pm_id,
-                  models.StorePaymentMethods.store_id == store.id)
-          .first()
-    )
-    if not pm:
-        raise HTTPException(404, detail="Payment method not found")
-
-    if payment_type:          pm.payment_type = payment_type
-    if custom_name:           pm.custom_name  = custom_name
-    if custom_icon is not None: pm.custom_icon = custom_icon   # pode pôr '' p/ reset
-
-
-    if is_active is not None:         pm.is_active = is_active
-
-    if active_on_delivery is not None: pm.active_on_delivery = active_on_delivery
-    if active_on_pickup   is not None: pm.active_on_pickup   = active_on_pickup
-    if active_on_counter  is not None: pm.active_on_counter  = active_on_counter
-
-    if tax_rate is not None:           pm.tax_rate = tax_rate
-
-
-    if pix_key is not None:            pm.pix_key = pix_key
-
+    # Atualiza os dados
+    activation.is_active = data.is_active
+    activation.fee_percentage = data.fee_percentage
+    activation.details = data.details
+    activation.is_for_delivery = data.is_for_delivery
+    activation.is_for_pickup = data.is_for_pickup
+    activation.is_for_in_store = data.is_for_in_store
 
     db.commit()
-    await asyncio.create_task(emit_store_updated(store))
-    return pm
+    db.refresh(activation)
 
+    # TODO: Emitir um evento de socket para notificar a UI da mudança
+    # await emit_store_updated(db, store_id)
 
-# ───────────────────────── DELETE ─────────────────────────
-@router.delete("/{pm_id}")
-async def delete_payment_method(
-    db: GetDBDep,
-    store: GetStoreDep,
-    pm_id: int
-):
-    pm = (
-        db.query(models.StorePaymentMethods)
-          .filter(models.StorePaymentMethods.id == pm_id,
-                  models.StorePaymentMethods.store_id == store.id)
-          .first()
-    )
-    if not pm:
-        raise HTTPException(status_code=404, detail="Payment method not found")
-
-    db.delete(pm)
-    db.commit()
-    await asyncio.create_task(emit_store_updated(store))
-    return {"detail": "Payment method deleted successfully"}
+    return activation

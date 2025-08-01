@@ -7,6 +7,7 @@ from typing import Optional, List, Text
 
 from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric, String, text, Enum, \
     CheckConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -72,7 +73,9 @@ class Store(Base, TimestampMixin):
     variants = relationship("Variant", back_populates="store")
     totem_authorizations = relationship("TotemAuthorization", back_populates="store")
 
-    payment_methods: Mapped[list["StorePaymentMethods"]] = relationship()
+    # ✅ ADIÇÃO: Relacionamento reverso para as ativações de pagamento
+    payment_activations = relationship("StorePaymentMethodActivation", back_populates="store")
+
 
     products = relationship(
         "Product",
@@ -532,27 +535,83 @@ class StoreChatbotConfig(Base, TimestampMixin):
     session_path: Mapped[str] = mapped_column(nullable=True)  # caminho local ou info da sessão
 
 
-class StorePaymentMethods(Base, TimestampMixin):
-    __tablename__ = "store_payment_methods"
+class PaymentMethodGroup(Base):
+    __tablename__ = "payment_method_groups"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    payment_type: Mapped[str] = mapped_column()  # 'Cash', 'Card', 'Pix', ...
+    name: Mapped[str] = mapped_column(String(50), unique=True)
+    priority: Mapped[int] = mapped_column(default=0)
+    categories = relationship("PaymentMethodCategory", back_populates="group")
 
-    custom_name: Mapped[str] = mapped_column()
-    custom_icon: Mapped[str] = mapped_column(nullable=True)
 
-    is_active: Mapped[bool] = mapped_column(default=True)
+class PaymentMethodCategory(Base):
+    __tablename__ = "payment_method_categories"
 
-    active_on_delivery: Mapped[bool] = mapped_column(default=True)
-    active_on_pickup: Mapped[bool] = mapped_column(default=True)
-    active_on_counter: Mapped[bool] = mapped_column(default=True)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(50))
+    priority: Mapped[int] = mapped_column(default=0)
+    group_id: Mapped[int] = mapped_column(ForeignKey("payment_method_groups.id"), nullable=False)
+    group = relationship("PaymentMethodGroup", back_populates="categories")
+    methods = relationship("PlatformPaymentMethod", back_populates="category")
 
-    tax_rate: Mapped[float] = mapped_column(default=0)
 
-    pix_key: Mapped[str] = mapped_column(nullable=True)
+# Defina seu Enum para os tipos
+class PaymentMethodType(enum.Enum):
+    CASH = "CASH"
+    OFFLINE_CARD = "OFFLINE_CARD"
+    MANUAL_PIX = "MANUAL_PIX"
+    ONLINE_GATEWAY = "ONLINE_GATEWAY"
 
-    orders = relationship("Order", back_populates="payment_method", passive_deletes=True)
+
+class PlatformPaymentMethod(Base, TimestampMixin):
+    __tablename__ = "platform_payment_methods"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(50), unique=True)
+    description: Mapped[str] = mapped_column(String(255), nullable=True)
+    method_type: Mapped[PaymentMethodType] = mapped_column(Enum(PaymentMethodType), nullable=False)
+    icon_key: Mapped[str] = mapped_column(String(100), nullable=True)
+    is_globally_enabled: Mapped[bool] = mapped_column(default=True)
+    requires_details: Mapped[bool] = mapped_column(default=False)
+
+    # ✅ CORREÇÃO: Adicionada a chave estrangeira que faltava
+    category_id: Mapped[int] = mapped_column(ForeignKey("payment_method_categories.id"), nullable=False)
+
+    # Relacionamentos
+    category = relationship("PaymentMethodCategory", back_populates="methods")
+    activations = relationship("StorePaymentMethodActivation", back_populates="platform_method")
+
+
+class StorePaymentMethodActivation(Base, TimestampMixin):
+    __tablename__ = "store_payment_method_activations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), nullable=False)
+    platform_payment_method_id: Mapped[int] = mapped_column(ForeignKey("platform_payment_methods.id"), nullable=False)
+    is_active: Mapped[bool] = mapped_column(default=False)
+    fee_percentage: Mapped[float] = mapped_column(default=0)
+    details: Mapped[dict] = mapped_column(JSONB, nullable=True)
+    is_for_delivery: Mapped[bool] = mapped_column(default=True)
+    is_for_pickup: Mapped[bool] = mapped_column(default=True)
+    is_for_in_store: Mapped[bool] = mapped_column(default=True)
+
+    # Relacionamentos
+    store = relationship("Store", back_populates="payment_activations")
+    platform_method = relationship("PlatformPaymentMethod", back_populates="activations")
+    orders = relationship("Order", back_populates="payment_method")
+
+
+# --- ATUALIZAÇÕES NECESSÁRIAS EM MODELOS EXISTENTES ---
+
+
+
+
+
+
+
+
+
+
 
 
 class StoreDeliveryConfiguration(Base, TimestampMixin):
@@ -705,7 +764,7 @@ class CashierTransaction(Base, TimestampMixin):
     cashier_session_id: Mapped[int] = mapped_column(ForeignKey("cashier_sessions.id"))
     type: Mapped[str] = mapped_column()  # inflow ou outflow
     amount: Mapped[float] = mapped_column()
-    payment_method_id: Mapped[int] = mapped_column(ForeignKey("store_payment_methods.id"))
+   # payment_method_id: Mapped[int] = mapped_column(ForeignKey("store_payment_methods.id"))
     description: Mapped[Optional[str]] = mapped_column()
     order_id: Mapped[Optional[int]] = mapped_column(ForeignKey("orders.id"), nullable=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))  # Novo campo recomendado
@@ -713,7 +772,7 @@ class CashierTransaction(Base, TimestampMixin):
 
     cashier_session: Mapped["CashierSession"] = relationship("CashierSession", back_populates="transactions")
     user: Mapped["User"] = relationship("User")
-    payment_method: Mapped["StorePaymentMethods"] = relationship("StorePaymentMethods")
+   # payment_method: Mapped["StorePaymentMethods"] = relationship("StorePaymentMethods")
 
 
 class Customer(Base):
@@ -832,10 +891,19 @@ class Order(Base, TimestampMixin):
     order_status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus, native_enum=False), default=OrderStatus.PENDING)
     needs_change: Mapped[bool] = mapped_column(default=False)
 
-    # Relacionamentos
-    payment_method_id: Mapped[int | None] = mapped_column(ForeignKey("store_payment_methods.id", ondelete="SET NULL"),
-                                                          nullable=True)
-    payment_method = relationship("StorePaymentMethods", back_populates="orders")
+
+    # ✅ ATUALIZAÇÃO: A chave estrangeira e o relacionamento agora apontam para a nova tabela
+    payment_method_id: Mapped[int | None] = mapped_column(
+        ForeignKey("store_payment_method_activations.id", ondelete="SET NULL"),  # Aponta para a nova tabela
+        nullable=True
+    )
+    payment_method = relationship(
+        "StorePaymentMethodActivation",  # Aponta para a nova classe de modelo
+        back_populates="orders"
+    )
+
+
+
     coupon_id: Mapped[int | None] = mapped_column(ForeignKey("coupons.id", ondelete="SET NULL"), nullable=True)
     coupon_code: Mapped[str | None] = mapped_column(nullable=True)
     coupon = relationship("Coupon", back_populates="orders")
@@ -1022,14 +1090,14 @@ class OrderPartialPayment(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"))
     amount: Mapped[int] = mapped_column()  # em centavos
-    payment_method_id: Mapped[int | None] = mapped_column(ForeignKey("store_payment_methods.id", ondelete="SET NULL"), nullable=True)
+   # payment_method_id: Mapped[int | None] = mapped_column(ForeignKey("store_payment_methods.id", ondelete="SET NULL"), nullable=True)
     received_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
     transaction_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_confirmed: Mapped[bool] = mapped_column(default=True)
 
     order: Mapped["Order"] = relationship(back_populates="partial_payments")
-    payment_method: Mapped["StorePaymentMethods | None"] = relationship()
+   # payment_method: Mapped["StorePaymentMethods | None"] = relationship()
 
 
 

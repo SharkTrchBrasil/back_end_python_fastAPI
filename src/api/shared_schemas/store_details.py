@@ -6,7 +6,8 @@ from src.api.admin.schemas.store_settings import StoreSettingsBase
 from src.api.admin.schemas.store_subscription import StoreSubscriptionSchema
 from src.api.shared_schemas.category import Category
 from src.api.shared_schemas.coupon import CouponOut
-from src.api.shared_schemas.payment_method import StorePaymentMethods
+from src.api.shared_schemas.payment_method import PaymentMethodGroupOut
+
 from src.api.shared_schemas.product import Product, ProductOut
 from src.api.shared_schemas.rating import RatingsSummaryOut
 from src.api.shared_schemas.store import Store
@@ -18,7 +19,7 @@ from src.api.shared_schemas.variant import Variant
 
 class StoreDetails(Store):
     # --- Relações que você já tinha ---
-    payment_methods: list[StorePaymentMethods] = []
+    payment_method_groups: list[PaymentMethodGroupOut] = []
     delivery_config: StoreDeliveryConfigBase | None = None
     hours: list[StoreHoursSchema] = []
     cities: list[StoreCitySchema] = []

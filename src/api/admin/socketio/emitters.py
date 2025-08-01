@@ -30,7 +30,14 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
         # ✅ SUPER CONSULTA CORRIGIDA E OTIMIZADA
         store = db.query(models.Store).options(
             # --- Configurações e Dados da Loja ---
-            selectinload(models.Store.payment_methods),
+
+            selectinload(models.Store.payment_activations)
+            .selectinload(models.StorePaymentMethodActivation.platform_method)
+            .selectinload(models.PlatformPaymentMethod.category)
+            .selectinload(models.PaymentMethodCategory.group),
+
+
+
             joinedload(models.Store.settings),  # joinedload é bom para relações um-para-um
             selectinload(models.Store.hours),
             selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),

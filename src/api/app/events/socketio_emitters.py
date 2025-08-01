@@ -15,9 +15,14 @@ async def emit_store_updated(db, store_id: int):
     Emite uma atualização com os detalhes GERAIS da loja.
     Esta função NÃO emite o catálogo de produtos.
     """
+
     store = db.query(models.Store).options(
-        selectinload(models.Store.payment_methods),
-        selectinload(models.Store.hours)
+        # ✅ CORREÇÃO: Carregando a nova estrutura de pagamentos em cascata
+        selectinload(models.Store.payment_activations)  # Store -> Ativações da loja
+        .selectinload(models.StorePaymentMethodActivation.platform_method)  # Ativação -> Método da Plataforma
+        .selectinload(models.PlatformPaymentMethod.category)  # Método -> Categoria
+        .selectinload(models.PaymentMethodCategory.group),
+         selectinload(models.Store.hours)
         # Carregue apenas o que for relevante para a página inicial da loja
     ).filter(models.Store.id == store_id).first()
 
@@ -67,8 +72,15 @@ async def emit_products_updated(db, store_id: int):
     # Emite a lista de produtos completa para a sala da loja
     await sio.emit('products_updated', products_data, to=f'store_{store_id}')
 
-
-
+async def _prepare_products_payload(db, products: list[models.Product]) -> list[dict]:
+    """Prepara o payload de produtos com seus ratings."""
+    product_ratings = {p.id: get_product_ratings_summary(db, product_id=p.id) for p in products}
+    products_payload = []
+    for p in products:
+        product_dict = ProductOut.model_validate(p).model_dump(mode='json')
+        product_dict["rating"] = product_ratings.get(p.id)
+        products_payload.append(product_dict)
+    return products_payload
 
 
 

@@ -1,22 +1,50 @@
-from datetime import datetime
-from typing import Optional
-
-from pydantic import BaseModel, computed_field, Field
+from pydantic import BaseModel
 
 
-class StorePaymentMethods(BaseModel):
+# --- Nível 1: A Configuração da Loja (O que foi ativado) ---
+# Representa a tabela 'store_payment_method_activations'
+class StorePaymentMethodActivationOut(BaseModel):
     id: int
-    payment_type: str = Field(..., max_length=20)
-    custom_name: str
-    custom_icon: str = None
-    is_active: bool = True
-    active_on_delivery: bool = True
-    active_on_pickup: bool = True
-    active_on_counter: bool = True
-    tax_rate: float = 0.0
-    pix_key: Optional[str]
+    is_active: bool
+    fee_percentage: float = 0.0
+    details: dict | None = None  # Armazena a chave Pix, etc.
+    is_for_delivery: bool
+    is_for_pickup: bool
+    is_for_in_store: bool
+
+    class Config:
+        from_attributes = True
 
 
-    model_config = {
-        "from_attributes": True
-    }
+# --- Nível 2: A Opção Final (O Método de Pagamento) ---
+# Representa a tabela 'platform_payment_methods'
+class PlatformPaymentMethodOut(BaseModel):
+    id: int
+    name: str
+    icon_key: str | None = None
+
+    # Aninha a configuração específica da loja dentro do método
+    activation: StorePaymentMethodActivationOut | None = None
+
+    class Config:
+        from_attributes = True
+
+
+# --- Nível 3: A Categoria ---
+# Representa a tabela 'payment_method_categories'
+class PaymentMethodCategoryOut(BaseModel):
+    name: str
+    methods: list[PlatformPaymentMethodOut] = []  # Contém uma lista de métodos
+
+    class Config:
+        from_attributes = True
+
+
+# --- Nível 4: O Grupo Principal ---
+# Representa a tabela 'payment_method_groups'
+class PaymentMethodGroupOut(BaseModel):
+    name: str
+    categories: list[PaymentMethodCategoryOut] = []  # Contém uma lista de categorias
+
+    class Config:
+        from_attributes = True
