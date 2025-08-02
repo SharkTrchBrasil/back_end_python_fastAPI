@@ -155,6 +155,16 @@ class Store(Base, TimestampMixin):
         back_populates="store", cascade="all, delete-orphan"
     )
 
+    variants: Mapped[List["Variant"]] = relationship(
+        back_populates="store", cascade="all, delete-orphan"
+    )
+
+
+
+
+
+
+
     @hybrid_property
     def active_subscription(self) -> Optional["StoreSubscription"]:  # <- Use a string aqui também
         """
