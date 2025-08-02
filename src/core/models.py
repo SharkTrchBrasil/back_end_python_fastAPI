@@ -150,13 +150,10 @@ class Store(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
 
-
-
-
-
-
-
-
+    # dentro da classe Store
+    accesses: Mapped[List["StoreAccess"]] = relationship(
+        back_populates="store", cascade="all, delete-orphan"
+    )
 
     @hybrid_property
     def active_subscription(self) -> Optional["StoreSubscription"]:  # <- Use a string aqui também
@@ -176,6 +173,7 @@ class Store(Base, TimestampMixin):
             StoreSubscription.store_id == cls.id,
             StoreSubscription.status.in_(['active', 'new_charge', 'trialing'])
         ).correlate_except(StoreSubscription).as_scalar()
+
 
 
 
@@ -205,7 +203,6 @@ class Role(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     machine_name: Mapped[str] = mapped_column(unique=True)
 
-
 class StoreAccess(Base, TimestampMixin):
     __tablename__ = "store_accesses"
 
@@ -218,6 +215,7 @@ class StoreAccess(Base, TimestampMixin):
     role: Mapped[Role] = relationship()
 
     __table_args__ = (Index("ix_store_user", "store_id", "user_id"),)
+
 
 
 class Category(Base, TimestampMixin):
