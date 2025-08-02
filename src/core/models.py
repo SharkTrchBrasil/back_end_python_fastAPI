@@ -159,6 +159,10 @@ class Store(Base, TimestampMixin):
         back_populates="store", cascade="all, delete-orphan"
     )
 
+    payment_activations: Mapped[List["StorePaymentMethodActivation"]] = relationship(
+        back_populates="store",
+        cascade="all, delete-orphan"
+    )
 
 
 
