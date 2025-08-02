@@ -15,10 +15,21 @@ class Roles(Enum):
     MANAGER = 'manager'
     ADMIN = 'admin'
 
+# --- Schemas aninhados para a criação (Estão perfeitos!) ---
+class AddressCreate(BaseModel):
+    cep: str
+    street: str
+    number: str
+    complement: Optional[str] = None
+    neighborhood: str
+    city: str
+    uf: str
 
-# --- Schema Base ---
-# Contém todos os campos que podem ser EDITADOS pelo usuário.
-# Usado como base para o schema de leitura e de atualização.
+class ResponsibleCreate(BaseModel):
+    name: str
+    phone: str
+
+
 class Store(BaseModel):
     # --- Identificação Básica ---
     name: str = Field(min_length=3, max_length=100)
@@ -28,14 +39,19 @@ class Store(BaseModel):
     cnpj: Optional[str] = None
     segment_id: Optional[int] = None
 
-    # --- Endereço e Logística ---
+    # --- Endereço (Corrigido para ser plano) ---
     zip_code: Optional[str] = None
     street: Optional[str] = None
     number: Optional[str] = None
     complement: Optional[str] = None
     neighborhood: Optional[str] = None
     city: Optional[str] = None
-    state: Optional[str] = None
+    state: Optional[str] = None # Corrigido de uf para state, para bater com o banco
+
+    # --- Responsável (Corrigido para ser plano) ---
+    responsible_name: Optional[str] = None
+
+
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     delivery_radius_km: Optional[float] = None
@@ -43,9 +59,6 @@ class Store(BaseModel):
     # --- Operacional ---
     average_preparation_time: Optional[int] = None  # Em minutos
 
-    # --- Responsável Operacional ---
-    responsible_name: Optional[str] = None
-    responsible_phone: Optional[str] = None
 
     # --- Marketing e SEO ---
     tags: Optional[List[str]] = None
@@ -57,28 +70,37 @@ class Store(BaseModel):
     banner_file_key: Optional[str] = None
 
 
-# --- Schema para Criação Inicial (POST /stores) ---
-# Apenas os campos mínimos necessários para criar a loja. O resto vem do wizard.
+# --- ✅ Schema para Criação via Wizard (Corrigido e Completo) ---
 class StoreCreate(BaseModel):
+    # Dados da Loja
     name: str
+    store_url: str
+    description: Optional[str] = None
     phone: str
-    store_url: str  # Frontend envia a URL gerada
+
+    # Dados Fiscais e de Especialidade
+    cnpj: Optional[str] = None
+    segment_id: int
+    plan_id: int
+
+    # Objetos Aninhados
+    address: AddressCreate
+    responsible: ResponsibleCreate
 
 
-# --- Schema para Atualização (PATCH /stores/{id}) ---
-# Contém TODOS os campos editáveis, mas todos são opcionais.
+
+
 class StoreUpdate(Store):
-    # Herda todos os campos do StoreBase, mas os torna opcionais
+
     name: Optional[str] = Field(None, min_length=3, max_length=100)
     url_slug: Optional[str] = None
     phone: Optional[str] = Field(None, min_length=10, max_length=15)
 
-    # Flag para indicar a conclusão do wizard
+
     is_setup_complete: Optional[bool] = None
 
 
-# --- Schema para Leitura (Saída da API) ---
-# A representação completa de uma loja que a API retorna.
+
 class StoreSchema(Store):
     id: int
 

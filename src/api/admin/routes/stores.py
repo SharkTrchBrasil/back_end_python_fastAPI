@@ -20,6 +20,7 @@ from src.core.database import GetDBDep
 from src.core.defaults.delivery_methods import default_delivery_settings
 
 from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetStore
+from src.core.models import StoreVerificationStatus
 from src.core.utils.unique_slug import generate_unique_slug
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 router = APIRouter(prefix="/stores", tags=["Stores"])
@@ -27,22 +28,41 @@ router = APIRouter(prefix="/stores", tags=["Stores"])
 
 @router.post("", response_model=StoreWithRole)
 def create_store(
-    db: GetDBDep,
-    user: GetCurrentUserDep,
-    store_create: StoreCreate
+        db: GetDBDep,
+        user: GetCurrentUserDep,
+        store_data: StoreCreate
 ):
-
-
-
-
-
+    # Criação da loja com todos os campos
     db_store = models.Store(
-        name=store_create.name,
-        phone=store_create.phone,
-        url_slug=store_create.store_url
+        name=store_data.name,
+        phone=store_data.phone,
+        url_slug=store_data.store_url,
+        description=store_data.description,
+        segment_id=store_data.segment_id,
+        cnpj=store_data.cnpj,
+
+        # Dados de endereço
+        zip_code=store_data.address.cep,
+        street=store_data.address.street,
+        number=store_data.address.number,
+        complement=store_data.address.complement,
+        neighborhood=store_data.address.neighborhood,
+        city=store_data.address.city,
+        state=store_data.address.uf,
+
+        # Dados do responsável
+        responsible_name=store_data.responsible.name,
+        responsible_phone=store_data.responsible.phone,
+
+        # Valores padrão
+        is_active=True,
+        is_setup_complete=False,
+        verification_status=StoreVerificationStatus.UNVERIFIED
     )
+
+
     db.add(db_store)
-    db.flush()  # agora sim
+    db.flush()
 
 
 
@@ -118,7 +138,7 @@ def create_store(
 
     # Define o período da assinatura gratuita como "infinita" (ex: 100 anos)
     start_date = datetime.utcnow()
-    end_date = start_date + timedelta(days=365 * 100)
+    end_date = start_date + timedelta(days=365)
 
     # Cria a assinatura inicial para a nova loja, já no plano gratuito
     store_subscription = models.StoreSubscription(
@@ -135,7 +155,6 @@ def create_store(
     db.commit()
     return db_store_access
 
-
 @router.get("", response_model=list[StoreWithRole])
 def list_stores(
     db: GetDBDep,
@@ -144,15 +163,11 @@ def list_stores(
     db_store_accesses = db.query(models.StoreAccess).filter(models.StoreAccess.user == user).all()
     return db_store_accesses
 
-
 @router.get("/{store_id}", response_model=Store)
 def get_store(
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
 ):
     return store
-
-
-
 
 
 @router.patch("/{store_id}", response_model=Store)
@@ -295,7 +310,7 @@ def delete_store_access(
 
 
 
-# src/api/admin/routes/store.py
+
 
 @router.get(
     "/check-url/{url_slug}",
@@ -303,14 +318,7 @@ def delete_store_access(
     summary="Verificar a disponibilidade de uma URL para a loja"
 )
 def check_url_availability(url_slug: str,  db: GetDBDep):
-    """
-    Verifica se uma URL (slug) já está em uso por outra loja.
 
-    - **Retorna 204 No Content:** se a URL estiver DISPONÍVEL.
-    - **Retorna 409 Conflict:** se a URL já estiver EM USO.
-    """
-    # ✅ CORREÇÃO: Usamos 'models.Store' para nos referirmos
-    # explicitamente ao modelo do banco de dados.
     existing_store = db.query(models.Store).filter(
         func.lower(models.Store.url_slug) == url_slug.lower()
     ).first()
