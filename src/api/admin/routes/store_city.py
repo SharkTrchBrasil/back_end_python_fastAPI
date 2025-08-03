@@ -2,7 +2,7 @@ import asyncio
 
 from fastapi import APIRouter, Form, HTTPException
 
-from src.api.admin.socketio.emitters import admin_emit_store_full_updated
+from src.api.admin.socketio.emitters import admin_emit_store_full_updated, admin_emit_store_updated
 from src.api.app.events.socketio_emitters import emit_store_updated
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
@@ -31,7 +31,7 @@ async def create_city(
     db.commit()
     db.refresh(city)
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_full_updated(db, store.id)
+    await admin_emit_store_updated(store)
     return city
 
 
@@ -80,7 +80,7 @@ async def update_city(
     db.commit()
     db.refresh(city)
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_full_updated(db, store.id)
+    await admin_emit_store_updated(store)
     return city
 
 
@@ -98,4 +98,4 @@ async def delete_city(
     db.commit()
 
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_full_updated(db, store.id)
+    await admin_emit_store_updated(store)
