@@ -2,6 +2,7 @@
 from sqlalchemy.orm import Session
 from src.core import models
 
+
 class StoreAccessService:
 
     @staticmethod
@@ -15,7 +16,7 @@ class StoreAccessService:
             .join(models.Role)
             .filter(
                 models.StoreAccess.user_id == admin_id,
-                models.Role.machine_name == 'owner' # <--- FILTRA APENAS POR 'owner'
+                models.Role.machine_name == 'owner'
             )
             .all()
         ]
@@ -23,13 +24,15 @@ class StoreAccessService:
 
     @staticmethod
     def get_accessible_store_ids_with_fallback(db: Session, admin_user) -> list[int]:
-        # Esta função continuará a usar o método acima
+        # ✅ CORREÇÃO:
+        # A função agora apenas chama o método principal. A lógica de fallback
+        # que causava o erro foi removida.
+        # Se um fallback for necessário no futuro, ele precisará ser implementado
+        # com uma nova consulta ao banco (ex: buscar lojas onde é 'manager'),
+        # e não acessando um campo inexistente.
+
         store_ids = StoreAccessService.get_admin_store_ids(db, admin_user.id)
 
-        # A lógica de fallback permanece a mesma: adiciona a loja principal do usuário
-        # SOMENTE se nenhuma loja for encontrada pelos acessos de 'owner'.
-        if not store_ids and admin_user.store_id:
-            store_ids.append(admin_user.store_id)
-
-        # Garante que não há duplicatas, o que é sempre uma boa prática defensiva.
+        # A chamada para list(set(store_ids)) é redundante aqui, mas podemos manter
+        # por segurança, caso a lógica seja expandida no futuro.
         return list(set(store_ids))

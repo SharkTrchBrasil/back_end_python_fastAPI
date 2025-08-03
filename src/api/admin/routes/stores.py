@@ -99,11 +99,7 @@ def create_store(
     )
     db.add(db_store_settings)
 
-
-
-
     totem_token = str(uuid.uuid4())
-
 
     totem_auth = models.TotemAuthorization(
         store_id=db_store.id,
@@ -115,9 +111,6 @@ def create_store(
         store_url=db_store.url_slug,
     )
     db.add(totem_auth)
-
-
-
 
     # Cria vínculo do usuário com a loja como dono
     db_role = db.query(models.Role).filter(models.Role.machine_name == "owner").first()
