@@ -696,7 +696,7 @@ class StoreOperationConfig(Base, TimestampMixin):
     table_instructions: Mapped[str] = mapped_column(nullable=True)
 
     # ✅ Relacionamento atualizado no modelo 'Store'
-    store: Mapped["Store"] = relationship(back_populates="configuration")
+    store: Mapped["Store"] = relationship(back_populates="store_operation_config")
 
 
 class StoreHours(Base, TimestampMixin):
