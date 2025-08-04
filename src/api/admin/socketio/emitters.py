@@ -38,7 +38,7 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
 
 
 
-            joinedload(models.Store.settings),  # joinedload é bom para relações um-para-um
+            joinedload(models.Store.store_operation_config),  # joinedload é bom para relações um-para-um
             selectinload(models.Store.hours),
             selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
             selectinload(models.Store.coupons),

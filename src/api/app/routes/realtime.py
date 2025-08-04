@@ -73,9 +73,44 @@ async def connect(sid, environ):
 
             # 1. A "Super Consulta" continua a mesma (está ótima)
             print(f"Carregando estado completo para a loja {totem.store_id}...")
+
+            # ✅ SUPER CONSULTA CORRIGIDA E OTIMIZADA
             store = db.query(models.Store).options(
-                # ... todas as suas opções de selectinload e joinedload ...
+                # --- Configurações e Dados da Loja ---
+
+                selectinload(models.Store.payment_activations)
+                .selectinload(models.StorePaymentMethodActivation.platform_method)
+                .selectinload(models.PlatformPaymentMethod.category)
+                .selectinload(models.PaymentMethodCategory.group),
+
+                joinedload(models.Store.store_operation_config),  # joinedload é bom para relações um-para-um
+                selectinload(models.Store.hours),
+                selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
+                selectinload(models.Store.coupons),
+
+                # --- [VISÃO DO CARDÁPIO] ---
+                # Carrega a árvore completa de produtos e seus complementos como aparecem no cardápio
+                selectinload(models.Store.products).selectinload(
+                    models.Product.variant_links  # Store -> Product -> ProductVariantLink (A Regra)
+                ).selectinload(
+                    models.ProductVariantLink.variant  # -> Variant (O Template)
+                ).selectinload(
+                    models.Variant.options  # -> VariantOption (O Item)
+                ).selectinload(
+                    models.VariantOption.linked_product  # -> Product (O item de Cross-Sell)
+                ),
+
+                # --- [PAINEL DE GERENCIAMENTO DE TEMPLATES] ---
+                # Carrega TODOS os templates de variantes e suas opções, mesmo os não utilizados.
+                # Essencial para a tela de "Gerenciar Grupos de Complementos".
+                selectinload(models.Store.variants).selectinload(
+                    models.Variant.options
+                ),
+
+
+
             ).filter(models.Store.id == totem.store_id).first()
+
 
             if not store:
                 raise ConnectionRefusedError("Store not found after query")
