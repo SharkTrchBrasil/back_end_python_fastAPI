@@ -1,115 +1,52 @@
-import asyncio
-
-from fastapi import APIRouter, Form, HTTPException
-
-from src.api.app.events.socketio_emitters import emit_store_updated
+from fastapi import APIRouter, HTTPException, Depends, Response
 from src.core.database import GetDBDep
-from src.core.dependencies import GetStoreDep
+from src.core.dependencies import GetStoreDep  # Assumindo que essa dependência protege a rota
+from src.core.models import StoreHours as StoreHoursModel
+from src.api.shared_schemas.store_hours import StoreHoursSchema  # Seu schema Pydantic
+import asyncio
+from src.api.app.events.socketio_emitters import emit_store_updated
 
-from src.core.models import StoreHours  # Modelo ORM SQLAlchemy
-from src.api.shared_schemas.store_hours import StoreHoursSchema  # Schema Pydantic
+# ✅ Roteador simplificado
+router = APIRouter(prefix="/stores/{store_id}/hours", tags=["Store Hours"])
 
 
-router = APIRouter(prefix="/stores/{store_id}/hours", tags=["Hours"])
-
-
-@router.post("", response_model=StoreHoursSchema)
-async def create_store_hour(
-    db: GetDBDep,
-    store: GetStoreDep,
-    day_of_week: int = Form(...),
-    open_time: str = Form(...),
-    close_time: str = Form(...),
-    shift_number: int = Form(...),
-    is_active: bool = Form(...),
+# ✅ UMA ÚNICA ROTA PARA GOVERNAR TODAS!
+@router.put("", status_code=204, summary="Atualiza a grade de horários completa da loja")
+async def batch_update_store_hours(
+        store: GetStoreDep,
+        new_hours: list[StoreHoursSchema],  # Recebe a lista completa de horários do frontend
+        db: GetDBDep,
 ):
-    db_store_hour = StoreHours(
-        day_of_week=day_of_week,
-        open_time=open_time,
-        close_time=close_time,
-        shift_number=shift_number,
-        is_active=is_active,
-        store_id=store.id,
-    )
-    db.add(db_store_hour)
-    db.commit()
-    db.refresh(db_store_hour)  # importante para atualizar o objeto com id e outros campos
+    """
+    Substitui TODOS os horários de funcionamento de uma loja pela nova lista fornecida.
+    Esta é uma operação "delete-then-create" para garantir consistência.
+    """
 
-    await asyncio.create_task(emit_store_updated(store))
+    # 1. Pega o ID da loja de forma segura pela dependência
+    store_id = store.id
 
-    return db_store_hour
+    # 2. Deleta TODOS os horários antigos da loja em uma única operação.
+    # Isso garante que turnos removidos no app sejam removidos aqui também.
+    db.query(StoreHoursModel).filter(StoreHoursModel.store_id == store_id).delete(synchronize_session=False)
 
+    # 3. Itera sobre a nova lista de horários recebida e adiciona cada um.
+    for hour_data in new_hours:
+        db_hour = StoreHoursModel(
+            store_id=store_id,
+            day_of_week=hour_data.day_of_week,
+            open_time=hour_data.open_time,
+            close_time=hour_data.close_time,
+            shift_number=hour_data.shift_number,
+            is_active=hour_data.is_active,
+        )
+        db.add(db_hour)
 
-@router.get("", response_model=list[StoreHoursSchema])
-def get_store_hours(
-    db: GetDBDep,
-    store: GetStoreDep,
-):
-    db_store_hours = db.query(StoreHours).filter(StoreHours.store_id == store.id).all()
-    return db_store_hours
-
-
-@router.get("/{hour_id}", response_model=StoreHoursSchema)
-def get_store_hour(
-    db: GetDBDep,
-    store: GetStoreDep,
-    hour_id: int,
-):
-    db_store_hour = db.query(StoreHours).filter(StoreHours.id == hour_id, StoreHours.store_id == store.id).first()
-    if not db_store_hour:
-        raise HTTPException(status_code=404, detail="Store hour not found")
-    return db_store_hour
-
-
-@router.patch("/{hour_id}", response_model=StoreHoursSchema)
-async def patch_store_hour(
-    db: GetDBDep,
-    store: GetStoreDep,
-    hour_id: int,
-    day_of_week: int | None = Form(None),
-    open_time: str | None = Form(None),
-    close_time: str | None = Form(None),
-    shift_number: int | None = Form(None),
-    is_active: bool | None = Form(None),
-):
-    db_store_hour = db.query(StoreHours).filter(StoreHours.id == hour_id, StoreHours.store_id == store.id).first()
-    if not db_store_hour:
-        raise HTTPException(status_code=404, detail="Store hour not found")
-
-    if day_of_week is not None:
-        db_store_hour.day_of_week = day_of_week
-    if open_time is not None:
-        db_store_hour.open_time = open_time
-    if close_time is not None:
-        db_store_hour.close_time = close_time
-    if shift_number is not None:
-        db_store_hour.shift_number = shift_number
-    if is_active is not None:
-        db_store_hour.is_active = is_active
-
-    db.commit()
-    db.refresh(db_store_hour)
-
-    await asyncio.create_task(emit_store_updated(store))
-
-    return db_store_hour
-
-
-@router.delete("/{hour_id}", status_code=204)
-async def delete_store_hour(
-    db: GetDBDep,
-    store: GetStoreDep,
-    hour_id: int,
-):
-    db_store_hour = db.query(StoreHours).filter(StoreHours.id == hour_id, StoreHours.store_id == store.id).first()
-    if not db_store_hour:
-        raise HTTPException(status_code=404, detail="Store hour not found")
-
-    db.delete(db_store_hour)
+    # 4. Comita a transação. Todas as exclusões e criações acontecem de uma vez.
     db.commit()
 
-    await asyncio.create_task(emit_store_updated(store))
+    # 5. Notifica o frontend que a loja foi atualizada
+    # Passamos o objeto 'store' que já temos da dependência
+    await asyncio.create_task(emit_store_updated(db, store.id))
 
-    return  # Retorna um status 204 (No Content) em caso de sucesso
-
-
+    # 6. Retorna uma resposta de sucesso sem conteúdo.
+    return Response(status_code=204)
