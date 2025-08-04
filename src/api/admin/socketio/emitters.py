@@ -196,12 +196,14 @@ async def admin_emit_order_updated_from_obj(order: models.Order):
         logger.error(f'Erro ao emitir order_updated: {e}')
 
 
-
 async def admin_emit_store_updated(store: models.Store):
     try:
+        # ✅ CORREÇÃO: Adicione mode='json' ao model_dump()
+        payload = StoreDetails.model_validate(store).model_dump(mode='json')
+
         await sio.emit(
             'store_updated',
-            StoreDetails.model_validate(store).model_dump(),
+            payload,
             namespace='/admin',
             room=f'admin_store_{store.id}'
         )
