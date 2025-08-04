@@ -4,7 +4,7 @@ from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep  # Assumindo que essa dependência protege a rota
 from src.core.models import StoreHours as StoreHoursModel
-from src.api.shared_schemas.store_hours import StoreHoursSchema  # Seu schema Pydantic
+from src.api.shared_schemas.store_hours import StoreHoursCreate  # Seu schema Pydantic
 import asyncio
 from src.api.app.events.socketio_emitters import emit_store_updated
 
@@ -16,13 +16,9 @@ router = APIRouter(prefix="/stores/{store_id}/hours", tags=["Store Hours"])
 @router.put("", status_code=204, summary="Atualiza a grade de horários completa da loja")
 async def batch_update_store_hours(
         store: GetStoreDep,
-        new_hours: list[StoreHoursSchema],  # Recebe a lista completa de horários do frontend
+        new_hours: list[StoreHoursCreate],  # Recebe a lista completa de horários do frontend
         db: GetDBDep,
 ):
-    """
-    Substitui TODOS os horários de funcionamento de uma loja pela nova lista fornecida.
-    Esta é uma operação "delete-then-create" para garantir consistência.
-    """
 
     # 1. Pega o ID da loja de forma segura pela dependência
     store_id = store.id
