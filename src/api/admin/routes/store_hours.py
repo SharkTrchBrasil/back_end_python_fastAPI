@@ -1,4 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Response
+
+from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep  # Assumindo que essa dependência protege a rota
 from src.core.models import StoreHours as StoreHoursModel
@@ -47,6 +49,6 @@ async def batch_update_store_hours(
     # 5. Notifica o frontend que a loja foi atualizada
     # Passamos o objeto 'store' que já temos da dependência
     await asyncio.create_task(emit_store_updated(db, store.id))
-
+    await admin_emit_store_updated(store)
     # 6. Retorna uma resposta de sucesso sem conteúdo.
     return Response(status_code=204)
