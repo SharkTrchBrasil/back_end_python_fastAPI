@@ -24,7 +24,7 @@ from src.api.admin.routes.payment_methods import router as payment_methods_route
 from src.api.admin.routes.store_hours import router as store_hours_router
 from src.api.admin.routes.verify_email import router as verify_email_router
 from src.api.admin.routes.chatbot import router as chatbot_router
-from src.api.admin.routes.delivery_options import router as delivery_options_router
+from src.api.admin.routes.store_operation_config import router as delivery_options_router
 
 from src.api.admin.routes.cashier_session_routes import router as cashier_session_routes
 from src.api.admin.routes.cashier_transaction_routes import router as  cashier_transaction_routes

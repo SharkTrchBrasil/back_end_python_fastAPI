@@ -68,37 +68,37 @@ def create_store(
 
 
     # Cria as configurações de entrega usando o id já gerado
-    db_delivery_settings = models.StoreDeliveryConfiguration(
+    # Cria a configuração unificada da loja usando o id já gerado
+    db_store_configuration = models.StoreOperationConfig(
         store_id=db_store.id,
-        delivery_enabled=default_delivery_settings["delivery_enabled"],
-        delivery_estimated_min=default_delivery_settings["delivery_estimated_min"],
-        delivery_estimated_max=default_delivery_settings["delivery_estimated_max"],
-        delivery_fee=default_delivery_settings["delivery_fee"],
-        delivery_min_order=default_delivery_settings["delivery_min_order"],
 
-        pickup_enabled=default_delivery_settings["pickup_enabled"],
-        pickup_estimated_min=default_delivery_settings["pickup_estimated_min"],
-        pickup_estimated_max=default_delivery_settings["pickup_estimated_max"],
-        pickup_instructions=default_delivery_settings["pickup_instructions"],
-
-        table_enabled=default_delivery_settings["table_enabled"],
-        table_estimated_min=default_delivery_settings["table_estimated_min"],
-        table_estimated_max=default_delivery_settings["table_estimated_max"],
-        table_instructions=default_delivery_settings["table_instructions"],
-    )
-    db.add(db_delivery_settings)
-
-    # Cria as configurações gerais da loja (settings)
-    db_store_settings = models.StoreSettings(
-        store_id=db_store.id,
-        is_delivery_active=True,
-        is_takeout_active=True,
-        is_table_service_active=True,
+        # --- Campos que eram do 'StoreSettings' ---
         is_store_open=True,
         auto_accept_orders=False,
-        auto_print_orders=False
+        auto_print_orders=False,
+        # (os campos de impressora podem ficar com o valor padrão do banco de dados, que é None)
+
+        # --- Campos que eram do 'StoreDeliveryConfiguration' ---
+        # Usamos .get() para pegar os valores do seu dicionário de defaults de forma segura
+        delivery_enabled=default_delivery_settings.get("delivery_enabled", True),
+        delivery_estimated_min=default_delivery_settings.get("delivery_estimated_min"),
+        delivery_estimated_max=default_delivery_settings.get("delivery_estimated_max"),
+        delivery_fee=default_delivery_settings.get("delivery_fee"),
+        delivery_min_order=default_delivery_settings.get("delivery_min_order"),
+
+        pickup_enabled=default_delivery_settings.get("pickup_enabled", True),
+        pickup_estimated_min=default_delivery_settings.get("pickup_estimated_min"),
+        pickup_estimated_max=default_delivery_settings.get("pickup_estimated_max"),
+        pickup_instructions=default_delivery_settings.get("pickup_instructions"),
+
+        table_enabled=default_delivery_settings.get("table_enabled", True),
+        table_estimated_min=default_delivery_settings.get("table_estimated_min"),
+        table_estimated_max=default_delivery_settings.get("table_estimated_max"),
+        table_instructions=default_delivery_settings.get("table_instructions"),
     )
-    db.add(db_store_settings)
+
+    # Adiciona o único objeto de configuração ao banco de dados
+    db.add(db_store_configuration)
 
     totem_token = str(uuid.uuid4())
 

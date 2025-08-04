@@ -12,8 +12,10 @@ from src.api.shared_schemas.product import Product, ProductOut
 from src.api.shared_schemas.rating import RatingsSummaryOut
 from src.api.shared_schemas.store import Store, StoreSchema
 from src.api.shared_schemas.store_city import StoreCitySchema
-from src.api.shared_schemas.store_delivery_options import StoreDeliveryConfigBase
+
+
 from src.api.shared_schemas.store_hours import StoreHoursOut
+from src.api.shared_schemas.store_operation_config import StoreOperationConfigOut
 
 from src.api.shared_schemas.variant import Variant
 
@@ -21,10 +23,10 @@ from src.api.shared_schemas.variant import Variant
 class StoreDetails(StoreSchema):
     # --- Relações que você já tinha ---
     payment_method_groups: list[PaymentMethodGroupOut] = []
-    delivery_config: StoreDeliveryConfigBase | None = None
+    store_operation_config: StoreOperationConfigOut | None = None
     hours: list[StoreHoursOut] = []
     cities: list[StoreCitySchema] = []
-    store_settings: StoreSettingsBase | None = None
+    settings: StoreSettingsBase | None = None
     ratingsSummary: Optional[RatingsSummaryOut] = Field(None, alias="ratingsSummary")
     subscription: Optional[StoreSubscriptionSchema] = None
     is_setup_complete: bool  # ✅ Adicione o campo aqui

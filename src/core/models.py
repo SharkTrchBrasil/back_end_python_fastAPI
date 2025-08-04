@@ -116,8 +116,8 @@ class Store(Base, TimestampMixin):
         "CashierSession", back_populates="store", cascade="all, delete-orphan"
     )
 
-    # Configurações de entrega (relacionamento 1:1)
-    delivery_config: Mapped[Optional["StoreDeliveryConfiguration"]] = relationship(
+    # ✅ ATUALIZE ESTE RELACIONAMENTO
+    store_operation_config: Mapped["StoreOperationConfig"] = relationship(
         back_populates="store", uselist=False, cascade="all, delete-orphan"
     )
 
@@ -133,9 +133,7 @@ class Store(Base, TimestampMixin):
 
     store_ratings: Mapped[List["StoreRating"]] = relationship(back_populates="store")
 
-    settings: Mapped["StoreSettings"] = relationship(
-        back_populates="store", uselist=False, cascade="all, delete-orphan"
-    )
+
 
     commands: Mapped[list["Command"]] = relationship(back_populates="store")
 
@@ -664,13 +662,22 @@ class StorePaymentMethodActivation(Base, TimestampMixin):
 
 
 
-class StoreDeliveryConfiguration(Base, TimestampMixin):
-    __tablename__ = "store_delivery_options"
+# ✅ NOVO MODELO UNIFICADO
+class StoreOperationConfig(Base, TimestampMixin):
+    __tablename__ = "store_operation_config" # Novo nome de tabela
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), unique=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), unique=True, index=True)
 
-    # DELIVERY
+    # --- Campos que eram de 'Settings' ---
+    is_store_open: Mapped[bool] = mapped_column(default=True)
+    auto_accept_orders: Mapped[bool] = mapped_column(default=False)
+    auto_print_orders: Mapped[bool] = mapped_column(default=False)
+    main_printer_destination: Mapped[str] = mapped_column(nullable=True)
+    kitchen_printer_destination: Mapped[str] = mapped_column(nullable=True)
+    bar_printer_destination: Mapped[str] = mapped_column(nullable=True)
+
+    # --- Campos que eram de 'Delivery' (agora unificados) ---
     delivery_enabled: Mapped[bool] = mapped_column(default=False)
     delivery_estimated_min: Mapped[int] = mapped_column(nullable=True)
     delivery_estimated_max: Mapped[int] = mapped_column(nullable=True)
@@ -678,19 +685,18 @@ class StoreDeliveryConfiguration(Base, TimestampMixin):
     delivery_min_order: Mapped[float] = mapped_column(nullable=True)
     delivery_scope: Mapped[str] = mapped_column(nullable=True, default='neighborhood')
 
-    # PICKUP
     pickup_enabled: Mapped[bool] = mapped_column(default=False)
     pickup_estimated_min: Mapped[int] = mapped_column(nullable=True)
     pickup_estimated_max: Mapped[int] = mapped_column(nullable=True)
     pickup_instructions: Mapped[str] = mapped_column(nullable=True)
 
-    # COUNTER / TABLE
     table_enabled: Mapped[bool] = mapped_column(default=False)
     table_estimated_min: Mapped[int] = mapped_column(nullable=True)
     table_estimated_max: Mapped[int] = mapped_column(nullable=True)
     table_instructions: Mapped[str] = mapped_column(nullable=True)
 
-    store: Mapped["Store"] = relationship(back_populates="delivery_config")
+    # ✅ Relacionamento atualizado no modelo 'Store'
+    store: Mapped["Store"] = relationship(back_populates="configuration")
 
 
 class StoreHours(Base, TimestampMixin):
@@ -1250,21 +1256,6 @@ class StoreCustomer(Base, TimestampMixin):
     customer = relationship("Customer", back_populates="store_customers")
 
 
-class StoreSettings(Base, TimestampMixin):
-    __tablename__ = "store_settings"
-    store = relationship("Store", back_populates="settings", uselist=False)
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), primary_key=True)
-
-    is_delivery_active: Mapped[bool] = mapped_column(default=True)
-    is_takeout_active: Mapped[bool] = mapped_column(default=True)
-    is_table_service_active: Mapped[bool] = mapped_column(default=True)
-    is_store_open: Mapped[bool] = mapped_column(default=True)
-
-    auto_accept_orders: Mapped[bool] = mapped_column(default=False)
-    auto_print_orders: Mapped[bool] = mapped_column(default=False)
-    main_printer_destination: Mapped[str | None] = mapped_column(nullable=True)
-    kitchen_printer_destination: Mapped[str | None] = mapped_column(nullable=True)
-    bar_printer_destination: Mapped[str | None] = mapped_column(nullable=True)
 
 
 class Feature(Base, TimestampMixin):
