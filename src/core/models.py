@@ -481,13 +481,15 @@ class AdminConsolidatedStoreSelection(Base, TimestampMixin):  # Adicionei Timest
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
 
-    admin_id: Mapped[int] = mapped_column(ForeignKey("totem_authorizations.id"), nullable=False)
+    # ✅ CORREÇÃO: A ForeignKey agora aponta para 'users.id'
+    admin_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), nullable=False)
 
     __table_args__ = (UniqueConstraint('admin_id', 'store_id', name='uq_admin_store_selection'),)
 
-    admin_authorization: Mapped[TotemAuthorization] = relationship(backref="consolidated_selections")
-    store: Mapped[Store] = relationship()
+    # ✅ CORREÇÃO: O relacionamento agora é com o modelo de usuário (ex: User)
+    admin_user: Mapped["User"] = relationship() # O nome do modelo pode variar (User, AdminUser, etc)
+    store: Mapped["Store"] = relationship()
 
 
 class StoreTheme(Base, TimestampMixin):
