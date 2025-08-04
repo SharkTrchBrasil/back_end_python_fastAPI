@@ -13,6 +13,7 @@ from sqlalchemy import func
 from src.api.admin.schemas.store_access import StoreAccess
 from src.api.app.events.socketio_emitters import emit_store_updated
 from src.api.shared_schemas.store import StoreWithRole, StoreCreate, Store, Roles
+from src.api.shared_schemas.store_details import StoreDetails
 from src.core import models
 
 from src.core.aws import upload_file, delete_file
@@ -156,14 +157,14 @@ def list_stores(
     db_store_accesses = db.query(models.StoreAccess).filter(models.StoreAccess.user == user).all()
     return db_store_accesses
 
-@router.get("/{store_id}", response_model=Store)
+@router.get("/{store_id}", response_model=StoreDetails)
 def get_store(
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
 ):
     return store
 
 
-@router.patch("/{store_id}", response_model=Store)
+@router.patch("/{store_id}", response_model=StoreDetails)
 async def patch_store(
     db: GetDBDep,
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
