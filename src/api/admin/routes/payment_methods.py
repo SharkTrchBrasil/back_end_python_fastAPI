@@ -31,10 +31,17 @@ class ActivationUpdateSchema(BaseModel):
 # ────────────────  1. LISTAR TODOS OS MÉTODOS E SUAS ATIVAÇÕES  ────────────────
 @router.get("", response_model=list[PaymentMethodGroupOut])
 def list_all_payment_methods_for_store(db: GetDBDep, store_id: int):
-    # 1. Pega TODOS os métodos da plataforma, já com a hierarquia
+    # ✅ CORREÇÃO: Adicionamos .join() para que o .order_by() funcione
     all_platform_methods = db.query(models.PlatformPaymentMethod).options(
+        # O joinedload continua aqui para garantir que os objetos venham completos
         joinedload(models.PlatformPaymentMethod.category)
         .joinedload(models.PaymentMethodCategory.group)
+    ).join(
+        models.PaymentMethodCategory,
+        models.PlatformPaymentMethod.category_id == models.PaymentMethodCategory.id
+    ).join(
+        models.PaymentMethodGroup,
+        models.PaymentMethodCategory.group_id == models.PaymentMethodGroup.id
     ).order_by(
         models.PaymentMethodGroup.priority,
         models.PaymentMethodCategory.priority,
