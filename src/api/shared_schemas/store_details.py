@@ -1,8 +1,7 @@
 from typing import Optional, List
 from pydantic import Field, ConfigDict
 
-# Importe seus schemas existentes
-from src.api.admin.schemas.store_settings import StoreSettingsBase
+
 from src.api.admin.schemas.store_subscription import StoreSubscriptionSchema
 from src.api.shared_schemas.category import Category
 from src.api.shared_schemas.coupon import CouponOut
@@ -26,7 +25,6 @@ class StoreDetails(StoreSchema):
     store_operation_config: StoreOperationConfigOut | None = None
     hours: list[StoreHoursOut] = []
     cities: list[StoreCitySchema] = []
-    settings: StoreSettingsBase | None = None
     ratingsSummary: Optional[RatingsSummaryOut] = Field(None, alias="ratingsSummary")
     subscription: Optional[StoreSubscriptionSchema] = None
     is_setup_complete: bool  # ✅ Adicione o campo aqui

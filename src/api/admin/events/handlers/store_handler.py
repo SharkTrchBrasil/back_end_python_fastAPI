@@ -4,10 +4,11 @@ from urllib.parse import parse_qs
 
 from sqlalchemy.orm import selectinload
 
-from src.api.admin.schemas.store_settings import StoreSettingsBase
+
 from src.api.admin.services.store_access_service import StoreAccessService
 from src.api.admin.services.store_session_service import SessionService
 from src.api.admin.utils.authorize_admin import authorize_admin_by_jwt
+from src.api.shared_schemas.store_operation_config import StoreOperationConfigOut, StoreOperationConfigBase
 from src.core import models
 from src.api.admin.socketio.emitters import (
     admin_emit_store_full_updated,
@@ -64,7 +65,9 @@ async def handle_set_consolidated_stores(self, sid, data):
         return {"error": f"Falha interna: {str(e)}"}
 
 
-async def handle_update_store_settings(self, sid, data):
+
+
+async def handle_update_operation_config(self, sid, data):
     with get_db_manager() as db:
         session = SessionService.get_session(db, sid, client_type="admin")
 
@@ -89,9 +92,6 @@ async def handle_update_store_settings(self, sid, data):
         all_accessible_store_ids_for_admin = StoreAccessService.get_accessible_store_ids_with_fallback(db,
                                                                                                        admin_user)
 
-        # ✅ CORREÇÃO 2: Bloco de fallback que causava o erro foi REMOVIDO.
-        # A linha "if not ... and admin_user.store_id:" foi removida.
-
         if requested_store_id not in all_accessible_store_ids_for_admin:
             return {'error': 'Acesso negado: Você não tem permissão para gerenciar esta loja.'}
 
@@ -99,33 +99,43 @@ async def handle_update_store_settings(self, sid, data):
         if not store:
             return {"error": "Loja não encontrada."}
 
-        settings = db.query(models.StoreSettings).filter_by(store_id=store.id).first()
-        if not settings:
-            return {"error": "Configurações não encontradas para esta loja."}
+        # --- ✅ 2. LÓGICA ATUALIZADA PARA USAR 'StoreOperationConfig' ---
+        config = db.query(models.StoreOperationConfig).filter_by(store_id=store.id).first()
+
+        # Se não houver configuração, cria uma padrão em vez de retornar erro
+        if not config:
+            config = models.StoreOperationConfig(store_id=store.id)
+            db.add(config)
 
         try:
+            # ✅ CORREÇÃO: Lista explícita de campos atualizáveis.
+            # Isso evita o erro no editor e torna a intenção do código mais clara.
             updatable_fields = [
-                "is_delivery_active", "is_takeout_active", "is_table_service_active",
                 "is_store_open", "auto_accept_orders", "auto_print_orders",
-                "main_printer_destination", "kitchen_printer_destination", "bar_printer_destination"
+                "main_printer_destination", "kitchen_printer_destination", "bar_printer_destination",
+                "delivery_enabled", "delivery_estimated_min", "delivery_estimated_max",
+                "delivery_fee", "delivery_min_order", "delivery_scope",
+                "pickup_enabled", "pickup_estimated_min", "pickup_estimated_max",
+                "pickup_instructions",
+                "table_enabled", "table_estimated_min", "table_estimated_max",
+                "table_instructions"
             ]
 
             for field in updatable_fields:
                 if field in data:
-                    setattr(settings, field, data[field])
+                    setattr(config, field, data[field])
 
             db.commit()
-            db.refresh(settings)
+            db.refresh(config)
             db.refresh(store)
 
-            await admin_emit_store_updated(store)
             await admin_emit_store_full_updated(db, store.id)
 
-            return StoreSettingsBase.model_validate(settings).model_dump(mode='json')
+            return StoreOperationConfigBase.model_validate(config).model_dump(mode='json')
 
         except Exception as e:
             db.rollback()
-            print(f"❌ Erro ao atualizar configurações da loja: {str(e)}")
+            print(f"❌ Erro ao atualizar configuração de operação da loja: {str(e)}")
             return {"error": str(e)}
 
 

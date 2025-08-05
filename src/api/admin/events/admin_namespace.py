@@ -12,8 +12,8 @@ from .handlers.order_handler import handle_update_order_status, claim_specific_p
 from .handlers.store_handler import (
     handle_join_store_room,
     handle_leave_store_room,
-    handle_update_store_settings,
-    handle_set_consolidated_stores
+
+    handle_set_consolidated_stores, handle_update_operation_config
 )
 from ..socketio.emitters import admin_emit_store_full_updated, admin_emit_orders_initial, \
     admin_emit_tables_and_commands
@@ -40,7 +40,7 @@ class AdminNamespace(AsyncNamespace):
         await handle_leave_store_room(self, sid, data)
 
     async def on_update_store_settings(self, sid, data):
-        return await handle_update_store_settings(self, sid, data)
+        return await handle_update_operation_config(self, sid, data)
 
     async def on_set_consolidated_stores(self, sid, data):
         return await handle_set_consolidated_stores(self, sid, data)

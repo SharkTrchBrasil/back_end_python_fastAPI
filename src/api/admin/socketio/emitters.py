@@ -2,10 +2,10 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 from venv import logger
-from zoneinfo import ZoneInfo
+
 
 from src.api.admin.schemas.command import CommandOut
-from src.api.admin.schemas.store_settings import StoreSettingsBase
+
 
 from src.api.admin.schemas.table import TableOut
 from src.api.admin.services.subscription_service import SubscriptionService
@@ -15,7 +15,7 @@ from src.api.shared_schemas.order import OrderDetails
 from src.api.shared_schemas.rating import RatingsSummaryOut
 from src.socketio_instance import sio
 from src.core import models
-from src.api.shared_schemas.store_theme import StoreThemeOut
+
 from src.api.shared_schemas.store_details import StoreDetails
 from src.api.shared_schemas.product import ProductOut
 from sqlalchemy.orm import joinedload
@@ -73,41 +73,37 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
 
         ).filter(models.Store.id == store_id).first()
 
+
         if not store:
             print(f"❌ Loja {store_id} não encontrada na função admin_emit_store_full_updated")
             return
 
-        # --- Processamento dos dados carregados ---
-
-        # Lógica de settings usando os dados já carregados
-        settings = store.settings
-        if not settings:
-            settings = models.StoreSettings(store_id=store_id)  # Cria configurações padrão se não existirem
-            db.add(settings)
+        # --- ✅ LÓGICA DE CONFIGURAÇÃO SIMPLIFICADA ---
+        # Apenas garantimos que a configuração exista. Se não existir, criamos uma padrão.
+        if not store.store_operation_config:
+            print(f"🔧 Loja {store_id} não possui configuração de operação. Criando uma padrão.")
+            default_config = models.StoreOperationConfig(store_id=store_id)
+            db.add(default_config)
             db.commit()
-            db.refresh(settings)
+            db.refresh(store) # Atualiza o objeto 'store' com a nova configuração
 
-        # Lógica de assinatura
+        # --- Processamento dos dados carregados (o resto continua igual) ---
         subscription_payload, is_operational = SubscriptionService.get_subscription_details(store)
         if not is_operational:
             print(f"🔒 Loja {store_id} não pode operar. Assinatura: {subscription_payload.get('status')}")
 
-        # Validação com Pydantic e cálculo de ratings
         store_schema = StoreDetails.model_validate(store)
         try:
             store_schema.ratingsSummary = RatingsSummaryOut(**get_store_ratings_summary(db, store_id=store.id))
         except Exception:
             store_schema.ratingsSummary = RatingsSummaryOut(average_rating=0, total_ratings=0, distribution={})
 
-        # Montagem do payload final
+        # Montagem do payload final (agora muito mais simples)
         payload = {
             "store_id": store_id,
             "store": store_schema.model_dump(mode='json'),
             "subscription": subscription_payload
         }
-
-        # Garante que os settings sejam incluídos corretamente
-        payload['store']['store_settings'] = StoreSettingsBase.model_validate(settings).model_dump(mode='json')
 
         # Emissão do evento via Socket.IO
         if sid:
