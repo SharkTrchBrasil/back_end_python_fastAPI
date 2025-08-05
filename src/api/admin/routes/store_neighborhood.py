@@ -126,6 +126,7 @@ async def delete_neighborhood(city_id: int, neighborhood_id: int, db: GetDBDep):
 
     db.delete(neighborhood)
     db.commit()
+    db.refresh(neighborhood)
 
     store = get_store_from_city(db, city_id)
     await asyncio.create_task(emit_store_updated(db, store.id))

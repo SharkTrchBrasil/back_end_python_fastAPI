@@ -96,6 +96,7 @@ async def delete_city(
 
     db.delete(city)
     db.commit()
+    db.refresh(store)
 
     await asyncio.create_task(emit_store_updated(db, store.id))
     await admin_emit_store_updated(store)

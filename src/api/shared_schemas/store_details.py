@@ -27,9 +27,7 @@ class StoreDetails(StoreSchema):
     cities: list[StoreCitySchema] = []
     ratingsSummary: Optional[RatingsSummaryOut] = Field(None, alias="ratingsSummary")
     subscription: Optional[StoreSubscriptionSchema] = None
-    is_setup_complete: bool  # ✅ Adicione o campo aqui
-    # --- NOVAS RELAÇÕES DO CATÁLOGO ---
-    # Adicionamos os campos que agora são carregados pela "super consulta".
+    is_setup_complete: bool
     categories: List[Category] = []
     products: List[ProductOut] = []
     variants: List[Variant] = []
