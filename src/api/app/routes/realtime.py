@@ -43,7 +43,33 @@ from src.api.shared_schemas.order import Order as OrderSchema, OrderStatus
 
 
 # Em seu arquivo de eventos do totem
+async def refresh_product_list(db, store_id: int, sid: str | None = None):
+    products_l = db.query(models.Product).options(
+        joinedload(models.Product.variant_links)
+        .joinedload(models.ProductVariantProduct.variant)
+        .joinedload(models.Variant.options)
+    ).filter_by(store_id=store_id, available=True).all()
 
+    # Pega avaliações dos produtos
+    product_ratings = {
+        product.id: get_product_ratings_summary(db, product_id=product.id)
+        for product in products_l
+    }
+
+    # Junta dados do produto + avaliações
+    payload = [
+        {
+            **ProductOut.from_orm_obj(product).model_dump(exclude_unset=True),
+            "rating": product_ratings.get(product.id),
+        }
+        for product in products_l
+    ]
+
+    target = sid if sid else f"store_{store_id}"
+    await sio.emit("products_updated", payload, to=target)
+
+
+# Evento de conexão do Socket.IO
 @sio.event
 async def connect(sid, environ):
     query = parse_qs(environ.get("QUERY_STRING", ""))
@@ -53,89 +79,190 @@ async def connect(sid, environ):
         raise ConnectionRefusedError("Missing token")
 
     with get_db_manager() as db:
-        try:
-            totem = await authorize_totem(db, token)
-            if not totem or not totem.store:
-                raise ConnectionRefusedError("Invalid or unauthorized token")
+        totem = db.query(models.TotemAuthorization).filter(
+            models.TotemAuthorization.totem_token == token,
+            models.TotemAuthorization.granted.is_(True),
+        ).first()
 
-            # Lógica de sessão e entrada na sala (continua igual)
-            session = db.query(models.StoreSession).filter_by(sid=sid).first()
-            if not session:
-                session = models.StoreSession(sid=sid, store_id=totem.store.id, client_type='totem')
-                db.add(session)
-            else:
-                session.store_id = totem.store.id
-                session.updated_at = datetime.utcnow()
-            db.commit()
-            room_name = f"store_{totem.store_id}"
-            await sio.enter_room(sid, room_name)
-            print(f"✅ Cliente {sid} conectado e entrou na sala {room_name}")
+        if not totem or not totem.store:
+            raise ConnectionRefusedError("Invalid or unauthorized token")
 
-            # 1. A "Super Consulta" continua a mesma (está ótima)
-            print(f"Carregando estado completo para a loja {totem.store_id}...")
+        # Atualiza o SID do totem
+        totem.sid = sid
+        db.commit()
 
-            # ✅ SUPER CONSULTA CORRIGIDA E OTIMIZADA
-            store = db.query(models.Store).options(
-                # --- Configurações e Dados da Loja ---
+        room_name = f"store_{totem.store_id}"
+        await sio.enter_room(sid, room_name)
 
-                selectinload(models.Store.payment_activations)
-                .selectinload(models.StorePaymentMethodActivation.platform_method)
-                .selectinload(models.PlatformPaymentMethod.category)
-                .selectinload(models.PaymentMethodCategory.group),
+        # Carrega dados completos da loja com seus relacionamentos
+        # Loja -> delivery_config
+        # Loja -> Cidades -> Bairros
+        store = db.query(models.Store).options(
+                            # --- Configurações e Dados da Loja ---
 
-                joinedload(models.Store.store_operation_config),  # joinedload é bom para relações um-para-um
-                selectinload(models.Store.hours),
-                selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
-                selectinload(models.Store.coupons),
+                            selectinload(models.Store.payment_activations)
+                            .selectinload(models.StorePaymentMethodActivation.platform_method)
+                            .selectinload(models.PlatformPaymentMethod.category)
+                            .selectinload(models.PaymentMethodCategory.group),
 
-                # --- [VISÃO DO CARDÁPIO] ---
-                # Carrega a árvore completa de produtos e seus complementos como aparecem no cardápio
-                selectinload(models.Store.products).selectinload(
-                    models.Product.variant_links  # Store -> Product -> ProductVariantLink (A Regra)
-                ).selectinload(
-                    models.ProductVariantLink.variant  # -> Variant (O Template)
-                ).selectinload(
-                    models.Variant.options  # -> VariantOption (O Item)
-                ).selectinload(
-                    models.VariantOption.linked_product  # -> Product (O item de Cross-Sell)
-                ),
+                            joinedload(models.Store.store_operation_config),  # joinedload é bom para relações um-para-um
+                            selectinload(models.Store.hours),
+                            selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
+                            selectinload(models.Store.coupons),
 
-                # --- [PAINEL DE GERENCIAMENTO DE TEMPLATES] ---
-                # Carrega TODOS os templates de variantes e suas opções, mesmo os não utilizados.
-                # Essencial para a tela de "Gerenciar Grupos de Complementos".
-                selectinload(models.Store.variants).selectinload(
-                    models.Variant.options
-                ),
+                            # --- [VISÃO DO CARDÁPIO] ---
+                            # Carrega a árvore completa de produtos e seus complementos como aparecem no cardápio
+                            selectinload(models.Store.products).selectinload(
+                                models.Product.variant_links  # Store -> Product -> ProductVariantLink (A Regra)
+                            ).selectinload(
+                                models.ProductVariantLink.variant  # -> Variant (O Template)
+                            ).selectinload(
+                                models.Variant.options  # -> VariantOption (O Item)
+                            ).selectinload(
+                                models.VariantOption.linked_product  # -> Product (O item de Cross-Sell)
+                            ),
+
+                            # --- [PAINEL DE GERENCIAMENTO DE TEMPLATES] ---
+                            # Carrega TODOS os templates de variantes e suas opções, mesmo os não utilizados.
+                            # Essencial para a tela de "Gerenciar Grupos de Complementos".
+                            selectinload(models.Store.variants).selectinload(
+                                models.Variant.options
+                            ),
+        ).filter_by(id=totem.store_id).first()
+
+        if store:
+            # Envia dados da loja com avaliações
+            try:
+                # Converte o objeto SQLAlchemy 'store' para o Pydantic 'StoreDetails'
+                store_schema = StoreDetails.model_validate(store)
+            except Exception as e:
+                print(f"Erro ao validar Store com Pydantic StoreDetails para loja {store.id}: {e}")
+                # Isso pode indicar que StoreDetails ou seus aninhados (StoreCity Pydantic, StoreNeighborhood Pydantic)
+                # não estão configurados corretamente com model_config = {"from_attributes": True, "arbitrary_types_allowed": True}
+                raise ConnectionRefusedError(f"Erro interno do servidor: Dados da loja malformados: {e}")
+
+            store_schema.ratingsSummary = RatingsSummaryOut(
+                **get_store_ratings_summary(db, store_id=store.id)
+            )
+            # Converte o modelo Pydantic para um dicionário serializável para JSON
+            store_payload = store_schema.model_dump()
+            await sio.emit("store_updated", store_payload, to=sid)
+
+            # Envia tema
+            theme = db.query(models.StoreTheme).filter_by(store_id=totem.store_id).first()
+            if theme:
+                await sio.emit(
+                    "theme_updated",
+                    StoreThemeOut.model_validate(theme).model_dump(),
+                    to=sid,
+                )
+
+            # Envia lista de produtos
+            await refresh_product_list(db, totem.store_id, sid)
+
+            # Envia os banners da loja
+            banners = db.query(models.Banner).filter_by(store_id=totem.store_id).all()
+            if banners:
+                from src.api.shared_schemas.banner import BannerOut
+
+                banner_payload = [BannerOut.model_validate(b).model_dump() for b in banners]
+                await sio.emit("banners_updated", banner_payload, to=sid)
 
 
 
-            ).filter(models.Store.id == totem.store_id).first()
+# @sio.event
+# async def connect(sid, environ):
+#     query = parse_qs(environ.get("QUERY_STRING", ""))
+#     token = query.get("totem_token", [None])[0]
+#
+#     if not token:
+#         raise ConnectionRefusedError("Missing token")
+#
+#     with get_db_manager() as db:
+#         try:
+#             totem = await authorize_totem(db, token)
+#             if not totem or not totem.store:
+#                 raise ConnectionRefusedError("Invalid or unauthorized token")
+#
+#             # Lógica de sessão e entrada na sala (continua igual)
+#             session = db.query(models.StoreSession).filter_by(sid=sid).first()
+#             if not session:
+#                 session = models.StoreSession(sid=sid, store_id=totem.store.id, client_type='totem')
+#                 db.add(session)
+#             else:
+#                 session.store_id = totem.store.id
+#                 session.updated_at = datetime.utcnow()
+#             db.commit()
+#             room_name = f"store_{totem.store_id}"
+#             await sio.enter_room(sid, room_name)
+#             print(f"✅ Cliente {sid} conectado e entrou na sala {room_name}")
+#
+#             # 1. A "Super Consulta" continua a mesma (está ótima)
+#             print(f"Carregando estado completo para a loja {totem.store_id}...")
+#
+#             # ✅ SUPER CONSULTA CORRIGIDA E OTIMIZADA
+#             store = db.query(models.Store).options(
+#                 # --- Configurações e Dados da Loja ---
+#
+#                 selectinload(models.Store.payment_activations)
+#                 .selectinload(models.StorePaymentMethodActivation.platform_method)
+#                 .selectinload(models.PlatformPaymentMethod.category)
+#                 .selectinload(models.PaymentMethodCategory.group),
+#
+#                 joinedload(models.Store.store_operation_config),  # joinedload é bom para relações um-para-um
+#                 selectinload(models.Store.hours),
+#                 selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
+#                 selectinload(models.Store.coupons),
+#
+#                 # --- [VISÃO DO CARDÁPIO] ---
+#                 # Carrega a árvore completa de produtos e seus complementos como aparecem no cardápio
+#                 selectinload(models.Store.products).selectinload(
+#                     models.Product.variant_links  # Store -> Product -> ProductVariantLink (A Regra)
+#                 ).selectinload(
+#                     models.ProductVariantLink.variant  # -> Variant (O Template)
+#                 ).selectinload(
+#                     models.Variant.options  # -> VariantOption (O Item)
+#                 ).selectinload(
+#                     models.VariantOption.linked_product  # -> Product (O item de Cross-Sell)
+#                 ),
+#
+#                 # --- [PAINEL DE GERENCIAMENTO DE TEMPLATES] ---
+#                 # Carrega TODOS os templates de variantes e suas opções, mesmo os não utilizados.
+#                 # Essencial para a tela de "Gerenciar Grupos de Complementos".
+#                 selectinload(models.Store.variants).selectinload(
+#                     models.Variant.options
+#                 ),
+#
+#
+#
+#             ).filter(models.Store.id == totem.store_id).first()
+#
+#
+#             if not store:
+#                 raise ConnectionRefusedError("Store not found after query")
+#
+#             # ✅ 2. MONTAMOS UM ÚNICO PAYLOAD COM TUDO
+#             store_schema = StoreDetails.model_validate(store)
+#             store_schema.ratingsSummary = RatingsSummaryOut(**get_store_ratings_summary(db, store_id=store.id))
+#
+#             initial_state_payload = {
+#                 "store": store_schema.model_dump(mode='json'),
+#                 "theme": StoreThemeOut.model_validate(store.theme).model_dump(mode='json') if store.theme else None,
+#                 "products": _prepare_products_payload(db, store.products),  # Usando a função auxiliar
+#                 "banners": [BannerOut.model_validate(b).model_dump(mode='json') for b in
+#                             store.banners] if store.banners else []
+#             }
+#
+#             # ✅ 3. EMITIMOS UM ÚNICO EVENTO COM O PAYLOAD COMPLETO
+#             await sio.emit("initial_state_loaded", initial_state_payload, to=sid)
+#
+#             print(f"✅ Estado inicial completo enviado com sucesso para o cliente {sid}")
+#
+#         except Exception as e:
+#             db.rollback()
+#             print(f"❌ Erro na conexão do totem: {str(e)}")
+#             raise ConnectionRefusedError(str(e))
 
-
-            if not store:
-                raise ConnectionRefusedError("Store not found after query")
-
-            # ✅ 2. MONTAMOS UM ÚNICO PAYLOAD COM TUDO
-            store_schema = StoreDetails.model_validate(store)
-            store_schema.ratingsSummary = RatingsSummaryOut(**get_store_ratings_summary(db, store_id=store.id))
-
-            initial_state_payload = {
-                "store": store_schema.model_dump(mode='json'),
-                "theme": StoreThemeOut.model_validate(store.theme).model_dump(mode='json') if store.theme else None,
-                "products": _prepare_products_payload(db, store.products),  # Usando a função auxiliar
-                "banners": [BannerOut.model_validate(b).model_dump(mode='json') for b in
-                            store.banners] if store.banners else []
-            }
-
-            # ✅ 3. EMITIMOS UM ÚNICO EVENTO COM O PAYLOAD COMPLETO
-            await sio.emit("initial_state_loaded", initial_state_payload, to=sid)
-
-            print(f"✅ Estado inicial completo enviado com sucesso para o cliente {sid}")
-
-        except Exception as e:
-            db.rollback()
-            print(f"❌ Erro na conexão do totem: {str(e)}")
-            raise ConnectionRefusedError(str(e))
 
 
 # Evento de desconexão do Socket.IO
