@@ -1,6 +1,6 @@
 # seu_arquivo_de_rota.py
 
-from fastapi import APIRouter, HTTPException, Depends, Response
+from fastapi import APIRouter, HTTPException, Depends, Response, Body
 from sqlalchemy.orm import Session  # Importe a Session para type hinting se não tiver
 import asyncio
 import logging  # Use o logging para depuração
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/stores/{store_id}/hours", tags=["Store Hours"])
 @router.put("", status_code=204, summary="Atualiza a grade de horários completa da loja")
 async def batch_update_store_hours(
         store: StoreModel = Depends(GetStoreDep),  # Tipagem explícita ajuda na clareza
-        new_hours: list[StoreHoursCreate] = Body(...), # O '...' torna o corpo obrigatório
+        new_hours: list[StoreHoursCreate] = Body(...),
         db: Session = Depends(GetDBDep),
 ):
     store_id = store.id
