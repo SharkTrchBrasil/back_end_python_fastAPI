@@ -3,6 +3,9 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload, selectinload
 from collections import defaultdict
 
+from src.api.admin.socketio.emitters import admin_emit_store_updated
+from src.api.app.events.socketio_emitters import emit_store_updated
+from src.api.shared_schemas import store
 # Importe seus novos modelos e schemas
 from src.core import models
 from src.core.database import GetDBDep
@@ -112,6 +115,6 @@ async def activate_or_configure_method(
     db.refresh(activation)
 
     # TODO: Emitir um evento de socket para notificar a UI da mudança
-    # await emit_store_updated(db, store_id)
-
+    await emit_store_updated(db, store_id)
+    await admin_emit_store_updated(db)
     return activation
