@@ -21,9 +21,12 @@ router = APIRouter(prefix="/stores/{store_id}/hours", tags=["Store Hours"])
 
 @router.put("", status_code=204, summary="Atualiza a grade de horários completa da loja")
 async def batch_update_store_hours(
-        store: StoreModel = Depends(GetStoreDep),  # Tipagem explícita ajuda na clareza
+        store_id: int,
+
+        db: GetDBDep,
+        store: GetStoreDep,
         new_hours: list[StoreHoursCreate] = Body(...),
-        db: Session = Depends(GetDBDep),
+
 ):
     store_id = store.id
 

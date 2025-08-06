@@ -243,6 +243,7 @@ async def patch_store(
 
 
 
+
 @router.get("/{store_id}/accesses", response_model=list[StoreAccess])
 def get_store_accesses(
     db: GetDBDep,
