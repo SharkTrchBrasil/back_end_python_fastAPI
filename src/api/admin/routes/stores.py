@@ -11,6 +11,7 @@ from sqlalchemy import func
 
 
 from src.api.admin.schemas.store_access import StoreAccess
+from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.app.events.socketio_emitters import emit_store_updated
 from src.api.shared_schemas.store import StoreWithRole, StoreCreate, Store, Roles
 from src.api.shared_schemas.store_details import StoreDetails
@@ -236,7 +237,8 @@ async def patch_store(
     if banner_key_to_delete:
         delete_file(banner_key_to_delete)
 
-    await asyncio.create_task(emit_store_updated(store))
+    await asyncio.create_task(emit_store_updated(db,store.id))
+    await admin_emit_store_updated(store)
     return store
 
 
