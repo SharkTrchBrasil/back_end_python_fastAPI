@@ -1,5 +1,6 @@
 # Correto - Importe datetime corretamente
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from operator import or_
 from urllib.parse import parse_qs
@@ -406,7 +407,39 @@ async def send_order(sid, data):
             if total_price_calculated_backend > 0:
                 db_order.discount_percentage = (total_discount_amount / total_price_calculated_backend) * 100
 
+
+            # ##########################################################################
+            # ✅ --- INÍCIO DA LÓGICA DE USO DE CASHBACK ---
+            # ##########################################################################
+
+            cashback_to_use_in_cents = new_order.apply_cashback_amount or 0
+
+            if cashback_to_use_in_cents > 0:
+                # 1. Valida se o cliente tem saldo suficiente.
+                # A variável `customer` já foi buscada no início da função.
+                if customer.cashback_balance < cashback_to_use_in_cents:
+                    raise Exception("Saldo de cashback insuficiente.")
+
+                # 2. Calcula o subtotal após descontos de cupons
+                subtotal_after_coupons = total_price_calculated_backend - total_discount_amount
+
+                # 3. Valida se o cashback não é maior que o valor a ser pago
+                if cashback_to_use_in_cents > subtotal_after_coupons:
+                    raise Exception("O valor de cashback utilizado não pode ser maior que o subtotal do pedido.")
+
+                # 4. Adiciona o cashback ao montante total de descontos
+                total_discount_amount += cashback_to_use_in_cents
+
+                # 5. Registra o valor de cashback usado no pedido para auditoria
+                db_order.cashback_used = cashback_to_use_in_cents
+
+            # ##########################################################################
+            # ✅ --- FIM DA LÓGICA DE USO DE CASHBACK ---
+            # ##########################################################################
+
             final_total = total_price_calculated_backend - total_discount_amount + (new_order.delivery_fee or 0)
+
+
 
             # 11. Valida total final
             if abs(new_order.total_price - final_total) > 0.01:  # Comparação de floats com tolerância
@@ -435,7 +468,23 @@ async def send_order(sid, data):
                 order_total=final_total
             )
 
+            # ✅ --- DÉBITO DE CASHBACK E CRIAÇÃO DA TRANSAÇÃO ---
+            if cashback_to_use_in_cents > 0:
+                # Debita o saldo do objeto 'customer' que já está na sessão do DB
+                customer.cashback_balance -= cashback_to_use_in_cents
+
+                # Cria a transação de débito (valor negativo)
+                debit_transaction = models.CashbackTransaction(
+                    user_id=customer.id,
+                    order=db_order,  # Associa a transação ao pedido
+                    amount=-(Decimal(cashback_to_use_in_cents) / 100),
+                    type="used",
+                    description=f"Uso de cashback no pedido #{db_order.public_id}"
+                )
+                db.add(debit_transaction)
+
             db.commit()
+
             db.refresh(db_order)
 
             # 14. Automações e Notificações

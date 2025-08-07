@@ -7,6 +7,7 @@ from src.api.app.routes.banners import router as banners_router
 from src.api.app.routes.store_ratings import router as store_ratings_router
 from src.api.app.routes.product_ratings import router as product_ratings_router
 from src.api.app.routes.Store_cities_neig import router as store_cities_router
+from  src.api.app.routes.wallet import router as wallet_router
 
 router = APIRouter(prefix="/app")
 
@@ -19,3 +20,4 @@ router.include_router(banners_router)
 router.include_router(store_ratings_router)
 router.include_router(product_ratings_router)
 router.include_router(store_cities_router)
+router.include_router(wallet_router)

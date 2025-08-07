@@ -68,6 +68,7 @@ class NewOrder(BaseModel):
     scheduled_for: datetime | None = None
 
     consumption_type: str = "dine_in"
+    apply_cashback_amount: int | None = Field(default=0, description="Valor em CENTAVOS de cashback a ser usado no pedido.")
 
     @model_validator(mode='after')
     def validate_order_details(self):
