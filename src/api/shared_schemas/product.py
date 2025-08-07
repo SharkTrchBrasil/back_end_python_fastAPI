@@ -5,7 +5,7 @@ from .category import Category
 from .product_variant_link import ProductVariantLink as ProductVariantLinkOut
 
 from src.core.aws import get_presigned_url
-
+from ...core.utils.enums import CashbackType
 
 
 # --- Configuração Pydantic Base ---
@@ -34,6 +34,9 @@ class Product(AppBaseModel):
     unit: str
     sold_count: int
     file_key: str | None = Field(default=None, exclude=True) # Exclui do JSON de resposta
+    # ✅ ADICIONADO: Campos de cashback na base do produto
+    cashback_type: CashbackType = CashbackType.NONE
+    cashback_value: int = 0  # Armazenado em centavos para valores fixos
 
 class ProductCreate(Product):
     """Schema para criar um novo produto. Note a ausência de 'variant_ids'."""
@@ -58,6 +61,9 @@ class ProductUpdate(AppBaseModel):
     unit: Optional[str] = None
     category_id: Optional[int] = None
     file_key: Optional[str] = Field(default=None, exclude=True)
+    # ✅ ADICIONADO: Campos de cashback opcionais para atualização
+    cashback_type: Optional[CashbackType] = None
+    cashback_value: Optional[int] = None
 
 
 class ProductOut(Product):

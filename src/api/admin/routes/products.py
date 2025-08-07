@@ -16,6 +16,7 @@ from src.core import models
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep, GetProductDep
+from src.core.utils.enums import CashbackType
 
 router = APIRouter(prefix="/stores/{store_id}/products", tags=["Products"])
 
@@ -45,6 +46,10 @@ async def create_product(
     min_stock: int | None = Form(None),
     max_stock: int | None = Form(None),
     unit: str | None = Form(None),
+
+    cashback_type: str = Form(default=CashbackType.NONE.value),
+
+    cashback_value: int = Form(default=0),
 
     image: UploadFile | None = File(None),
 ):
@@ -82,6 +87,9 @@ async def create_product(
         sold_count=0,
 
         file_key=file_key,
+        # ✅ ADICIONADO: Passando os valores de cashback para o modelo do banco
+        cashback_type=CashbackType(cashback_type),  # Converte a string de volta para o Enum
+        cashback_value=cashback_value
     )
 
     db.add(new_product)
@@ -162,6 +170,9 @@ async def patch_product(
     max_stock: int | None = Form(None),
     unit: str | None = Form(None),
     image: UploadFile | None = File(None),
+
+    cashback_type: str | None = Form(None),
+    cashback_value: int | None = Form(None),
 ):
     # Atualizar campos presentes
     if name is not None:
@@ -192,6 +203,11 @@ async def patch_product(
         db_product.max_stock = max_stock
     if unit is not None:
         db_product.unit = unit
+
+    if cashback_type is not None:
+        db_product.cashback_type = CashbackType(cashback_type) # Converte string para Enum
+    if cashback_value is not None:
+        db_product.cashback_value = cashback_value
 
     if category_id is not None:
         category = db.query(models.Category).filter(

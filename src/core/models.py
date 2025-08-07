@@ -1,16 +1,16 @@
-import uuid
+from decimal import Decimal
 
-from sqlalchemy import Enum, select, Boolean
+from sqlalchemy import select
 import enum
 from datetime import datetime, date, timezone
-from typing import Optional, List, Text
+from typing import Optional, List
 
-from sqlalchemy import DateTime, func, ForeignKey, Index, LargeBinary, UniqueConstraint, Numeric, String, text, Enum, \
-    CheckConstraint
+from sqlalchemy import DateTime, func, Index, LargeBinary, UniqueConstraint, Numeric, String, CheckConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus
 from src.api.shared_schemas.base_schema import VariantType, UIDisplayMode
 from src.api.shared_schemas.order import OrderStatus
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -33,12 +33,6 @@ class TimestampMixin:
     )
 
 
-# Enum para o status de verificação
-class StoreVerificationStatus(enum.Enum):
-    UNVERIFIED = "unverified"
-    PENDING = "pending"
-    VERIFIED = "verified"
-    REJECTED = "rejected"
 
 
 class Store(Base, TimestampMixin):
@@ -245,6 +239,12 @@ class Category(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
 
+    # --- NOVOS CAMPOS PARA CASHBACK NA CATEGORIA ---
+    cashback_type: Mapped[CashbackType] = mapped_column(Enum(CashbackType, name="cashback_type_enum"),
+                                                        default=CashbackType.NONE)
+    cashback_value: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.00'))
+
+
 
 class Product(Base, TimestampMixin):
     __tablename__ = "products"
@@ -287,6 +287,13 @@ class Product(Base, TimestampMixin):
     product_ratings: Mapped[List["ProductRating"]] = relationship(back_populates="product")
     sold_count: Mapped[int] = mapped_column(nullable=False, default=0)
 
+
+    cashback_type: Mapped[CashbackType] = mapped_column(Enum(CashbackType, name="cashback_type_enum"),
+                                                        default=CashbackType.NONE)
+    cashback_value: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.00'))
+
+
+    order_items: Mapped[list["OrderProduct"]] = relationship(back_populates="product")
 
     @hybrid_property
     def image_path(self):
@@ -848,6 +855,9 @@ class Customer(Base):
 
     # no Customer
     store_customers = relationship("StoreCustomer", back_populates="customer")
+    cashback_balance: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.00'))
+
+    orders: Mapped[list["Order"]] = relationship(back_populates="customer")
 
 
 class Address(Base):
@@ -903,6 +913,7 @@ class Order(Base, TimestampMixin):
     public_id: Mapped[str] = mapped_column(unique=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True)
+    customer: Mapped[Optional["Customer"]] = relationship(back_populates="orders")
 
     # Campos desnormalizados
     customer_name: Mapped[str | None] = mapped_column(nullable=True)
@@ -947,6 +958,9 @@ class Order(Base, TimestampMixin):
     order_status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus, native_enum=False), default=OrderStatus.PENDING)
     needs_change: Mapped[bool] = mapped_column(default=False)
 
+    # Cashback - VERSÃO CORRIGIDA
+    cashback_amount_generated: Mapped[int] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal('0.00'))
+    cashback_used: Mapped[int] = mapped_column(default=0)
 
     # ✅ ATUALIZAÇÃO: A chave estrangeira e o relacionamento agora apontam para a nova tabela
     payment_method_id: Mapped[int | None] = mapped_column(
@@ -1003,6 +1017,7 @@ class OrderProduct(Base, TimestampMixin):
         ForeignKey("products.id", ondelete="SET NULL"),
         nullable=True
     )
+    product: Mapped[Optional["Product"]] = relationship(back_populates="order_items")
 
     name: Mapped[str] = mapped_column()
     price: Mapped[int] = mapped_column()
@@ -1062,6 +1077,7 @@ class OrderVariantOption(Base, TimestampMixin):
 
     order_variant: Mapped["OrderVariant"] = relationship(back_populates="options")
 
+
 class OrderPrintLog(Base, TimestampMixin):
     __tablename__ = "order_print_logs"
 
@@ -1076,12 +1092,6 @@ class OrderPrintLog(Base, TimestampMixin):
 
 
 
-class TableStatus(enum.Enum):
-    AVAILABLE = "available"
-    OCCUPIED = "occupied"
-    RESERVED = "reserved"
-    MAINTENANCE = "maintenance"
-    CLEANING = "cleaning"
 
 class Table(Base, TimestampMixin):
     __tablename__ = "tables"
@@ -1110,10 +1120,7 @@ class Table(Base, TimestampMixin):
     commands: Mapped[list["Command"]] = relationship(back_populates="table")
     history: Mapped[list["TableHistory"]] = relationship(back_populates="table")
 
-class CommandStatus(enum.Enum):
-    ACTIVE = "active"
-    CLOSED = "closed"
-    CANCELED = "canceled"
+
 
 class Command(Base, TimestampMixin):
     __tablename__ = "commands"
@@ -1386,39 +1393,6 @@ class PlansAddon(Base, TimestampMixin):
     feature: Mapped["Feature"] = relationship(back_populates="addon_subscriptions")
 
 
-class ActiveSession(Base, TimestampMixin):
-
-    __tablename__ = "active_sessions"
-
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), index=True)
-
-    device_id: Mapped[str] = mapped_column(String(255), nullable=False)
-
-    socket_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-
-    device_info: Mapped[str | None] = mapped_column(String(255), nullable=True)
-
-    access_token: Mapped[str] = mapped_column(nullable=False)
-
-    last_seen_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now()  # Atualiza automaticamente em escritas no banco
-    )
-
-
-    store: Mapped["Store"] = relationship(back_populates="active_sessions")
-
-
-
-    __table_args__ = (
-        UniqueConstraint('store_id', 'device_id', name='_store_device_uc'),
-    )
-
-    def __repr__(self) -> str:
-        return f"<ActiveSession(id={self.id}, store_id={self.store_id}, device_id='{self.device_id}')>"
 
 
 class Segment(Base, TimestampMixin):
@@ -1447,3 +1421,18 @@ class Segment(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<Segment(id={self.id}, name='{self.name}')>"
+
+
+class CashbackTransaction(Base):
+    __tablename__ = "cashback_transactions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), nullable=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    type: Mapped[str] = mapped_column(String(50))  # "generated", "used", "expired"
+    description: Mapped[str] = mapped_column(String(255))
+    expires_at: Mapped[datetime] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+
+    user: Mapped["User"] = relationship()
+    order: Mapped["Order"] = relationship()

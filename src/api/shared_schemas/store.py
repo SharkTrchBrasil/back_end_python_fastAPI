@@ -1,19 +1,13 @@
-# Em src/api/shared_schemas/store.py
 
-from datetime import datetime
-from enum import Enum
 from pydantic import BaseModel, Field, computed_field, ConfigDict
 from typing import List, Optional
 
 from src.api.admin.schemas.store_subscription import StoreSubscriptionSchema
+from src.core.utils.enums import StoreVerificationStatus
 from src.core.aws import get_presigned_url
-from src.core.models import StoreVerificationStatus
 
 
-class Roles(Enum):
-    OWNER = 'owner'
-    MANAGER = 'manager'
-    ADMIN = 'admin'
+
 
 # --- Schemas aninhados para a criação (Estão perfeitos!) ---
 class AddressCreate(BaseModel):

@@ -12,8 +12,9 @@ from sqlalchemy import func
 
 from src.api.admin.schemas.store_access import StoreAccess
 from src.api.admin.socketio.emitters import admin_emit_store_updated
+from src.core.utils.enums import StoreVerificationStatus, Roles
 from src.api.app.events.socketio_emitters import emit_store_updated
-from src.api.shared_schemas.store import StoreWithRole, StoreCreate, Store, Roles
+from src.api.shared_schemas.store import StoreWithRole, StoreCreate, Store
 from src.api.shared_schemas.store_details import StoreDetails
 from src.core import models
 
@@ -22,8 +23,7 @@ from src.core.database import GetDBDep
 from src.core.defaults.delivery_methods import default_delivery_settings
 
 from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetStore
-from src.core.models import StoreVerificationStatus
-from src.core.utils.unique_slug import generate_unique_slug
+
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 router = APIRouter(prefix="/stores", tags=["Stores"])
 

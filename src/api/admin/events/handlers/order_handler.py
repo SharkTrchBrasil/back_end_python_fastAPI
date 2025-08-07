@@ -1,6 +1,11 @@
+import traceback
 from datetime import datetime
 from urllib.parse import parse_qs
 
+from sqlalchemy.orm import joinedload, selectinload
+
+from src.api.admin.services.cashback_service import calculate_and_apply_cashback_for_order
+from src.api.admin.services.stock_service import decrease_stock_for_order, restock_for_canceled_order
 from src.api.admin.services.store_access_service import StoreAccessService
 from src.api.admin.utils.authorize_admin import authorize_admin_by_jwt
 from src.api.shared_schemas.order import OrderStatus
@@ -9,6 +14,8 @@ from src.api.admin.socketio.emitters import (
     admin_emit_order_updated_from_obj, admin_emit_new_print_jobs
 )
 from src.core.database import get_db_manager
+
+
 
 async def handle_update_order_status(self, sid, data):
     with get_db_manager() as db:
@@ -25,22 +32,22 @@ async def handle_update_order_status(self, sid, data):
             if not admin_token:
                 return {"error": "Token de admin não encontrado na sessão."}
 
-            # ✅ CORREÇÃO 1: Renomeado para clareza, pois agora é um objeto User.
             admin_user = await authorize_admin_by_jwt(db, admin_token)
             if not admin_user or not admin_user.id:
                 return {"error": "Admin não autorizado."}
 
             admin_id = admin_user.id
 
-            # Busca todas as lojas às quais o admin tem acesso. Esta é a fonte de verdade.
             all_accessible_store_ids_for_admin = StoreAccessService.get_accessible_store_ids_with_fallback(
                 db, admin_user
             )
 
-            # ✅ CORREÇÃO 2: Bloco de fallback que causava o erro foi REMOVIDO.
-            # A linha "if not ... and admin_user.store_id:" foi removida.
-
-            order = db.query(models.Order).filter_by(id=data['order_id']).first()
+            order = db.query(models.Order).options(
+                selectinload(models.Order.products).options(
+                    joinedload(models.OrderProduct.product).selectinload(models.Product.category)
+                ),
+                joinedload(models.Order.customer)
+            ).filter(models.Order.id == data['order_id']).first()
 
             if not order:
                 return {'error': 'Pedido não encontrado.'}
@@ -53,16 +60,20 @@ async def handle_update_order_status(self, sid, data):
             if data['new_status'] not in valid_statuses:
                 return {'error': 'Status inválido'}
 
-            old_status = order.order_status
-            order.order_status = OrderStatus(data['new_status'])
+            old_status_value = order.order_status.value
+            new_status_str = data['new_status']
 
-            # Lógica de baixa e reversão de estoque...
-            if data['new_status'] == 'delivered' and old_status != 'delivered':
-                # ... (seu código de baixa de estoque)
-                pass
-            if data['new_status'] == 'canceled' and old_status != 'canceled':
-                # ... (seu código de reversão de estoque)
-                pass
+            if old_status_value == new_status_str:
+                return {'success': True, 'message': 'O pedido já estava com este status.'}
+
+            order.order_status = OrderStatus(new_status_str)
+
+            if new_status_str == OrderStatus.DELIVERED.value and old_status_value != OrderStatus.DELIVERED.value:
+                decrease_stock_for_order(order, db)
+                calculate_and_apply_cashback_for_order(order, db)
+
+            if new_status_str == OrderStatus.CANCELED.value and old_status_value != OrderStatus.CANCELED.value:
+                restock_for_canceled_order(order, db)
 
             db.commit()
             db.refresh(order)
@@ -70,15 +81,14 @@ async def handle_update_order_status(self, sid, data):
             await admin_emit_order_updated_from_obj(order)
 
             print(
-                f"✅ [Session {sid}] Pedido {order.id} da loja {order.store_id} atualizado para: {data['new_status']}")
+                f"✅ [Session {sid}] Pedido {order.id} da loja {order.store_id} atualizado de '{old_status_value}' para: '{new_status_str}'")
 
             return {'success': True, 'order_id': order.id, 'new_status': order.order_status.value}
 
         except Exception as e:
             db.rollback()
-            print(f"❌ Erro ao atualizar pedido: {str(e)}")
-            return {'error': 'Falha interna'}
-
+            print(f"❌ Erro ao atualizar pedido: {str(e)}\n{traceback.format_exc()}")
+            return {'error': 'Falha interna ao processar a atualização do pedido.'}
 
 
 async def process_new_order_automations(db, order):
