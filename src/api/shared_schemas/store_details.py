@@ -3,7 +3,8 @@ from pydantic import Field, ConfigDict
 
 
 from src.api.admin.schemas.store_subscription import StoreSubscriptionSchema
-from src.api.shared_schemas.category import Category
+from src.api.shared_schemas.category import CategoryOut
+
 from src.api.shared_schemas.coupon import CouponOut
 from src.api.shared_schemas.payment_method import PaymentMethodGroupOut
 
@@ -28,7 +29,7 @@ class StoreDetails(StoreSchema):
     ratingsSummary: Optional[RatingsSummaryOut] = Field(None, alias="ratingsSummary")
     subscription: Optional[StoreSubscriptionSchema] = None
     is_setup_complete: bool
-    categories: List[Category] = []
+    categories: List[CategoryOut] = []
     products: List[ProductOut] = []
     variants: List[Variant] = []
     coupons: List[CouponOut] = []
