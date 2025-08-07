@@ -5,13 +5,14 @@ from fastapi import Depends, HTTPException, Header
 from sqlalchemy.orm import Session, joinedload
 
 
-from src.api.shared_schemas.store import Roles
+
 from src.core import models
 
 from src.core.database import GetDBDep
 
 
 from src.core.security import verify_access_token, oauth2_scheme
+from src.core.utils.enums import Roles
 
 
 def get_user_from_token(token: str, db: Session):

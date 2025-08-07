@@ -3,13 +3,14 @@ from datetime import datetime, timedelta  # Importe datetime e timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from src.api.shared_schemas.store import Roles, Store
+from src.api.shared_schemas.store import Store
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStore
 
 from src.api.admin.schemas.store_subscription import CreateStoreSubscription  # Seu schema
 from src.api.app.services import payment as payment_services
+from src.core.utils.enums import Roles
 
 router = APIRouter(tags=["Subscriptions"], prefix="/stores/{store_id}/subscriptions")
 

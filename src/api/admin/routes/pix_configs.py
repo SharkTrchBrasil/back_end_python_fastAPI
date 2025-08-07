@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, UploadFile, File, HTTPException
 
 from src.api.admin.schemas.pix_config import StorePixConfig
-from src.api.shared_schemas.store import Roles
+
 
 from src.core import models
 from src.core.database import GetDBDep
@@ -14,6 +14,7 @@ from src.core.models import Store
 from src.api.app.services import payment as payment_services
 from dateutil import parser
 
+from src.core.utils.enums import Roles
 
 router = APIRouter(tags=["Pix Config"], prefix="/stores/{store_id}/pix-configs")
 
