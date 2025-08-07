@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Optional
 from venv import logger
 
@@ -8,6 +8,7 @@ from src.api.admin.schemas.command import CommandOut
 
 
 from src.api.admin.schemas.table import TableOut
+from src.api.admin.services.dashboard_service import get_dashboard_data_for_period
 from src.api.admin.services.subscription_service import SubscriptionService
 
 from src.api.app.services.rating import get_product_ratings_summary, get_store_ratings_summary
@@ -93,16 +94,33 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
             print(f"🔒 Loja {store_id} não pode operar. Assinatura: {subscription_payload.get('status')}")
 
         store_schema = StoreDetails.model_validate(store)
+
+
+
+
         try:
             store_schema.ratingsSummary = RatingsSummaryOut(**get_store_ratings_summary(db, store_id=store.id))
         except Exception:
             store_schema.ratingsSummary = RatingsSummaryOut(average_rating=0, total_ratings=0, distribution={})
 
+        # ✅ --- CORREÇÃO: O bloco do dashboard foi movido para cá ---
+        # Ele agora executa DEPOIS da lógica de ratings, independentemente do resultado.
+
+        # 1. Definimos o período padrão
+        end_date = date.today()
+        start_date = end_date - timedelta(days=29)
+
+        # 2. Chamamos nosso serviço reutilizável
+        dashboard_data = get_dashboard_data_for_period(db, store_id, start_date, end_date)
+
+        # --- Fim da correção ---
+
         # Montagem do payload final (agora muito mais simples)
         payload = {
             "store_id": store_id,
             "store": store_schema.model_dump(mode='json'),
-            "subscription": subscription_payload
+            "subscription": subscription_payload,
+            "dashboard": dashboard_data.model_dump(mode='json')
         }
 
         # Emissão do evento via Socket.IO
