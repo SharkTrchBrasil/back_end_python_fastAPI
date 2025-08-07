@@ -45,7 +45,7 @@ def get_dashboard_summary(
     kpi_query = db.query(
         func.sum(models.Order.discounted_total_price).label("total_revenue"),
         func.count(models.Order.id).label("transaction_count"),
-       # func.sum(models.Order.cashback_amount).label("total_cashback")  # Assumindo que você tem essa coluna
+        func.sum(models.Order.cashback_amount).label("total_cashback")  # Assumindo que você tem essa coluna
     ).filter(*base_order_filter).first()
 
     current_revenue = (kpi_query.total_revenue or 0)
