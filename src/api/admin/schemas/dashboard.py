@@ -1,44 +1,100 @@
-# Em: src/api/admin/schemas/dashboard.py (ou onde preferir)
+# Em: src/api/admin/schemas/dashboard.py
 
 from pydantic import BaseModel, Field
 from typing import List
 from datetime import date
 
-# Schema para os cartões de KPIs (Indicadores-Chave)
+
+# ===================================================================
+# KPIs (INDICADORES CHAVE)
+# ===================================================================
 class DashboardKpiSchema(BaseModel):
-    total_revenue: float = Field(..., description="Faturamento total no período selecionado.")
-    total_orders: int = Field(..., description="Número total de pedidos no período.")
-    average_ticket: float = Field(..., description="Valor médio por pedido (ticket médio).")
-    new_customers: int = Field(..., description="Número de clientes que fizeram o primeiro pedido no período.")
+    total_revenue: float = Field(..., description="Faturamento total no período.")
+    transaction_count: int = Field(..., description="Número total de pedidos no período.")
+    average_ticket: float = Field(..., description="Valor médio por pedido.")
+    new_customers: int = Field(..., description="Número de novos clientes no período.")
+
+    # --- NOVOS CAMPOS ---
+    total_cashback: float = Field(..., description="Soma total de cashback concedido.")
+    total_spent: float = Field(..., description="Total gasto (pode ser igual a faturamento, dependendo da regra).")
+    revenue_change_percentage: float = Field(...,
+                                             description="Variação percentual do faturamento em relação ao período anterior.")
+    revenue_is_up: bool = Field(..., description="True se o faturamento aumentou em relação ao período anterior.")
 
     class Config:
-        orm_mode = True # ou from_attributes = True para Pydantic V2
+        from_attributes = True
 
-# Schema para cada ponto de dados no gráfico de vendas
+
+# ===================================================================
+# DADOS PARA GRÁFICOS
+# ===================================================================
 class SalesDataPointSchema(BaseModel):
-    # Usamos 'date' para agrupar por dia, mas poderia ser 'hour' ou 'month'
-    period: str = Field(..., description="O período do dado (ex: '2025-08-07' ou '14h').")
-    revenue: float = Field(..., description="O faturamento total para aquele período.")
+    period: date = Field(..., description="A data do ponto de dados para o gráfico.")
+    revenue: float = Field(..., description="O faturamento total para aquele dia.")
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
-# Schema para os itens nas listas de "Top 5"
+
+# ===================================================================
+# ITENS DE LISTAS "TOP 5"
+# ===================================================================
 class TopItemSchema(BaseModel):
     name: str = Field(..., description="Nome do item (produto ou categoria).")
     count: int = Field(..., description="Contagem de vendas ou pedidos do item.")
-    # Opcional: você pode adicionar o faturamento por item também
-    # revenue: float
+
+    # --- MELHORIA ---
+    revenue: float = Field(..., description="Faturamento total gerado pelo item.")
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
-# Schema principal que junta tudo em uma única resposta da API
+
+# ===================================================================
+# NOVOS SCHEMAS PARA OS WIDGETS
+# ===================================================================
+class PaymentMethodSummarySchema(BaseModel):
+    method_name: str = Field(..., description="Nome do método de pagamento (ex: 'Cartão de Crédito').")
+    total_amount: float = Field(..., description="Valor total transacionado com este método.")
+
+    class Config:
+        from_attributes = True
+
+
+class UserCardSchema(BaseModel):
+    card_last_four_digits: str
+    card_type: str
+    balance: float
+    card_art_url: str
+
+    class Config:
+        from_attributes = True
+
+
+class CurrencyBalanceSchema(BaseModel):
+    currency_code: str
+    amount: float
+    flag_icon_url: str
+
+    class Config:
+        from_attributes = True
+
+
+# ===================================================================
+# SCHEMA PRINCIPAL DA RESPOSTA
+# ===================================================================
 class DashboardDataSchema(BaseModel):
     kpis: DashboardKpiSchema
     sales_over_time: List[SalesDataPointSchema]
     top_products: List[TopItemSchema]
     top_categories: List[TopItemSchema]
+    payment_methods: List[PaymentMethodSummarySchema]
+
+    # Nota: Os campos abaixo são mais relacionados a um "wallet" do usuário
+    # do que a um resumo de vendas da loja. Incluí o schema, mas retornaremos
+    # uma lista vazia por enquanto, sugerindo que sejam de outro endpoint.
+    user_cards: List[UserCardSchema] = []
+    currency_balances: List[CurrencyBalanceSchema] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
