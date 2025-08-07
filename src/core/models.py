@@ -137,10 +137,10 @@ class Store(Base, TimestampMixin):
         lazy="select"
     )
 
-    active_sessions: Mapped[List["ActiveSession"]] = relationship(
-        back_populates="store",
-        cascade="all, delete-orphan"
-    )
+    # active_sessions: Mapped[List["ActiveSession"]] = relationship(
+    #     back_populates="store",
+    #     cascade="all, delete-orphan"
+    # )
 
     # dentro da classe Store
     accesses: Mapped[List["StoreAccess"]] = relationship(
