@@ -1,7 +1,7 @@
 from typing import Optional, List
 from pydantic import BaseModel, Field, ConfigDict, computed_field
 
-from .category import Category
+from .category import CategoryOut
 from .product_variant_link import ProductVariantLink as ProductVariantLinkOut
 
 from src.core.aws import get_presigned_url
@@ -72,7 +72,7 @@ class ProductOut(Product):
     Ele retorna as REGRAS e os complementos aninhados.
     """
     id: int
-    category: Category
+    category: CategoryOut
 
     # ✅ CORREÇÃO PRINCIPAL: Inclui a lista de 'ligações de variantes',
     # que contém tanto as regras quanto o template do grupo.
