@@ -8,9 +8,9 @@ from src.api.shared_schemas.category import CategoryOut
 from src.api.shared_schemas.coupon import CouponOut
 from src.api.shared_schemas.payment_method import PaymentMethodGroupOut
 
-from src.api.shared_schemas.product import Product, ProductOut
+from src.api.shared_schemas.product import  ProductOut
 from src.api.shared_schemas.rating import RatingsSummaryOut
-from src.api.shared_schemas.store import Store, StoreSchema
+from src.api.shared_schemas.store import  StoreSchema
 from src.api.shared_schemas.store_city import StoreCitySchema
 
 
