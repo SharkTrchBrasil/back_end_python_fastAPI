@@ -73,7 +73,9 @@ templates = Jinja2Templates(directory="src/templates")
 fast_app.include_router(admin_router)
 fast_app.include_router(app_router)
 
-app = socketio.ASGIApp(sio, fast_app)
+app = socketio.ASGIApp(sio, fast_app)  # agora visível para uvicorn
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+__all__ = ["app"]
