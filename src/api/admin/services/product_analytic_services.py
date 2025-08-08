@@ -133,7 +133,7 @@ async def get_product_analytics_for_store(db: AsyncSession, store_id: int,
     """
 
     # Executando a query de verdade
-    result = await db.execute(text(query), {"store_id": store_id, "start_date": start_date})
+    result =  db.execute(text(query), {"store_id": store_id, "start_date": start_date})
     enriched_products = [dict(row) for row in result.mappings()]
 
     # O resto da função continua exatamente igual, pois já estava correta.
