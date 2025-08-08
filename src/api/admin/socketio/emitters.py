@@ -28,7 +28,6 @@ import orjson
 
 
 async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = None):
-    from src.api.shared_schemas.store_details import StoreDetails
 
     try:
         # ✅ SUPER CONSULTA CORRIGIDA E OTIMIZADA
@@ -214,7 +213,6 @@ async def admin_emit_order_updated_from_obj(order: models.Order):
 
 
 async def admin_emit_store_updated(store: models.Store):
-    from src.api.shared_schemas.store_details import StoreDetails
     try:
         # ✅ CORREÇÃO: Adicione mode='json' ao model_dump()
         payload = StoreDetails.model_validate(store).model_dump(mode='json')

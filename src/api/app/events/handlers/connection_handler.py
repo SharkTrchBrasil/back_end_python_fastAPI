@@ -4,11 +4,12 @@ from urllib.parse import parse_qs
 from sqlalchemy.orm import selectinload, joinedload
 
 from src.api.app.events.socketio_emitters import _prepare_products_payload
+from src.api.app.schemas.store_details_totem import StoreDetailsTotem
 from src.api.app.services.authorize_totem import authorize_totem
 from src.api.app.services.rating import get_store_ratings_summary
 from src.api.shared_schemas.banner import BannerOut
 from src.api.shared_schemas.rating import RatingsSummaryOut
-from src.api.shared_schemas.store_details import StoreDetails
+
 from src.api.shared_schemas.store_theme import StoreThemeOut
 from src.core import models
 from src.core.database import get_db_manager
@@ -101,7 +102,7 @@ async def handler_totem_on_connect(self, sid, environ):
 
             # Montagem do payload
             print("🧩 Validando loja com Pydantic...")
-            store_schema = StoreDetails.model_validate(store)
+            store_schema = StoreDetailsTotem.model_validate(store)
 
             print("📊 Buscando resumo de avaliações...")
             store_schema.ratingsSummary = RatingsSummaryOut(
