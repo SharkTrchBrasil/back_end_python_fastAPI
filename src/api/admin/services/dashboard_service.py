@@ -114,13 +114,22 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
                       top_categories_query]
 
     # --- 5. Resumo por Método de Pagamento ---
+
     payment_methods_query = db.query(
-        models.Order.payment_method,  # Assumindo que Order tem a coluna payment_method
+        models.PlatformPaymentMethod.name.label("method_name"),
         func.sum(models.Order.discounted_total_price).label("total_amount")
-    ).filter(*base_order_filter).group_by(models.Order.payment_method).all()
+    ).join(
+        models.Order.payment_method  # relacionamento com StorePaymentMethodActivation
+    ).join(
+        models.StorePaymentMethodActivation.platform_method  # relacionamento com PlatformPaymentMethod
+    ).filter(
+        *base_order_filter
+    ).group_by(
+        models.PlatformPaymentMethod.name
+    ).all()
 
     payment_methods = [
-        PaymentMethodSummarySchema(method_name=row.payment_method, total_amount=row.total_amount / 100)
+        PaymentMethodSummarySchema(method_name=row.method_name, total_amount=row.total_amount / 100)
         for row in payment_methods_query
     ]
 

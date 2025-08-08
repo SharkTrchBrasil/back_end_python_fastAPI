@@ -25,13 +25,13 @@ def _fetch_customer_data_from_db(db: Session, store_id: int) -> List[Dict]:
         u.id AS customer_id,
         u.name,
         COUNT(o.id) AS order_count,
-        SUM(o.total) AS total_spent,
+        SUM(o.discounted_total_price) AS total_spent,
         MAX(DATE(o.created_at)) AS last_order_date,
         MIN(DATE(o.created_at)) AS first_order_date
     FROM
         users u
     JOIN
-        orders o ON u.id = o.user_id
+        orders o ON u.id = o.customer_id
     WHERE
         o.store_id = :store_id
     GROUP BY
