@@ -71,7 +71,7 @@ async def emit_products_updated(db, store_id: int):
     # Emite a lista de produtos completa para a sala da loja
     await sio.emit('products_updated', products_data, to=f'store_{store_id}')
 
-async def _prepare_products_payload(db, products: list[models.Product]) -> list[dict]:
+def _prepare_products_payload(db, products: list[models.Product]) -> list[dict]:
     """Prepara o payload de produtos com seus ratings."""
     product_ratings = {p.id: get_product_ratings_summary(db, product_id=p.id) for p in products}
     products_payload = []
