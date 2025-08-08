@@ -9,6 +9,7 @@ from src.api.admin.schemas.command import CommandOut
 
 from src.api.admin.schemas.table import TableOut
 from src.api.admin.services.dashboard_service import get_dashboard_data_for_period
+from src.api.admin.services.product_analytic_services import get_product_analytics_for_store
 from src.api.admin.services.subscription_service import SubscriptionService
 
 from src.api.app.services.rating import get_product_ratings_summary, get_store_ratings_summary
@@ -103,24 +104,24 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
         except Exception:
             store_schema.ratingsSummary = RatingsSummaryOut(average_rating=0, total_ratings=0, distribution={})
 
-        # ✅ --- CORREÇÃO: O bloco do dashboard foi movido para cá ---
-        # Ele agora executa DEPOIS da lógica de ratings, independentemente do resultado.
-
-        # 1. Definimos o período padrão
         end_date = date.today()
         start_date = end_date - timedelta(days=29)
 
-        # 2. Chamamos nosso serviço reutilizável
         dashboard_data = get_dashboard_data_for_period(db, store_id, start_date, end_date)
 
-        # --- Fim da correção ---
+        product_analytics_data = await get_product_analytics_for_store(db, store_id)
+
+
+        customer_analytics_data = await get_customer_analytics_for_store(db, store_id)
 
         # Montagem do payload final (agora muito mais simples)
         payload = {
             "store_id": store_id,
             "store": store_schema.model_dump(mode='json'),
             "subscription": subscription_payload,
-            "dashboard": dashboard_data.model_dump(mode='json')
+            "dashboard": dashboard_data.model_dump(mode='json'),
+            "product_analytics": product_analytics_data.model_dump(mode='json'),
+            "customer_analytics": customer_analytics_data.model_dump(mode='json')
         }
 
         # Emissão do evento via Socket.IO
