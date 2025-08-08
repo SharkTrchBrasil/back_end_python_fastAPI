@@ -118,9 +118,14 @@ def _perform_rfm_segmentation(customer_data: List[Dict], today: datetime) -> Lis
     }
     final_segments = []
     for segment_name, group in df.groupby('segment'):
-        desc, sugg = segment_details.get(segment_name, ("", ""))
+        # ✅ Garante que o nome do segmento seja sempre uma string
+        str_segment_name = str(segment_name)
+
+        desc, sugg = segment_details.get(str_segment_name, ("", ""))
         final_segments.append(RfmSegment(
-            segment_name=segment_name, description=desc, suggestion=sugg,
+            segment_name=str_segment_name,  # <-- Agora está corrigido
+            description=desc,
+            suggestion=sugg,
             customers=[CustomerMetric(**row) for row in group.to_dict('records')]
         ))
     return sorted(final_segments, key=lambda s: s.segment_name)
