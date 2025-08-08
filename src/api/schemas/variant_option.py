@@ -2,7 +2,7 @@
 from typing import Annotated
 from pydantic import Field, computed_field
 from .base_schema import AppBaseModel # CORRECT: Importa da base de schemas
-from ...core.aws import get_presigned_url
+from src.core.aws import get_presigned_url
 
 
 class ProductMinimal(AppBaseModel):

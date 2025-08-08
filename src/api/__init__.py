@@ -1,7 +1,7 @@
 
-from src.api.shared_schemas.product_variant_link import ProductVariantLink
-from src.api.shared_schemas.variant import Variant
-from src.api.shared_schemas.variant_option import VariantOption
+from src.api.schemas.product_variant_link import ProductVariantLink
+from src.api.schemas.variant import Variant
+from src.api.schemas.variant_option import VariantOption
 
 
 Variant.model_rebuild()

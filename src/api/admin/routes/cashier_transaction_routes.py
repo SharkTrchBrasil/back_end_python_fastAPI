@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 
-from src.api.admin.schemas.cash_transaction import (
+from src.api.schemas.cash_transaction import (
     CashierTransactionOut,
     CashierTransactionCreate,
     CashierTransactionUpdate,

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 import requests
 
-from src.api.admin.schemas.zipcode_address import ZipcodeAddress
+from src.api.schemas.zipcode_address import ZipcodeAddress
 from src.core.dependencies import GetCurrentUserDep
 
 router = APIRouter(tags=["Zipcodes"], prefix="/zipcodes")

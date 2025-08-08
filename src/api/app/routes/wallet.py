@@ -1,11 +1,10 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from fastapi import APIRouter
 from typing import List
 
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetCurrentUserDep  # Dependência para pegar o usuário logado
-from src.api.app.schemas.wallet import WalletSummaryOut, CashbackTransactionOut
+from src.api.schemas.wallet import WalletSummaryOut, CashbackTransactionOut
 
 # O prefixo '/wallet' é limpo e semântico
 router = APIRouter(tags=["Wallet"], prefix="/wallet")

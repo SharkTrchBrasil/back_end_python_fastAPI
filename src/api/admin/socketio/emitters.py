@@ -1,30 +1,28 @@
 import uuid
-from datetime import datetime, timedelta, date
+from datetime import timedelta, date
 from typing import Optional
 from venv import logger
 
 
-from src.api.admin.schemas.command import CommandOut
+from src.api.schemas.command import CommandOut
 
 
-from src.api.admin.schemas.table import TableOut
+from src.api.schemas.table import TableOut
 from src.api.admin.services.customer_analytic_service import get_customer_analytics_for_store
 from src.api.admin.services.dashboard_service import get_dashboard_data_for_period
 from src.api.admin.services.product_analytic_services import get_product_analytics_for_store
 from src.api.admin.services.subscription_service import SubscriptionService
 
 from src.api.app.services.rating import get_product_ratings_summary, get_store_ratings_summary
-from src.api.shared_schemas.order import OrderDetails
-from src.api.shared_schemas.rating import RatingsSummaryOut
+from src.api.schemas.order import OrderDetails
+from src.api.schemas.rating import RatingsSummaryOut
 from src.socketio_instance import sio
 from src.core import models
 
 
-from src.api.shared_schemas.product import ProductOut
+from src.api.schemas.product import ProductOut
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm import selectinload
-
-import orjson
 
 
 async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = None):

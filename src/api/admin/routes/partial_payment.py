@@ -1,10 +1,9 @@
 # Em: src/api/admin/routes/order_routes.py
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, status
 from typing import List
 
-from src.api.admin.schemas.order_partial_payment import PartialPaymentResponseSchema, PartialPaymentCreateSchema
+from src.api.schemas.order_partial_payment import PartialPaymentResponseSchema, PartialPaymentCreateSchema
 from src.api.admin.services import partial_payment_service
 from src.core.database import GetDBDep
 

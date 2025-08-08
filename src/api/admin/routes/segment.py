@@ -1,10 +1,9 @@
 # routers/segments.py
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, status
 from typing import List
 
-from src.api.admin.schemas.segment import SegmentSchema, SegmentCreate
+from src.api.schemas.segment import SegmentSchema, SegmentCreate
 from src.core.database import GetDBDep
 from src.core.models import Segment
 

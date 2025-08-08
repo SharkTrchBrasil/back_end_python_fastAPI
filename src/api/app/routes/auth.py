@@ -1,21 +1,16 @@
 import uuid
 from datetime import datetime
-from sqlite3 import IntegrityError
 from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException
 
-from sqlalchemy import select, and_
 from starlette import status
-from fastapi import Request
 
-
-from src.api.app.schemas.auth import TotemAuth, TotemAuthorizationResponse, TotemCheckTokenResponse, \
-    AuthenticateByUrlRequest, TotemTokenBySubdomainResponse
-from src.api.app.schemas.customer import CustomerOut, CustomerCreate, AddressOut, AddressCreate
+from src.api.schemas.auth_totem import TotemAuth, TotemAuthorizationResponse, TotemCheckTokenResponse, \
+    AuthenticateByUrlRequest
 from src.core import models
 from src.core.database import GetDBDep
-from src.core.models import TotemAuthorization, Customer, Address
+from src.core.models import TotemAuthorization
 
 router = APIRouter(tags=["Totem Auth"], prefix="/auth")
 

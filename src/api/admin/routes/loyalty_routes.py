@@ -1,10 +1,10 @@
 # Em: src/api/admin/routes/loyalty_routes.py
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from typing import List
 
 # --- Schemas ---
-from src.api.admin.schemas.loyalty_schema import (
+from src.api.schemas.loyalty_schema import (
     LoyaltyConfigUpdateSchema,
     LoyaltyConfigResponseSchema,
     LoyaltyRewardCreateSchema,
@@ -20,7 +20,6 @@ from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 
 # --- Modelos ---
-from src.core import models
 
 # Roteador para organizar todas as rotas de fidelidade
 router = APIRouter(

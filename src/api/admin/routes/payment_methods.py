@@ -1,15 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
-from sqlalchemy.orm import Session, joinedload, selectinload
-from collections import defaultdict
+from sqlalchemy.orm import joinedload
 
 from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.app.events.socketio_emitters import emit_store_updated
-from src.api.shared_schemas import store
 # Importe seus novos modelos e schemas
 from src.core import models
 from src.core.database import GetDBDep
-from src.api.shared_schemas.payment_method import PaymentMethodGroupOut, \
+from src.api.schemas.payment_method import PaymentMethodGroupOut, \
  \
     PaymentMethodCategoryOut, PlatformPaymentMethodOut, StorePaymentMethodActivationOut
 

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session  # ✅ Usamos a Session síncrona
 import pandas as pd
 
 # Importe seus schemas
-from src.api.admin.schemas.analytic_customer_schema import (
+from src.api.schemas.analytic_customer_schema import (
     CustomerAnalyticsResponse, KeyCustomerMetrics, RfmSegment, CustomerMetric
 )
 

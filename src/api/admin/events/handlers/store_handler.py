@@ -1,4 +1,3 @@
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select, delete, func
 from urllib.parse import parse_qs
 
@@ -8,11 +7,10 @@ from sqlalchemy.orm import selectinload
 from src.api.admin.services.store_access_service import StoreAccessService
 from src.api.admin.services.store_session_service import SessionService
 from src.api.admin.utils.authorize_admin import authorize_admin_by_jwt
-from src.api.shared_schemas.store_operation_config import StoreOperationConfigOut, StoreOperationConfigBase
+from src.api.schemas.store_operation_config import StoreOperationConfigBase
 from src.core import models
 from src.api.admin.socketio.emitters import (
     admin_emit_store_full_updated,
-    admin_emit_store_updated,
 )
 from src.core.database import get_db_manager
 

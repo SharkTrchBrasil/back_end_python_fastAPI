@@ -4,11 +4,11 @@ from decimal import Decimal
 from fastapi import APIRouter, Form, HTTPException, File, UploadFile
 
 from src.api.app.events.socketio_emitters import emit_products_updated
-from src.api.shared_schemas.category import CategoryOut
+from src.api.schemas.category import CategoryOut
 from src.core import models
-from src.core.aws import upload_file, get_presigned_url, delete_file
+from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
-from src.core.dependencies import GetCurrentUserDep, GetStoreDep
+from src.core.dependencies import GetStoreDep
 from src.core.utils.enums import CashbackType
 
 router = APIRouter(tags=["Categories"], prefix="/stores/{store_id}/categories")

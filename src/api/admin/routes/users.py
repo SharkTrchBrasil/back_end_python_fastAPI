@@ -1,7 +1,6 @@
 # src/api/admin/routes/users.py
 
-from fastapi import APIRouter, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException
 
 # Importe seus modelos e o novo utilitário
 from src.core import models
@@ -9,7 +8,7 @@ from src.core.database import GetDBDep
 from src.core.dependencies import GetCurrentUserDep
 from src.core.security import generate_verification_code, get_password_hash
 from src.core.utils.referral import generate_unique_referral_code
-from src.api.admin.schemas.user import UserCreate, UserSchema, UserUpdate
+from src.api.schemas.user import UserCreate, UserSchema, UserUpdate
 from src.api.admin.utils.email_service import send_verification_email
 
 router = APIRouter(prefix="/users", tags=["Users"])

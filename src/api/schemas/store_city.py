@@ -1,8 +1,8 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import List
 
 
-from src.api.shared_schemas.store_neighborhood import StoreNeighborhoodSchema
+from src.api.schemas.store_neighborhood import StoreNeighborhoodSchema
 
 
 # Input: para criação/atualização (com todos os dados)

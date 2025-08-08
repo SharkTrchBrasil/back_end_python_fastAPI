@@ -1,8 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from typing import List
+from fastapi import APIRouter, HTTPException
 
-from src.api.shared_schemas.rating import StoreRatingCreate, RatingOut
+from src.api.schemas.rating import StoreRatingCreate, RatingOut
 from src.core.database import GetDBDep
 from src.core.models import StoreRating
 

@@ -2,22 +2,22 @@ from typing import Optional, List
 from pydantic import Field, ConfigDict
 
 
-from src.api.admin.schemas.store_subscription import StoreSubscriptionSchema
-from src.api.shared_schemas.category import CategoryOut
+from src.api.schemas.store_subscription import StoreSubscriptionSchema
+from src.api.schemas.category import CategoryOut
 
-from src.api.shared_schemas.coupon import CouponOut
-from src.api.shared_schemas.payment_method import PaymentMethodGroupOut
+from src.api.schemas.coupon import CouponOut
+from src.api.schemas.payment_method import PaymentMethodGroupOut
 
-from src.api.shared_schemas.product import  ProductOut
-from src.api.shared_schemas.rating import RatingsSummaryOut
-from src.api.shared_schemas.store import  StoreSchema
-from src.api.shared_schemas.store_city import StoreCitySchema
+from src.api.schemas.product import  ProductOut
+from src.api.schemas.rating import RatingsSummaryOut
+from src.api.schemas.store import  StoreSchema
+from src.api.schemas.store_city import StoreCitySchema
 
 
-from src.api.shared_schemas.store_hours import StoreHoursOut
-from src.api.shared_schemas.store_operation_config import StoreOperationConfigOut
+from src.api.schemas.store_hours import StoreHoursOut
+from src.api.schemas.store_operation_config import StoreOperationConfigOut
 
-from src.api.shared_schemas.variant import Variant
+from src.api.schemas.variant import Variant
 
 
 class StoreDetails(StoreSchema):

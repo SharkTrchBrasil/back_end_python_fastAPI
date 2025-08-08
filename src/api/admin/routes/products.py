@@ -1,17 +1,13 @@
 import asyncio
-from collections import defaultdict
-from typing import Optional, List
-
-from pydantic import TypeAdapter
+from typing import List
 
 from fastapi import APIRouter, Form
-from starlette.responses import JSONResponse
 
-from src.api.admin.schemas.variant_selection import VariantSelectionPayload
+from src.api.schemas.variant_selection import VariantSelectionPayload
 from src.api.admin.socketio.emitters import admin_emit_products_updated
 from src.api.app.events.socketio_emitters import emit_products_updated
 
-from src.api.shared_schemas.product import ProductOut
+from src.api.schemas.product import ProductOut
 from src.core import models
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
@@ -21,8 +17,8 @@ from src.core.utils.enums import CashbackType
 router = APIRouter(prefix="/stores/{store_id}/products", tags=["Products"])
 
 
-from fastapi import UploadFile, File, Depends, HTTPException
-from sqlalchemy.orm import Session, joinedload, selectinload
+from fastapi import UploadFile, File, HTTPException
+from sqlalchemy.orm import selectinload
 
 
 @router.post("", response_model=ProductOut)

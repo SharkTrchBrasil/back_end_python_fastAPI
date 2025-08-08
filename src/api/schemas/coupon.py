@@ -3,7 +3,7 @@ from enum import Enum
 from pydantic import BaseModel, Field, field_serializer
 from typing import Optional
 
-from src.api.shared_schemas.product import ProductOut
+from src.api.schemas.product import ProductOut
 
 
 class DiscountType(str, Enum):

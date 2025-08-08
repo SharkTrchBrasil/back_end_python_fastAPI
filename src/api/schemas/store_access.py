@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
-from src.api.admin.schemas.user import UserSchema
-from src.api.shared_schemas.store import RoleSchema
+from src.api.schemas.user import UserSchema
+from src.api.schemas.store import RoleSchema
 
 
 class StoreAccess(BaseModel):

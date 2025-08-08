@@ -2,11 +2,10 @@
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func, distinct, case
 from datetime import date, timedelta
 
 from src.api.admin.services.dashboard_service import get_dashboard_data_for_period
-from src.api.admin.schemas.dashboard import (
+from src.api.schemas.dashboard import (
     DashboardDataSchema,
 
 )

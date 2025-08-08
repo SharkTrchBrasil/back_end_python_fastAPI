@@ -1,13 +1,13 @@
 import asyncio
 from fastapi import APIRouter, Form, HTTPException
 
-from src.api.admin.socketio.emitters import admin_emit_store_full_updated, admin_emit_store_updated
+from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.app.events.socketio_emitters import emit_store_updated
 from src.core.models import Store
 
 from src.core.database import GetDBDep
 from src.core.models import StoreNeighborhood, StoreCity
-from src.api.shared_schemas.store_neighborhood import StoreNeighborhoodSchema
+from src.api.schemas.store_neighborhood import StoreNeighborhoodSchema
 
 router = APIRouter(prefix="/cities/{city_id}/neighborhoods", tags=["Neighborhoods"])
 

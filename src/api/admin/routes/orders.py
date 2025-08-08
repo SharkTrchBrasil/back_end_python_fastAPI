@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from src.api.shared_schemas.order import OrderDetails, Order
+from src.api.schemas.order import OrderDetails, Order
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep

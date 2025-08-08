@@ -5,7 +5,7 @@ from .category import CategoryOut
 from .product_variant_link import ProductVariantLink as ProductVariantLinkOut
 
 from src.core.aws import get_presigned_url
-from ...core.utils.enums import CashbackType
+from src.core.utils.enums import CashbackType
 
 
 # --- Configuração Pydantic Base ---

@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 from typing import List
 
-from src.api.shared_schemas.store_neighborhood import StoreNeighborhoodSchema
+from src.api.schemas.store_neighborhood import StoreNeighborhoodSchema
 from src.core.database import GetDBDep
-from src.core.models import Store, StoreCity, StoreNeighborhood
-from src.api.shared_schemas.store_city import StoreCityOut  # Certifique-se que esse schema exista
+from src.core.models import Store, StoreNeighborhood
+from src.api.schemas.store_city import StoreCityOut  # Certifique-se que esse schema exista
 
 router = APIRouter(tags=["Cidades e Bairros"], prefix="/stores")
 

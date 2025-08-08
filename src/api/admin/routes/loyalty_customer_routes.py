@@ -1,15 +1,14 @@
 # Em: src/api/customer/routes/loyalty_routes.py
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from starlette import status
 
-from src.api.shared_schemas.coupon import CouponOut
+from src.api.schemas.coupon import CouponOut
 from src.core.database import GetDBDep
 from src.api.admin.services import loyalty_service  # Reutilizamos o mesmo serviço
-from src.api.admin.schemas.loyalty_schema import CustomerLoyaltyDashboardSchema
+from src.api.schemas.loyalty_schema import CustomerLoyaltyDashboardSchema
 # Importe sua dependência para pegar o cliente logado
 # from src.api.customer.dependencies import get_current_customer
-from src.core import models
 from src.core.dependencies import GetStoreDep
 
 router = APIRouter(prefix="/loyalty", tags=["Customer Loyalty"])

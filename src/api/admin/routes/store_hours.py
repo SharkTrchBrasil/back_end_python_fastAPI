@@ -1,15 +1,14 @@
 # seu_arquivo_de_rota.py
 
-from fastapi import APIRouter, HTTPException, Depends, Response, Body
-from sqlalchemy.orm import Session  # Importe a Session para type hinting se não tiver
+from fastapi import APIRouter, HTTPException, Response, Body
 import asyncio
 import logging  # Use o logging para depuração
 
 from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
-from src.core.models import Store as StoreModel, StoreHours as StoreHoursModel
-from src.api.shared_schemas.store_hours import StoreHoursCreate
+from src.core.models import StoreHours as StoreHoursModel
+from src.api.schemas.store_hours import StoreHoursCreate
 from src.api.app.events.socketio_emitters import emit_store_updated
 
 # Configuração básica de logging

@@ -1,8 +1,8 @@
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, HTTPException
 from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 
-from src.api.app.schemas.customer import (
+from src.api.schemas.customer_totem import (
     CustomerCreate,
     CustomerOut,
     AddressCreate,

@@ -1,18 +1,18 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import func, and_, cast, String
+from sqlalchemy import func, and_
 
-from src.api.admin.schemas.cash_session import (
+from src.api.schemas.cash_session import (
     CashierSessionUpdate,
     CashierSessionOut, CashierSessionCreate,
 
 )
-from src.api.admin.schemas.cash_transaction import CashierTransactionOut
+from src.api.schemas.cash_transaction import CashierTransactionOut
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep, GetCurrentUserDep
-from src.core.helpers.enums import CashierTransactionType, PaymentMethod
+from src.core.helpers.enums import CashierTransactionType
 from src.core.models import CashierSession, CashierTransaction
 
 router = APIRouter(prefix="/stores/{store_id}/cashier-sessions", tags=["Sessões de Caixa"])

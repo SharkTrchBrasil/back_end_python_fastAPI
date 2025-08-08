@@ -14,9 +14,9 @@ from src.api.admin.socketio.emitters import admin_emit_order_updated_from_obj, e
 from src.api.admin.utils.order_code import generate_unique_public_id, gerar_sequencial_do_dia
 
 
-from src.api.app.schemas.new_order import NewOrder
+from src.api.schemas.new_order import NewOrder
 
-from src.api.shared_schemas.coupon import CouponOut
+from src.api.schemas.coupon import CouponOut
 
 from src.api.app.services.add_customer_store import register_customer_store_relationship
 
@@ -30,7 +30,7 @@ from src.core.database import get_db_manager
 
 from src.socketio_instance import sio
 
-from src.api.shared_schemas.order import Order as OrderSchema, OrderStatus
+from src.api.schemas.order import Order as OrderSchema
 
 
 def apply_coupon(coupon, price: float) -> float:

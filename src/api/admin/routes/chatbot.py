@@ -2,7 +2,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Body, Depends, BackgroundTasks
 import httpx  # cliente HTTP assíncrono para buscar dados do Node.js
-from src.api.admin.schemas.chatbot_config import StoreChatbotConfigCreate, StoreChatbotConfig, StoreChatbotConfigUpdate
+from src.api.schemas.chatbot_config import StoreChatbotConfigCreate, StoreChatbotConfig, StoreChatbotConfigUpdate
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep

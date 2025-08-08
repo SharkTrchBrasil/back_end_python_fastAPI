@@ -1,15 +1,14 @@
-import asyncio
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from src.api.app.events.socketio_emitters import emit_theme_updated
 
-from src.api.shared_schemas.store_theme import StoreThemeOut, StoreThemeIn
+from src.api.schemas.store_theme import StoreThemeOut, StoreThemeIn
 
 from src.core import models
 from src.core.database import GetDBDep
-from src.core.dependencies import GetStoreDep, GetStore
+from src.core.dependencies import GetStore
 from src.core.models import Store
 from src.core.utils.enums import Roles
 

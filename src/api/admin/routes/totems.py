@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from src.api.admin.schemas.totem import Totem
+from src.api.schemas.totem import Totem
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetCurrentUserDep, GetStoreDep

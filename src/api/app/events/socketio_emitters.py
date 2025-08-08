@@ -2,11 +2,10 @@
 
 from sqlalchemy.orm import selectinload
 from src.core import models
-from src.core.database import get_db_manager
 from src.socketio_instance import sio
-from src.api.shared_schemas.product import ProductOut
-from src.api.shared_schemas.store_details import StoreDetails
-from src.api.shared_schemas.store_theme import StoreThemeOut
+from src.api.schemas.product import ProductOut
+from src.api.schemas.store_details import StoreDetails
+from src.api.schemas.store_theme import StoreThemeOut
 from src.api.app.services.rating import get_product_ratings_summary
 
 

@@ -7,11 +7,11 @@ from src.api.app.events.socketio_emitters import _prepare_products_payload
 
 from src.api.app.services.authorize_totem import authorize_totem
 from src.api.app.services.rating import get_store_ratings_summary
-from src.api.shared_schemas.banner import BannerOut
-from src.api.shared_schemas.rating import RatingsSummaryOut
-from src.api.shared_schemas.store_details import StoreDetails
+from src.api.schemas.banner import BannerOut
+from src.api.schemas.rating import RatingsSummaryOut
+from src.api.schemas.store_details import StoreDetails
 
-from src.api.shared_schemas.store_theme import StoreThemeOut
+from src.api.schemas.store_theme import StoreThemeOut
 from src.core import models
 from src.core.database import get_db_manager
 

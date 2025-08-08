@@ -1,8 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter
 from typing import List
 
-from src.api.admin.schemas.customer import StoreCustomerOut
+from src.api.schemas.customer import StoreCustomerOut
 from src.core.database import GetDBDep
 from src.core.models import StoreCustomer, Customer
 

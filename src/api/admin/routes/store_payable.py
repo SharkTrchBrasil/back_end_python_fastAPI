@@ -1,9 +1,8 @@
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 from src.core.models import StorePayable
-from src.api.admin.schemas.store_payable import (
+from src.api.schemas.store_payable import (
     StorePayableCreate,
     StorePayableUpdate,
     StorePayableOut,

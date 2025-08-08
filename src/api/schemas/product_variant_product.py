@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
-from src.api.shared_schemas.variant import Variant
+from src.api.schemas.variant import Variant
 
 
 class ProductVariantProductSchema(BaseModel):

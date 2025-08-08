@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from src.core import models
-from src.api.admin.schemas.dashboard import (
+from src.api.schemas.dashboard import (
     DashboardDataSchema,
     DashboardKpiSchema,
     SalesDataPointSchema,

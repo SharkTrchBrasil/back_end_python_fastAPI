@@ -1,13 +1,11 @@
-import asyncio
-
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from sqlalchemy.orm import joinedload
 
 from src.api.app.events.socketio_emitters import emit_products_updated
-from src.api.shared_schemas.variant import VariantCreate, Variant, VariantUpdate
+from src.api.schemas.variant import VariantCreate, Variant, VariantUpdate
 from src.core import models
 from src.core.database import GetDBDep
-from src.core.dependencies import GetProductDep, GetVariantDep, GetStoreDep
+from src.core.dependencies import GetVariantDep, GetStoreDep
 
 router = APIRouter(tags=["Variants"], prefix="/stores/{store_id}/variants")
 

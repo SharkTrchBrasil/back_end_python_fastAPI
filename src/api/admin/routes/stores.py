@@ -10,12 +10,12 @@ from fastapi.params import File
 from sqlalchemy import func
 
 
-from src.api.admin.schemas.store_access import StoreAccess
+from src.api.schemas.store_access import StoreAccess
 from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.core.utils.enums import StoreVerificationStatus, Roles
 from src.api.app.events.socketio_emitters import emit_store_updated
-from src.api.shared_schemas.store import StoreWithRole, StoreCreate, Store
-from src.api.shared_schemas.store_details import StoreDetails
+from src.api.schemas.store import StoreWithRole, StoreCreate, Store
+from src.api.schemas.store_details import StoreDetails
 from src.core import models
 
 from src.core.aws import upload_file, delete_file

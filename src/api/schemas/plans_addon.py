@@ -3,7 +3,7 @@
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
-from src.api.admin.schemas.plans_feature import FeatureSchema
+from src.api.schemas.plans_feature import FeatureSchema
 
 
 class SubscribedAddonSchema(BaseModel):
