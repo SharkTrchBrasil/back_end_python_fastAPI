@@ -1,19 +1,99 @@
-# Crie este novo arquivo: src/api/admin/logic/analytic_logic.py
+# Em src/api/admin/logic/analytic_logic.py
 
+import asyncio
 from datetime import datetime, timedelta
 from typing import List, Dict
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session  # ✅ Usamos a Session síncrona
 
-# Importe seus schemas Pydantic que já criamos
+# Importe seus schemas
 from src.api.admin.schemas.analytic_produc_schema import (
     ProductAnalyticsResponse, TopProductItem, LowTurnoverItem,
     LowStockItem, AbcAnalysis, AbcItem
 )
 
 
-# --- FUNÇÕES AUXILIARES (Lógica de processamento) ---
-# (Estas são as mesmas que estavam dentro da classe, mas agora são funções normais)
+# --- FUNÇÃO SÍNCRONA AUXILIAR (SÓ PARA O BANCO) ---
+
+def _fetch_product_data_from_db(db: Session, store_id: int, start_date: datetime) -> List[Dict]:
+    """
+    Esta função contém APENAS a lógica de banco de dados para produtos.
+    Ela é síncrona.
+    """
+    query = f"""
+    WITH SalesSummary AS (
+        SELECT
+            oi.product_id,
+            SUM(oi.price * oi.quantity) AS total_revenue,
+            SUM(oi.quantity) AS units_sold,
+            MAX(DATE(o.created_at)) AS last_sale_date,
+            SUM((oi.price - p.cost_price) * oi.quantity) AS total_profit
+        FROM
+            order_products oi
+        JOIN
+            orders o ON o.id = oi.order_id
+        JOIN
+            products p ON p.id = oi.product_id
+        WHERE
+            o.store_id = :store_id
+            AND o.created_at >= :start_date
+        GROUP BY
+            oi.product_id, p.cost_price
+    )
+    SELECT
+        p.id AS product_id,
+        p.name,
+        p.file_key AS image_url,
+        p.stock_quantity,
+        p.min_stock AS minimum_stock_level,
+        COALESCE(ss.total_revenue, 0) AS revenue,
+        COALESCE(ss.units_sold, 0) AS units_sold,
+        ss.last_sale_date,
+        COALESCE(ss.total_profit, 0) AS profit
+    FROM
+        products p
+    LEFT JOIN
+        SalesSummary ss ON p.id = ss.product_id
+    WHERE
+        p.store_id = :store_id
+        AND p.control_stock = TRUE;
+    """
+
+    result = db.execute(text(query), {"store_id": store_id, "start_date": start_date})
+    return [dict(row) for row in result.mappings()]
+
+
+# --- FUNÇÃO PRINCIPAL ASSÍNCRONA (A que você chama) ---
+
+async def get_product_analytics_for_store(db: Session, store_id: int,
+                                          period_in_days: int = 30) -> ProductAnalyticsResponse:
+    """
+    Orquestra a busca e o processamento de todos os dados de análise de produtos.
+    """
+    start_date = datetime.now() - timedelta(days=period_in_days)
+    today = datetime.now()
+
+    # 1. EXECUTA A QUERY SÍNCRONA EM UMA THREAD SEPARADA
+    enriched_products = await asyncio.to_thread(_fetch_product_data_from_db, db, store_id, start_date)
+
+    # 2. PROCESSAMENTO E CÁLCULOS
+    top_products = _process_top_products(enriched_products)
+    low_turnover_items = _process_low_turnover(enriched_products, today, period_in_days)
+    low_stock_items = _process_low_stock(enriched_products)
+    abc_analysis = _calculate_abc_analysis(enriched_products)
+
+    # 3. MONTAGEM DA RESPOSTA FINAL
+    return ProductAnalyticsResponse(
+        top_products=top_products,
+        low_turnover_items=low_turnover_items,
+        low_stock_items=low_stock_items,
+        abc_analysis=abc_analysis,
+    )
+
+
+# --- FUNÇÕES AUXILIARES DE PROCESSAMENTO (sem alterações) ---
+# (Cole aqui as suas funções _process_top_products, _process_low_turnover, etc.)
+# Elas não precisam de nenhuma mudança.
 
 def _process_top_products(products: List[Dict]) -> List[TopProductItem]:
     """Processa e retorna os 10 produtos mais vendidos."""
@@ -68,6 +148,7 @@ def _calculate_abc_analysis(products: List[Dict]) -> AbcAnalysis:
             'product_id': p['product_id'],
             'name': p['name'],
             'revenue': p['revenue'],
+            'profit': p.get('profit', 0),  # Incluindo o lucro
             'contribution_percentage': (p['revenue'] / grand_total_revenue) * 100
         }
 
@@ -79,72 +160,3 @@ def _calculate_abc_analysis(products: List[Dict]) -> AbcAnalysis:
             class_c.append(AbcItem(**abc_item_data))
 
     return AbcAnalysis(class_a_items=class_a, class_b_items=class_b, class_c_items=class_c)
-
-
-
-# Em src/api/admin/logic/analytic_logic.py
-
-async def get_product_analytics_for_store(db: AsyncSession, store_id: int,
-                                          period_in_days: int = 30) -> ProductAnalyticsResponse:
-    """
-    Orquestra a busca e o processamento de todos os dados de análise de produtos.
-    """
-    start_date = datetime.now() - timedelta(days=period_in_days)
-    today = datetime.now()
-
-    # 1. A CONSULTA INTELIGENTE E ÚNICA
-    query = f"""
-    WITH SalesSummary AS (
-        SELECT
-            oi.product_id,
-            SUM(oi.price * oi.quantity) AS total_revenue,
-            SUM(oi.quantity) AS units_sold,
-            MAX(DATE(o.created_at)) AS last_sale_date,
-            SUM((oi.price - p.cost_price) * oi.quantity) AS total_profit
-        FROM
-            order_products oi -- Nome da tabela já corrigido
-        JOIN
-            orders o ON o.id = oi.order_id
-        JOIN
-            products p ON p.id = oi.product_id
-        WHERE
-            o.store_id = :store_id
-            AND o.created_at >= :start_date
-        GROUP BY
-            oi.product_id, p.cost_price
-    )
-    SELECT
-        p.id AS product_id,
-        p.name,
-        p.file_key AS image_url, -- ✅ CORREÇÃO PRINCIPAL AQUI
-        p.stock_quantity,
-        p.min_stock AS minimum_stock_level,
-        COALESCE(ss.total_revenue, 0) AS revenue,
-        COALESCE(ss.units_sold, 0) AS units_sold,
-        ss.last_sale_date,
-        COALESCE(ss.total_profit, 0) AS profit
-    FROM
-        products p
-    LEFT JOIN
-        SalesSummary ss ON p.id = ss.product_id
-    WHERE
-        p.store_id = :store_id
-        AND p.control_stock = TRUE;
-    """
-
-    # Executando a query de verdade
-    result =  db.execute(text(query), {"store_id": store_id, "start_date": start_date})
-    enriched_products = [dict(row) for row in result.mappings()]
-
-    # O resto da função continua exatamente igual, pois já estava correta.
-    top_products = _process_top_products(enriched_products)
-    low_turnover_items = _process_low_turnover(enriched_products, today, period_in_days)
-    low_stock_items = _process_low_stock(enriched_products)
-    abc_analysis = _calculate_abc_analysis(enriched_products)
-
-    return ProductAnalyticsResponse(
-        top_products=top_products,
-        low_turnover_items=low_turnover_items,
-        low_stock_items=low_stock_items,
-        abc_analysis=abc_analysis,
-    )
