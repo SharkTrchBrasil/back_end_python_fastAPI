@@ -8,6 +8,7 @@ from src.api.admin.schemas.command import CommandOut
 
 
 from src.api.admin.schemas.table import TableOut
+from src.api.admin.services.customer_analytic_service import get_customer_analytics_for_store
 from src.api.admin.services.dashboard_service import get_dashboard_data_for_period
 from src.api.admin.services.product_analytic_services import get_product_analytics_for_store
 from src.api.admin.services.subscription_service import SubscriptionService
