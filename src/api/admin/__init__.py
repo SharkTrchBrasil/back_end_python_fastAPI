@@ -38,8 +38,9 @@ from src.api.admin.routes.subscriptions import router as subscriptions_router
 from src.api.admin.routes.zipcode import router as zipcode_router
 from src.api.admin.routes.master_webhook import router as master_webhook_router
 from src.api.admin.routes.product_variants import router as product_variants_router
-from  src.api.admin.routes.segment import router as segments_router
+from src.api.admin.routes.segment import router as segments_router
 from src.api.admin.routes.dashboard import router as dashboard_router
+from src.api.admin.routes.partial_payment import router as partial_payment_router
 
 router = APIRouter(prefix="/admin")
 router.include_router(stores_router)
@@ -89,3 +90,4 @@ router.include_router(master_webhook_router)
 router.include_router(product_variants_router)
 router.include_router(segments_router)
 router.include_router(dashboard_router)
+router.include_router(partial_payment_router)

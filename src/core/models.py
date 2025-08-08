@@ -21,15 +21,17 @@ class Base(DeclarativeBase):
 
 
 class TimestampMixin:
+    # ✅ Otimizado com index=True
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=func.now()  # Usa o timezone do servidor
+        server_default=func.now(),
+        index=True  # <--- A ÚNICA MUDANÇA NECESSÁRIA
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
-        onupdate=func.now()  # Esta é a forma correta para auto-update
+        onupdate=func.now()
     )
 
 
@@ -910,9 +912,14 @@ class Order(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     sequential_id: Mapped[int] = mapped_column()
-    public_id: Mapped[str] = mapped_column(unique=True)
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True)
+    public_id: Mapped[str] = mapped_column(unique=True, index=True)
+
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), index=True)
+
+
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True, index=True)
+
     customer: Mapped[Optional["Customer"]] = relationship(back_populates="orders")
 
     # Campos desnormalizados
@@ -955,22 +962,16 @@ class Order(Base, TimestampMixin):
 
     # Status e pagamento
     payment_status: Mapped[str] = mapped_column()
-    order_status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus, native_enum=False), default=OrderStatus.PENDING)
+
+
+    order_status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus, native_enum=False), default=OrderStatus.PENDING,
+                                                      index=True)
+
     needs_change: Mapped[bool] = mapped_column(default=False)
 
     # Cashback - VERSÃO CORRIGIDA
-    cashback_amount_generated: Mapped[int] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal('0.00'))
+    cashback_amount_generated: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal('0.00'))
     cashback_used: Mapped[int] = mapped_column(default=0)
-
-    # ✅ ATUALIZAÇÃO: A chave estrangeira e o relacionamento agora apontam para a nova tabela
-    payment_method_id: Mapped[int | None] = mapped_column(
-        ForeignKey("store_payment_method_activations.id", ondelete="SET NULL"),  # Aponta para a nova tabela
-        nullable=True
-    )
-    payment_method = relationship(
-        "StorePaymentMethodActivation",  # Aponta para a nova classe de modelo
-        back_populates="orders"
-    )
 
 
 
@@ -991,15 +992,37 @@ class Order(Base, TimestampMixin):
     table: Mapped[Optional["Table"]] = relationship(back_populates="orders")
     command_id: Mapped[int | None] = mapped_column(ForeignKey("commands.id", ondelete="SET NULL"), nullable=True)
     command: Mapped[Optional["Command"]] = relationship(back_populates="orders")
-    partial_payments: Mapped[list["OrderPartialPayment"]] = relationship(back_populates="order")
+
 
     # NOVO RELACIONAMENTO
     print_logs: Mapped[list["OrderPrintLog"]] = relationship(back_populates="order")
+
+
+    payment_method_id: Mapped[int | None] = mapped_column(
+        ForeignKey("store_payment_method_activations.id", ondelete="SET NULL"),  # Aponta para a nova tabela
+        nullable=True
+    )
+    payment_method = relationship(
+        "StorePaymentMethodActivation",  # Aponta para a nova classe de modelo
+        back_populates="orders"
+    )
+
+    partial_payments: Mapped[list["OrderPartialPayment"]] = relationship(
+        back_populates="order",
+        cascade="all, delete-orphan"  # Garante que ao apagar um pedido, os pagamentos parciais também sejam apagados.
+    )
 
     # Você ainda pode manter a propriedade para uma checagem rápida
     @hybrid_property
     def is_printed(self) -> bool:
         return len(self.print_logs) > 0
+
+
+    __table_args__ = (
+        # Este índice é um "super-índice" para a combinação mais comum de filtros
+        Index('ix_orders_store_id_created_at', 'store_id', 'created_at'),
+    )
+
 
 
 class OrderProduct(Base, TimestampMixin):
@@ -1146,23 +1169,32 @@ class Command(Base, TimestampMixin):
     attendant: Mapped["User | None"] = relationship()
 
 
-
 class OrderPartialPayment(Base, TimestampMixin):
     __tablename__ = "order_partial_payments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"))
-    amount: Mapped[int] = mapped_column()  # em centavos
-   # payment_method_id: Mapped[int | None] = mapped_column(ForeignKey("store_payment_methods.id", ondelete="SET NULL"), nullable=True)
-    received_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    transaction_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"), index=True)
+    amount: Mapped[int] = mapped_column()  # Valor em centavos
+
+    # --- CAMPOS ÚTEIS DO SEU MODELO (Mantidos) ---
+    received_by: Mapped[str | None] = mapped_column(String(100), nullable=True)  # Ex: "Caixa 1", "Entregador João"
+    transaction_id: Mapped[str | None] = mapped_column(String(100),
+                                                       nullable=True)  # ID da transação na maquininha, etc.
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_confirmed: Mapped[bool] = mapped_column(default=True)
 
+    # --- CONEXÃO CORRIGIDA COM A FORMA DE PAGAMENTO ---
+    # ✅ Aponta para a tabela de ativações, que é a fonte da verdade para a loja.
+    store_payment_method_activation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("store_payment_method_activations.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
+    # --- RELACIONAMENTOS ATUALIZADOS ---
     order: Mapped["Order"] = relationship(back_populates="partial_payments")
-   # payment_method: Mapped["StorePaymentMethods | None"] = relationship()
 
-
+    # ✅ Relacionamento correto para buscar os detalhes da forma de pagamento usada.
+    payment_method_activation: Mapped["StorePaymentMethodActivation | None"] = relationship()
 
 
 class TableHistory(Base):
