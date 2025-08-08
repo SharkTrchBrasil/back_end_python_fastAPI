@@ -4,11 +4,12 @@ from urllib.parse import parse_qs
 from sqlalchemy.orm import selectinload, joinedload
 
 from src.api.app.events.socketio_emitters import _prepare_products_payload
-from src.api.app.schemas.store_details_totem import StoreDetailsTotem
+
 from src.api.app.services.authorize_totem import authorize_totem
 from src.api.app.services.rating import get_store_ratings_summary
 from src.api.shared_schemas.banner import BannerOut
 from src.api.shared_schemas.rating import RatingsSummaryOut
+from src.api.shared_schemas.store_details import StoreDetails
 
 from src.api.shared_schemas.store_theme import StoreThemeOut
 from src.core import models
@@ -65,35 +66,24 @@ async def handler_totem_on_connect(self, sid, environ):
 
             # SUPER CONSULTA
             print(f"🔍 Carregando estado completo para a loja {totem.store.id}...")
+
+
             store = db.query(models.Store).options(
                 selectinload(models.Store.payment_activations)
                 .selectinload(models.StorePaymentMethodActivation.platform_method)
                 .selectinload(models.PlatformPaymentMethod.category)
                 .selectinload(models.PaymentMethodCategory.group),
                 joinedload(models.Store.store_operation_config),
-                # Carrega a configuração de entrega (sem cidades/bairros aqui)
-                joinedload(models.Store.hours),
-                # Carrega as cidades da loja e, para cada cidade, seus bairros
-                #  joinedload(models.Store.cities).joinedload(models.StoreCity.neighborhoods),
-            ).filter_by(id=totem.store_id).first()
-
-
-            # store = db.query(models.Store).options(
-            #     selectinload(models.Store.payment_activations)
-            #     .selectinload(models.StorePaymentMethodActivation.platform_method)
-            #     .selectinload(models.PlatformPaymentMethod.category)
-            #     .selectinload(models.PaymentMethodCategory.group),
-            #     joinedload(models.Store.store_operation_config),
-            #     selectinload(models.Store.hours),
-            #     selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
-            #     selectinload(models.Store.coupons),
-            #     selectinload(models.Store.products)
-            #     .selectinload(models.Product.variant_links)
-            #     .selectinload(models.ProductVariantLink.variant)
-            #     .selectinload(models.Variant.options)
-            #     .selectinload(models.VariantOption.linked_product),
-            #     selectinload(models.Store.variants).selectinload(models.Variant.options),
-            # ).filter(models.Store.id == totem.store.id).first()
+                selectinload(models.Store.hours),
+                selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
+                selectinload(models.Store.coupons),
+                selectinload(models.Store.products)
+                .selectinload(models.Product.variant_links)
+                .selectinload(models.ProductVariantLink.variant)
+                .selectinload(models.Variant.options)
+                .selectinload(models.VariantOption.linked_product),
+                selectinload(models.Store.variants).selectinload(models.Variant.options),
+            ).filter(models.Store.id == totem.store.id).first()
 
             print(f"📦 Resultado da superconsulta: {'Encontrado' if store else 'NÃO encontrado'}")
 
@@ -102,7 +92,7 @@ async def handler_totem_on_connect(self, sid, environ):
 
             # Montagem do payload
             print("🧩 Validando loja com Pydantic...")
-            store_schema = StoreDetailsTotem.model_validate(store)
+            store_schema = StoreDetails.model_validate(store)
 
             print("📊 Buscando resumo de avaliações...")
             store_schema.ratingsSummary = RatingsSummaryOut(
