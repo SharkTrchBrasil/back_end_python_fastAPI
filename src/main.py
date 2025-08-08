@@ -1,6 +1,7 @@
 
 import logging
 
+from src.api.app.events.totem_namespace import TotemNamespace
 from src.core.database import engine
 from src.core.models import Base
 
@@ -51,6 +52,7 @@ async def lifespan(app: FastAPI):
 
 # Registra namespaces ANTES de criar o ASGIApp
 sio.register_namespace(AdminNamespace('/admin'))
+sio.register_namespace(TotemNamespace('/'))  # Namespace padrão
 
 # Crie sua instância FastAPI e associe o lifespan
 fast_app = FastAPI(

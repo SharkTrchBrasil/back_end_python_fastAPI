@@ -3,8 +3,6 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from operator import or_
-from urllib.parse import parse_qs
-
 
 import sqlalchemy
 from fastapi.encoders import jsonable_encoder
@@ -14,167 +12,25 @@ from sqlalchemy.orm import joinedload, selectinload
 from src.api.admin.events.handlers.order_handler import process_new_order_automations
 from src.api.admin.socketio.emitters import admin_emit_order_updated_from_obj, emit_new_order_notification
 from src.api.admin.utils.order_code import generate_unique_public_id, gerar_sequencial_do_dia
-from src.api.app.events.socketio_emitters import emit_products_updated, _prepare_products_payload
+
 
 from src.api.app.schemas.new_order import NewOrder
-from src.api.shared_schemas.banner import BannerOut
+
 from src.api.shared_schemas.coupon import CouponOut
-from src.api.shared_schemas.product import ProductOut
-from src.api.shared_schemas.store_details import StoreDetails
+
 from src.api.app.services.add_customer_store import register_customer_store_relationship
-from src.api.app.services.check_variants import validate_order_variants
 
-from src.api.app.services.rating import (
-    get_store_ratings_summary, get_product_ratings_summary,
-)
-
-from src.api.shared_schemas.rating import RatingsSummaryOut
-from src.api.shared_schemas.store_theme import StoreThemeOut
 
 from src.core import models
 
 from src.core.database import get_db_manager
 
-from src.api.app.services.authorize_totem import authorize_totem
+
 
 
 from src.socketio_instance import sio
 
 from src.api.shared_schemas.order import Order as OrderSchema, OrderStatus
-
-
-# Em seu arquivo de eventos do totem
-
-@sio.event
-async def connect(sid, environ):
-    print(f"🔌 Novo cliente conectando... SID: {sid}")
-    query = parse_qs(environ.get("QUERY_STRING", ""))
-    print(f"📦 Query recebida: {query}")
-    token = query.get("totem_token", [None])[0]
-
-    if not token:
-        print("❌ Token ausente na conexão!")
-        raise ConnectionRefusedError("Missing token")
-
-    print(f"🛡️ Token recebido: {token}")
-
-    with get_db_manager() as db:
-        try:
-            print("🔍 Autorizando totem...")
-            totem = await authorize_totem(db, token)
-            print(f"✅ Totem autorizado? {'SIM' if totem else 'NÃO'}")
-
-            if not totem or not totem.store:
-                print("❌ Token inválido ou loja não vinculada")
-                raise ConnectionRefusedError("Invalid or unauthorized token")
-
-            print(f"🏪 Loja vinculada ao totem: {totem.store.id}")
-
-            # Sessão do totem
-            print("🔁 Verificando sessão do totem...")
-            session = db.query(models.StoreSession).filter_by(sid=sid).first()
-            if not session:
-                print("📌 Criando nova sessão...")
-                session = models.StoreSession(sid=sid, store_id=totem.store.id, client_type='totem')
-                db.add(session)
-            else:
-                print("♻️ Atualizando sessão existente...")
-                session.store_id = totem.store.id
-                session.updated_at = datetime.utcnow()
-
-            db.commit()
-            print("💾 Sessão salva no banco")
-
-            room_name = f"store_{totem.store_id}"
-            print(f"🚪 Entrando na sala: {room_name}")
-            await sio.enter_room(sid, room_name)
-            print(f"✅ Cliente {sid} conectado e entrou na sala {room_name}")
-
-            # SUPER CONSULTA
-            print(f"🔍 Carregando estado completo para a loja {totem.store_id}...")
-
-            store = db.query(models.Store).options(
-                selectinload(models.Store.payment_activations)
-                .selectinload(models.StorePaymentMethodActivation.platform_method)
-                .selectinload(models.PlatformPaymentMethod.category)
-                .selectinload(models.PaymentMethodCategory.group),
-
-                joinedload(models.Store.store_operation_config),
-                selectinload(models.Store.hours),
-                selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
-                selectinload(models.Store.coupons),
-
-                selectinload(models.Store.products)
-                .selectinload(models.Product.variant_links)
-                .selectinload(models.ProductVariantLink.variant)
-                .selectinload(models.Variant.options)
-                .selectinload(models.VariantOption.linked_product),
-
-                selectinload(models.Store.variants).selectinload(models.Variant.options),
-            ).filter(models.Store.id == totem.store_id).first()
-
-            print(f"📦 Resultado da superconsulta: {'Encontrado' if store else 'NÃO encontrado'}")
-
-            if not store:
-                raise ConnectionRefusedError("Store not found after query")
-
-            # Montagem do payload
-            print("🧩 Validando loja com Pydantic...")
-            store_schema = StoreDetails.model_validate(store)
-
-            print("📊 Buscando resumo de avaliações...")
-            store_schema.ratingsSummary = RatingsSummaryOut(**get_store_ratings_summary(db, store_id=store.id))
-
-            print("🛠️ Preparando payload de produtos...")
-            products_payload = _prepare_products_payload(db, store.products)
-
-            print("🎨 Validando tema da loja...")
-            theme = StoreThemeOut.model_validate(store.theme).model_dump(mode='json') if store.theme else None
-
-            print("🖼️ Validando banners...")
-            banners_payload = [BannerOut.model_validate(b).model_dump(mode='json') for b in store.banners] if store.banners else []
-
-            initial_state_payload = {
-                "store": store_schema.model_dump(mode='json'),
-                "theme": theme,
-                "products": products_payload,
-                "banners": banners_payload
-            }
-
-            print("📡 Emitindo evento 'initial_state_loaded'...")
-            await sio.emit("initial_state_loaded", initial_state_payload, to=sid)
-            print(f"✅ Estado inicial completo enviado com sucesso para o cliente {sid}")
-
-        except Exception as e:
-            db.rollback()
-            print(f"❌ Erro na conexão do totem: {str(e)}")
-            raise ConnectionRefusedError(str(e))
-
-# Evento de desconexão do Socket.IO
-@sio.event
-async def disconnect(sid, reason):
-    print("Totem disconnected", sid, reason)
-
-    with get_db_manager() as db:
-        try:
-            # Remove a sessão do totem
-            session = db.query(models.StoreSession).filter_by(sid=sid, client_type='totem').first()
-            if session:
-                await sio.leave_room(sid, f"store_{session.store_id}")
-                db.delete(session)
-                db.commit()
-                print(f"✅ Totem session removida para sid {sid}")
-
-            # Limpeza adicional (opcional) - remove sid de qualquer totem que ainda o tenha
-            totem = db.query(models.TotemAuthorization).filter_by(sid=sid).first()
-            if totem:
-                totem.sid = None
-                db.commit()
-
-        except Exception as e:
-            db.rollback()
-            print(f"❌ Erro na desconexão do totem: {str(e)}")
-
 
 
 def apply_coupon(coupon, price: float) -> float:
@@ -519,10 +375,6 @@ async def send_order(sid, data):
             db.rollback()
             print(f"❌ Erro inesperado ao criar pedido: {e.__class__.__name__}: {str(e)}")
             return {"error": f"Erro interno ao processar pedido: {str(e)}"}
-
-
-
-
 
 
 
