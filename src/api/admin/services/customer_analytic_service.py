@@ -39,7 +39,7 @@ async def get_customer_analytics_for_store(db: AsyncSession, store_id: int,
     GROUP BY
         u.id, u.name;
     """
-    result = await db.execute(text(query), {"store_id": store_id})
+    result = db.execute(text(query), {"store_id": store_id})
     customer_data = [dict(row) for row in result.mappings()]
 
     if not customer_data:
