@@ -4,6 +4,7 @@ from urllib.parse import parse_qs
 
 from sqlalchemy.orm import joinedload, selectinload
 
+from src.api.admin.services import loyalty_service
 from src.api.admin.services.cashback_service import calculate_and_apply_cashback_for_order
 from src.api.admin.services.stock_service import decrease_stock_for_order, restock_for_canceled_order
 from src.api.admin.services.store_access_service import StoreAccessService
@@ -71,6 +72,8 @@ async def handle_update_order_status(self, sid, data):
             if new_status_str == OrderStatus.DELIVERED.value and old_status_value != OrderStatus.DELIVERED.value:
                 decrease_stock_for_order(order, db)
                 calculate_and_apply_cashback_for_order(order, db)
+                loyalty_service.award_points_for_order(db=db, order=order)
+
 
             if new_status_str == OrderStatus.CANCELED.value and old_status_value != OrderStatus.CANCELED.value:
                 restock_for_canceled_order(order, db)
@@ -95,57 +98,58 @@ async def process_new_order_automations(db, order):
     """
     Processa as automações de auto-accept e auto-print para um novo pedido.
     """
-    # ✅ CORREÇÃO: Força o recarregamento das configurações da loja a partir do banco de dados.
-    # Isso garante que a verificação 'auto_print_orders' use sempre o valor mais recente.
-    db.refresh(order.store.settings)
-
-    store_settings = order.store.settings
+    db.refresh(order.store.store_operation_config)
+    store_settings = order.store.store_operation_config
     did_status_change = False
 
-    # 1. Lógica de Auto-Accept
+    # 1. Lógica de Auto-Accept (sem alterações)
     if store_settings.auto_accept_orders and order.order_status == 'pending':
         order.order_status = 'preparing'
         did_status_change = True
         print(f"Pedido {order.id} aceito automaticamente.")
 
-    # 2. Lógica de Auto-Print
+    # 2. Lógica de Auto-Print (VERSÃO ATUALIZADA)
     jobs_to_emit = []
     if store_settings.auto_print_orders:
-        destinations = []
-        if store_settings.main_printer_destination:
-            destinations.append(store_settings.main_printer_destination)
-        if store_settings.kitchen_printer_destination:
-            destinations.append(store_settings.kitchen_printer_destination)
+        products_by_destination = {}
 
-        unique_destinations = set(destinations)
+        for order_product in order.products:
+            destination = (order_product.product.category.printer_destination or
+                           store_settings.main_printer_destination)
+            if destination:
+                if destination not in products_by_destination:
+                    products_by_destination[destination] = []
+                products_by_destination[destination].append(order_product)
 
-        new_job_objects = []
-        for dest in unique_destinations:
-            new_job = models.OrderPrintLog(
-                order_id=order.id,
-                printer_destination=dest,
-                status='pending'
-            )
-            db.add(new_job)
-            new_job_objects.append(new_job)
+        if products_by_destination:
+            new_job_objects = []
+            for dest, products_in_dest in products_by_destination.items():
+                new_job = models.OrderPrintLog(
+                    order_id=order.id,
+                    printer_destination=dest,
+                    status='pending'
+                )
+                db.add(new_job)
+                new_job_objects.append(new_job)
 
-        db.flush()
+            db.flush()
 
-        for job in new_job_objects:
-            jobs_to_emit.append({'id': job.id, 'destination': job.printer_destination})
+            for job in new_job_objects:
+                jobs_to_emit.append({'id': job.id, 'destination': job.destination})
 
-        print(f"Criados {len(jobs_to_emit)} trabalhos de impressão para o pedido {order.id}.")
+            print(f"Criados {len(jobs_to_emit)} trabalhos de impressão DIRECIONADOS para o pedido {order.id}.")
 
-    # 3. Salva as mudanças no banco
+    # 3. Salva as mudanças no banco (sem alterações)
     db.commit()
     db.refresh(order)
 
-    # 4. Emite os eventos para os clientes
+    # 4. Emite os eventos para os clientes (sem alterações)
     if did_status_change:
         await admin_emit_order_updated_from_obj(order)
 
     if jobs_to_emit:
         await admin_emit_new_print_jobs(order.store_id, order.id, jobs_to_emit)
+
 
 
 async def claim_specific_print_job(sid, data):

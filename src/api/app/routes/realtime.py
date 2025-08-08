@@ -487,14 +487,27 @@ async def send_order(sid, data):
 
             db.refresh(db_order)
 
+
+            final_order_for_automation = db.query(models.Order).options(
+                selectinload(models.Order.products).options(
+                    joinedload(models.OrderProduct.product).selectinload(models.Product.category)
+                ),
+                joinedload(models.Order.store).joinedload(models.Store.store_operation_config)
+                # Também garante que as configs da loja estão carregadas
+            ).filter(models.Order.id == db_order.id).one()
+
             # 14. Automações e Notificações
-            await process_new_order_automations(db, db_order)
-            await admin_emit_order_updated_from_obj(db_order)
-            await emit_new_order_notification(db, store_id=db_order.store_id, order_id=db_order.id)
+            # ✅ Passamos o objeto recarregado e completo para a função
+            await process_new_order_automations(db, final_order_for_automation)
+
+            # O restante das suas notificações pode usar o mesmo objeto
+            await admin_emit_order_updated_from_obj(final_order_for_automation)
+            await emit_new_order_notification(db, store_id=final_order_for_automation.store_id,
+                                              order_id=final_order_for_automation.id)
 
             return {
                 "success": True,
-                "order": OrderSchema.model_validate(db_order).model_dump()
+                "order": OrderSchema.model_validate(final_order_for_automation).model_dump()
             }
 
         except sqlalchemy.exc.IntegrityError as e:

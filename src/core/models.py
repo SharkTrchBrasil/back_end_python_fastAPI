@@ -245,7 +245,7 @@ class Category(Base, TimestampMixin):
     cashback_type: Mapped[CashbackType] = mapped_column(Enum(CashbackType, name="cashback_type_enum"),
                                                         default=CashbackType.NONE)
     cashback_value: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.00'))
-
+    printer_destination: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
 
 class Product(Base, TimestampMixin):
@@ -1468,3 +1468,75 @@ class CashbackTransaction(Base):
 
     user: Mapped["User"] = relationship()
     order: Mapped["Order"] = relationship()
+
+
+class LoyaltyConfig(Base, TimestampMixin):
+    __tablename__ = "loyalty_configs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), unique=True, index=True)
+
+    is_active: Mapped[bool] = mapped_column(default=False, comment="Liga/Desliga o programa de pontos para a loja.")
+
+    # REGRA DE GANHO: Quantos pontos o cliente ganha a cada Real (R$ 1,00) gasto.
+    # Exemplo: 1.0 = 1 ponto por real / 0.5 = 1 ponto a cada R$ 2,00.
+    points_per_real: Mapped[Decimal] = mapped_column(Numeric(10, 4), default=Decimal("0.0"))
+
+class LoyaltyReward(Base, TimestampMixin):
+    __tablename__ = "loyalty_rewards"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), index=True)
+
+    is_active: Mapped[bool] = mapped_column(default=True, comment="Permite desativar um prêmio sem apagá-lo.")
+    name: Mapped[str] = mapped_column(String(100), comment="Nome do prêmio. Ex: 'Refrigerante Grátis'")
+    description: Mapped[str | None] = mapped_column(String(500), comment="Descrição que aparecerá para o cliente.")
+
+    # PONTOS NECESSÁRIOS: Nível de pontos acumulados para desbloquear este prêmio.
+    points_threshold: Mapped[int] = mapped_column()
+
+    # O PRÊMIO: Link para o produto que será dado como recompensa.
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    product: Mapped["Product"] = relationship()
+
+
+class CustomerStoreLoyalty(Base, TimestampMixin):
+    __tablename__ = "customer_store_loyalty"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), index=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), index=True)
+
+    # SALDO ATUAL: Pontos que o cliente tem para gastar (pode ser usado para outras mecânicas no futuro).
+    points_balance: Mapped[Decimal] = mapped_column(Numeric(10, 4), default=Decimal("0.0"))
+
+    # TOTAL ACUMULADO: Pontos totais que o cliente já ganhou na loja (só aumenta). É este que define o progresso na trilha.
+    total_points_earned: Mapped[Decimal] = mapped_column(Numeric(10, 4), default=Decimal("0.0"))
+
+    __table_args__ = (UniqueConstraint('customer_id', 'store_id', name='_customer_store_uc'),)
+
+
+class CustomerClaimedReward(Base, TimestampMixin):
+    __tablename__ = "customer_claimed_rewards"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    customer_store_loyalty_id: Mapped[int] = mapped_column(ForeignKey("customer_store_loyalty.id"))
+    loyalty_reward_id: Mapped[int] = mapped_column(ForeignKey("loyalty_rewards.id"))
+
+    # Link para o pedido onde o prêmio foi efetivamente entregue (fecha o ciclo da auditoria).
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"))
+    claimed_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    # Garante que um cliente não pode resgatar o mesmo prêmio de marco mais de uma vez.
+    __table_args__ = (UniqueConstraint('customer_store_loyalty_id', 'loyalty_reward_id', name='_customer_reward_uc'),)
+
+
+class LoyaltyTransaction(Base, TimestampMixin):
+    __tablename__ = "loyalty_transactions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    customer_store_loyalty_id: Mapped[int] = mapped_column(ForeignKey("customer_store_loyalty.id"))
+    points_amount: Mapped[Decimal] = mapped_column(Numeric(10, 4))
+    transaction_type: Mapped[str] = mapped_column(String(20))  # 'earn', 'spend', 'adjust', etc.
+    description: Mapped[str | None] = mapped_column(String(255))
+    order_id: Mapped[int | None] = mapped_column(ForeignKey("orders.id"), nullable=True)
