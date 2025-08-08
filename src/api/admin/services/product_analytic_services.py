@@ -102,7 +102,7 @@ async def get_product_analytics_for_store(db: AsyncSession, store_id: int,
             MAX(DATE(o.created_at)) AS last_sale_date,
             SUM((oi.price - p.cost_price) * oi.quantity) AS total_profit
         FROM
-            order_products oi -- ✅ NOME DA TABELA CORRIGIDO AQUI
+            order_products oi -- Nome da tabela já corrigido
         JOIN
             orders o ON o.id = oi.order_id
         JOIN
@@ -116,7 +116,7 @@ async def get_product_analytics_for_store(db: AsyncSession, store_id: int,
     SELECT
         p.id AS product_id,
         p.name,
-        p.image_url,
+        p.file_key AS image_url, -- ✅ CORREÇÃO PRINCIPAL AQUI
         p.stock_quantity,
         p.min_stock AS minimum_stock_level,
         COALESCE(ss.total_revenue, 0) AS revenue,
