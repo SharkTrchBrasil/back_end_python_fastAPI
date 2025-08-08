@@ -92,56 +92,55 @@ async def get_product_analytics_for_store(db: AsyncSession, store_id: int,
 
     # 1. A CONSULTA INTELIGENTE E ÚNICA
     query = f"""
- WITH SalesSummary AS (
+    WITH SalesSummary AS (
+        SELECT
+            oi.product_id,
+            SUM(oi.price * oi.quantity) AS total_revenue,
+            SUM(oi.quantity) AS units_sold,
+            MAX(DATE(o.created_at)) AS last_sale_date,
+            SUM((oi.price - p.cost_price) * oi.quantity) AS total_profit
+        FROM
+            order_items oi
+        JOIN
+            orders o ON o.id = oi.order_id
+        JOIN
+            products p ON p.id = oi.product_id
+        WHERE
+            o.store_id = :store_id
+            AND o.created_at >= :start_date
+        GROUP BY
+            oi.product_id, p.cost_price -- ✅ CORREÇÃO APLICADA AQUI
+    )
     SELECT
-        product_id,
-        SUM(oi.price * oi.quantity) AS total_revenue,
-        SUM(oi.quantity) AS units_sold,
-        MAX(DATE(oi.created_at)) AS last_sale_date,
-        -- ✅ CÁLCULO DE LUCRO TOTAL ADICIONADO AQUI
-        SUM((oi.price - p.cost_price) * oi.quantity) AS total_profit
+        p.id AS product_id,
+        p.name,
+        p.image_url,
+        p.stock_quantity,
+        p.min_stock AS minimum_stock_level,
+        COALESCE(ss.total_revenue, 0) AS revenue,
+        COALESCE(ss.units_sold, 0) AS units_sold,
+        ss.last_sale_date,
+        COALESCE(ss.total_profit, 0) AS profit
     FROM
-        order_items oi
-    JOIN
-        orders o ON o.id = oi.order_id
-    JOIN -- ✅ PRECISAMOS DO JOIN COM PRODUCTS AQUI PARA PEGAR O CUSTO
-        products p ON p.id = oi.product_id
+        products p
+    LEFT JOIN
+        SalesSummary ss ON p.id = ss.product_id
     WHERE
-        o.store_id = :store_id
-        AND o.created_at >= :start_date
-    GROUP BY
-        product_id
-)
-SELECT
-    p.id AS product_id,
-    p.name,
-    p.image_url,
-    p.stock_quantity,
-    p.min_stock AS minimum_stock_level,
-    COALESCE(ss.total_revenue, 0) AS revenue,
-    COALESCE(ss.units_sold, 0) AS units_sold,
-    ss.last_sale_date,
-    COALESCE(ss.total_profit, 0) AS profit -- ✅ NOVO CAMPO NA RESPOSTA DA QUERY
-FROM
-    products p
-LEFT JOIN
-    SalesSummary ss ON p.id = ss.product_id
-WHERE
-    p.store_id = :store_id
-    AND p.control_stock = TRUE;
+        p.store_id = :store_id
+        AND p.control_stock = TRUE;
     """
 
     # Executando a query de verdade
     result = await db.execute(text(query), {"store_id": store_id, "start_date": start_date})
     enriched_products = [dict(row) for row in result.mappings()]
 
-    # 2. PROCESSAMENTO E CÁLCULOS
+    # 2. PROCESSAMENTO E CÁLCULOS (seu código aqui está correto)
     top_products = _process_top_products(enriched_products)
     low_turnover_items = _process_low_turnover(enriched_products, today, period_in_days)
     low_stock_items = _process_low_stock(enriched_products)
     abc_analysis = _calculate_abc_analysis(enriched_products)
 
-    # 3. MONTAGEM DA RESPOSTA FINAL
+    # 3. MONTAGEM DA RESPOSTA FINAL (seu código aqui está correto)
     return ProductAnalyticsResponse(
         top_products=top_products,
         low_turnover_items=low_turnover_items,
