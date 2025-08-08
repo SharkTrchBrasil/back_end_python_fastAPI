@@ -64,23 +64,35 @@ async def handler_totem_on_connect(self, sid, environ):
 
             # SUPER CONSULTA
             print(f"🔍 Carregando estado completo para a loja {totem.store.id}...")
-
             store = db.query(models.Store).options(
                 selectinload(models.Store.payment_activations)
                 .selectinload(models.StorePaymentMethodActivation.platform_method)
                 .selectinload(models.PlatformPaymentMethod.category)
                 .selectinload(models.PaymentMethodCategory.group),
                 joinedload(models.Store.store_operation_config),
-                selectinload(models.Store.hours),
-                selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
-                selectinload(models.Store.coupons),
-                selectinload(models.Store.products)
-                .selectinload(models.Product.variant_links)
-                .selectinload(models.ProductVariantLink.variant)
-                .selectinload(models.Variant.options)
-                .selectinload(models.VariantOption.linked_product),
-                selectinload(models.Store.variants).selectinload(models.Variant.options),
-            ).filter(models.Store.id == totem.store.id).first()
+                # Carrega a configuração de entrega (sem cidades/bairros aqui)
+                joinedload(models.Store.hours),
+                # Carrega as cidades da loja e, para cada cidade, seus bairros
+                #  joinedload(models.Store.cities).joinedload(models.StoreCity.neighborhoods),
+            ).filter_by(id=totem.store_id).first()
+
+
+            # store = db.query(models.Store).options(
+            #     selectinload(models.Store.payment_activations)
+            #     .selectinload(models.StorePaymentMethodActivation.platform_method)
+            #     .selectinload(models.PlatformPaymentMethod.category)
+            #     .selectinload(models.PaymentMethodCategory.group),
+            #     joinedload(models.Store.store_operation_config),
+            #     selectinload(models.Store.hours),
+            #     selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
+            #     selectinload(models.Store.coupons),
+            #     selectinload(models.Store.products)
+            #     .selectinload(models.Product.variant_links)
+            #     .selectinload(models.ProductVariantLink.variant)
+            #     .selectinload(models.Variant.options)
+            #     .selectinload(models.VariantOption.linked_product),
+            #     selectinload(models.Store.variants).selectinload(models.Variant.options),
+            # ).filter(models.Store.id == totem.store.id).first()
 
             print(f"📦 Resultado da superconsulta: {'Encontrado' if store else 'NÃO encontrado'}")
 
