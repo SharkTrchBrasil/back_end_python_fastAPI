@@ -82,6 +82,8 @@ def _calculate_abc_analysis(products: List[Dict]) -> AbcAnalysis:
 
 
 
+# Em src/api/admin/logic/analytic_logic.py
+
 async def get_product_analytics_for_store(db: AsyncSession, store_id: int,
                                           period_in_days: int = 30) -> ProductAnalyticsResponse:
     """
@@ -100,7 +102,7 @@ async def get_product_analytics_for_store(db: AsyncSession, store_id: int,
             MAX(DATE(o.created_at)) AS last_sale_date,
             SUM((oi.price - p.cost_price) * oi.quantity) AS total_profit
         FROM
-            order_items oi
+            order_products oi -- ✅ NOME DA TABELA CORRIGIDO AQUI
         JOIN
             orders o ON o.id = oi.order_id
         JOIN
@@ -109,7 +111,7 @@ async def get_product_analytics_for_store(db: AsyncSession, store_id: int,
             o.store_id = :store_id
             AND o.created_at >= :start_date
         GROUP BY
-            oi.product_id, p.cost_price -- ✅ CORREÇÃO APLICADA AQUI
+            oi.product_id, p.cost_price
     )
     SELECT
         p.id AS product_id,
@@ -134,13 +136,12 @@ async def get_product_analytics_for_store(db: AsyncSession, store_id: int,
     result = await db.execute(text(query), {"store_id": store_id, "start_date": start_date})
     enriched_products = [dict(row) for row in result.mappings()]
 
-    # 2. PROCESSAMENTO E CÁLCULOS (seu código aqui está correto)
+    # O resto da função continua exatamente igual, pois já estava correta.
     top_products = _process_top_products(enriched_products)
     low_turnover_items = _process_low_turnover(enriched_products, today, period_in_days)
     low_stock_items = _process_low_stock(enriched_products)
     abc_analysis = _calculate_abc_analysis(enriched_products)
 
-    # 3. MONTAGEM DA RESPOSTA FINAL (seu código aqui está correto)
     return ProductAnalyticsResponse(
         top_products=top_products,
         low_turnover_items=low_turnover_items,
