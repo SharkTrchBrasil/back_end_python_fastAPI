@@ -706,7 +706,7 @@ class StoreOperationConfig(Base, TimestampMixin):
 
     # ✅ Relacionamento atualizado no modelo 'Store'
     store: Mapped["Store"] = relationship(back_populates="store_operation_config")
-
+    free_delivery_threshold: Mapped[float] = mapped_column(nullable=True) # Valor a partir do qual o frete é grátis
 
 class StoreHours(Base, TimestampMixin):
     __tablename__ = "store_hours"

@@ -27,11 +27,15 @@ class StoreOperationConfigBase(BaseModel):
     pickup_instructions: Optional[str] = None
 
     table_enabled: bool = False  # Unifica isTableServiceActive e tableEnabled
-    table_estimated_min: Optional[int] = None
+    table_estimated_min: Optional[int] = None   
     table_estimated_max: Optional[int] = None
     table_instructions: Optional[str] = None
 
+    # ✅ NOVO CAMPO ADICIONADO AQUI
+    free_delivery_threshold: Optional[float] = None  # Valor do pedido para frete grátis
+
     model_config = {"from_attributes": True}
+
 
 
 class StoreOperationConfigOut(StoreOperationConfigBase):

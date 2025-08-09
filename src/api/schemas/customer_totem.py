@@ -9,7 +9,7 @@ class AddressCreate(BaseModel):
     reference: str | None = None
     neighborhood_id: Optional[int] = None # Se neighborhood_id também puder ser nulo
     neighborhood_name: str | None = None
-    delivery_scope: str | None = None
+
 
 
 class AddressOut(AddressCreate):
