@@ -37,3 +37,4 @@ class StoreOperationConfigBase(BaseModel):
 class StoreOperationConfigOut(StoreOperationConfigBase):
     id: int
     store_id: int
+    is_operational: bool = True
