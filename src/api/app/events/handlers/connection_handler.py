@@ -1,152 +1,109 @@
-from datetime import datetime
-from urllib.parse import parse_qs
+# Em: src/api/app/events/totem_namespace.py
 
+from socketio import AsyncNamespace
+from urllib.parse import parse_qs
+from datetime import datetime
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import selectinload, joinedload
 
 from src.api.app.events.socketio_emitters import _prepare_products_payload
-
+# --- Imports dos seus Módulos e Serviços ---
+from src.core import models
+from src.core.database import get_db_manager
 from src.api.app.services.authorize_totem import authorize_totem
 from src.api.app.services.rating import get_store_ratings_summary
-from src.api.schemas.banner import BannerOut
+from src.api.admin.services.subscription_service import SubscriptionService  # ✅ Reutilizamos o serviço!
+
 from src.api.schemas.rating import RatingsSummaryOut
 from src.api.schemas.store_details import StoreDetails
 
-from src.api.schemas.store_theme import StoreThemeOut
-from src.core import models
-from src.core.database import get_db_manager
 
 
-async def handler_totem_on_connect(self, sid, environ):
-    print(f"🔌 Novo cliente conectando... SID: {sid}")
-    query = parse_qs(environ.get("QUERY_STRING", ""))
-    print(f"📦 Query recebida: {query}")
-    token = query.get("totem_token", [None])[0]
 
-    if not token:
-        print("❌ Token ausente na conexão!")
-        raise ConnectionRefusedError("Missing token")
+class TotemNamespace(AsyncNamespace):
+    async def on_connect(self, sid, environ):
+        print(f"🔌 [TOTEM] Conexão recebida. SID: {sid}")
+        query = parse_qs(environ.get("QUERY_STRING", ""))
+        token = query.get("totem_token", [None])[0]
 
-    print(f"🛡️ Token recebido: {token}")
+        if not token:
+            print(f"❌ [TOTEM] Conexão {sid} recusada: Token ausente.")
+            raise ConnectionRefusedError("Missing token")
 
-    with get_db_manager() as db:
-        try:
-            print("🔍 Autorizando totem...")
-            totem = await authorize_totem(db, token)
-            print(f"✅ Totem autorizado? {'SIM' if totem else 'NÃO'}")
+        with get_db_manager() as db:
+            try:
+                # 1. Autorização
+                totem = await authorize_totem(db, token)
+                if not totem or not totem.store:
+                    print(f"❌ [TOTEM] Conexão {sid} recusada: Token inválido.")
+                    raise ConnectionRefusedError("Invalid or unauthorized token")
 
-            if not totem or not totem.store:
-                print("❌ Token inválido ou loja não vinculada")
-                raise ConnectionRefusedError("Invalid or unauthorized token")
+                store_id = totem.store.id
+                print(f"🏪 [TOTEM] {sid} autorizado para a loja: {store_id}")
 
-            print(f"🏪 Loja vinculada ao totem: {totem.store.id}")
-
-            # Sessão do totem
-            print("🔁 Verificando sessão do totem...")
-            session = db.query(models.StoreSession).filter_by(sid=sid).first()
-            if not session:
-                print("📌 Criando nova sessão...")
-                session = models.StoreSession(
-                    sid=sid,
-                    store_id=totem.store.id,
-                    client_type='totem'
-                )
+                # 2. Sessão e Sala do Socket.IO
+                session = models.StoreSession(sid=sid, store_id=store_id, client_type='totem')
                 db.add(session)
-            else:
-                print("♻️ Atualizando sessão existente...")
-                session.store_id = totem.store.id
-                session.updated_at = datetime.utcnow()
-
-            db.commit()
-            print("💾 Sessão salva no banco")
-
-            room_name = f"store_{totem.store.id}"
-            print(f"🚪 Entrando na sala: {room_name}")
-            await self.enter_room(sid, room_name)
-            print(f"✅ Cliente {sid} conectado e entrou na sala {room_name}")
-
-            # SUPER CONSULTA
-            print(f"🔍 Carregando estado completo para a loja {totem.store.id}...")
-
-
-            store = db.query(models.Store).options(
-                selectinload(models.Store.payment_activations)
-                .selectinload(models.StorePaymentMethodActivation.platform_method)
-                .selectinload(models.PlatformPaymentMethod.category)
-                .selectinload(models.PaymentMethodCategory.group),
-                joinedload(models.Store.store_operation_config),
-                selectinload(models.Store.hours),
-                selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
-                selectinload(models.Store.coupons),
-                selectinload(models.Store.products)
-                .selectinload(models.Product.variant_links)
-                .selectinload(models.ProductVariantLink.variant)
-                .selectinload(models.Variant.options)
-                .selectinload(models.VariantOption.linked_product),
-                selectinload(models.Store.variants).selectinload(models.Variant.options),
-            ).filter(models.Store.id == totem.store.id).first()
-
-            print(f"📦 Resultado da superconsulta: {'Encontrado' if store else 'NÃO encontrado'}")
-
-            if not store:
-                raise ConnectionRefusedError("Store not found after query")
-
-            # Montagem do payload
-            print("🧩 Validando loja com Pydantic...")
-            store_schema = StoreDetails.model_validate(store)
-
-            print("📊 Buscando resumo de avaliações...")
-            store_schema.ratingsSummary = RatingsSummaryOut(
-                **get_store_ratings_summary(db, store_id=store.id)
-            )
-
-            print("🛠️ Preparando payload de produtos...")
-            products_payload = _prepare_products_payload(db, store.products)
-
-            print("🎨 Validando tema da loja...")
-            theme = StoreThemeOut.model_validate(store.theme).model_dump(mode='json') if store.theme else None
-
-            print("🖼️ Validando banners...")
-            banners_payload = [
-                BannerOut.model_validate(b).model_dump(mode='json')
-                for b in store.banners
-            ] if store.banners else []
-
-            initial_state_payload = {
-                "store": store_schema.model_dump(mode='json'),
-                "theme": theme,
-                "products": products_payload,
-                "banners": banners_payload
-            }
-
-            print("📡 Emitindo evento 'initial_state_loaded'...")
-            await self.emit("initial_state_loaded", initial_state_payload, to=sid)
-            print(f"✅ Estado inicial completo enviado com sucesso para o cliente {sid}")
-
-        except Exception as e:
-            db.rollback()
-            print(f"❌ Erro na conexão do totem: {str(e)}")
-            raise ConnectionRefusedError(str(e))
-
-
-async def handler_totem_on_disconnect(self, sid):
-    print("Totem disconnected", sid)
-
-    with get_db_manager() as db:
-        try:
-            # Remove a sessão do totem
-            session = db.query(models.StoreSession).filter_by(sid=sid, client_type='totem').first()
-            if session:
-                await self.leave_room(sid, f"store_{session.store_id}")
-                db.delete(session)
                 db.commit()
-                print(f"✅ Totem session removida para sid {sid}")
+                await self.enter_room(sid, f"store_{store_id}")
 
-            # Limpeza adicional (opcional)
-            totem = db.query(models.TotemAuthorization).filter_by(sid=sid).first()
-            if totem:
-                totem.sid = None
-                db.commit()
+                # 3. Carregar TODOS os dados da loja com a "Super Consulta"
+                store = db.query(models.Store).options(
+                    selectinload(models.Store.payment_activations).selectinload(
+                        models.StorePaymentMethodActivation.platform_method),
+                    joinedload(models.Store.store_operation_config),
+                    selectinload(models.Store.hours),
+                    selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
+                    selectinload(models.Store.coupons),
+                    selectinload(models.Store.products).selectinload(models.Product.category),
+                    selectinload(models.Store.products).selectinload(models.Product.variant_links).selectinload(
+                        models.ProductVariantLink.variant).selectinload(models.Variant.options).selectinload(
+                        models.VariantOption.linked_product),
+                    selectinload(models.Store.variants).selectinload(models.Variant.options),
+                    selectinload(models.Store.subscriptions).joinedload(models.StoreSubscription.plan)
+                ).filter(models.Store.id == store_id).first()
 
-        except Exception as e:
-            db.rollback()
-            print(f"❌ Erro na desconexão do totem: {str(e)}")
+                if not store:
+                    raise ConnectionRefusedError(f"Loja {store_id} não encontrada.")
+
+                # 4. Determinar o Status Operacional usando o Serviço Centralizado
+                _, is_operational = SubscriptionService.get_subscription_details(store)
+                print(
+                    f"🚦 [TOTEM] Status operacional da loja {store_id}: {'PODE OPERAR' if is_operational else 'BLOQUEADA'}")
+
+                # 5. Montar o Payload para o Totem
+                store_schema = StoreDetails.model_validate(store)
+                store_schema.ratingsSummary = RatingsSummaryOut(**get_store_ratings_summary(db, store_id=store.id))
+
+                # Adiciona a flag operacional ao payload final
+                if store_schema.store_operation_config:
+                    store_schema.store_operation_config.is_operational = is_operational
+
+                initial_state_payload = {
+                    "store": store_schema,
+                    "theme": store.theme,
+                    "products": _prepare_products_payload(db, store.products),
+                    "banners": store.banners
+                }
+
+                # 6. Enviar o estado inicial para o Totem
+                await self.emit("initial_state_loaded", jsonable_encoder(initial_state_payload), to=sid)
+                print(f"✅ [TOTEM] Estado inicial enviado com sucesso para {sid}")
+
+            except Exception as e:
+                db.rollback()
+                print(f"❌ [TOTEM] Erro crítico na conexão {sid}: {e.__class__.__name__}: {str(e)}")
+                raise ConnectionRefusedError(str(e))
+
+    async def on_disconnect(self, sid):
+        print(f"🔌 [TOTEM] Cliente desconectado: {sid}")
+        with get_db_manager() as db:
+            try:
+                session = db.query(models.StoreSession).filter_by(sid=sid, client_type='totem').first()
+                if session:
+                    await self.leave_room(sid, f"store_{session.store_id}")
+                    db.delete(session)
+                    db.commit()
+            except Exception as e:
+                db.rollback()
+                print(f"❌ Erro na desconexão do totem {sid}: {str(e)}")

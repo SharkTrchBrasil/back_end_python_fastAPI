@@ -5,7 +5,7 @@ from venv import logger
 
 
 from src.api.schemas.command import CommandOut
-
+from src.api.schemas.store_details import StoreDetails
 
 from src.api.schemas.table import TableOut
 from src.api.admin.services.customer_analytic_service import get_customer_analytics_for_store
