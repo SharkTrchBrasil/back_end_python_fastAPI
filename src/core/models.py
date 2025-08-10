@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus
+from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType
 from src.api.schemas.base_schema import VariantType, UIDisplayMode
 from src.api.schemas.order import OrderStatus
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -611,13 +611,6 @@ class PaymentMethodCategory(Base):
     group = relationship("PaymentMethodGroup", back_populates="categories")
     methods = relationship("PlatformPaymentMethod", back_populates="category")
 
-
-# Defina seu Enum para os tipos
-class PaymentMethodType(enum.Enum):
-    CASH = "CASH"
-    OFFLINE_CARD = "OFFLINE_CARD"
-    MANUAL_PIX = "MANUAL_PIX"
-    ONLINE_GATEWAY = "ONLINE_GATEWAY"
 
 
 class PlatformPaymentMethod(Base, TimestampMixin):

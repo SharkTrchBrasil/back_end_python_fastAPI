@@ -6,6 +6,7 @@ from datetime import datetime
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import selectinload, joinedload
 
+from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations
 from src.api.app.events.socketio_emitters import _prepare_products_payload
 # --- Imports dos seus Módulos e Serviços ---
 from src.core import models
@@ -76,6 +77,13 @@ async def handler_totem_on_connect(self, sid, environ):
             # 5. Montar o Payload para o Totem
             store_schema = StoreDetails.model_validate(store)
             store_schema.ratingsSummary = RatingsSummaryOut(**get_store_ratings_summary(db, store_id=store.id))
+
+            # ✅ AQUI ESTÁ A MÁGICA:
+            # 1. Chame a função de transformação com as ativações carregadas
+            payment_groups_structured = _build_payment_groups_from_activations(store.payment_activations)
+
+            # 2. Atribua o resultado estruturado diretamente ao schema
+            store_schema.payment_method_groups = payment_groups_structured
 
             # Adiciona a flag operacional ao payload final
             if store_schema.store_operation_config:

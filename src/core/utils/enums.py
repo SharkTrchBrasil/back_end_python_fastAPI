@@ -33,3 +33,11 @@ class StoreVerificationStatus(enum.Enum):
     PENDING = "pending"
     VERIFIED = "verified"
     REJECTED = "rejected"
+
+
+# Defina seu Enum para os tipos
+class PaymentMethodType(enum.Enum):
+    CASH = "CASH"
+    OFFLINE_CARD = "OFFLINE_CARD"
+    MANUAL_PIX = "MANUAL_PIX"
+    ONLINE_GATEWAY = "ONLINE_GATEWAY"
