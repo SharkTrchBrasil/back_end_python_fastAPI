@@ -47,8 +47,12 @@ async def handler_totem_on_connect(self, sid, environ):
 
             # 3. Carregar TODOS os dados da loja com a "Super Consulta"
             store = db.query(models.Store).options(
-                selectinload(models.Store.payment_activations).selectinload(
-                    models.StorePaymentMethodActivation.platform_method),
+
+                selectinload(models.Store.payment_activations)
+                .selectinload(models.StorePaymentMethodActivation.platform_method)
+                .selectinload(models.PlatformPaymentMethod.category)
+                .selectinload(models.PaymentMethodCategory.group),
+
                 joinedload(models.Store.store_operation_config),
                 selectinload(models.Store.hours),
                 selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
