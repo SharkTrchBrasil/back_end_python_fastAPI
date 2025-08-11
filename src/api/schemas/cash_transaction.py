@@ -1,7 +1,7 @@
 from datetime import datetime
 from pydantic import BaseModel
 
-from src.core.helpers.enums import CashierTransactionType
+from src.core.utils.enums import CashierTransactionType
 
 
 class CashierTransactionBase(BaseModel):

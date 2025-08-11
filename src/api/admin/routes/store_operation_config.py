@@ -3,7 +3,7 @@ import asyncio
 from fastapi import APIRouter
 
 from src.api.admin.socketio.emitters import admin_emit_store_updated
-from src.api.app.events.socketio_emitters import emit_store_updated
+from src.api.app.socketio.socketio_emitters import emit_store_updated
 from src.api.schemas.store_operation_config import StoreOperationConfigBase, StoreOperationConfigOut
 
 from src.core import models

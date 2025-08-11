@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Form, HTTPException, File, UploadFile
 
-from src.api.app.events.socketio_emitters import emit_products_updated
+from src.api.app.socketio.socketio_emitters import emit_products_updated
 from src.api.schemas.category import CategoryOut
 from src.core import models
 from src.core.aws import upload_file, delete_file

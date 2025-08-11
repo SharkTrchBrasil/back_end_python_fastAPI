@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from sqlalchemy.orm import joinedload
 
-from src.api.app.events.socketio_emitters import emit_products_updated
+from src.api.app.socketio.socketio_emitters import emit_products_updated
 from src.api.schemas.variant import VariantCreate, Variant, VariantUpdate
 from src.core import models
 from src.core.database import GetDBDep

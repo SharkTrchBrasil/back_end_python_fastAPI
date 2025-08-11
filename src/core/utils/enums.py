@@ -41,3 +41,24 @@ class PaymentMethodType(enum.Enum):
     OFFLINE_CARD = "OFFLINE_CARD"
     MANUAL_PIX = "MANUAL_PIX"
     ONLINE_GATEWAY = "ONLINE_GATEWAY"
+
+
+class CashierTransactionType(str, enum.Enum):
+    SALE = "sale"
+    REFUND = "refund"
+    INFLOW = "inflow"  # Mantenha em minúsculas
+    OUTFLOW = "outflow" # Mantenha em minúsculas
+    WITHDRAW = "withdraw" # Mantenha em minúsculas
+    SANGRIA = "sangria" # Mantenha em minúsculas
+
+class PaymentMethod(str, enum.Enum):
+    CASH = "cash"
+    CREDIT = "credit_card"
+    DEBIT = "debit_card"
+    PIX = "pix"
+
+
+class CartStatus(str, enum.Enum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    ABANDONED = "abandoned"

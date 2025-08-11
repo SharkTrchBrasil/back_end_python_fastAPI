@@ -9,7 +9,7 @@ from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 from src.core.models import StoreHours as StoreHoursModel
 from src.api.schemas.store_hours import StoreHoursCreate
-from src.api.app.events.socketio_emitters import emit_store_updated
+from src.api.app.socketio.socketio_emitters import emit_store_updated
 
 # Configuração básica de logging
 logging.basicConfig(level=logging.INFO)

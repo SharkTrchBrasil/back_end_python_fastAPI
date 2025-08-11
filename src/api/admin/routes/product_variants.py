@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 
 from src.api.admin.socketio.emitters import admin_emit_products_updated
-from src.api.app.events.socketio_emitters import emit_products_updated
+from src.api.app.socketio.socketio_emitters import emit_products_updated
 from src.core.database import GetDBDep
 from src.core import models
 from src.api.schemas import product_variant_link as link_schemas

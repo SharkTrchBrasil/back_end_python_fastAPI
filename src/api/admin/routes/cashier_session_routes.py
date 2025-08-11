@@ -12,8 +12,9 @@ from src.api.schemas.cash_session import (
 from src.api.schemas.cash_transaction import CashierTransactionOut
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep, GetCurrentUserDep
-from src.core.helpers.enums import CashierTransactionType
+
 from src.core.models import CashierSession, CashierTransaction
+from src.core.utils.enums import CashierTransactionType
 
 router = APIRouter(prefix="/stores/{store_id}/cashier-sessions", tags=["Sessões de Caixa"])
 

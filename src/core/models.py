@@ -10,7 +10,8 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType
+from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
+    CartStatus
 from src.api.schemas.base_schema import VariantType, UIDisplayMode
 from src.api.schemas.order import OrderStatus
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -360,6 +361,22 @@ class VariantOption(Base, TimestampMixin):
     available: Mapped[bool] = mapped_column(default=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
 
+    # ✅ --- MÉTODO INTELIGENTE ADICIONADO --- ✅
+    def get_price(self) -> int:
+        """
+        Retorna o preço correto da opção em centavos, seguindo a regra de negócio:
+        1. Usa o preço de sobreposição (override) se ele existir.
+        2. Se não, usa o preço do produto linkado.
+        3. Se nenhum dos dois, o preço é zero.
+        """
+        if self.price_override is not None:
+            return self.price_override
+        if self.linked_product:
+            # Assumindo que seu modelo Product tem esses campos
+            return self.linked_product.promotion_price if self.linked_product.activate_promotion else self.linked_product.base_price
+        return 0
+
+
 
 class ProductVariantLink(Base, TimestampMixin):
     __tablename__ = "product_variant_links"
@@ -444,6 +461,26 @@ class Coupon(Base, TimestampMixin):
     @property
     def can_be_deleted(self) -> bool:
         return len(self.orders) == 0
+
+    # ✅ --- ADIÇÃO DA SOLUÇÃO --- ✅
+    @hybrid_property
+    def is_valid(self) -> bool:
+        """
+        Propriedade que centraliza a lógica de validação de um cupom.
+        Retorna True se o cupom pode ser usado, False caso contrário.
+        """
+        now = datetime.now(timezone.utc)
+
+        if self.used >= self.max_uses:
+            return False
+        if self.start_date and now < self.start_date:
+            return False
+        if self.end_date and now > self.end_date:
+            return False
+
+        # Adicione aqui outras regras de validação que você tenha
+
+        return True
 
 
 class TotemAuthorization(Base, TimestampMixin):
@@ -900,6 +937,9 @@ class Banner(Base, TimestampMixin):
 
     store: Mapped["Store"] = relationship(back_populates="banners")
 
+
+
+
 class Order(Base, TimestampMixin):
     __tablename__ = "orders"
 
@@ -1016,8 +1056,6 @@ class Order(Base, TimestampMixin):
         Index('ix_orders_store_id_created_at', 'store_id', 'created_at'),
     )
 
-
-
 class OrderProduct(Base, TimestampMixin):
     __tablename__ = "order_products"
 
@@ -1047,8 +1085,6 @@ class OrderProduct(Base, TimestampMixin):
     discount_amount: Mapped[int] = mapped_column(default=0)  # Valor do desconto neste item
     discount_percentage: Mapped[float | None] = mapped_column(nullable=True)
     variants: Mapped[List["OrderVariant"]] = relationship(back_populates="order_product")
-
-
 
 class OrderVariant(Base, TimestampMixin):
     __tablename__ = "order_variants"
@@ -1092,6 +1128,8 @@ class OrderVariantOption(Base, TimestampMixin):
 
 
     order_variant: Mapped["OrderVariant"] = relationship(back_populates="options")
+
+
 
 
 class OrderPrintLog(Base, TimestampMixin):
@@ -1533,3 +1571,95 @@ class LoyaltyTransaction(Base, TimestampMixin):
     transaction_type: Mapped[str] = mapped_column(String(20))  # 'earn', 'spend', 'adjust', etc.
     description: Mapped[str | None] = mapped_column(String(255))
     order_id: Mapped[int | None] = mapped_column(ForeignKey("orders.id"), nullable=True)
+
+
+class Cart(Base, TimestampMixin):
+    __tablename__ = "carts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    # Chaves estrangeiras essenciais
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), index=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), index=True)
+
+    # Status do ciclo de vida do carrinho
+    status: Mapped[CartStatus] = mapped_column(Enum(CartStatus, native_enum=False), default=CartStatus.ACTIVE)
+
+    # Campos que podem ser definidos antes do checkout
+    coupon_id: Mapped[int | None] = mapped_column(ForeignKey("coupons.id"), nullable=True)
+    coupon_code: Mapped[str | None] = mapped_column(nullable=True)
+    observation: Mapped[str | None] = mapped_column(nullable=True)
+
+    # Relacionamentos
+    customer: Mapped["Customer"] = relationship()
+    store: Mapped["Store"] = relationship()
+    coupon: Mapped["Coupon"] = relationship()
+
+    items: Mapped[list["CartItem"]] = relationship(
+        back_populates="cart",
+        cascade="all, delete-orphan"
+    )
+
+
+class CartItem(Base, TimestampMixin):
+    __tablename__ = "cart_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    # Vínculo com o carrinho e a loja
+    cart_id: Mapped[int] = mapped_column(ForeignKey("carts.id", ondelete="CASCADE"))
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
+
+    # Vínculo com o produto original
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"))
+
+    # Dados essenciais do item
+    quantity: Mapped[int] = mapped_column()
+    note: Mapped[str | None] = mapped_column(nullable=True)
+
+    # Relacionamentos
+    cart: Mapped["Cart"] = relationship(back_populates="items")
+    product: Mapped["Product"] = relationship()  # Para fácil acesso aos dados do produto
+
+    variants: Mapped[list["CartItemVariant"]] = relationship(
+        back_populates="cart_item",
+        cascade="all, delete-orphan"
+    )
+
+ # ✅ --- CAMPO FINGERPRINT ADICIONADO --- ✅
+    fingerprint: Mapped[str] = mapped_column(index=True, doc="Hash único da configuração do item (produto + variantes) para evitar duplicatas.")
+
+class CartItemVariant(Base, TimestampMixin):
+    __tablename__ = "cart_item_variants"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    # Vínculos
+    cart_item_id: Mapped[int] = mapped_column(ForeignKey("cart_items.id", ondelete="CASCADE"))
+    variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id", ondelete="CASCADE"))
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+
+    # Relacionamentos
+    cart_item: Mapped["CartItem"] = relationship(back_populates="variants")
+    options: Mapped[list["CartItemVariantOption"]] = relationship(
+        back_populates="cart_item_variant",
+        cascade="all, delete-orphan"
+    )
+
+
+class CartItemVariantOption(Base, TimestampMixin):
+    __tablename__ = "cart_item_variant_options"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    # Vínculos
+    cart_item_variant_id: Mapped[int] = mapped_column(ForeignKey("cart_item_variants.id", ondelete="CASCADE"))
+    variant_option_id: Mapped[int] = mapped_column(ForeignKey("variant_options.id", ondelete="CASCADE"))
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+    quantity: Mapped[int] = mapped_column()
+
+    # Relacionamento
+    cart_item_variant: Mapped["CartItemVariant"] = relationship(back_populates="options")
+
+    # a partir de um item de carrinho, permitindo buscar seu preço e nome.
+    variant_option: Mapped["VariantOption"] = relationship()

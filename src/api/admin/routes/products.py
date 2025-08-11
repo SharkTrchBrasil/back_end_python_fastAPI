@@ -5,7 +5,7 @@ from fastapi import APIRouter, Form
 
 from src.api.schemas.variant_selection import VariantSelectionPayload
 from src.api.admin.socketio.emitters import admin_emit_products_updated
-from src.api.app.events.socketio_emitters import emit_products_updated
+from src.api.app.socketio.socketio_emitters import emit_products_updated
 
 from src.api.schemas.product import ProductOut
 from src.core import models
