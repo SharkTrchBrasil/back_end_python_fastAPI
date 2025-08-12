@@ -126,63 +126,95 @@ async def get_or_create_cart(sid, data=None):
 async def update_cart_item(sid, data):
     """
     Versão profissional que VALIDA as regras de negócio ANTES de salvar.
+    Agora suporta edição direta pelo `cart_item_id` ou adição via fingerprint.
     """
     print(f'[CART] Evento update_cart_item recebido: {data}')
     with get_db_manager() as db:
         try:
             update_data = UpdateCartItemInput.model_validate(data)
             session = db.query(models.StoreSession).filter_by(sid=sid).first()
-            if not session or not session.customer_id: return {'error': 'Usuário não autenticado'}
+            if not session or not session.customer_id:
+                return {'error': 'Usuário não autenticado'}
 
+            # Carrega ou cria carrinho
             cart = _get_full_cart_query(db, session.customer_id, session.store_id)
             if not cart:
                 cart = models.Cart(customer_id=session.customer_id, store_id=session.store_id)
                 db.add(cart)
                 db.flush()
 
-            # ✅ 1. VALIDAÇÃO PROFISSIONAL DAS REGRAS DE NEGÓCIO
-            product = db.query(models.Product).options(selectinload(models.Product.variant_links)).filter_by(
-                id=update_data.product_id).first()
-            if not product: return {'error': 'Produto não encontrado.'}
+            # ✅ 1. Validação profissional das regras de negócio
+            product = db.query(models.Product).options(
+                selectinload(models.Product.variant_links)
+            ).filter_by(id=update_data.product_id).first()
+            if not product:
+                return {'error': 'Produto não encontrado.'}
 
             product_rules = {link.variant_id: link for link in product.variant_links}
             if update_data.variants:
                 for variant_input in update_data.variants:
                     rule = product_rules.get(variant_input.variant_id)
-                    if not rule or not rule.available: return {'error': f'Grupo de opção inválido para este produto.'}
-                    if len(variant_input.options) < rule.min_selected_options: return {
-                        'error': f'Escolha no mínimo {rule.min_selected_options} opção(ões).'}
-                    if len(variant_input.options) > rule.max_selected_options: return {
-                        'error': f'Escolha no máximo {rule.max_selected_options} opção(ões).'}
+                    if not rule or not rule.available:
+                        return {'error': 'Grupo de opção inválido para este produto.'}
+                    if len(variant_input.options) < rule.min_selected_options:
+                        return {'error': f'Escolha no mínimo {rule.min_selected_options} opção(ões).'}
+                    if len(variant_input.options) > rule.max_selected_options:
+                        return {'error': f'Escolha no máximo {rule.max_selected_options} opção(ões).'}
 
-            # ✅ 2. USO DO FINGERPRINT PARA ENCONTRAR O ITEM CORRETO
+            # ✅ 2. Lógica de Edição vs. Adição
             fingerprint = _get_item_fingerprint(update_data.product_id, data.get('variants', []))
-            existing_item = next((item for item in cart.items if item.fingerprint == fingerprint), None)
+            cart_item_id_to_edit = data.get('cart_item_id')
 
+            existing_item = None
+            if cart_item_id_to_edit:
+                # Modo edição pelo ID
+                existing_item = db.query(models.CartItem).filter_by(
+                    id=cart_item_id_to_edit,
+                    cart_id=cart.id
+                ).first()
+            else:
+                # Modo adição via fingerprint
+                existing_item = db.query(models.CartItem).filter_by(
+                    cart_id=cart.id,
+                    fingerprint=fingerprint
+                ).first()
+
+            # ✅ 3. Inserção/atualização/remoção
             if update_data.quantity <= 0:
-                if existing_item: db.delete(existing_item)
+                if existing_item:
+                    db.delete(existing_item)
             elif existing_item:
                 existing_item.quantity = update_data.quantity
                 existing_item.note = update_data.note
             else:
                 new_item = models.CartItem(
-                    cart_id=cart.id, store_id=session.store_id, product_id=update_data.product_id,
-                    quantity=update_data.quantity, note=update_data.note, fingerprint=fingerprint
+                    cart_id=cart.id,
+                    store_id=session.store_id,
+                    product_id=update_data.product_id,
+                    quantity=update_data.quantity,
+                    note=update_data.note,
+                    fingerprint=fingerprint
                 )
                 if update_data.variants:
                     for variant_input in update_data.variants:
-                        new_variant = models.CartItemVariant(variant_id=variant_input.variant_id,
-                                                             store_id=session.store_id)
+                        new_variant = models.CartItemVariant(
+                            variant_id=variant_input.variant_id,
+                            store_id=session.store_id
+                        )
                         for option_input in variant_input.options:
-                            new_variant.options.append(models.CartItemVariantOption(
-                                variant_option_id=option_input.variant_option_id, quantity=option_input.quantity,
-                                store_id=session.store_id
-                            ))
+                            new_variant.options.append(
+                                models.CartItemVariantOption(
+                                    variant_option_id=option_input.variant_option_id,
+                                    quantity=option_input.quantity,
+                                    store_id=session.store_id
+                                )
+                            )
                         new_item.variants.append(new_variant)
                 db.add(new_item)
 
             db.commit()
 
+            # ✅ 4. Retorna carrinho atualizado
             updated_cart = _get_full_cart_query(db, session.customer_id, session.store_id)
             final_cart_schema = _build_cart_schema(updated_cart)
             return {"success": True, "cart": final_cart_schema.model_dump(mode="json")}
@@ -191,7 +223,7 @@ async def update_cart_item(sid, data):
             return {'error': 'Dados de entrada inválidos', 'details': e.errors()}
         except Exception as e:
             db.rollback()
-            print(f"❌ Erro em update_cart_item: {e}\n{traceback.format_exc()}");
+            print(f"❌ Erro em update_cart_item: {e}\n{traceback.format_exc()}")
             return {"error": "Erro interno ao atualizar item."}
 
 

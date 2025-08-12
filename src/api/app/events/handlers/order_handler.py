@@ -5,18 +5,18 @@ from decimal import Decimal
 from operator import or_
 
 import sqlalchemy
-from fastapi.encoders import jsonable_encoder
+
 from pydantic import ValidationError
 from sqlalchemy.orm import joinedload, selectinload
 
 from src.api.admin.events.handlers.order_handler import process_new_order_automations
 from src.api.admin.socketio.emitters import admin_emit_order_updated_from_obj, emit_new_order_notification
 from src.api.admin.utils.order_code import generate_unique_public_id, gerar_sequencial_do_dia
-from src.api.app.events.handlers.coupon_handler import apply_coupon
+from src.api.app.events.handlers.coupon_handler import apply_coupon_to_cart
 
 from src.api.schemas.new_order import NewOrder
 
-from src.api.schemas.coupon import CouponOut
+
 
 from src.api.app.services.add_customer_store import register_customer_store_relationship
 
@@ -149,7 +149,7 @@ async def send_order(sid, data):
                 if order_product_data.coupon_code:
                     coupon = coupon_map.get(order_product_data.coupon_code)
                     if coupon and coupon.product_id == product_db.id:
-                        final_price, _ = apply_coupon(coupon, original_price)
+                        final_price, _ = apply_coupon_to_cart(coupon, original_price)
                         product_discount = original_price - final_price
                         total_discount_amount += product_discount * order_product_data.quantity
                     else:
@@ -244,7 +244,7 @@ async def send_order(sid, data):
                 potential_order_coupon = coupon_map[new_order.coupon_code]
                 if potential_order_coupon.product_id is None:  # Garante que é um cupom de pedido
                     order_coupon = potential_order_coupon
-                    discounted_total, order_discount = apply_coupon(order_coupon, total_price_calculated_backend)
+                    discounted_total, order_discount = apply_coupon_to_cart(order_coupon, total_price_calculated_backend)
                     total_discount_amount += order_discount
                     db_order.coupon_code = order_coupon.code
                     db_order.coupon_id = order_coupon.id
