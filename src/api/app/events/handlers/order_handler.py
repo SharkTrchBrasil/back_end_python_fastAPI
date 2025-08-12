@@ -402,11 +402,17 @@ async def create_order_from_cart(sid, data):
             if not cart or not cart.items:
                 return {'error': 'Seu carrinho está vazio.'}
 
-            # 3. VALIDA DADOS DO CHECKOUT (vindas do input_data)
+            # ✅ A CORREÇÃO FINAL ESTÁ AQUI
             payment_activation = db.query(models.StorePaymentMethodActivation).filter_by(
-                id=input_data.payment_method_id, store_id=customer_session.store_id, is_active=True).first()
+                platform_payment_method_id=input_data.payment_method_id,  # Procura pelo ID da plataforma
+                store_id=customer_session.store_id,
+                is_active=True
+            ).first()
+
             if not payment_activation:
-                return {'error': 'Forma de pagamento inválida.'}
+                # Agora esta mensagem só aparecerá se a forma de pagamento for realmente inválida
+                return {'error': 'Forma de pagamento inválida ou inativa para esta loja.'}
+
 
             address = None
             if input_data.delivery_type == 'delivery':
