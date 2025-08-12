@@ -153,25 +153,44 @@ def _build_cart_schema(db_cart: models.Cart) -> CartSchema:
 # SEÇÃO 2: EVENTOS SOCKET.IO
 # =====================================================================================
 
+# Em: app/events/handlers/cart_handler.py
+
 @sio.event
 async def get_or_create_cart(sid, data=None):
-    # (Este evento permanece o mesmo, pois sua lógica já era sólida)
+    """
+    Busca o carrinho ativo de um cliente ou cria um novo.
+    """
     print(f'[CART] Evento get_or_create_cart recebido do SID: {sid}')
     with get_db_manager() as db:
         try:
-            session = db.query(models.StoreSession).filter_by(sid=sid).first()
-            if not session or not session.customer_id: return {'error': 'Usuário não autenticado'}
-            cart = _get_full_cart_query(db, session.customer_id, session.store_id)
+            # ✅ CORREÇÃO FINAL E DEFINITIVA:
+            #    Busca diretamente na tabela 'CustomerSession', assim como as outras funções.
+            customer_session = db.query(models.CustomerSession).filter_by(sid=sid).first()
+
+            # A validação agora é mais simples e direta.
+            if not customer_session or not customer_session.customer_id:
+                return {'error': 'Usuário não autenticado na sessão.'}
+
+            # Agora usamos os dados da customer_session para buscar o carrinho.
+            cart = _get_full_cart_query(db, customer_session.customer_id, customer_session.store_id)
+
             if not cart:
-                cart = models.Cart(customer_id=session.customer_id, store_id=session.store_id)
+                # E para criar o carrinho, se ele não existir.
+                cart = models.Cart(
+                    customer_id=customer_session.customer_id,
+                    store_id=customer_session.store_id
+                )
                 db.add(cart)
                 db.commit()
                 db.refresh(cart)
+
             final_cart_schema = _build_cart_schema(cart)
             return {"success": True, "cart": final_cart_schema.model_dump(mode="json")}
+
         except Exception as e:
             print(f"❌ Erro em get_or_create_cart: {e}\n{traceback.format_exc()}")
             return {"error": "Erro interno."}
+
 
 
 @sio.event
@@ -184,14 +203,16 @@ async def update_cart_item(sid, data):
     with get_db_manager() as db:
         try:
             update_data = UpdateCartItemInput.model_validate(data)
-            session = db.query(models.StoreSession).filter_by(sid=sid).first()
-            if not session or not session.customer_id:
-                return {'error': 'Usuário não autenticado'}
+
+            # ✅ CORREÇÃO FINAL: Busca na tabela correta 'CustomerSession'
+            customer_session = db.query(models.CustomerSession).filter_by(sid=sid).first()
+            if not customer_session or not customer_session.customer_id:
+                return {'error': 'Usuário não autenticado na sessão.'}
 
             # Carrega ou cria carrinho
-            cart = _get_full_cart_query(db, session.customer_id, session.store_id)
+            cart = _get_full_cart_query(db, customer_session.customer_id, customer_session.store_id)
             if not cart:
-                cart = models.Cart(customer_id=session.customer_id, store_id=session.store_id)
+                cart = models.Cart(customer_id=customer_session.customer_id, store_id=customer_session.store_id)
                 db.add(cart)
                 db.flush()
 
@@ -241,7 +262,7 @@ async def update_cart_item(sid, data):
             else:
                 new_item = models.CartItem(
                     cart_id=cart.id,
-                    store_id=session.store_id,
+                    store_id=customer_session.store_id,
                     product_id=update_data.product_id,
                     quantity=update_data.quantity,
                     note=update_data.note,
@@ -251,14 +272,14 @@ async def update_cart_item(sid, data):
                     for variant_input in update_data.variants:
                         new_variant = models.CartItemVariant(
                             variant_id=variant_input.variant_id,
-                            store_id=session.store_id
+                            store_id=customer_session.store_id
                         )
                         for option_input in variant_input.options:
                             new_variant.options.append(
                                 models.CartItemVariantOption(
                                     variant_option_id=option_input.variant_option_id,
                                     quantity=option_input.quantity,
-                                    store_id=session.store_id
+                                    store_id=customer_session.store_id
                                 )
                             )
                         new_item.variants.append(new_variant)
@@ -267,7 +288,7 @@ async def update_cart_item(sid, data):
             db.commit()
 
             # ✅ 4. Retorna carrinho atualizado
-            updated_cart = _get_full_cart_query(db, session.customer_id, session.store_id)
+            updated_cart = _get_full_cart_query(db, customer_session.customer_id, customer_session.store_id)
             final_cart_schema = _build_cart_schema(updated_cart)
             return {"success": True, "cart": final_cart_schema.model_dump(mode="json")}
 
@@ -285,8 +306,11 @@ async def clear_cart(sid, data=None):
     print(f'[CART] Evento clear_cart recebido do SID: {sid}')
     with get_db_manager() as db:
         try:
-            session = db.query(models.StoreSession).filter_by(sid=sid).first()
-            if not session or not session.customer_id: return {'error': 'Usuário não autenticado'}
+            # ✅ CORREÇÃO: Busca na tabela correta 'CustomerSession'
+            session = db.query(models.CustomerSession).filter_by(sid=sid).first()
+            if not session or not session.customer_id:
+                return {'error': 'Usuário não autenticado na sessão.'}
+
             cart = _get_full_cart_query(db, session.customer_id, session.store_id)
             if cart:
                 cart.items = []

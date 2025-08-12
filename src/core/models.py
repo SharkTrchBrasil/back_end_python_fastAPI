@@ -540,6 +540,23 @@ class StoreSession(Base, TimestampMixin):
     # Opcional: Adicionar um relationship para facilitar o acesso ao usuário
     # user: Mapped["User"] = relationship()
 
+
+class CustomerSession(Base, TimestampMixin):
+    __tablename__ = "customer_sessions"
+
+    # O SID do Socket.IO é a chave primária. É único para cada conexão.
+    sid: Mapped[str] = mapped_column(String(255), primary_key=True)
+
+    # Opcional no início (sessão anônima), preenchido após o login.
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True, index=True)
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+
+    # Relacionamentos para facilitar o acesso
+    customer: Mapped[Optional["Customer"]] = relationship()
+    store: Mapped["Store"] = relationship()
+
+
 class AdminConsolidatedStoreSelection(Base, TimestampMixin):  # Adicionei TimestampMixin aqui também para padronizar
     __tablename__ = 'admin_consolidated_store_selection'
 

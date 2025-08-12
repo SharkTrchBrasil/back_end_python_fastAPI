@@ -29,20 +29,28 @@ async def handler_totem_on_connect(self, sid, environ):
 
     with get_db_manager() as db:
         try:
-            # 1. Autorização
-            totem = await authorize_totem(db, token)
-            if not totem or not totem.store:
-                print(f"❌ [TOTEM] Conexão {sid} recusada: Token inválido.")
-                raise ConnectionRefusedError("Invalid or unauthorized token")
+            totem_auth = await authorize_totem(db, token)
+            if not totem_auth or not totem_auth.store_id:
+                print(f"❌ [CONEXÃO] {sid} recusada: Token inválido ou não autorizado.")
+                raise ConnectionRefusedError("Invalid or unauthorized token.")
 
-            store_id = totem.store.id
-            print(f"🏪 [TOTEM] {sid} autorizado para a loja: {store_id}")
+            store_id = totem_auth.store_id
+            print(f"🏪 [CONEXÃO] {sid} autorizado para a loja: {store_id}")
 
-            # 2. Sessão e Sala do Socket.IO
-            session = models.StoreSession(sid=sid, store_id=store_id, client_type='totem')
-            db.add(session)
+            customer_session = models.CustomerSession(
+                sid=sid,
+                store_id=store_id,
+                customer_id=None  # Inicia como anônima
+            )
+            db.add(customer_session)
             db.commit()
+
+            print(f"👤 [CONEXÃO] Sessão de cliente anônima criada para {sid}.")
+
+
             await self.enter_room(sid, f"store_{store_id}")
+            print(f"🚪 [CONEXÃO] {sid} adicionado à sala da loja {store_id}.")
+
 
             # 3. Carregar TODOS os dados da loja com a "Super Consulta"
             store = db.query(models.Store).options(
@@ -103,15 +111,18 @@ async def handler_totem_on_connect(self, sid, environ):
             print(f"❌ [TOTEM] Erro crítico na conexão {sid}: {e.__class__.__name__}: {str(e)}")
             raise ConnectionRefusedError(str(e))
 
+# ✅ FUNÇÃO DE DESCONEXÃO CORRIGIDA
 async def handler_totem_on_disconnect(self, sid):
     print(f"🔌 [TOTEM] Cliente desconectado: {sid}")
     with get_db_manager() as db:
         try:
-            session = db.query(models.StoreSession).filter_by(sid=sid, client_type='totem').first()
+            # CORREÇÃO: Busca e deleta a 'CustomerSession'
+            session = db.query(models.CustomerSession).filter_by(sid=sid).first()
             if session:
                 await self.leave_room(sid, f"store_{session.store_id}")
                 db.delete(session)
                 db.commit()
+                print(f"✅ [TOTEM] Sessão de cliente {sid} removida com sucesso.")
         except Exception as e:
             db.rollback()
             print(f"❌ Erro na desconexão do totem {sid}: {str(e)}")
