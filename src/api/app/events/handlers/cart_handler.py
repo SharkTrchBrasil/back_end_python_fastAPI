@@ -245,11 +245,16 @@ async def update_cart_item(sid, data):
                 # --- MODO EDIÇÃO ---
                 print(f"📝 Modo Edição para o item ID: {cart_item_id_to_edit}")
                 existing_item = db.query(models.CartItem).filter_by(id=cart_item_id_to_edit, cart_id=cart.id).first()
-                if not existing_item:
-                    return {'error': 'Item para editar não encontrado.'}
 
-                if update_data.quantity <= 0:
-                    db.delete(existing_item)
+                if existing_item:
+                    # ✅ CORREÇÃO DEFINITIVA:
+                    #    Atribui (=) a nova quantidade vinda da página do produto, não soma (+=).
+                    #    Isso reflete a intenção final do usuário.
+                    print(
+                        f"🔄 Item idêntico encontrado (ID: {existing_item.id}). ATUALIZANDO para quantidade {update_data.quantity}.")
+                    existing_item.quantity = update_data.quantity
+                    existing_item.note = update_data.note
+
                 else:
                     # Atualiza os dados principais do item
                     existing_item.quantity = update_data.quantity
