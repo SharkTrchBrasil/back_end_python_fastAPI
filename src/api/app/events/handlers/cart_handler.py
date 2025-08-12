@@ -16,21 +16,27 @@ from src.api.schemas.cart import (CartSchema, CartItemSchema, ProductSummarySche
 
 
 
-def _get_item_fingerprint(product_id: int, variants_input: list[dict]) -> str:
+def _get_item_fingerprint(product_id: int, variants_input: list, note: str | None) -> str:
     """
-    Cria uma "impressão digital" única para um item e sua configuração de variantes.
-    Isso garante que um "X-Burger com Bacon" seja diferente de um "X-Burger com Queijo".
+    Cria uma "impressão digital" única para um item, agora incluindo a observação.
     """
-    if not variants_input:
+    # Normaliza a nota: remove espaços extras e converte para minúsculas.
+    # "Sem cebola" e " sem cebola " serão tratados como iguais.
+    normalized_note = note.strip().lower() if note else ""
+
+    if not variants_input and not normalized_note:
         return f"prod:{product_id}"
 
     parts = []
-    # Ordena para garantir que a ordem das variantes não mude o fingerprint
-    for variant in sorted(variants_input, key=lambda v: v['variant_id']):
-        variant_id = variant['variant_id']
-        # Ordena as opções para garantir consistência
-        option_ids = sorted([opt['variant_option_id'] for opt in variant['options']])
-        parts.append(f"var{variant_id}-opts{','.join(map(str, option_ids))}")
+    if variants_input:
+        for variant in sorted(variants_input, key=lambda v: v['variant_id']):
+            variant_id = variant['variant_id']
+            option_ids = sorted([opt['variant_option_id'] for opt in variant['options']])
+            parts.append(f"var{variant_id}-opts{','.join(map(str, option_ids))}")
+
+    # Adiciona a nota normalizada ao fingerprint se ela existir
+    if normalized_note:
+        parts.append(f"note:{normalized_note}")
 
     return f"prod:{product_id}|" + '|'.join(parts)
 
@@ -196,30 +202,28 @@ async def get_or_create_cart(sid, data=None):
 @sio.event
 async def update_cart_item(sid, data):
     """
-    Versão profissional que VALIDA as regras de negócio ANTES de salvar.
-    Agora suporta edição direta pelo `cart_item_id` ou adição via fingerprint.
+    Função definitiva para adicionar, atualizar, remover ou agrupar itens no carrinho,
+    incluindo a manipulação completa de variantes e opções.
     """
     print(f'[CART] Evento update_cart_item recebido: {data}')
     with get_db_manager() as db:
         try:
+            # 1. Validação do Payload e da Sessão
             update_data = UpdateCartItemInput.model_validate(data)
-
-            # ✅ CORREÇÃO FINAL: Busca na tabela correta 'CustomerSession'
             customer_session = db.query(models.CustomerSession).filter_by(sid=sid).first()
             if not customer_session or not customer_session.customer_id:
                 return {'error': 'Usuário não autenticado na sessão.'}
 
-            # Carrega ou cria carrinho
+            # Carrega ou cria o carrinho
             cart = _get_full_cart_query(db, customer_session.customer_id, customer_session.store_id)
             if not cart:
                 cart = models.Cart(customer_id=customer_session.customer_id, store_id=customer_session.store_id)
-                db.add(cart)
+                db.add(cart);
                 db.flush()
 
-            # ✅ 1. Validação profissional das regras de negócio
-            product = db.query(models.Product).options(
-                selectinload(models.Product.variant_links)
-            ).filter_by(id=update_data.product_id).first()
+            # 2. Validação das Regras de Negócio (Segurança)
+            product = db.query(models.Product).options(selectinload(models.Product.variant_links)).filter_by(
+                id=update_data.product_id).first()
             if not product:
                 return {'error': 'Produto não encontrado.'}
 
@@ -227,67 +231,86 @@ async def update_cart_item(sid, data):
             if update_data.variants:
                 for variant_input in update_data.variants:
                     rule = product_rules.get(variant_input.variant_id)
-                    if not rule or not rule.available:
-                        return {'error': 'Grupo de opção inválido para este produto.'}
-                    if len(variant_input.options) < rule.min_selected_options:
-                        return {'error': f'Escolha no mínimo {rule.min_selected_options} opção(ões).'}
-                    if len(variant_input.options) > rule.max_selected_options:
-                        return {'error': f'Escolha no máximo {rule.max_selected_options} opção(ões).'}
+                    if not rule or not rule.available: return {'error': 'Grupo de opção inválido.'}
+                    if len(variant_input.options) < rule.min_selected_options: return {
+                        'error': f'Escolha no mínimo {rule.min_selected_options} opção(ões).'}
+                    if len(variant_input.options) > rule.max_selected_options: return {
+                        'error': f'Escolha no máximo {rule.max_selected_options} opção(ões).'}
 
-            # ✅ 2. Lógica de Edição vs. Adição
-            fingerprint = _get_item_fingerprint(update_data.product_id, data.get('variants', []))
-            cart_item_id_to_edit = data.get('cart_item_id')
+            # --- LÓGICA PRINCIPAL: ADIÇÃO VS. EDIÇÃO ---
 
-            existing_item = None
+            cart_item_id_to_edit = update_data.cart_item_id
+
             if cart_item_id_to_edit:
-                # Modo edição pelo ID
-                existing_item = db.query(models.CartItem).filter_by(
-                    id=cart_item_id_to_edit,
-                    cart_id=cart.id
-                ).first()
-            else:
-                # Modo adição via fingerprint
-                existing_item = db.query(models.CartItem).filter_by(
-                    cart_id=cart.id,
-                    fingerprint=fingerprint
-                ).first()
+                # --- MODO EDIÇÃO ---
+                print(f"📝 Modo Edição para o item ID: {cart_item_id_to_edit}")
+                existing_item = db.query(models.CartItem).filter_by(id=cart_item_id_to_edit, cart_id=cart.id).first()
+                if not existing_item:
+                    return {'error': 'Item para editar não encontrado.'}
 
-            # ✅ 3. Inserção/atualização/remoção
-            if update_data.quantity <= 0:
-                if existing_item:
+                if update_data.quantity <= 0:
                     db.delete(existing_item)
-            elif existing_item:
-                existing_item.quantity = update_data.quantity
-                existing_item.note = update_data.note
-            else:
-                new_item = models.CartItem(
-                    cart_id=cart.id,
-                    store_id=customer_session.store_id,
-                    product_id=update_data.product_id,
-                    quantity=update_data.quantity,
-                    note=update_data.note,
-                    fingerprint=fingerprint
-                )
-                if update_data.variants:
-                    for variant_input in update_data.variants:
-                        new_variant = models.CartItemVariant(
-                            variant_id=variant_input.variant_id,
-                            store_id=customer_session.store_id
-                        )
-                        for option_input in variant_input.options:
-                            new_variant.options.append(
-                                models.CartItemVariantOption(
+                else:
+                    # Atualiza os dados principais do item
+                    existing_item.quantity = update_data.quantity
+                    existing_item.note = update_data.note
+
+                    # A forma mais segura de atualizar as variantes é "substituição total":
+                    # 1. Deleta todas as variantes e opções antigas associadas a este item.
+                    #    A configuração `cascade="all, delete-orphan"` no modelo cuida disso.
+                    existing_item.variants = []
+                    db.flush()  # Aplica a remoção no banco antes de adicionar as novas
+
+                    # 2. Recria as variantes e opções com os novos dados do payload.
+                    if update_data.variants:
+                        for variant_input in update_data.variants:
+                            new_variant = models.CartItemVariant(variant_id=variant_input.variant_id,
+                                                                 store_id=customer_session.store_id)
+                            for option_input in variant_input.options:
+                                new_variant.options.append(models.CartItemVariantOption(
                                     variant_option_id=option_input.variant_option_id,
-                                    quantity=option_input.quantity,
-                                    store_id=customer_session.store_id
-                                )
-                            )
-                        new_item.variants.append(new_variant)
-                db.add(new_item)
+                                    quantity=option_input.quantity, store_id=customer_session.store_id
+                                ))
+                            existing_item.variants.append(new_variant)
+
+                    # 3. Recalcula o fingerprint
+                    existing_item.fingerprint = _get_item_fingerprint(
+                        update_data.product_id, data.get('variants', []), update_data.note
+                    )
+            else:
+                # --- MODO ADIÇÃO ---
+                fingerprint = _get_item_fingerprint(
+                    update_data.product_id, data.get('variants', []), update_data.note
+                )
+                existing_item = db.query(models.CartItem).filter_by(cart_id=cart.id, fingerprint=fingerprint).first()
+
+                if existing_item:
+                    # Se um item idêntico já existe, apenas soma a quantidade.
+                    print(f"🔄 Item idêntico encontrado (ID: {existing_item.id}). Somando quantidade.")
+                    existing_item.quantity += update_data.quantity
+                else:
+                    # Se não existe, cria um novo item.
+                    print(f"✨ Item novo (Fingerprint: {fingerprint}). Criando no carrinho.")
+                    new_item = models.CartItem(
+                        cart_id=cart.id, store_id=customer_session.store_id,
+                        product_id=update_data.product_id, quantity=update_data.quantity,
+                        note=update_data.note, fingerprint=fingerprint
+                    )
+                    if update_data.variants:
+                        for variant_input in update_data.variants:
+                            new_variant = models.CartItemVariant(variant_id=variant_input.variant_id,
+                                                                 store_id=customer_session.store_id)
+                            for option_input in variant_input.options:
+                                new_variant.options.append(models.CartItemVariantOption(
+                                    variant_option_id=option_input.variant_option_id,
+                                    quantity=option_input.quantity, store_id=customer_session.store_id
+                                ))
+                            new_item.variants.append(new_variant)
+                    db.add(new_item)
 
             db.commit()
 
-            # ✅ 4. Retorna carrinho atualizado
+            # Retorna o estado atualizado e completo do carrinho
             updated_cart = _get_full_cart_query(db, customer_session.customer_id, customer_session.store_id)
             final_cart_schema = _build_cart_schema(updated_cart)
             return {"success": True, "cart": final_cart_schema.model_dump(mode="json")}
@@ -298,6 +321,9 @@ async def update_cart_item(sid, data):
             db.rollback()
             print(f"❌ Erro em update_cart_item: {e}\n{traceback.format_exc()}")
             return {"error": "Erro interno ao atualizar item."}
+
+
+
 
 
 @sio.event
