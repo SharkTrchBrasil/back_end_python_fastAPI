@@ -209,6 +209,7 @@ async def update_cart_item(sid, data):
         try:
             # 1. Validações Iniciais
             update_data = UpdateCartItemInput.model_validate(data)
+
             customer_session = db.query(models.CustomerSession).filter_by(sid=sid).first()
             if not customer_session or not customer_session.customer_id:
                 return {'error': 'Usuário não autenticado na sessão.'}

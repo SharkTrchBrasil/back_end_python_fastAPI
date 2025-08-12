@@ -388,36 +388,37 @@ async def create_order_from_cart(sid, data):
         try:
             # 1. VALIDAÇÕES INICIAIS
             input_data = CreateOrderInput.model_validate(data)
-            session = db.query(models.StoreSession).filter_by(sid=sid).first()
-            if not session or not session.customer_id:
-                return {'error': 'Sessão não autorizada'}
 
-            customer = db.query(models.Customer).filter_by(id=session.customer_id).first()
+            customer_session = db.query(models.CustomerSession).filter_by(sid=sid).first()
+            if not customer_session or not customer_session.customer_id:
+                return {'error': 'Usuário não autenticado na sessão.'}
+
+            customer = db.query(models.Customer).filter_by(id=customer_session.customer_id).first()
             if not customer:
                 return {'error': 'Cliente não encontrado'}
 
             # 2. ✅ BUSCA O CARRINHO DO BANCO DE DADOS (A FONTE DA VERDADE)
-            cart = _get_full_cart_query(db, session.customer_id, session.store_id)
+            cart = _get_full_cart_query(db, customer_session.customer_id, customer_session.store_id)
             if not cart or not cart.items:
                 return {'error': 'Seu carrinho está vazio.'}
 
             # 3. VALIDA DADOS DO CHECKOUT (vindas do input_data)
             payment_activation = db.query(models.StorePaymentMethodActivation).filter_by(
-                id=input_data.payment_method_id, store_id=session.store_id, is_active=True).first()
+                id=input_data.payment_method_id, store_id=customer_session.store_id, is_active=True).first()
             if not payment_activation:
                 return {'error': 'Forma de pagamento inválida.'}
 
             address = None
             if input_data.delivery_type == 'delivery':
                 address = db.query(models.Address).filter_by(id=input_data.address_id,
-                                                                     customer_id=session.customer_id).first()
+                                                                     customer_id=customer_session.customer_id).first()
                 if not address: return {'error': 'Endereço inválido.'}
 
             # 4. CRIA O OBJETO `Order` COM DADOS CONFIÁVEIS
             db_order = models.Order(
-                sequential_id=gerar_sequencial_do_dia(db, session.store_id),
-                public_id=generate_unique_public_id(db, session.store_id),
-                store_id=session.store_id,
+                sequential_id=gerar_sequencial_do_dia(db, customer_session.store_id),
+                public_id=generate_unique_public_id(db, customer_session.store_id),
+                store_id=customer_session.store_id,
                 customer_id=customer.id,
                 customer_name=customer.name,
                 customer_phone=customer.phone,
@@ -451,18 +452,18 @@ async def create_order_from_cart(sid, data):
 
                 # Cria o OrderProduct a partir do CartItem
                 order_product = models.OrderProduct(
-                    store_id=session.store_id, product_id=cart_item.product_id, name=cart_item.product.name,
+                    store_id=customer_session.store_id, product_id=cart_item.product_id, name=cart_item.product.name,
                     price=final_item_price, quantity=cart_item.quantity, note=cart_item.note,
                     image_url=cart_item.product.image_path, original_price=base_price,
                 )
 
                 # Mapeia as variantes e opções do carrinho para o pedido
                 for cart_variant in cart_item.variants:
-                    order_variant = models.OrderVariant(store_id=session.store_id, variant_id=cart_variant.variant_id,
+                    order_variant = models.OrderVariant(store_id=customer_session.store_id, variant_id=cart_variant.variant_id,
                                                         name=cart_variant.variant.name)
                     for cart_option in cart_variant.options:
                         order_variant.options.append(models.OrderVariantOption(
-                            store_id=session.store_id, variant_option_id=cart_option.variant_option_id,
+                            store_id=customer_session.store_id, variant_option_id=cart_option.variant_option_id,
                             name=cart_option.variant_option.resolvedName, price=cart_option.variant_option.get_price(),
                             quantity=cart_option.quantity,
                         ))
