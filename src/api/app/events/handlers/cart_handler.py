@@ -159,7 +159,7 @@ def _build_cart_schema(db_cart: models.Cart) -> CartSchema:
 # SEÇÃO 2: EVENTOS SOCKET.IO
 # =====================================================================================
 
-# Em: app/events/handlers/cart_handler.py
+
 
 @sio.event
 async def get_or_create_cart(sid, data=None):
@@ -169,8 +169,7 @@ async def get_or_create_cart(sid, data=None):
     print(f'[CART] Evento get_or_create_cart recebido do SID: {sid}')
     with get_db_manager() as db:
         try:
-            # ✅ CORREÇÃO FINAL E DEFINITIVA:
-            #    Busca diretamente na tabela 'CustomerSession', assim como as outras funções.
+
             customer_session = db.query(models.CustomerSession).filter_by(sid=sid).first()
 
             # A validação agora é mais simples e direta.
@@ -208,20 +207,19 @@ async def update_cart_item(sid, data):
     print(f'[CART] Evento update_cart_item recebido: {data}')
     with get_db_manager() as db:
         try:
-            # 1. Validação do Payload e da Sessão
+            # 1. Validações Iniciais
             update_data = UpdateCartItemInput.model_validate(data)
             customer_session = db.query(models.CustomerSession).filter_by(sid=sid).first()
             if not customer_session or not customer_session.customer_id:
                 return {'error': 'Usuário não autenticado na sessão.'}
 
-            # Carrega ou cria o carrinho
             cart = _get_full_cart_query(db, customer_session.customer_id, customer_session.store_id)
             if not cart:
                 cart = models.Cart(customer_id=customer_session.customer_id, store_id=customer_session.store_id)
-                db.add(cart);
+                db.add(cart)
                 db.flush()
 
-            # 2. Validação das Regras de Negócio (Segurança)
+            # 2. Validação das Regras de Negócio (já estava correto)
             product = db.query(models.Product).options(selectinload(models.Product.variant_links)).filter_by(
                 id=update_data.product_id).first()
             if not product:
@@ -241,32 +239,27 @@ async def update_cart_item(sid, data):
 
             cart_item_id_to_edit = update_data.cart_item_id
 
+            # ✅ --- MODO EDIÇÃO ---
+            # (Quando o app envia um `cart_item_id`. Ex: botões +/- do carrinho ou "Salvar Alterações")
             if cart_item_id_to_edit:
-                # --- MODO EDIÇÃO ---
                 print(f"📝 Modo Edição para o item ID: {cart_item_id_to_edit}")
                 existing_item = db.query(models.CartItem).filter_by(id=cart_item_id_to_edit, cart_id=cart.id).first()
 
-                if existing_item:
-                    # ✅ CORREÇÃO DEFINITIVA:
-                    #    Atribui (=) a nova quantidade vinda da página do produto, não soma (+=).
-                    #    Isso reflete a intenção final do usuário.
-                    print(
-                        f"🔄 Item idêntico encontrado (ID: {existing_item.id}). ATUALIZANDO para quantidade {update_data.quantity}.")
-                    existing_item.quantity = update_data.quantity
-                    existing_item.note = update_data.note
+                if not existing_item:
+                    return {'error': 'Item para editar não encontrado.'}
 
+                if update_data.quantity <= 0:
+                    db.delete(existing_item)
                 else:
-                    # Atualiza os dados principais do item
+                    # Atualiza os dados principais do item.
+                    # A quantidade aqui é SETADA (=), não somada.
                     existing_item.quantity = update_data.quantity
                     existing_item.note = update_data.note
 
-                    # A forma mais segura de atualizar as variantes é "substituição total":
-                    # 1. Deleta todas as variantes e opções antigas associadas a este item.
-                    #    A configuração `cascade="all, delete-orphan"` no modelo cuida disso.
+                    # Estratégia de "Substituição Total" para variantes
                     existing_item.variants = []
-                    db.flush()  # Aplica a remoção no banco antes de adicionar as novas
+                    db.flush()
 
-                    # 2. Recria as variantes e opções com os novos dados do payload.
                     if update_data.variants:
                         for variant_input in update_data.variants:
                             new_variant = models.CartItemVariant(variant_id=variant_input.variant_id,
@@ -278,19 +271,21 @@ async def update_cart_item(sid, data):
                                 ))
                             existing_item.variants.append(new_variant)
 
-                    # 3. Recalcula o fingerprint
+                    # Recalcula o fingerprint
                     existing_item.fingerprint = _get_item_fingerprint(
                         update_data.product_id, data.get('variants', []), update_data.note
                     )
+
+            # ✅ --- MODO ADIÇÃO ---
+            # (Quando não há `cart_item_id`. Ex: botão "Adicionar" da página de produto)
             else:
-                # --- MODO ADIÇÃO ---
                 fingerprint = _get_item_fingerprint(
                     update_data.product_id, data.get('variants', []), update_data.note
                 )
                 existing_item = db.query(models.CartItem).filter_by(cart_id=cart.id, fingerprint=fingerprint).first()
 
                 if existing_item:
-                    # Se um item idêntico já existe, apenas soma a quantidade.
+                    # Se um item idêntico já existe, SOMA (+=) a quantidade.
                     print(f"🔄 Item idêntico encontrado (ID: {existing_item.id}). Somando quantidade.")
                     existing_item.quantity += update_data.quantity
                 else:
@@ -326,8 +321,6 @@ async def update_cart_item(sid, data):
             db.rollback()
             print(f"❌ Erro em update_cart_item: {e}\n{traceback.format_exc()}")
             return {"error": "Erro interno ao atualizar item."}
-
-
 
 
 
