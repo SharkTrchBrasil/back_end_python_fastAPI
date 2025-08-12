@@ -377,6 +377,14 @@ class VariantOption(Base, TimestampMixin):
         return 0
 
 
+    @hybrid_property
+    def resolvedName(self):
+        if self.name_override:
+            return self.name_override
+        if self.linked_product:
+            return self.linked_product.name
+        return "Opção sem nome"
+
 
 class ProductVariantLink(Base, TimestampMixin):
     __tablename__ = "product_variant_links"
@@ -462,26 +470,38 @@ class Coupon(Base, TimestampMixin):
     def can_be_deleted(self) -> bool:
         return len(self.orders) == 0
 
-    # ✅ --- ADIÇÃO DA SOLUÇÃO --- ✅
-    @hybrid_property
-    def is_valid(self) -> bool:
+    # ✅ SUBSTITUA PELA NOVA FUNÇÃO is_now_valid
+    def is_now_valid(self, subtotal_in_cents: int = 0, customer: "Customer" = None) -> bool:
         """
-        Propriedade que centraliza a lógica de validação de um cupom.
-        Retorna True se o cupom pode ser usado, False caso contrário.
+        Verifica se o cupom é válido NO MOMENTO ATUAL e para o CONTEXTO
+        de um carrinho/cliente específico.
         """
+        # 1. Validações básicas do cupom
+        if not self.is_active:
+            return False
+
+        # 2. Validação de uso (corrigida para lidar com `None`)
+        if self.max_uses is not None and self.used >= self.max_uses:
+            return False
+
+        # 3. Validação de data
         now = datetime.now(timezone.utc)
-
-        if self.used >= self.max_uses:
-            return False
-        if self.start_date and now < self.start_date:
-            return False
-        if self.end_date and now > self.end_date:
+        if self.start_date > now or self.end_date < now:
             return False
 
-        # Adicione aqui outras regras de validação que você tenha
+        # 4. Validação de valor mínimo do pedido (campo que estava faltando na lógica)
+        if self.min_order_value is not None and subtotal_in_cents < self.min_order_value:
+            return False
 
+        # 5. Validações relacionadas ao cliente (campos que estavam faltando)
+        # (A lógica exata aqui pode variar, mas este é o lugar para colocá-la)
+        if self.only_new_customers and customer and customer.orders:
+            return False  # Se o cliente já tem pedidos, não é novo
+
+        # if self.max_uses_per_customer ... (lógica mais complexa aqui)
+
+        # Se passou por todas as validações, o cupom é válido.
         return True
-
 
 class TotemAuthorization(Base, TimestampMixin):
     __tablename__ = "totem_authorizations"
@@ -1645,6 +1665,8 @@ class CartItemVariant(Base, TimestampMixin):
         back_populates="cart_item_variant",
         cascade="all, delete-orphan"
     )
+
+    variant: Mapped["Variant"] = relationship()
 
 
 class CartItemVariantOption(Base, TimestampMixin):

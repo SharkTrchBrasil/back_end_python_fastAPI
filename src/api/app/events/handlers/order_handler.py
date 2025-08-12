@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from operator import or_
+from typing import cast
 
 import sqlalchemy
 
@@ -32,6 +33,12 @@ from src.socketio_instance import sio
 
 from src.api.schemas.order import Order as OrderSchema
 
+
+import traceback
+from .cart_handler import _get_full_cart_query
+
+from src.api.schemas.ordernew import CreateOrderInput  # Seu novo schema de entrada
+from ...utils.coupon_logic import apply_coupon
 
 
 @sio.event
@@ -370,3 +377,135 @@ async def send_order(sid, data):
             return {"error": f"Erro interno ao processar pedido: {str(e)}"}
 
 
+@sio.event
+async def create_order_from_cart(sid, data):
+    """
+    O novo evento para finalizar um pedido. Lê o carrinho do banco de dados,
+    garantindo máxima segurança e consistência.
+    """
+    print(f'[ORDER] Evento create_order_from_cart recebido: {data}')
+    with get_db_manager() as db:
+        try:
+            # 1. VALIDAÇÕES INICIAIS
+            input_data = CreateOrderInput.model_validate(data)
+            session = db.query(models.StoreSession).filter_by(sid=sid).first()
+            if not session or not session.customer_id:
+                return {'error': 'Sessão não autorizada'}
+
+            customer = db.query(models.Customer).filter_by(id=session.customer_id).first()
+            if not customer:
+                return {'error': 'Cliente não encontrado'}
+
+            # 2. ✅ BUSCA O CARRINHO DO BANCO DE DADOS (A FONTE DA VERDADE)
+            cart = _get_full_cart_query(db, session.customer_id, session.store_id)
+            if not cart or not cart.items:
+                return {'error': 'Seu carrinho está vazio.'}
+
+            # 3. VALIDA DADOS DO CHECKOUT (vindas do input_data)
+            payment_activation = db.query(models.StorePaymentMethodActivation).filter_by(
+                id=input_data.payment_method_id, store_id=session.store_id, is_active=True).first()
+            if not payment_activation:
+                return {'error': 'Forma de pagamento inválida.'}
+
+            address = None
+            if input_data.delivery_type == 'delivery':
+                address = db.query(models.Address).filter_by(id=input_data.address_id,
+                                                                     customer_id=session.customer_id).first()
+                if not address: return {'error': 'Endereço inválido.'}
+
+            # 4. CRIA O OBJETO `Order` COM DADOS CONFIÁVEIS
+            db_order = models.Order(
+                sequential_id=gerar_sequencial_do_dia(db, session.store_id),
+                public_id=generate_unique_public_id(db, session.store_id),
+                store_id=session.store_id,
+                customer_id=customer.id,
+                customer_name=customer.name,
+                customer_phone=customer.phone,
+                payment_method_id=payment_activation.id,
+                payment_method_name=payment_activation.platform_method.name,
+                order_type='cardapio_digital',
+                delivery_type=input_data.delivery_type,
+                observation=input_data.observation,
+                needs_change=input_data.needs_change,
+                change_amount=input_data.change_for,
+                payment_status='pending',
+                order_status='pending',
+            )
+            # Preenche o endereço se houver
+            if address:
+                db_order.street = address.street
+                db_order.number = address.number
+                db_order.complement = address.complement
+                db_order.neighborhood = address.neighborhood
+                db_order.city = address.city_name
+
+            # 5. MAPEIA OS ITENS DO CARRINHO PARA ITENS DE PEDIDO E CALCULA O SUBTOTAL
+            subtotal = 0
+            for cart_item in cart.items:
+                # Recalcula o preço final do item no servidor para 100% de segurança
+                base_price = cart_item.product.promotion_price if cart_item.product.activate_promotion else cart_item.product.base_price
+                variants_price = sum(opt.variant_option.get_price() for v in cart_item.variants for opt in v.options)
+                final_item_price = base_price + variants_price
+
+                subtotal += final_item_price * cart_item.quantity
+
+                # Cria o OrderProduct a partir do CartItem
+                order_product = models.OrderProduct(
+                    store_id=session.store_id, product_id=cart_item.product_id, name=cart_item.product.name,
+                    price=final_item_price, quantity=cart_item.quantity, note=cart_item.note,
+                    image_url=cart_item.product.image_path, original_price=base_price,
+                )
+
+                # Mapeia as variantes e opções do carrinho para o pedido
+                for cart_variant in cart_item.variants:
+                    order_variant = models.OrderVariant(store_id=session.store_id, variant_id=cart_variant.variant_id,
+                                                        name=cart_variant.variant.name)
+                    for cart_option in cart_variant.options:
+                        order_variant.options.append(models.OrderVariantOption(
+                            store_id=session.store_id, variant_option_id=cart_option.variant_option_id,
+                            name=cart_option.variant_option.resolvedName, price=cart_option.variant_option.get_price(),
+                            quantity=cart_option.quantity,
+                        ))
+                    order_product.variants.append(order_variant)
+                db_order.products.append(order_product)
+
+            db_order.subtotal_price = subtotal
+
+            # 6. APLICA DESCONTOS E TOTAIS FINAIS (VERSÃO CORRIGIDA)
+            discount = 0
+
+
+            coupon = cast(models.Coupon, cart.coupon)
+            if coupon and coupon.is_now_valid(subtotal_in_cents=subtotal, customer=customer):
+                if coupon.product_id is None:  # Garante que é um cupom de carrinho
+                    _, discount = apply_coupon(coupon, subtotal)
+                    db_order.coupon = coupon
+
+            db_order.discount_amount = discount
+
+            delivery_fee = 0  # Adicione aqui sua lógica para calcular a taxa de entrega
+            db_order.delivery_fee = delivery_fee
+
+            db_order.total_price = subtotal + delivery_fee
+            db_order.discounted_total_price = (subtotal - discount) + delivery_fee
+
+            # 7. ATUALIZA O STATUS DO CARRINHO E DO CUPOM
+            cart.status = models.CartStatus.COMPLETED
+            if db_order.coupon:
+                db_order.coupon.used += 1
+
+            # 8. SALVA TUDO NO BANCO E DISPARA AUTOMAÇÕES
+            db.add(db_order)
+            db.commit()
+            db.refresh(db_order)
+
+            # Reutiliza suas funções de automação
+            await process_new_order_automations(db, db_order)
+            await admin_emit_order_updated_from_obj(db_order)
+
+            return {"success": True, "order": OrderSchema.model_validate(db_order).model_dump()}
+
+        except Exception as e:
+            db.rollback()
+            print(f"❌ Erro em create_order_from_cart: {e}\n{traceback.format_exc()}")
+            return {"error": f"Erro interno ao criar pedido: {str(e)}"}
