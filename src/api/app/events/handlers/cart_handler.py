@@ -285,9 +285,13 @@ async def update_cart_item(sid, data):
                 existing_item = db.query(models.CartItem).filter_by(cart_id=cart.id, fingerprint=fingerprint).first()
 
                 if existing_item:
-                    # Se um item idêntico já existe, SOMA (+=) a quantidade.
-                    print(f"🔄 Item idêntico encontrado (ID: {existing_item.id}). Somando quantidade.")
-                    existing_item.quantity += update_data.quantity
+                    # ✅ A CORREÇÃO FINAL E DEFINITIVA: Mudamos de SOMA (+=) para ATRIBUIÇÃO (=)
+                    #    Isso garante que a quantidade definida na página do produto seja a quantidade final no carrinho.
+                    print(
+                        f"🔄 Item idêntico encontrado (ID: {existing_item.id}). ATUALIZANDO para quantidade {update_data.quantity}.")
+                    existing_item.quantity = update_data.quantity
+                    existing_item.note = update_data.note  # Também atualiza a nota para refletir a última configuração
+
                 else:
                     # Se não existe, cria um novo item.
                     print(f"✨ Item novo (Fingerprint: {fingerprint}). Criando no carrinho.")
