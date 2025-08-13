@@ -442,7 +442,7 @@ async def create_order_from_cart(sid, data):
             if address:
                 db_order.street = address.street
                 db_order.number = address.number
-                db_order.complement = address.complement
+                db_order.complement = address.reference
                 db_order.neighborhood = address.neighborhood
                 db_order.city = address.city_name
 
