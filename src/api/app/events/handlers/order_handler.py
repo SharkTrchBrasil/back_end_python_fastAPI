@@ -442,10 +442,9 @@ async def create_order_from_cart(sid, data):
             if address:
                 db_order.street = address.street
                 db_order.number = address.number
-                db_order.complement = address.reference  # ✅ Correto: lê de `address.reference` e salva em `db_order.complement`.
-                db_order.neighborhood = address.neighborhood.name  # ✅ Correção: Acessa a propriedade `.name`.
-                db_order.city = address.city.name  # ✅ Correção: Acessa a propriedade `.name`.
-
+                db_order.complement = address.reference
+                db_order.neighborhood = address.neighborhood_name  # ✅ Correto: usa o campo de texto
+                db_order.city = address.city_name  # ✅ Correto: usa o campo de texto
             # 5. MAPEIA OS ITENS DO CARRINHO PARA ITENS DE PEDIDO E CALCULA O SUBTOTAL
             subtotal = 0
             for cart_item in cart.items:
