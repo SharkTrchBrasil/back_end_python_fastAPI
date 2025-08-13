@@ -438,13 +438,13 @@ async def create_order_from_cart(sid, data):
                 payment_status='pending',
                 order_status='pending',
             )
-            # Preenche o endereço se houver
+
             if address:
                 db_order.street = address.street
                 db_order.number = address.number
-                db_order.complement = address.reference
-                db_order.neighborhood = address.neighborhood
-                db_order.city = address.city_name
+                db_order.complement = address.reference  # ✅ Correto: lê de `address.reference` e salva em `db_order.complement`.
+                db_order.neighborhood = address.neighborhood.name  # ✅ Correção: Acessa a propriedade `.name`.
+                db_order.city = address.city.name  # ✅ Correção: Acessa a propriedade `.name`.
 
             # 5. MAPEIA OS ITENS DO CARRINHO PARA ITENS DE PEDIDO E CALCULA O SUBTOTAL
             subtotal = 0
