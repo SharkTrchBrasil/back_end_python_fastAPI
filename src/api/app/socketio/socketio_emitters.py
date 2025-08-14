@@ -42,25 +42,37 @@ async def emit_theme_updated(theme: models.StoreTheme):
     )
 
 
+# ✅ FUNÇÃO ATUALIZADA E AUTOSSUFICIENTE
 async def emit_products_updated(db, store_id: int):
     """
-    Emite uma atualização da lista de produtos, garantindo que todos os
-    relacionamentos necessários, incluindo as opções padrão, sejam carregados.
+    Busca a lista de produtos ATUALIZADA, serializa-a incluindo as avaliações,
+    e emite para todos os clientes da loja.
     """
-    # ✅ CONSULTA ATUALIZADA PARA INCLUIR default_options
-    products = db.query(models.Product).options(
-        selectinload(models.Product.category),  # Carrega a categoria
-        selectinload(models.Product.default_options),  # Carrega as opções padrão
+    print(f"📢 Preparando emissão 'products_updated' para a loja {store_id}...")
+
+    # 1. Consulta completa que carrega tudo que o ProductOut precisa
+    products_from_db = db.query(models.Product).options(
+        selectinload(models.Product.category),
+        selectinload(models.Product.default_options),
         selectinload(models.Product.variant_links)
         .selectinload(models.ProductVariantLink.variant)
         .selectinload(models.Variant.options)
         .selectinload(models.VariantOption.linked_product)
-    ).filter(
-        models.Product.store_id == store_id,
-    ).all()
+    ).filter(models.Product.store_id == store_id).all()
 
-    # A função _prepare_products_payload agora recebe a lista já carregada corretamente
-    products_data = _prepare_products_payload(db, products)
+    # 2. Anexa as avaliações aos objetos SQLAlchemy antes de serializar
+    product_ratings = {
+        p.id: get_product_ratings_summary(db, product_id=p.id)
+        for p in products_from_db
+    }
+    for product in products_from_db:
+        product.rating = product_ratings.get(product.id)
 
-    await sio.emit('products_updated', products_data, to=f'store_{store_id}')
+    # 3. Serializa a lista de produtos usando o schema ProductOut.
+    #    O Pydantic irá ler o atributo 'rating' e executar os @computed_field.
+    products_payload = [ProductOut.model_validate(p).model_dump(mode='json') for p in products_from_db]
+
+    # 4. Emite o payload final
+    await sio.emit('products_updated', products_payload, to=f'store_{store_id}')
+    print(f"✅ Emissão 'products_updated' para a loja {store_id} concluída.")
 

@@ -5,8 +5,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import selectinload, joinedload
 
 from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations
-from src.api.app.socketio.socketio_emitters import _prepare_products_payload
-# --- Imports dos seus Módulos e Serviços ---
+
 from src.core import models
 from src.core.database import get_db_manager
 from src.api.app.services.authorize_totem import authorize_totem
