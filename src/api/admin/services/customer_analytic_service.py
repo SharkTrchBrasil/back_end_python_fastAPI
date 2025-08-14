@@ -84,25 +84,43 @@ async def get_customer_analytics_for_store(db: Session, store_id: int,
     )
 
 
-# --- FUNÇÃO AUXILIAR RFM (sem alterações) ---
+# Em src/api/admin/logic/customer_analytic_logic.py
 
 def _perform_rfm_segmentation(customer_data: List[Dict], today: datetime) -> List[RfmSegment]:
-
+    if not customer_data:
+        return []
 
     df = pd.DataFrame(customer_data)
 
-
-
+    # --- CORREÇÃO APLICADA AQUI ---
+    # Converte a coluna para datetime, tratando erros
     df['last_order_date'] = pd.to_datetime(df['last_order_date'], errors='coerce')
-
     df['recency'] = (today - df['last_order_date']).dt.days
+    df['recency'].fillna(9999, inplace=True)  # Garante que clientes sem data não quebrem o código
 
+    # Lógica de pontuação robusta que não quebra com dados repetidos
+    try:
+        # Para Recência (menor é melhor), o score é invertido.
+        r_labels = pd.qcut(df['recency'], 4, labels=False, duplicates='drop')
+        df['R_score'] = 4 - r_labels.astype(int)
 
+        # Para Frequência e Gasto (maior é melhor), o score é direto.
+        f_labels = pd.qcut(df['order_count'].rank(method='first'), 4, labels=False, duplicates='drop')
+        df['F_score'] = f_labels.astype(int) + 1
 
-    df['R_score'] = pd.qcut(df['recency'], 4, labels=[4, 3, 2, 1], duplicates='drop')
-    df['F_score'] = pd.qcut(df['order_count'].rank(method='first'), 4, labels=[1, 2, 3, 4], duplicates='drop')
-    df['M_score'] = pd.qcut(df['total_spent'].rank(method='first'), 4, labels=[1, 2, 3, 4], duplicates='drop')
+        m_labels = pd.qcut(df['total_spent'].rank(method='first'), 4, labels=False, duplicates='drop')
+        df['M_score'] = m_labels.astype(int) + 1
+
+    except ValueError:
+        # Fallback para casos com pouquíssimos dados (ex: 1 cliente)
+        # Atribui um score médio para todos
+        df['R_score'] = 2
+        df['F_score'] = 2
+        df['M_score'] = 2
+
     df['RFM_score'] = df['R_score'].astype(str) + df['F_score'].astype(str) + df['M_score'].astype(str)
+
+    # --- O RESTO DO CÓDIGO CONTINUA IGUAL ---
     segment_map = {
         r'[3-4][3-4][3-4]': '🏆 Campeões', r'[3-4][1-2][1-4]': '🙂 Clientes Fiéis',
         r'[1-2][3-4][3-4]': '⚠️ Em Risco', r'[1-2][1-2][1-4]': '💤 Hibernando',
@@ -127,12 +145,10 @@ def _perform_rfm_segmentation(customer_data: List[Dict], today: datetime) -> Lis
     }
     final_segments = []
     for segment_name, group in df.groupby('segment'):
-        # ✅ Garante que o nome do segmento seja sempre uma string
         str_segment_name = str(segment_name)
-
         desc, sugg = segment_details.get(str_segment_name, ("", ""))
         final_segments.append(RfmSegment(
-            segment_name=str_segment_name,  # <-- Agora está corrigido
+            segment_name=str_segment_name,
             description=desc,
             suggestion=sugg,
             customers=[CustomerMetric(**row) for row in group.to_dict('records')]
