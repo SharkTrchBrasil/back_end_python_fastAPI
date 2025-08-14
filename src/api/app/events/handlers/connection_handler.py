@@ -10,7 +10,7 @@ from src.api.app.socketio.socketio_emitters import _prepare_products_payload
 from src.core import models
 from src.core.database import get_db_manager
 from src.api.app.services.authorize_totem import authorize_totem
-from src.api.app.services.rating import get_store_ratings_summary
+from src.api.app.services.rating import get_store_ratings_summary, get_product_ratings_summary
 from src.api.admin.services.subscription_service import SubscriptionService  # ✅ Reutilizamos o serviço!
 
 from src.api.schemas.rating import RatingsSummaryOut
@@ -81,6 +81,19 @@ async def handler_totem_on_connect(self, sid, environ):
 
             if not store:
                 raise ConnectionRefusedError(f"Loja {store_id} não encontrada.")
+
+            # ✅ NOVO PRÉ-PROCESSAMENTO:
+            # 1. Busque todas as avaliações dos produtos da loja de uma vez.
+            product_ratings = {
+                p.id: get_product_ratings_summary(db, product_id=p.id)
+                for p in store.products
+            }
+            # 2. Anexe as avaliações diretamente aos objetos SQLAlchemy.
+            #    O Pydantic lerá esses atributos ao validar.
+            for product in store.products:
+                product.rating = product_ratings.get(product.id)
+
+
 
             # 4. Determinar o Status Operacional usando o Serviço Centralizado
             _, is_operational = SubscriptionService.get_subscription_details(store)

@@ -6,6 +6,7 @@ from .product_variant_link import ProductVariantLink as ProductVariantLinkOut
 
 from src.core.aws import get_presigned_url
 from src.core.utils.enums import CashbackType, ProductType
+from .rating import RatingsSummaryOut
 
 
 # --- Configuração Pydantic Base ---
@@ -88,7 +89,7 @@ class ProductOut(Product):
 
     variant_links: List["ProductVariantLinkOut"] = []  # <-- Usar aspas
     components: List[KitComponentOut] = []
-
+    rating: Optional[RatingsSummaryOut] = None
     @computed_field
     @property
     def image_path(self) -> str | None:

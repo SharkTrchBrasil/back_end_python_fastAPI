@@ -64,23 +64,3 @@ async def emit_products_updated(db, store_id: int):
 
     await sio.emit('products_updated', products_data, to=f'store_{store_id}')
 
-
-def _prepare_products_payload(db, products: list[models.Product]) -> list[dict]:
-    """
-    Prepara o payload de produtos com seus ratings.
-    Esta função agora confia que a lista 'products' já vem com todos os
-    relacionamentos necessários pré-carregados (eagerly loaded).
-    """
-    # Pega as avaliações de todos os produtos de uma vez para otimização
-    product_ratings = {p.id: get_product_ratings_summary(db, product_id=p.id) for p in products}
-
-    products_payload = []
-    for p in products:
-        # Valida o objeto SQLAlchemy 'p' (que já tem default_options) com o schema ProductOut.
-        # O @computed_field 'default_option_ids' será executado aqui.
-        product_schema = ProductOut.model_validate(p)
-        product_dict = product_schema.model_dump(mode='json')
-        product_dict["rating"] = product_ratings.get(p.id)
-        products_payload.append(product_dict)
-
-    return products_payload
