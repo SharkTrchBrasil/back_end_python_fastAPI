@@ -10,6 +10,7 @@ from src.api.schemas.dashboard import (
     TopItemSchema,
     PaymentMethodSummarySchema,
 )
+from src.core.utils.enums import OrderStatus
 
 
 def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, end_date: date) -> DashboardDataSchema:
@@ -21,7 +22,7 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
     base_order_filter = (
         models.Order.store_id == store_id,
         models.Order.created_at.between(start_date, end_date + timedelta(days=1)),  # Inclui o dia de hoje
-        models.Order.order_status == 'completed'
+        models.Order.order_status == OrderStatus.DELIVERED
     )
 
     # --- 1. Cálculo dos KPIs ---

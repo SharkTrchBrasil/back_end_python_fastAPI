@@ -66,3 +66,12 @@ class CartStatus(str, enum.Enum):
 class ProductType(enum.Enum):
     INDIVIDUAL = "INDIVIDUAL"
     KIT = "KIT"
+
+
+class OrderStatus(str, enum.Enum):
+    PENDING = 'pending'
+    PREPARING = 'preparing'
+    READY = 'ready'
+    ON_ROUTE = 'on_route'
+    DELIVERED = 'delivered'
+    CANCELED = 'canceled'

@@ -57,6 +57,8 @@ def _fetch_product_data_from_db(db: Session, store_id: int, start_date: datetime
     WHERE
         p.store_id = :store_id
         AND p.control_stock = TRUE;
+        AND o.created_at >= :start_date
+        AND o.order_status = 'delivered' #
     """
 
     result = db.execute(text(query), {"store_id": store_id, "start_date": start_date})

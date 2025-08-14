@@ -5,13 +5,6 @@ from pydantic import field_validator
 from enum import Enum
 
 
-class OrderStatus(str, Enum):
-    PENDING = 'pending'
-    PREPARING = 'preparing'
-    READY = 'ready'
-    ON_ROUTE = 'on_route'
-    DELIVERED = 'delivered'
-    CANCELED = 'canceled'
 
 
 # ✅ NOVO SCHEMA: Define a estrutura de um log de impressão

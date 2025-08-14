@@ -34,7 +34,7 @@ def _fetch_customer_data_from_db(db: Session, store_id: int) -> List[Dict]:
         orders o ON c.id = o.customer_id  -- MUDOU AQUI (de u.id para c.id)
     WHERE
         o.store_id = :store_id
-        AND o.order_status = 'completed' -- Boa prática: Analisar apenas pedidos concluídos
+        AND o.order_status = 'delivered' -- Boa prática: Analisar apenas pedidos concluídos
     GROUP BY
         c.id, c.name;          -- MUDOU AQUI (de u.id, u.name para c.id, c.name)
     """
