@@ -105,7 +105,7 @@ async def handler_totem_on_connect(self, sid, environ):
             initial_state_payload = {
                 "store": store_schema,
                 "theme": store.theme,
-                "products": _prepare_products_payload(db, store.products),
+                 "products": store_schema.products,
                 "banners": store.banners
             }
 

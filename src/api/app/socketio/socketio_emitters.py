@@ -41,47 +41,46 @@ async def emit_theme_updated(theme: models.StoreTheme):
         to=f'store_{theme.store_id}'
     )
 
-async def emit_products_updated(db, store_id: int):
 
-    # ✅ CONSULTA CORRIGIDA E COMPLETA
+async def emit_products_updated(db, store_id: int):
+    """
+    Emite uma atualização da lista de produtos, garantindo que todos os
+    relacionamentos necessários, incluindo as opções padrão, sejam carregados.
+    """
+    # ✅ CONSULTA ATUALIZADA PARA INCLUIR default_options
     products = db.query(models.Product).options(
-        selectinload(models.Product.variant_links)      # Product -> ProductVariantLink (A Regra)
-        .selectinload(models.ProductVariantLink.variant) # -> Variant (O Template)
-        .selectinload(models.Variant.options)            # -> VariantOption (O Item)
-        .selectinload(models.VariantOption.linked_product) # -> Product (Cross-sell)
+        selectinload(models.Product.category),  # Carrega a categoria
+        selectinload(models.Product.default_options),  # Carrega as opções padrão
+        selectinload(models.Product.variant_links)
+        .selectinload(models.ProductVariantLink.variant)
+        .selectinload(models.Variant.options)
+        .selectinload(models.VariantOption.linked_product)
     ).filter(
         models.Product.store_id == store_id,
-        #models.Product.available == True
     ).all()
 
-    # Pega avaliações dos produtos (lógica mantida)
-    product_ratings = {
-        product.id: get_product_ratings_summary(db, product_id=product.id)
-        for product in products
-    }
+    # A função _prepare_products_payload agora recebe a lista já carregada corretamente
+    products_data = _prepare_products_payload(db, products)
 
-    products_data = []
-    for product in products:
-        # ✅ Validação com o novo schema ProductOut
-        product_schema = ProductOut.model_validate(product)
-        product_dict = product_schema.model_dump(mode='json')
-        product_dict["rating"] = product_ratings.get(product.id)
-        products_data.append(product_dict)
-
-    # Emite a lista de produtos completa para a sala da loja
     await sio.emit('products_updated', products_data, to=f'store_{store_id}')
 
+
 def _prepare_products_payload(db, products: list[models.Product]) -> list[dict]:
-    """Prepara o payload de produtos com seus ratings."""
+    """
+    Prepara o payload de produtos com seus ratings.
+    Esta função agora confia que a lista 'products' já vem com todos os
+    relacionamentos necessários pré-carregados (eagerly loaded).
+    """
+    # Pega as avaliações de todos os produtos de uma vez para otimização
     product_ratings = {p.id: get_product_ratings_summary(db, product_id=p.id) for p in products}
+
     products_payload = []
     for p in products:
-        product_dict = ProductOut.model_validate(p).model_dump(mode='json')
+        # Valida o objeto SQLAlchemy 'p' (que já tem default_options) com o schema ProductOut.
+        # O @computed_field 'default_option_ids' será executado aqui.
+        product_schema = ProductOut.model_validate(p)
+        product_dict = product_schema.model_dump(mode='json')
         product_dict["rating"] = product_ratings.get(p.id)
         products_payload.append(product_dict)
+
     return products_payload
-
-
-
-
-
