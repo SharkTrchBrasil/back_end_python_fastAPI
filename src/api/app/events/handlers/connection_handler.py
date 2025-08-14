@@ -51,7 +51,6 @@ async def handler_totem_on_connect(self, sid, environ):
             await self.enter_room(sid, f"store_{store_id}")
             print(f"🚪 [CONEXÃO] {sid} adicionado à sala da loja {store_id}.")
 
-
             # 3. Carregar TODOS os dados da loja com a "Super Consulta"
             store = db.query(models.Store).options(
 
@@ -64,14 +63,20 @@ async def handler_totem_on_connect(self, sid, environ):
                 selectinload(models.Store.hours),
                 selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
                 selectinload(models.Store.coupons),
-                selectinload(models.Store.products).selectinload(models.Product.category),
-                selectinload(models.Store.products).selectinload(models.Product.variant_links).selectinload(
-                    models.ProductVariantLink.variant).selectinload(models.Variant.options).selectinload(
-                    models.VariantOption.linked_product),
-                selectinload(models.Store.products).selectinload(models.Product.default_options),
+
+                # ✅ CONSULTA AOS PRODUTOS AGRUPADA E OTIMIZADA
+                selectinload(models.Store.products).options(
+                    selectinload(models.Product.category),
+                    selectinload(models.Product.default_options),  # Carrega as opções padrão
+                    selectinload(models.Product.variant_links).selectinload(
+                        models.ProductVariantLink.variant).selectinload(
+                        models.Variant.options).selectinload(
+                        models.VariantOption.linked_product)
+                ),
 
                 selectinload(models.Store.variants).selectinload(models.Variant.options),
                 selectinload(models.Store.subscriptions).joinedload(models.StoreSubscription.plan)
+
             ).filter(models.Store.id == store_id).first()
 
             if not store:

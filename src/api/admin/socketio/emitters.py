@@ -55,6 +55,7 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
             ).selectinload(
                 models.VariantOption.linked_product  # -> Product (O item de Cross-Sell)
             ),
+            selectinload(models.Product.default_options),
 
             # --- [PAINEL DE GERENCIAMENTO DE TEMPLATES] ---
             # Carrega TODOS os templates de variantes e suas opções, mesmo os não utilizados.
