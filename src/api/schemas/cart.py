@@ -2,6 +2,9 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
+from src.api.schemas.product import ProductOut
+
+
 # =====================================================================================
 # SEÇÃO 1: SCHEMAS DE SAÍDA (O que o backend envia para o Flutter)
 # =====================================================================================
@@ -27,20 +30,12 @@ class CartItemVariantSchema(BaseModel):
     class ConfigDict:
         from_attributes = True
 
-class ProductSummarySchema(BaseModel):
-    """Um resumo do produto para ser exibido no carrinho."""
-    id: int
-    name: str
-    image_url: Optional[str] = None
-    description: Optional[str] = None # ✅ Opcional, mas útil para a UI
 
-    class ConfigDict:
-        from_attributes = True
 
 class CartItemSchema(BaseModel):
     """Representa um item completo no carrinho."""
     id: int
-    product: ProductSummarySchema
+    product: ProductOut
     quantity: int
     note: Optional[str] = None
     variants: List[CartItemVariantSchema]

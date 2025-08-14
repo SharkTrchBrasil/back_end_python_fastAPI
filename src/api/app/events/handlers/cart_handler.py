@@ -7,10 +7,11 @@ from sqlalchemy.orm import selectinload, joinedload
 from pydantic import ValidationError
 
 from src.api.app.utils.coupon_logic import apply_coupon
+from src.api.schemas.product import ProductOut
 from src.core import models
 from src.core.database import get_db_manager
 from src.socketio_instance import sio
-from src.api.schemas.cart import (CartSchema, CartItemSchema, ProductSummarySchema,
+from src.api.schemas.cart import (CartSchema, CartItemSchema,
                                   CartItemVariantSchema, CartItemVariantOptionSchema,
                                   UpdateCartItemInput)
 
@@ -107,18 +108,11 @@ def _build_cart_schema(db_cart: models.Cart) -> CartSchema:
         total_item_price = unit_price * item.quantity
         subtotal += total_item_price
 
-        # ✅ 3. CONSTRUÇÃO DO PRODUTO (JÁ ESTAVA QUASE CERTO)
-        #    Garantimos que o ProductSummarySchema também seja criado corretamente.
-        product_summary = ProductSummarySchema(
-            id=item.product.id,
-            name=item.product.name,
-            image_url=item.product.image_path,
-            description=item.product.description
-        )
+        full_product_schema = ProductOut.model_validate(item.product)
 
         cart_items_schemas.append(CartItemSchema(
             id=item.id,
-            product=product_summary,
+            product=full_product_schema,
             quantity=item.quantity,
             note=item.note,
             variants=variants_schemas,
@@ -127,15 +121,11 @@ def _build_cart_schema(db_cart: models.Cart) -> CartSchema:
         ))
 
 
-
     discount = 0
     if db_cart.coupon and db_cart.coupon.is_valid:
-        # Importante: Apenas aplica o cupom se ele for para o carrinho inteiro
-        # (sem um produto específico associado). Cupons de produto já são
-        # calculados no seu `send_order`.
+
         if db_cart.coupon.product_id is None:
-            # Chama a função de lógica com o subtotal que já calculamos.
-            # O `_` ignora o novo preço, pois só precisamos do valor do desconto aqui.
+
             _, calculated_discount = apply_coupon(db_cart.coupon, subtotal)
             discount = calculated_discount
 
