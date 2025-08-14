@@ -17,7 +17,7 @@ class AppBaseModel(BaseModel):
 # 1. Schemas de Produto
 # -------------------------------------------------
 
-# ✅ Schema para o componente do kit
+
 class KitComponentOut(AppBaseModel):
     quantity: int
     # Inclui os dados do produto componente para o front-end saber o que é
@@ -71,12 +71,11 @@ class ProductUpdate(AppBaseModel):
     unit: Optional[str] = None
     category_id: Optional[int] = None
     file_key: Optional[str] = Field(default=None, exclude=True)
-    # ✅ ADICIONADO: Campos de cashback opcionais para atualização
+
     cashback_type: Optional[CashbackType] = None
     cashback_value: Optional[int] = None
 
 
-# ✅ PASSO 1: CRIAR UM SCHEMA SIMPLES PARA A OPÇÃO PADRÃO
 class ProductDefaultOptionOut(AppBaseModel):
     variant_option_id: int
 
@@ -108,9 +107,6 @@ class ProductOut(Product):
         """Gera a URL da imagem a partir da file_key."""
         return get_presigned_url(self.file_key) if self.file_key else None
 
-        # ✅ A FORMA MAIS SIMPLES: um novo campo computado só com os IDs
-
-        # ✅ A CORREÇÃO É ADICIONAR ESTE CAMPO COMPUTADO
 
     @computed_field
     @property
@@ -172,8 +168,7 @@ class ProductRatingOut(ProductRatingBase):
     id: int
     product_id: int
     customer_id: int
-    # ✅ Apenas atualizamos o estilo da configuração para Pydantic v2
-    # model_config = ConfigDict(from_attributes=True) já é herdado de AppBaseModel
+
 
 
 # É crucial chamar model_rebuild para resolver as referências circulares (ex: KitComponentOut -> ProductOut)

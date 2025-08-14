@@ -93,11 +93,6 @@ class Store(Base, TimestampMixin):
     # --- Relacionamentos (Seus relacionamentos existentes) ---
     segment: Mapped["Segment"] = relationship()
 
-    products = relationship(
-        "Product",
-        back_populates="store",
-        order_by="asc(Product.priority)"  # Ou "Product.name" para ordem alfabética
-    )
 
     coupons: Mapped[List["Coupon"]] = relationship(back_populates="store")
     # no Store
@@ -108,6 +103,19 @@ class Store(Base, TimestampMixin):
     payables: Mapped[list["StorePayable"]] = relationship()
 
     orders: Mapped[List["Order"]] = relationship("Order", back_populates="store", cascade="all, delete-orphan")
+
+    products = relationship(
+        "Product",
+        back_populates="store",
+        order_by="asc(Product.priority)"  # Ou "Product.name" para ordem alfabética
+    )
+
+    categories = relationship(
+        "Category",
+        back_populates="store",
+        order_by="asc(Category.priority)",
+        cascade="all, delete-orphan"
+    )
 
     cashier_sessions: Mapped[List["CashierSession"]] = relationship(
         "CashierSession", back_populates="store", cascade="all, delete-orphan"
