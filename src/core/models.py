@@ -998,6 +998,18 @@ class Customer(Base):
 
     orders: Mapped[list["Order"]] = relationship(back_populates="customer")
 
+class StoreCustomer(Base, TimestampMixin):
+    __tablename__ = "store_customers"
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), primary_key=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), primary_key=True)
+
+    total_orders: Mapped[int] = mapped_column(default=1)
+    total_spent: Mapped[int] = mapped_column(default=0)
+    last_order_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    store = relationship("Store", back_populates="store_customers")
+    customer = relationship("Customer", back_populates="store_customers")
+
 
 class Address(Base):
     __tablename__ = "customer_addresses"
@@ -1419,18 +1431,6 @@ class ProductRating(Base, TimestampMixin):
         UniqueConstraint("customer_id", "order_id", "product_id", name="uq_customer_order_product_rating"),
     )
 
-
-class StoreCustomer(Base, TimestampMixin):
-    __tablename__ = "store_customers"
-
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), primary_key=True)
-    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), primary_key=True)
-
-    total_orders: Mapped[int] = mapped_column(default=1)
-    total_spent: Mapped[int] = mapped_column(default=0)
-    last_order_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
-    store = relationship("Store", back_populates="store_customers")
-    customer = relationship("Customer", back_populates="store_customers")
 
 
 

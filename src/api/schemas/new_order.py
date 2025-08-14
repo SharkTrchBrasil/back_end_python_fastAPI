@@ -11,3 +11,4 @@ class CreateOrderInput(BaseModel):
     change_for: Optional[float] = None # Em reais, ex: 50.00
     # O ID do endereço pode ser opcional se o usuário retirar na loja
     address_id: Optional[int] = None
+    delivery_fee: Optional[int] = None

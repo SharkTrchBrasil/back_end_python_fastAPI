@@ -72,6 +72,7 @@ async def handle_update_order_status(self, sid, data):
                 decrease_stock_for_order(order, db)
                 calculate_and_apply_cashback_for_order(order, db)
                 loyalty_service.award_points_for_order(db=db, order=order)
+                update_store_customer_stats(db, order)
 
 
             if new_status_str == OrderStatus.CANCELED.value and old_status_value != OrderStatus.CANCELED.value:
@@ -253,3 +254,41 @@ async def handle_update_print_job_status(self, sid, data):
             print(f"❌ Erro em handle_update_print_job_status: {str(e)}")
             return {'error': 'Falha interna'}
 
+
+def update_store_customer_stats(db, order: models.Order):
+    """
+    Cria ou atualiza as estatísticas de um cliente em uma loja específica
+    após um pedido ser concluído.
+    """
+    # Se o pedido não tem um cliente associado, não há o que fazer.
+    if not order.customer_id:
+        print(f"Pedido {order.id} não possui cliente, estatísticas não atualizadas.")
+        return
+
+    # Procura se já existe um registro para este cliente nesta loja
+    store_customer = db.query(models.StoreCustomer).filter_by(
+        store_id=order.store_id,
+        customer_id=order.customer_id
+    ).first()
+
+    if store_customer:
+        # Se já existe, ATUALIZA os dados
+        print(f"Atualizando estatísticas para o cliente {order.customer_id} na loja {order.store_id}.")
+        store_customer.total_orders += 1
+        store_customer.total_spent += order.discounted_total_price  # Usa o preço final com desconto
+        store_customer.last_order_at = order.created_at  # ou a data de conclusão do pedido
+    else:
+        # Se não existe, CRIA um novo registro
+        print(f"Criando primeiro registro de estatísticas para o cliente {order.customer_id} na loja {order.store_id}.")
+        store_customer = models.StoreCustomer(
+            store_id=order.store_id,
+            customer_id=order.customer_id,
+            total_orders=1,
+            total_spent=order.discounted_total_price,
+            last_order_at=order.created_at,
+        )
+        db.add(store_customer)
+
+    # Salva as alterações no banco de dados
+    # O commit deve ser gerenciado pela sua rota/evento principal
+    db.flush()  # Usa flush para preparar a escrita sem finalizar a transação principal
