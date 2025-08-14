@@ -13,36 +13,36 @@ from src.api.schemas.analytic_customer_schema import (
 )
 
 
-# --- FUNÇÃO SÍNCRONA AUXILIAR (SÓ PARA O BANCO) ---
 
 def _fetch_customer_data_from_db(db: Session, store_id: int) -> List[Dict]:
     """
     Esta função contém APENAS a lógica de banco de dados.
     Ela é síncrona.
     """
+    # ✅ QUERY CORRIGIDA PARA USAR A TABELA 'customers'
     query = f"""
     SELECT
-        u.id AS customer_id,
-        u.name,
+        c.id AS customer_id,   -- MUDOU AQUI (de u.id para c.id)
+        c.name,                -- MUDOU AQUI (de u.name para c.name)
         COUNT(o.id) AS order_count,
         SUM(o.discounted_total_price) AS total_spent,
         MAX(DATE(o.created_at)) AS last_order_date,
         MIN(DATE(o.created_at)) AS first_order_date
     FROM
-        users u
+        customers c            -- MUDOU AQUI (de users u para customers c)
     JOIN
-        orders o ON u.id = o.customer_id
+        orders o ON c.id = o.customer_id  -- MUDOU AQUI (de u.id para c.id)
     WHERE
         o.store_id = :store_id
+        AND o.order_status = 'completed' -- Boa prática: Analisar apenas pedidos concluídos
     GROUP BY
-        u.id, u.name;
+        c.id, c.name;          -- MUDOU AQUI (de u.id, u.name para c.id, c.name)
     """
     # Usamos parâmetros nomeados para segurança
     result = db.execute(text(query), {"store_id": store_id})
     return [dict(row) for row in result.mappings()]
 
 
-# --- FUNÇÃO PRINCIPAL ASSÍNCRONA (A que você chama) ---
 
 async def get_customer_analytics_for_store(db: Session, store_id: int,
                                            period_in_days: int = 30) -> CustomerAnalyticsResponse:
