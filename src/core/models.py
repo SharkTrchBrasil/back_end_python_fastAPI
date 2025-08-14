@@ -11,9 +11,9 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
-    CartStatus, ProductType
+    CartStatus, ProductType, OrderStatus
 from src.api.schemas.base_schema import VariantType, UIDisplayMode
-from src.api.schemas.order import OrderStatus
+
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy import ForeignKey, Enum, Text
 

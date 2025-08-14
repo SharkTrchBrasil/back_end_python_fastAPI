@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer
 from pydantic import field_validator
 from enum import Enum
 
-
+from src.core.utils.enums import OrderStatus
 
 
 # ✅ NOVO SCHEMA: Define a estrutura de um log de impressão
