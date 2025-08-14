@@ -331,47 +331,35 @@ async def admin_emit_new_print_jobs(store_id: int, order_id: int, jobs: list):
     print(f"Evento '{event}' emitido para a sala {room} com payload: {payload}")
 
 
-# No seu arquivo de emitters (VERSÃO CORRIGIDA)
 
 async def admin_emit_products_updated(db, store_id: int):
-    # A consulta ao banco de dados permanece a mesma
-    products = db.query(models.Product).options(
+    """
+    Busca a lista COMPLETA de produtos e emite para a sala do admin.
+    Esta é a versão UNIFICADA e CORRIGIDA.
+    """
+    print(f"📢 [ADMIN] Preparando emissão 'products_updated' para a loja {store_id}...")
+
+    # 1. Consulta mais completa para carregar tudo que o ProductOut precisa
+    products_from_db = db.query(models.Product).options(
+        selectinload(models.Product.category),
+        selectinload(models.Product.default_options),  # <-- Garante que default_options seja carregado
         selectinload(models.Product.variant_links)
         .selectinload(models.ProductVariantLink.variant)
         .selectinload(models.Variant.options)
         .selectinload(models.VariantOption.linked_product)
-    ).filter(
-        models.Product.store_id == store_id,
-       # models.Product.available == True
-    ).order_by(models.Product.priority.asc(), models.Product.name.asc()).all()
+    ).filter(models.Product.store_id == store_id).order_by(models.Product.priority).all()
 
-    product_ratings = {
-        product.id: get_product_ratings_summary(db, product_id=product.id)
-        for product in products
-    }
+    # 2. Anexa as avaliações diretamente ao objeto
+    product_ratings = {p.id: get_product_ratings_summary(db, product_id=p.id) for p in products_from_db}
+    for product in products_from_db:
+        product.rating = product_ratings.get(product.id)
 
-    products_data = []
-    # --- Laço para MONTAR a lista de dados ---
-    for product in products:
-        product_schema = ProductOut.model_validate(product)
-        product_dict = product_schema.model_dump(mode='json')
-        product_dict["rating"] = product_ratings.get(product.id)
-        products_data.append(product_dict)
+    # 3. Serializa a lista usando o Pydantic da forma mais limpa possível
+    products_payload = [ProductOut.model_validate(p).model_dump(mode='json') for p in products_from_db]
 
-    # ✅ CORREÇÃO: O payload e a emissão agora acontecem FORA do laço, uma única vez.
-    payload = {
-        'store_id': store_id,
-        'products': products_data  # 'products_data' agora está completa
-    }
-
+    # 4. Emite para a sala e namespace corretos do ADMIN
+    payload = {'store_id': store_id, 'products': products_payload}
     room_name = f'admin_store_{store_id}'
+    await sio.emit('products_updated', payload, to=room_name, namespace='/admin')
 
-    # ✅ A CORREÇÃO CRÍTICA ESTÁ AQUI: Adicione o parâmetro 'namespace'
-    await sio.emit(
-        'products_updated',
-        payload,
-        to=room_name,
-        namespace='/admin'  # 👈 Adicione esta linha
-    )
-
-    print(f"✅ Evento 'products_updated' (completo) emitido para a sala: {room_name} no namespace /admin")
+    print(f"✅ [ADMIN] Emissão 'products_updated' para a sala: {room_name} no namespace /admin concluída.")
