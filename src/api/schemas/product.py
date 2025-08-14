@@ -5,7 +5,7 @@ from .category import CategoryOut
 from .product_variant_link import ProductVariantLink as ProductVariantLinkOut
 
 from src.core.aws import get_presigned_url
-from src.core.utils.enums import CashbackType
+from src.core.utils.enums import CashbackType, ProductType
 
 
 # --- Configuração Pydantic Base ---
@@ -16,11 +16,19 @@ class AppBaseModel(BaseModel):
 # 1. Schemas de Produto
 # -------------------------------------------------
 
+# ✅ Schema para o componente do kit
+class KitComponentOut(AppBaseModel):
+    quantity: int
+    # Inclui os dados do produto componente para o front-end saber o que é
+    component: "ProductOut"
+
+
 class Product(AppBaseModel):
     """Campos essenciais que definem um produto."""
     name: str
     description: str
     base_price: int
+    product_type: ProductType = ProductType.INDIVIDUAL
     available: bool
     promotion_price: int
     featured: bool
@@ -34,9 +42,10 @@ class Product(AppBaseModel):
     unit: str
     sold_count: int
     file_key: str | None = Field(default=None, exclude=True) # Exclui do JSON de resposta
-    # ✅ ADICIONADO: Campos de cashback na base do produto
+
     cashback_type: CashbackType = CashbackType.NONE
     cashback_value: int = 0  # Armazenado em centavos para valores fixos
+
 
 class ProductCreate(Product):
     """Schema para criar um novo produto. Note a ausência de 'variant_ids'."""
@@ -78,12 +87,55 @@ class ProductOut(Product):
     # que contém tanto as regras quanto o template do grupo.
 
     variant_links: List["ProductVariantLinkOut"] = []  # <-- Usar aspas
+    components: List[KitComponentOut] = []
 
     @computed_field
     @property
     def image_path(self) -> str | None:
         """Gera a URL da imagem a partir da file_key."""
         return get_presigned_url(self.file_key) if self.file_key else None
+
+        # ✅ A FORMA MAIS SIMPLES: um novo campo computado só com os IDs
+
+    @computed_field
+    @property
+    def default_option_ids(self) -> list[int]:
+        """Extrai apenas os IDs das opções padrão para o frontend consumir facilmente."""
+        if not hasattr(self, 'default_options'):
+            return []
+        return [default.variant_option_id for default in self.default_options]
+
+
+
+    # ✅ DIFERENCIAL GIGANTE: Estoque calculado para kits
+    @computed_field
+    @property
+    def calculated_stock(self) -> int | None:
+        """
+        Calcula o estoque real. Se for um produto individual, retorna seu próprio estoque.
+        Se for um kit, calcula o estoque com base no componente mais limitado.
+        """
+        # Se não for um kit, ou se for um kit sem componentes, use o estoque padrão
+        if self.product_type != ProductType.KIT or not self.components:
+            return self.stock_quantity if self.control_stock else None  # Retorna None para estoque infinito
+
+        possible_kits = []
+        for item in self.components:
+            # Se algum componente não controla estoque, ele não limita o kit
+            if not item.component.control_stock:
+                continue
+
+                # Calcula quantos kits podem ser feitos com base neste componente
+            stock_for_this_item = item.component.stock_quantity // item.quantity
+            possible_kits.append(stock_for_this_item)
+
+        # Se nenhum componente tem estoque controlado, o estoque do kit é "infinito"
+        if not possible_kits:
+            return None
+
+        # O estoque do kit é o mínimo de kits que podemos montar
+        return min(possible_kits)
+
 
 # -------------------------------------------------
 # 2. Schemas de Avaliação (ProductRating)
@@ -104,4 +156,6 @@ class ProductRatingOut(ProductRatingBase):
     # model_config = ConfigDict(from_attributes=True) já é herdado de AppBaseModel
 
 
+# É crucial chamar model_rebuild para resolver as referências circulares (ex: KitComponentOut -> ProductOut)
+KitComponentOut.model_rebuild()
 ProductOut.model_rebuild()

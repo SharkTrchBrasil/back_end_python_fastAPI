@@ -68,6 +68,8 @@ async def handler_totem_on_connect(self, sid, environ):
                 selectinload(models.Store.products).selectinload(models.Product.variant_links).selectinload(
                     models.ProductVariantLink.variant).selectinload(models.Variant.options).selectinload(
                     models.VariantOption.linked_product),
+                selectinload(models.Store.products).selectinload(models.Product.default_options),
+
                 selectinload(models.Store.variants).selectinload(models.Variant.options),
                 selectinload(models.Store.subscriptions).joinedload(models.StoreSubscription.plan)
             ).filter(models.Store.id == store_id).first()

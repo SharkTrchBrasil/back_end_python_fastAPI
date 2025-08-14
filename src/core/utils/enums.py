@@ -62,3 +62,7 @@ class CartStatus(str, enum.Enum):
     ACTIVE = "active"
     COMPLETED = "completed"
     ABANDONED = "abandoned"
+
+class ProductType(enum.Enum):
+    INDIVIDUAL = "INDIVIDUAL"
+    KIT = "KIT"

@@ -11,7 +11,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
-    CartStatus
+    CartStatus, ProductType
 from src.api.schemas.base_schema import VariantType, UIDisplayMode
 from src.api.schemas.order import OrderStatus
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -273,10 +273,7 @@ class Product(Base, TimestampMixin):
     file_key: Mapped[str] = mapped_column()
 
 
-    variant_links: Mapped[List["ProductVariantLink"]] = relationship(
-        back_populates="product",
-        cascade="all, delete-orphan"
-    )
+
 
     ean: Mapped[str] = mapped_column(default="")
 
@@ -295,8 +292,25 @@ class Product(Base, TimestampMixin):
                                                         default=CashbackType.NONE)
     cashback_value: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.00'))
 
+    product_type: Mapped[ProductType] = mapped_column(default=ProductType.INDIVIDUAL)
 
     order_items: Mapped[list["OrderProduct"]] = relationship(back_populates="product")
+
+    default_options: Mapped[list["ProductDefaultOption"]] = relationship(
+        back_populates="product",
+        cascade="all, delete-orphan"
+    )
+
+    variant_links: Mapped[List["ProductVariantLink"]] = relationship(
+        back_populates="product",
+        cascade="all, delete-orphan"
+    )
+
+    components: Mapped[list["KitComponent"]] = relationship(
+        foreign_keys="[KitComponent.kit_product_id]",
+        back_populates="kit",
+        cascade="all, delete-orphan"
+    )
 
     @hybrid_property
     def image_path(self):
@@ -305,6 +319,17 @@ class Product(Base, TimestampMixin):
 
 
 
+class KitComponent(Base, TimestampMixin):
+    __tablename__ = "kit_components"
+
+    kit_product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
+    component_product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
+
+    quantity: Mapped[int] = mapped_column(default=1)  # Qtd do componente dentro do kit
+
+    # Relacionamentos
+    kit: Mapped["Product"] = relationship(foreign_keys=[kit_product_id], back_populates="components")
+    component: Mapped["Product"] = relationship(foreign_keys=[component_product_id])
 
 
 class Variant(Base, TimestampMixin):
@@ -333,35 +358,46 @@ class Variant(Base, TimestampMixin):
     store: Mapped["Store"] = relationship(back_populates="variants")
 
 
-
 class VariantOption(Base, TimestampMixin):
     __tablename__ = "variant_options"
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    # --- FK para o grupo ao qual esta opção pertence ---
     variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id", ondelete="CASCADE"))
     variant: Mapped["Variant"] = relationship(back_populates="options")
 
-    # --- A MÁGICA DO CROSS-SELL ---
-    # Se preenchido, esta opção é um atalho para um produto existente.
     linked_product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=True,
                                                    doc="Se não nulo, esta opção representa outro produto (Cross-Sell)")
     linked_product: Mapped["Product"] = relationship()
 
-    # --- INFORMAÇÕES PRÓPRIAS (usadas se não for um cross-sell ou para sobrepor) ---
     name_override: Mapped[str] = mapped_column(nullable=True,
                                                doc="Nome customizado. Se nulo, usa o nome do produto linkado (se houver).")
     price_override: Mapped[int] = mapped_column(nullable=True,
                                                 doc="Preço em centavos. Se nulo, usa o preço do produto linkado. Se for um ingrediente, este é o preço base.")
+
+    # ✅ 1. CAMPO DE DESCRIÇÃO ADICIONADO
+    description: Mapped[str] = mapped_column(Text, nullable=True,
+                                             doc="Descrição detalhada da opção, exibida na UI para dar mais contexto ao cliente.")
+
     file_key: Mapped[str] = mapped_column(nullable=True,
                                           doc="Chave da imagem da opção (se não usar a do produto linkado).")
     pos_code: Mapped[str] = mapped_column(nullable=True, doc="Código de integração para o sistema PDV.")
 
-    available: Mapped[bool] = mapped_column(default=True)
+    available: Mapped[bool] = mapped_column(default=True,
+                                            doc="Disponibilidade manual. Pode ser usado para desativar um item temporariamente, independentemente do estoque.")
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
 
-    # ✅ --- MÉTODO INTELIGENTE ADICIONADO --- ✅
+    # ✅ 2. CAMPOS DE CONTROLE DE ESTOQUE ADICIONADOS
+    track_inventory: Mapped[bool] = mapped_column(default=False,
+                                                  doc="Se True, o estoque será controlado. Se False, o item é considerado de estoque infinito.")
+    stock_quantity: Mapped[int] = mapped_column(default=0, server_default='0',
+                                                doc="Quantidade disponível em estoque. Só é relevante se track_inventory for True.")
+
+    # Adiciona uma restrição a nível de banco de dados para garantir que o estoque nunca seja negativo
+    __table_args__ = (
+        CheckConstraint('stock_quantity >= 0', name='check_stock_quantity_non_negative'),
+    )
+
     def get_price(self) -> int:
         """
         Retorna o preço correto da opção em centavos, seguindo a regra de negócio:
@@ -372,10 +408,8 @@ class VariantOption(Base, TimestampMixin):
         if self.price_override is not None:
             return self.price_override
         if self.linked_product:
-            # Assumindo que seu modelo Product tem esses campos
             return self.linked_product.promotion_price if self.linked_product.activate_promotion else self.linked_product.base_price
         return 0
-
 
     @hybrid_property
     def resolvedName(self):
@@ -384,6 +418,24 @@ class VariantOption(Base, TimestampMixin):
         if self.linked_product:
             return self.linked_product.name
         return "Opção sem nome"
+
+    # ✅ 3. PROPRIEDADE INTELIGENTE PARA DISPONIBILIDADE REAL
+    @hybrid_property
+    def is_actually_available(self) -> bool:
+        """
+        Verifica a disponibilidade real do item, considerando o controle de estoque.
+        Esta é a propriedade que o front-end deve usar para habilitar/desabilitar a opção.
+        """
+        # 1. Se foi desabilitado manualmente, está indisponível. Ponto final.
+        if not self.available:
+            return False
+
+        # 2. Se o estoque não é rastreado, está sempre disponível.
+        if not self.track_inventory:
+            return True
+
+        # 3. Se o estoque é rastreado, só está disponível se a quantidade for maior que zero.
+        return self.stock_quantity > 0
 
 
 class ProductVariantLink(Base, TimestampMixin):
@@ -415,6 +467,16 @@ class ProductVariantLink(Base, TimestampMixin):
     product: Mapped["Product"] = relationship()  # Assumindo que Product tem o back_populates
     variant: Mapped["Variant"] = relationship(back_populates="product_links")
 
+class ProductDefaultOption(Base, TimestampMixin):
+    __tablename__ = "product_default_options"
+    __table_args__ = (UniqueConstraint('product_id', 'variant_option_id', name='uix_product_default_option'),)
+
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), primary_key=True)
+    variant_option_id: Mapped[int] = mapped_column(ForeignKey("variant_options.id", ondelete="CASCADE"), primary_key=True)
+
+    # Relacionamentos para facilitar as consultas
+    product: Mapped["Product"] = relationship(back_populates="default_options")
+    option: Mapped["VariantOption"] = relationship()
 
 
 class Coupon(Base, TimestampMixin):
