@@ -87,9 +87,18 @@ async def get_customer_analytics_for_store(db: Session, store_id: int,
 # --- FUNÇÃO AUXILIAR RFM (sem alterações) ---
 
 def _perform_rfm_segmentation(customer_data: List[Dict], today: datetime) -> List[RfmSegment]:
-    # ... (seu código de RFM aqui, ele já está correto) ...
+
+
     df = pd.DataFrame(customer_data)
-    df['recency'] = (today.date() - pd.to_datetime(df['last_order_date']).dt.date).dt.days
+
+
+
+    df['last_order_date'] = pd.to_datetime(df['last_order_date'], errors='coerce')
+
+    df['recency'] = (today - df['last_order_date']).dt.days
+
+
+
     df['R_score'] = pd.qcut(df['recency'], 4, labels=[4, 3, 2, 1], duplicates='drop')
     df['F_score'] = pd.qcut(df['order_count'].rank(method='first'), 4, labels=[1, 2, 3, 4], duplicates='drop')
     df['M_score'] = pd.qcut(df['total_spent'].rank(method='first'), 4, labels=[1, 2, 3, 4], duplicates='drop')
