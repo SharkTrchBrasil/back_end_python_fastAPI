@@ -76,6 +76,12 @@ class ProductUpdate(AppBaseModel):
     cashback_value: Optional[int] = None
 
 
+# ✅ PASSO 1: CRIAR UM SCHEMA SIMPLES PARA A OPÇÃO PADRÃO
+class ProductDefaultOptionOut(AppBaseModel):
+    variant_option_id: int
+
+
+
 class ProductOut(Product):
     """
     Schema de resposta da API. É declarativo e poderoso.
@@ -84,12 +90,18 @@ class ProductOut(Product):
     id: int
     category: CategoryOut
 
-    # ✅ CORREÇÃO PRINCIPAL: Inclui a lista de 'ligações de variantes',
-    # que contém tanto as regras quanto o template do grupo.
-
     variant_links: List["ProductVariantLinkOut"] = []  # <-- Usar aspas
     components: List[KitComponentOut] = []
     rating: Optional[RatingsSummaryOut] = None
+    default_options: List[ProductDefaultOptionOut] = Field(default=[], exclude=True)
+
+
+
+
+
+
+
+
     @computed_field
     @property
     def image_path(self) -> str | None:
