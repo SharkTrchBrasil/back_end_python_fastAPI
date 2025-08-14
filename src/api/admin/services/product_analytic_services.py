@@ -13,13 +13,13 @@ from src.api.schemas.analytic_produc_schema import (
 )
 
 
-# --- FUNÇÃO SÍNCRONA AUXILIAR (SÓ PARA O BANCO) ---
 
 def _fetch_product_data_from_db(db: Session, store_id: int, start_date: datetime) -> List[Dict]:
     """
     Esta função contém APENAS a lógica de banco de dados para produtos.
     Ela é síncrona.
     """
+    # QUERY CORRIGIDA
     query = f"""
     WITH SalesSummary AS (
         SELECT
@@ -37,6 +37,7 @@ def _fetch_product_data_from_db(db: Session, store_id: int, start_date: datetime
         WHERE
             o.store_id = :store_id
             AND o.created_at >= :start_date
+            AND o.order_status = 'delivered' -- ✅ MOVIDO PARA CIMA E CORRIGIDO
         GROUP BY
             oi.product_id, p.cost_price
     )
@@ -56,14 +57,11 @@ def _fetch_product_data_from_db(db: Session, store_id: int, start_date: datetime
         SalesSummary ss ON p.id = ss.product_id
     WHERE
         p.store_id = :store_id
-        AND p.control_stock = TRUE;
-        AND o.created_at >= :start_date
-        AND o.order_status = 'delivered' #
+        AND p.control_stock = TRUE; -- ✅ PONTO E VÍRGULA REMOVIDO DAQUI E LINHAS ABAIXO TAMBÉM
     """
 
     result = db.execute(text(query), {"store_id": store_id, "start_date": start_date})
     return [dict(row) for row in result.mappings()]
-
 
 # --- FUNÇÃO PRINCIPAL ASSÍNCRONA (A que você chama) ---
 
