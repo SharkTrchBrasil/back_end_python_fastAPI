@@ -97,14 +97,21 @@ class ProductOut(Product):
 
         # ✅ A FORMA MAIS SIMPLES: um novo campo computado só com os IDs
 
+        # ✅ A CORREÇÃO É ADICIONAR ESTE CAMPO COMPUTADO
+
     @computed_field
     @property
     def default_option_ids(self) -> list[int]:
-        """Extrai apenas os IDs das opções padrão para o frontend consumir facilmente."""
-        if not hasattr(self, 'default_options'):
+        """
+        Extrai apenas os IDs das opções padrão para o frontend consumir facilmente.
+        """
+        # O 'self' aqui é uma instância do modelo SQLAlchemy 'Product'
+        # que o Pydantic está usando para criar o schema.
+        # Ele precisa ter o relacionamento 'default_options' carregado.
+        if not hasattr(self, 'default_options') or not self.default_options:
             return []
-        return [default.variant_option_id for default in self.default_options]
 
+        return [default.variant_option_id for default in self.default_options]
 
 
     # ✅ DIFERENCIAL GIGANTE: Estoque calculado para kits
