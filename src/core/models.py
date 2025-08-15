@@ -1011,26 +1011,33 @@ class StoreCustomer(Base, TimestampMixin):
     customer = relationship("Customer", back_populates="store_customers")
 
 
+
 class Address(Base):
     __tablename__ = "customer_addresses"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"), nullable=False)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"))
 
-    street: Mapped[str] = mapped_column(String(200), nullable=False)
-    number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    city_id: Mapped[int] = mapped_column(nullable=False)
-    city_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    reference: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    delivery_scope: Mapped[str] = mapped_column(String(20), nullable=False, default='city')
+    # --- Metadados do Endereço (Para organização do cliente) ---
+    label: Mapped[str] = mapped_column(String(50))  # Ex: "Casa", "Trabalho"
+    is_favorite: Mapped[bool] = mapped_column(default=False)
 
-    neighborhood_id: Mapped[Optional[int]] = mapped_column(ForeignKey("store_neighborhoods.id", ondelete="SET NULL"),
-                                                           nullable=True)
-    neighborhood_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    # --- Campos de Texto (Para exibição e geolocalização) ---
+    zip_code: Mapped[str] = mapped_column(String(9))
+    street: Mapped[str] = mapped_column(String(200))
+    number: Mapped[str] = mapped_column(String(50))
+    complement: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    neighborhood: Mapped[str] = mapped_column(String(100))
+    city: Mapped[str] = mapped_column(String(100))
+    state: Mapped[str] = mapped_column(String(2))
+    reference: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
 
+
+    city_id: Mapped[Optional[int]] = mapped_column(ForeignKey("store_cities.id"), nullable=True)
+    neighborhood_id: Mapped[Optional[int]] = mapped_column(ForeignKey("store_neighborhoods.id"), nullable=True)
+
+    # --- Relacionamento ---
     customer: Mapped["Customer"] = relationship("Customer", back_populates="customer_addresses")
-    neighborhood: Mapped[Optional["StoreNeighborhood"]] = relationship("StoreNeighborhood", lazy="joined")
-
 
 class Banner(Base, TimestampMixin):
     __tablename__ = "banners"

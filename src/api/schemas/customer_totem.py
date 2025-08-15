@@ -1,22 +1,32 @@
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 
-class AddressCreate(BaseModel):
-    street: str = Field(..., min_length=3)
-    number: str
-    city_id: Optional[int] = None  # Agora permite None/null
-    city_name: str | None = None
-    reference: str | None = None
-    neighborhood_id: Optional[int] = None # Se neighborhood_id também puder ser nulo
-    neighborhood_name: str | None = None
 
+class AddressCreate(BaseModel):
+    """Schema base com os campos comuns de um endereço, com validações."""
+    label: str = Field(..., max_length=50, description="Um rótulo para o endereço, ex: 'Casa', 'Trabalho'")
+    zip_code: str = Field(..., max_length=9, description="CEP, ex: '12345-678'")
+    street: str = Field(..., max_length=200)
+    number: str = Field(..., max_length=50)
+    complement: Optional[str] = Field(None, max_length=100)
+    neighborhood: str = Field(..., max_length=100)
+    city: str = Field(..., max_length=100)
+    state: str = Field(..., min_length=2, max_length=2, description="UF do estado, ex: 'SP'")
+    reference: Optional[str] = Field(None, max_length=150)
+    is_favorite: bool = Field(default=False)
+    city_id: int
+    neighborhood_id: int
 
 
 class AddressOut(AddressCreate):
     id: int
-    model_config = {
-        "from_attributes": True  # substitui orm_mode
-    }
+    # ✅ ELES ESTÃO AQUI!
+    city_id: Optional[int] = None
+    neighborhood_id: Optional[int] = None
+
+    class ConfigDict:
+        from_attributes = True
+
 
 class CustomerBase(BaseModel):
     name: str

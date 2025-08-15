@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 
 from src.api.schemas.customer_totem import (
     CustomerCreate,
@@ -16,7 +17,12 @@ router = APIRouter(tags=["Customers Info"], prefix="/customer")
 
 @router.post("/google", response_model=CustomerOut)
 def customer_login_google(customer_in: CustomerCreate, db: GetDBDep):
-    result = db.execute(select(Customer).filter(Customer.email == customer_in.email))
+    # ✅ CORREÇÃO: Modificamos a consulta para carregar os endereços
+    query = select(Customer).options(
+        selectinload(Customer.customer_addresses)  # <-- Pede para carregar os endereços junto
+    ).filter(Customer.email == customer_in.email)
+
+    result = db.execute(query)
     customer = result.scalars().first()
 
     if customer:
@@ -97,7 +103,12 @@ def update_customer_info(
     customer_update: CustomerUpdate,
     db: GetDBDep
 ):
-    result = db.execute(select(Customer).where(Customer.id == customer_id))
+    # ✅ CORREÇÃO: Também adicionamos o selectinload aqui
+    query = select(Customer).options(
+        selectinload(Customer.customer_addresses)
+    ).where(Customer.id == customer_id)
+
+    result = db.execute(query)
     customer = result.scalars().first()
 
     if not customer:
