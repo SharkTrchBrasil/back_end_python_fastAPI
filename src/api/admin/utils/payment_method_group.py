@@ -29,12 +29,10 @@ def _build_payment_groups_from_activations(
         if not method or not method.category:
             continue
 
-        method_out = PlatformPaymentMethodOut(
-            id=method.id,
-            name=method.name,
-            icon_key=method.icon_key,
-            activation=StorePaymentMethodActivationOut.model_validate(activation),
-        )
+        method_out = PlatformPaymentMethodOut.model_validate(method)
+
+        method_out.activation = StorePaymentMethodActivationOut.model_validate(activation)
+
         categories[method.category.id].append(method_out)
 
     all_categories_processed = set()
