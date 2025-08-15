@@ -5,7 +5,7 @@ from typing import List, Optional
 class AddressCreate(BaseModel):
     """Schema base com os campos comuns de um endereço, com validações."""
     label: str = Field(..., max_length=50, description="Um rótulo para o endereço, ex: 'Casa', 'Trabalho'")
-    zip_code: str = Field(..., max_length=9, description="CEP, ex: '12345-678'")
+
     street: str = Field(..., max_length=200)
     number: str = Field(..., max_length=50)
     complement: Optional[str] = Field(None, max_length=100)

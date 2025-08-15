@@ -1023,7 +1023,7 @@ class Address(Base):
     is_favorite: Mapped[bool] = mapped_column(default=False)
 
     # --- Campos de Texto (Para exibição e geolocalização) ---
-    zip_code: Mapped[str] = mapped_column(String(9))
+
     street: Mapped[str] = mapped_column(String(200))
     number: Mapped[str] = mapped_column(String(50))
     complement: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
