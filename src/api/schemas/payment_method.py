@@ -20,8 +20,8 @@ class PlatformPaymentMethodOut(BaseModel):
     id: int
     name: str
     icon_key: str | None = None
-    type: str = Field(..., alias='method_type')
-    # Aninha a configuração específica da loja dentro do método
+    method_type: str
+
     activation: StorePaymentMethodActivationOut | None = None
 
     class Config:
