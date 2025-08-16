@@ -1,83 +1,85 @@
 from datetime import datetime
-from enum import Enum
 from pydantic import BaseModel, Field, field_serializer
-from typing import Optional
+from typing import Optional, Any
 
 from src.api.schemas.product import ProductOut
 
 
-class DiscountType(str, Enum):
-    PERCENTAGE = 'percentage'
-    FIXED = 'fixed'
+# ===================================================================
+# ✅ NOVO: Schema para representar as REGRAS
+# ===================================================================
+class CouponRuleSchema(BaseModel):
+    # 'MIN_SUBTOTAL', 'FIRST_ORDER', 'TARGET_PRODUCT', 'TARGET_CATEGORY', 'MAX_USES_TOTAL', 'MAX_USES_PER_CUSTOMER'
+    rule_type: str = Field(..., alias="ruleType")
+
+    # Dicionário flexível para os valores da regra. Ex: {"value": 5000} ou {"product_id": 123}
+    value: dict[str, Any]
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True  # Permite usar tanto 'rule_type' quanto 'ruleType'
 
 
+# ===================================================================
+# Schema Base do Cupom (Refatorado)
+# ===================================================================
 class CouponBase(BaseModel):
     code: str = Field(
-        ..., min_length=3, max_length=20,
+        ..., min_length=3, max_length=50,
         pattern=r'^[A-Z0-9]+$',
         description="Código do cupom em maiúsculas sem espaços ou caracteres especiais"
     )
-    discount_type: DiscountType = Field(default=DiscountType.PERCENTAGE)
-    discount_value: int = Field(..., gt=0, description="Valor do desconto em centavos ou percentual")
+    description: str = Field(..., min_length=3, max_length=255)
 
-    max_uses: Optional[int] = Field(None, gt=0, description="Número máximo de usos totais")
-    max_uses_per_customer: Optional[int] = Field(None, gt=0, alias="maxUsesPerCustomer",
-                                                description="Número máximo de usos por cliente")
-    min_order_value: Optional[int] = Field(None, gt=0, alias="minOrderValue",
-                                           description="Valor mínimo do pedido em centavos")
+    # A AÇÃO do cupom
+    discount_type: str = Field(..., alias="discountType")  # 'PERCENTAGE', 'FIXED_AMOUNT', 'FREE_DELIVERY'
+    discount_value: float = Field(..., gt=0, alias="discountValue")
 
-    start_date: datetime
-    end_date: datetime
+    max_discount_amount: Optional[int] = Field(None, gt=0, alias="maxDiscountAmount",
+                                               description="Teto do desconto em centavos para %")
 
-    only_new_customers: bool = Field(default=False, alias="onlyNewCustomers",
-                                    description="Se o cupom é válido apenas para novos clientes")
+    # Validade
+    start_date: datetime = Field(..., alias="startDate")
+    end_date: datetime = Field(..., alias="endDate")
+    is_active: bool = Field(default=True, alias="isActive")
 
-    is_active: bool = Field(default=True, description="Se o cupom está ativo")
+    class Config:
+        from_attributes = True
+        populate_by_name = True  # Essencial para os aliases funcionarem
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+# ===================================================================
+# Schemas para Criar e Atualizar
+# ===================================================================
+class CouponCreate(CouponBase):
+    # Agora, em vez de campos de regra individuais, recebemos uma lista de regras
+    rules: list[CouponRuleSchema] = []
+
+
+class CouponUpdate(BaseModel):
+    # Todos os campos são opcionais na atualização
+    code: Optional[str] = Field(None, min_length=3, max_length=50, pattern=r'^[A-Z0-9]+$')
+    description: Optional[str] = Field(None, min_length=3, max_length=255)
+    discount_type: Optional[str] = Field(None, alias="discountType")
+    discount_value: Optional[float] = Field(None, gt=0, alias="discountValue")
+    max_discount_amount: Optional[int] = Field(None, gt=0, alias="maxDiscountAmount")
+    start_date: Optional[datetime] = Field(None, alias="startDate")
+    end_date: Optional[datetime] = Field(None, alias="endDate")
+    is_active: Optional[bool] = Field(None, alias="isActive")
+    rules: Optional[list[CouponRuleSchema]] = None
+
+
+# ===================================================================
+# Schema para Exibir (Saída da API)
+# ===================================================================
+class CouponOut(CouponBase):
+    id: int
+    rules: list[CouponRuleSchema] = []  # Exibe as regras associadas ao cupom
+
+    # Opcional: Contar e exibir o número de usos
+    # total_usages: int = Field(0, alias="totalUsages")
 
     @field_serializer('start_date', 'end_date')
     def serialize_datetime(self, value: datetime | None) -> str | None:
         return value.isoformat() if value else None
-
-    class Config:
-        json_encoders = {datetime: lambda v: v.isoformat()}
-        from_attributes = True  # Para suportar ORM
-class CouponCreate(CouponBase):
-    product_id: Optional[int] = Field(None, description="ID do produto específico, se aplicável")
-
-
-class CouponOut(CouponBase):
-    id: int
-    used: int = Field(0, description="Número de vezes que o cupom foi usado")
-    product: Optional[ProductOut] = None
-
-
-
-    class Config:
-        from_attributes = True  # ✅ Isso permite aceitar ORM direto
-
-
-
-    @property
-    def is_expired(self) -> bool:
-        return datetime.now() > self.end_date
-
-    @property
-    def is_fully_used(self) -> bool:
-        return self.max_uses is not None and self.used >= self.max_uses
-
-
-class CouponUpdate(BaseModel):
-    code: Optional[str] = Field(None, min_length=3, max_length=20)
-    discount_type: Optional[DiscountType] = None
-    discount_value: Optional[int] = Field(None, gt=0)
-
-    max_uses: Optional[int] = Field(None, gt=0)
-    max_uses_per_customer: Optional[int] = Field(None, gt=0, alias="maxUsesPerCustomer")
-    min_order_value: Optional[int] = Field(None, gt=0, alias="minOrderValue")
-
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-
-    only_new_customers: Optional[bool] = Field(None, alias="onlyNewCustomers")
-    is_active: Optional[bool] = None
-    product_id: Optional[int] = None

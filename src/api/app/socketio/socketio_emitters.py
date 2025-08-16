@@ -1,6 +1,6 @@
 # Em seu arquivo de serviços/emissores do app
 
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 from src.core import models
 from src.socketio_instance import sio
 from src.api.schemas.product import ProductOut
@@ -15,14 +15,23 @@ async def emit_store_updated(db, store_id: int):
     Esta função NÃO emite o catálogo de produtos.
     """
 
+    # 3. Carregar TODOS os dados da loja com a "Super Consulta"
     store = db.query(models.Store).options(
-        # ✅ CORREÇÃO: Carregando a nova estrutura de pagamentos em cascata
-        selectinload(models.Store.payment_activations)  # Store -> Ativações da loja
-        .selectinload(models.StorePaymentMethodActivation.platform_method)  # Ativação -> Método da Plataforma
-        .selectinload(models.PlatformPaymentMethod.category)  # Método -> Categoria
+
+        selectinload(models.Store.payment_activations)
+        .selectinload(models.StorePaymentMethodActivation.platform_method)
+        .selectinload(models.PlatformPaymentMethod.category)
         .selectinload(models.PaymentMethodCategory.group),
-         selectinload(models.Store.hours)
-        # Carregue apenas o que for relevante para a página inicial da loja
+
+        joinedload(models.Store.store_operation_config),
+        selectinload(models.Store.hours),
+        selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
+        # ✅ MUDANÇA AQUI: Agora também carregamos as regras de cada cupom
+        selectinload(models.Store.coupons).selectinload(models.Coupon.rules),
+
+
+        selectinload(models.Store.subscriptions).joinedload(models.StoreSubscription.plan)
+
     ).filter(models.Store.id == store_id).first()
 
     if store:
@@ -57,6 +66,7 @@ async def emit_products_updated(db, store_id: int):
         selectinload(models.Product.variant_links)
         .selectinload(models.ProductVariantLink.variant)
         .selectinload(models.Variant.options)
+
         .selectinload(models.VariantOption.linked_product)
     ).filter(models.Product.store_id == store_id).all()
 

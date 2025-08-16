@@ -3,7 +3,9 @@
 from datetime import datetime, timezone
 from operator import or_
 from pydantic import ValidationError
+from sqlalchemy.orm import selectinload
 
+from src.api.admin.utils.coupon_validator import CouponValidator
 # --- Importações do Projeto ---
 from src.core import models
 from src.core.database import get_db_manager
@@ -45,40 +47,45 @@ async def list_coupons(sid):
 
 @sio.event
 async def apply_coupon_to_cart(sid, data):
-    """
-    Ação principal: Valida um cupom e o aplica ao carrinho ativo do usuário.
-    Substitui a necessidade do antigo 'check_coupon'.
-    """
     print(f"[COUPON] Evento apply_coupon_to_cart recebido: {data}")
     with get_db_manager() as db:
         try:
             input_data = ApplyCouponInput.model_validate(data)
-            session = db.query(models.StoreSession).filter_by(sid=sid).first()
+            session = db.query(models.CustomerSession).filter_by(sid=sid).first() # Mudei para CustomerSession
             if not session or not session.customer_id:
                 return {'error': 'Usuário não autenticado'}
 
-            # 1. Valida o cupom usando a propriedade .is_valid
-            coupon = db.query(models.Coupon).filter(
+            # 1. Busca os dados necessários
+            coupon = db.query(models.Coupon).options(selectinload(models.Coupon.rules)).filter(
                 models.Coupon.code == input_data.coupon_code.upper(),
                 models.Coupon.store_id == session.store_id
             ).first()
 
-            if not coupon or not coupon.is_valid:
-                return {'error': 'Cupom inválido, expirado ou esgotado.'}
+            if not coupon:
+                return {'error': 'Cupom inválido.'}
 
-            # 2. Pega o carrinho ativo do usuário (reutilizando nossa função)
             cart = _get_full_cart_query(db, session.customer_id, session.store_id)
-            if not cart:
-                return {'error': 'Carrinho não encontrado para aplicar o cupom.'}
+            customer = db.query(models.Customer).filter_by(id=session.customer_id).first()
 
-            # 3. Aplica o cupom ao carrinho no banco de dados
-            cart.coupon = coupon
+            if not cart or not customer:
+                return {'error': 'Carrinho ou cliente não encontrado.'}
+
+            # 2. Usa o novo "Motor de Validação"
+            validator = CouponValidator(db=db, coupon=coupon, cart=cart, customer=customer)
+            if not validator.validate():
+                # Retorna a mensagem de erro específica gerada pelo validador
+                return {'error': validator.error_message or 'Este cupom não é válido para sua compra.'}
+
+            # 3. Se passou, aplica o cupom ao carrinho
+            cart.coupon_id = coupon.id
+            cart.coupon_code = coupon.code # Guardar o código facilita a exibição na UI
             db.commit()
 
             # 4. Retorna o estado completo e atualizado do carrinho
             updated_cart = _get_full_cart_query(db, session.customer_id, session.store_id)
-            final_schema = _build_cart_schema(updated_cart)
+            final_schema = _build_cart_schema(updated_cart) # Você precisará ajustar _build_cart_schema para aplicar o desconto
             return {"success": True, "cart": final_schema.model_dump(mode="json")}
+
 
         except ValidationError as e:
             return {'error': 'Código do cupom inválido', 'details': e.errors()}

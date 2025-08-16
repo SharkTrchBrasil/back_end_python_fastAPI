@@ -487,91 +487,64 @@ class ProductDefaultOption(Base, TimestampMixin):
     option: Mapped["VariantOption"] = relationship()
 
 
+# Em seu arquivo de modelos (ex: src/core/models/coupon.py)
+
 class Coupon(Base, TimestampMixin):
     __tablename__ = "coupons"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    description: Mapped[str] = mapped_column(String(255))
 
-    code: Mapped[str] = mapped_column(unique=True, index=True)
+    # A AÇÃO do cupom
+    discount_type: Mapped[str] = mapped_column(String(20))  # 'PERCENTAGE', 'FIXED_AMOUNT', 'FREE_DELIVERY'
+    discount_value: Mapped[float] = mapped_column() # Em % ou centavos
 
-    discount_type: Mapped[str] = mapped_column(default='percentage')  # 'percentage' ou 'fixed'
-    discount_value: Mapped[int] = mapped_column()  # valor em centavos ou percentual
+    max_discount_amount: Mapped[int] = mapped_column(nullable=True) # Teto do desconto em centavos
 
-    max_uses: Mapped[int | None] = mapped_column(default=None)  # None = ilimitado
-    used: Mapped[int] = mapped_column(default=0)
-    max_uses_per_customer: Mapped[int | None] = mapped_column(default=1)
-
-    min_order_value: Mapped[int | None] = mapped_column(default=None)  # valor mínimo em centavos
-
+    # Validade e Status
     start_date: Mapped[datetime] = mapped_column()
     end_date: Mapped[datetime] = mapped_column()
-
     is_active: Mapped[bool] = mapped_column(default=True)
 
-    # Renomeado para manter coerência com o schema Pydantic
-    only_new_customers: Mapped[bool] = mapped_column(default=False)
-
-    store_id: Mapped[int | None] = mapped_column(
-        ForeignKey("stores.id", ondelete="SET NULL"),
-        nullable=True
-    )
+    # Relacionamentos
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     store: Mapped["Store"] = relationship(back_populates="coupons")
 
-    product_id: Mapped[int | None] = mapped_column(
-        ForeignKey("products.id", ondelete="SET NULL"),
-        nullable=True
-    )
-    product: Mapped["Product"] = relationship()
+    rules = relationship("CouponRule", back_populates="coupon", cascade="all, delete-orphan")
+    usages = relationship("CouponUsage", back_populates="coupon", cascade="all, delete-orphan")
+    # A relação com 'Order' é movida para 'CouponUsage'
 
-    orders: Mapped[list["Order"]] = relationship(
-        back_populates="coupon",
-        cascade="all, delete-orphan"
-    )
 
-    @property
-    def is_expired(self) -> bool:
-        return datetime.now() > self.end_date
+class CouponRule(Base):
+    __tablename__ = "coupon_rules"
 
-    @property
-    def is_fully_used(self) -> bool:
-        return self.max_uses is not None and self.used >= self.max_uses
+    id: Mapped[int] = mapped_column(primary_key=True)
+    coupon_id: Mapped[int] = mapped_column(ForeignKey("coupons.id"))
 
-    @property
-    def can_be_deleted(self) -> bool:
-        return len(self.orders) == 0
+    # O TIPO de regra
+    rule_type: Mapped[str] = mapped_column(String(50))
+    # Ex: 'MIN_SUBTOTAL', 'FIRST_ORDER', 'TARGET_PRODUCT', 'TARGET_CATEGORY', 'MAX_USES_TOTAL', 'MAX_USES_PER_CUSTOMER'
 
-    # ✅ SUBSTITUA PELA NOVA FUNÇÃO is_now_valid
-    def is_now_valid(self, subtotal_in_cents: int = 0, customer: "Customer" = None) -> bool:
-        """
-        Verifica se o cupom é válido NO MOMENTO ATUAL e para o CONTEXTO
-        de um carrinho/cliente específico.
-        """
-        # 1. Validações básicas do cupom
-        if not self.is_active:
-            return False
+    # O VALOR da regra (usar JSONB é super flexível)
+    # Ex: {'value': 5000} para subtotal, {'product_id': 123}, {'limit': 1} para uso por cliente
+    value: Mapped[dict] = mapped_column(JSONB)
 
-        # 2. Validação de uso (corrigida para lidar com `None`)
-        if self.max_uses is not None and self.used >= self.max_uses:
-            return False
+    coupon = relationship("Coupon", back_populates="rules")
 
-        # 3. Validação de data
-        now = datetime.now(timezone.utc)
-        if self.start_date > now or self.end_date < now:
-            return False
 
-        # 4. Validação de valor mínimo do pedido (campo que estava faltando na lógica)
-        if self.min_order_value is not None and subtotal_in_cents < self.min_order_value:
-            return False
+class CouponUsage(Base):
+    __tablename__ = "coupon_usages"
 
-        # 5. Validações relacionadas ao cliente (campos que estavam faltando)
-        # (A lógica exata aqui pode variar, mas este é o lugar para colocá-la)
-        if self.only_new_customers and customer and customer.orders:
-            return False  # Se o cliente já tem pedidos, não é novo
+    id: Mapped[int] = mapped_column(primary_key=True)
+    coupon_id: Mapped[int] = mapped_column(ForeignKey("coupons.id"))
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), unique=True) # Garante um uso por pedido
+    used_at: Mapped[datetime] = mapped_column(default=func.now())
 
-        # if self.max_uses_per_customer ... (lógica mais complexa aqui)
-
-        # Se passou por todas as validações, o cupom é válido.
-        return True
+    coupon = relationship("Coupon", back_populates="usages")
+    customer = relationship("Customer")
+    order = relationship("Order") # Se precisar navegar do uso para o pedido
 
 class TotemAuthorization(Base, TimestampMixin):
     __tablename__ = "totem_authorizations"

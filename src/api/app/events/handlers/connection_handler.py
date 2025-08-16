@@ -60,7 +60,8 @@ async def handler_totem_on_connect(self, sid, environ):
                 joinedload(models.Store.store_operation_config),
                 selectinload(models.Store.hours),
                 selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
-                selectinload(models.Store.coupons),
+                # ✅ MUDANÇA AQUI: Agora também carregamos as regras de cada cupom
+                selectinload(models.Store.coupons).selectinload(models.Coupon.rules),
 
                 # ✅ CONSULTA AOS PRODUTOS AGRUPADA E OTIMIZADA
                 selectinload(models.Store.products).options(

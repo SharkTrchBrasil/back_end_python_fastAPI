@@ -82,7 +82,9 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
             # ATENÇÃO: Carregar 'orders' pode ser pesado para lojas com muitos pedidos.
             # Considere carregar os pedidos em uma consulta separada com paginação.
             selectinload(models.Store.orders),
-            selectinload(models.Store.coupons),
+
+            selectinload(models.Store.coupons).selectinload(models.Coupon.rules),
+
             selectinload(models.Store.commands),
             selectinload(models.Store.cashier_sessions),
             selectinload(models.Store.store_customers).joinedload(models.StoreCustomer.customer),
