@@ -508,13 +508,16 @@ class Coupon(Base, TimestampMixin):
 
     # Relacionamentos
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+
+    # --- RELACIONAMENTOS CORRETOS ---
     store: Mapped["Store"] = relationship(back_populates="coupons")
 
-    # A relação com 'usages' está correta
-    usages = relationship("CouponUsage", back_populates="coupon", cascade="all, delete-orphan")
+    # ✅ Um cupom pode ter várias regras
     rules = relationship("CouponRule", back_populates="coupon", cascade="all, delete-orphan")
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    store: Mapped["Store"] = relationship(back_populates="coupons")
+
+    # ✅ Um cupom pode ser usado várias vezes (vários registros de uso)
+    usages = relationship("CouponUsage", back_populates="coupon", cascade="all, delete-orphan")
+
 
 class CouponRule(Base):
     __tablename__ = "coupon_rules"
@@ -542,13 +545,15 @@ class CouponUsage(Base):
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), unique=True) # Garante um uso por pedido
     used_at: Mapped[datetime] = mapped_column(default=func.now())
 
-    # Relação de volta para Coupon
+    # --- RELACIONAMENTOS CORRETOS ---
+
+    # ✅ Um registro de uso pertence a um cupom
     coupon = relationship("Coupon", back_populates="usages")
 
-    # Relação de um-para-um com Order
+    # ✅ Um registro de uso pertence a um pedido (um-para-um)
     order: Mapped["Order"] = relationship(back_populates="coupon_usage")
-    customer = relationship("Customer")  # Relação com Customer
 
+    customer = relationship("Customer")
 class TotemAuthorization(Base, TimestampMixin):
     __tablename__ = "totem_authorizations"
 
@@ -1109,10 +1114,6 @@ class Order(Base, TimestampMixin):
     cashback_used: Mapped[int] = mapped_column(default=0)
 
 
-
-    coupon_id: Mapped[int | None] = mapped_column(ForeignKey("coupons.id", ondelete="SET NULL"), nullable=True)
-    coupon_code: Mapped[str | None] = mapped_column(nullable=True)
-    coupon = relationship("Coupon", back_populates="orders")
     products: Mapped[list["OrderProduct"]] = relationship(backref="order")
     store = relationship("Store", back_populates="orders")
     transactions: Mapped[list["CashierTransaction"]] = relationship(back_populates="order")
@@ -1147,6 +1148,7 @@ class Order(Base, TimestampMixin):
         cascade="all, delete-orphan"  # Garante que ao apagar um pedido, os pagamentos parciais também sejam apagados.
     )
 
+    # ✅ Um pedido pode ter um (e apenas um) registro de uso de cupom
     coupon_usage: Mapped["CouponUsage"] = relationship(back_populates="order")
 
     # Você ainda pode manter a propriedade para uma checagem rápida
