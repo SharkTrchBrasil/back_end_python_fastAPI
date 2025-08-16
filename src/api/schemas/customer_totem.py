@@ -11,7 +11,7 @@ class AddressCreate(BaseModel):
     complement: Optional[str] = Field(None, max_length=100)
     neighborhood: str = Field(..., max_length=100)
     city: str = Field(..., max_length=100)
-    state: str = Field(..., min_length=2, max_length=2, description="UF do estado, ex: 'SP'")
+
     reference: Optional[str] = Field(None, max_length=150)
     is_favorite: bool = Field(default=False)
     city_id: int
