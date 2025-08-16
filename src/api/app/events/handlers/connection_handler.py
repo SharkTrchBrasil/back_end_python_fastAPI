@@ -4,8 +4,7 @@ from urllib.parse import parse_qs
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import selectinload, joinedload
 
-from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations
-
+from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations_simplified
 from src.core import models
 from src.core.database import get_db_manager
 from src.api.app.services.authorize_totem import authorize_totem
@@ -105,7 +104,7 @@ async def handler_totem_on_connect(self, sid, environ):
 
             # ✅ AQUI ESTÁ A MÁGICA:
             # 1. Chame a função de transformação com as ativações carregadas
-            payment_groups_structured = _build_payment_groups_from_activations(store.payment_activations)
+            payment_groups_structured = _build_payment_groups_from_activations_simplified(store.payment_activations)
 
             # 2. Atribua o resultado estruturado diretamente ao schema
             store_schema.payment_method_groups = payment_groups_structured
