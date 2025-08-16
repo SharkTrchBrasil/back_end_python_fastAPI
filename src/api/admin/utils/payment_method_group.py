@@ -13,7 +13,7 @@ from collections import defaultdict
 
 
 def _build_payment_groups_from_activations_simplified(
-        activations: list[models.StorePaymentMethodActivation],
+    activations: list[models.StorePaymentMethodActivation],
 ) -> list[PaymentMethodGroupOut]:
     """
     Versão simplificada que constrói a hierarquia de pagamentos em uma única passagem.
@@ -26,14 +26,11 @@ def _build_payment_groups_from_activations_simplified(
         if not method or not method.category or not method.category.group:
             continue
 
-        # A mesma correção: Pydantic converte o método, nós anexamos a ativação
         method_out = PlatformPaymentMethodOut.model_validate(method)
         method_out.activation = StorePaymentMethodActivationOut.model_validate(activation)
 
-        # Agrupa o método dentro de sua categoria e grupo
         grouped_structure[method.category.group][method.category].append(method_out)
 
-    # Agora, transforma a estrutura agrupada na lista de schemas Pydantic de saída
     final_groups = []
     for group_model, categories in grouped_structure.items():
         category_list = []
@@ -52,9 +49,18 @@ def _build_payment_groups_from_activations_simplified(
             )
         )
 
-    # Ordena o resultado final pela prioridade do grupo
-    return sorted(final_groups, key=lambda g: grouped_structure.keys().__next__().priority)
-
+    # ✅ CORREÇÃO AQUI: Acessando a prioridade correta para cada grupo.
+    return sorted(
+        final_groups,
+        key=lambda g: next(
+            (
+                group_model.priority
+                for group_model in grouped_structure.keys()
+                if group_model.name == g.name
+            ),
+            0,  # Valor padrão caso o grupo não seja encontrado (segurança)
+        ),
+    )
 
 # def _build_payment_groups_from_activations(
 #         activations: list[models.StorePaymentMethodActivation],
