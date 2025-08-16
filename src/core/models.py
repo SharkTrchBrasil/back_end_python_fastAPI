@@ -487,7 +487,6 @@ class ProductDefaultOption(Base, TimestampMixin):
     option: Mapped["VariantOption"] = relationship()
 
 
-# Em seu arquivo de modelos (ex: src/core/models/coupon.py)
 
 class Coupon(Base, TimestampMixin):
     __tablename__ = "coupons"
@@ -544,7 +543,10 @@ class CouponUsage(Base):
 
     coupon = relationship("Coupon", back_populates="usages")
     customer = relationship("Customer")
-    order = relationship("Order") # Se precisar navegar do uso para o pedido
+    order: Mapped["Order"] = relationship(back_populates="coupon_usage")
+
+
+
 
 class TotemAuthorization(Base, TimestampMixin):
     __tablename__ = "totem_authorizations"
@@ -1143,6 +1145,8 @@ class Order(Base, TimestampMixin):
         back_populates="order",
         cascade="all, delete-orphan"  # Garante que ao apagar um pedido, os pagamentos parciais também sejam apagados.
     )
+
+    coupon_usage: Mapped["CouponUsage"] = relationship(back_populates="order")
 
     # Você ainda pode manter a propriedade para uma checagem rápida
     @hybrid_property
