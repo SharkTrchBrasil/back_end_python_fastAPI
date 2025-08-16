@@ -16,9 +16,13 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.post("", response_model=UserSchema, status_code=201)
 def create_user(user_data: UserCreate, db: GetDBDep):
-    # Verifica se já existe um usuário com o mesmo e-mail
+    # ✅ SUA VALIDAÇÃO DE E-MAIL EXISTENTE
     if db.query(models.User).filter(models.User.email == user_data.email).first():
-        raise HTTPException(status_code=400, detail="User with this email already exists")
+        raise HTTPException(status_code=409, detail="Este e-mail já está em uso.")
+
+    # ✅ NOVA VALIDAÇÃO DE TELEFONE
+    if user_data.phone and db.query(models.User).filter(models.User.phone == user_data.phone).first():
+        raise HTTPException(status_code=409, detail="Este telefone já está em uso.")
 
     # --- LÓGICA DE INDICAÇÃO (REFERRAL) ---
     referrer_id = None
