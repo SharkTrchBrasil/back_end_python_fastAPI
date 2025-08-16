@@ -80,7 +80,8 @@ class Store(Base, TimestampMixin):
     rating_count: Mapped[int | None] = mapped_column(default=0)
     file_key: Mapped[str | None] = mapped_column(nullable=True)
     banner_file_key: Mapped[str | None] = mapped_column(nullable=True)
-
+    signature_file_key: Mapped[str | None] = mapped_column(nullable=True,
+                                                           doc="Chave do arquivo da assinatura no serviço de armazenamento (S3, etc.)")
     # --- Gerenciamento da Plataforma ---
     is_active: Mapped[bool] = mapped_column(default=True)
     is_setup_complete: Mapped[bool] = mapped_column(default=False)

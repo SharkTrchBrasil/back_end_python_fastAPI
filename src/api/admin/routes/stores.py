@@ -1,7 +1,8 @@
 # src/api/admin/routes/store.py
 import asyncio
+import base64
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import  UploadFile, Form
@@ -28,127 +29,156 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response
 router = APIRouter(prefix="/stores", tags=["Stores"])
 
 
+# ✅ ROTA CORRIGIDA E FINALIZADA
 @router.post("", response_model=StoreWithRole)
 def create_store(
         db: GetDBDep,
         user: GetCurrentUserDep,
-        store_data: StoreCreate
+        # --- Dados via Formulário (como no PATCH) ---
+        name: str = Form(...),
+        store_url: str = Form(...),
+        phone: str = Form(...),
+        description: str | None = Form(None),
+        cnpj: str | None = Form(None),
+        segment_id: int = Form(...),
+        # Endereço
+        cep: str = Form(...),
+        street: str = Form(...),
+        number: str = Form(...),
+        complement: str | None = Form(None),
+        neighborhood: str = Form(...),
+        city: str = Form(...),
+        uf: str = Form(...),
+        # Responsável
+        responsible_name: str = Form(...),
+        responsible_phone: str = Form(...),
+        # Assinatura
+        signature_base64: str | None = Form(None)
 ):
-    # Criação da loja com todos os campos
+    # =======================================================================
+    # ✅ PASSO 1: VALIDAÇÕES DE UNICIDADE
+    # =======================================================================
+    print("🔎 Verificando se os dados já existem no banco...")
+
+    # 1. Verifica se o CNPJ da loja já está em uso (se foi fornecido)
+    if cnpj:
+        existing_store_by_cnpj = db.query(models.Store).filter(models.Store.cnpj == cnpj).first()
+        if existing_store_by_cnpj:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="O CNPJ informado já está cadastrado em outra loja."
+            )
+
+    # 3. Verifica se o telefone do responsável já está em uso por OUTRO usuário
+    if phone:
+        existing_user_by_phone = db.query(models.User).filter(
+            models.User.phone == phone,
+            models.User.id != user.id
+        ).first()
+        if existing_user_by_phone:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="O telefone do responsável já está associado a outra conta."
+            )
+
+    print("👍 Dados únicos. Prosseguindo com a criação da loja...")
+
+    # =======================================================================
+
+
+
+    # =======================================================================
+    # PASSO 3: CRIA A LOJA
+    # =======================================================================
     db_store = models.Store(
-        name=store_data.name,
-        phone=store_data.phone,
-        url_slug=store_data.store_url,
-        description=store_data.description,
-        segment_id=store_data.segment_id,
-        cnpj=store_data.cnpj,
-
-        # Dados de endereço
-        zip_code=store_data.address.cep,
-        street=store_data.address.street,
-        number=store_data.address.number,
-        complement=store_data.address.complement,
-        neighborhood=store_data.address.neighborhood,
-        city=store_data.address.city,
-        state=store_data.address.uf,
-
-        # Dados do responsável
-        responsible_name=store_data.responsible.name,
-        responsible_phone=store_data.responsible.phone,
-
-        # Valores padrão
-        is_active=True,
-        is_setup_complete=False,
+        name=name, phone=phone, url_slug=store_url, description=description,
+        segment_id=segment_id, cnpj=cnpj, zip_code=cep, street=street, number=number,
+        complement=complement, neighborhood=neighborhood, city=city, state=uf,
+        responsible_name=responsible_name, responsible_phone=responsible_phone,
+        is_active=True, is_setup_complete=False,
         verification_status=StoreVerificationStatus.UNVERIFIED
     )
-
-
     db.add(db_store)
     db.flush()
 
 
+    # =======================================================================
+    # PASSO 4: PROCESSA A ASSINATURA (Sua lógica, um pouco ajustada)
+    # =======================================================================
+    if signature_base64:
+        try:
+            # Tenta remover o cabeçalho 'data:image/png;base64,' se ele existir
+            if "," in signature_base64:
+                header, encoded = signature_base64.split(",", 1)
+            else:
+                encoded = signature_base64
 
-    # Cria as configurações de entrega usando o id já gerado
-    # Cria a configuração unificada da loja usando o id já gerado
+            image_data = base64.b64decode(encoded)
+
+            # Supondo que você tenha a função 'upload_file_bytes'
+            file_key = upload_file(image_data)
+            db_store.signature_file_key = file_key
+        except Exception as e:
+            print(f"Erro ao processar a assinatura: {e}")
+            raise HTTPException(status_code=400, detail="Formato de assinatura inválido.")
+
+    # =======================================================================
+    # PASSO 5: CRIA OBJETOS RELACIONADOS (Sua lógica está perfeita)
+    # =======================================================================
+
+    # O Python automaticamente vai mapear as chaves do dicionário para os parâmetros do modelo.
     db_store_configuration = models.StoreOperationConfig(
         store_id=db_store.id,
-
-        # --- Campos que eram do 'StoreSettings' ---
         is_store_open=True,
         auto_accept_orders=False,
         auto_print_orders=False,
-        # (os campos de impressora podem ficar com o valor padrão do banco de dados, que é None)
-
-        # --- Campos que eram do 'StoreDeliveryConfiguration' ---
-        # Usamos .get() para pegar os valores do seu dicionário de defaults de forma segura
-        delivery_enabled=default_delivery_settings.get("delivery_enabled", True),
-        delivery_estimated_min=default_delivery_settings.get("delivery_estimated_min"),
-        delivery_estimated_max=default_delivery_settings.get("delivery_estimated_max"),
-        delivery_fee=default_delivery_settings.get("delivery_fee"),
-        delivery_min_order=default_delivery_settings.get("delivery_min_order"),
-
-        pickup_enabled=default_delivery_settings.get("pickup_enabled", True),
-        pickup_estimated_min=default_delivery_settings.get("pickup_estimated_min"),
-        pickup_estimated_max=default_delivery_settings.get("pickup_estimated_max"),
-        pickup_instructions=default_delivery_settings.get("pickup_instructions"),
-
-        table_enabled=default_delivery_settings.get("table_enabled", True),
-        table_estimated_min=default_delivery_settings.get("table_estimated_min"),
-        table_estimated_max=default_delivery_settings.get("table_estimated_max"),
-        table_instructions=default_delivery_settings.get("table_instructions"),
+        **default_delivery_settings  # <--- A mágica acontece aqui
     )
 
-    # Adiciona o único objeto de configuração ao banco de dados
+
+
+
     db.add(db_store_configuration)
 
     totem_token = str(uuid.uuid4())
-
     totem_auth = models.TotemAuthorization(
-        store_id=db_store.id,
-        totem_token=totem_token,
-        public_key = totem_token,
-        totem_name = db_store.name,
-        granted=True,
-        granted_by_id= user.id,
+        store_id=db_store.id, totem_token=totem_token, public_key=totem_token,
+        totem_name=db_store.name, granted=True, granted_by_id=user.id,
         store_url=db_store.url_slug,
     )
     db.add(totem_auth)
 
-    # Cria vínculo do usuário com a loja como dono
     db_role = db.query(models.Role).filter(models.Role.machine_name == "owner").first()
     db_store_access = models.StoreAccess(user=user, role=db_role, store=db_store)
     db.add(db_store_access)
 
-    # Busca pelo plano gratuito ("Essencial") no banco de dados
     free_plan = db.query(models.Plans).filter_by(price=0, available=True).first()
-
-    # Validação crítica: Garante que um plano gratuito exista no sistema.
-    # Sem ele, o modelo de negócio não funciona.
     if not free_plan:
-        db.rollback()  # Desfaz a criação da loja para manter a consistência dos dados
-        raise HTTPException(
-            status_code=500,  # Erro interno do servidor
-            detail="Erro de configuração do sistema: Nenhum plano gratuito foi encontrado."
-        )
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Configuração do sistema: Nenhum plano gratuito encontrado.")
 
-    # Define o período da assinatura gratuita como "infinita" (ex: 100 anos)
-    start_date = datetime.utcnow()
+    start_date = datetime.now(timezone.utc)
     end_date = start_date + timedelta(days=365)
-
-    # Cria a assinatura inicial para a nova loja, já no plano gratuito
     store_subscription = models.StoreSubscription(
-        store=db_store,  # 'db_store' é a loja que acabou de ser criada no passo anterior
-        plan=free_plan,
-        status="active",
-        current_period_start=start_date,
-        current_period_end=end_date,
-        gateway_subscription_id=None  # Plano gratuito não tem ID de gateway
+        store=db_store, plan=free_plan, status="active",
+        current_period_start=start_date, current_period_end=end_date,
     )
     db.add(store_subscription)
 
-    # Comita a criação da loja e da sua assinatura inicial juntas
+    # =======================================================================
+    # PASSO 6: COMMIT E RETORNO
+    # =======================================================================
     db.commit()
+    db.refresh(db_store_access)
+
+    # Disparar o serviço de verificação aqui (como discutimos)
+    # verification_service = VerificationService(db)
+    # background_tasks.add_task(verification_service.start_verification_process, db_store, user)
+
     return db_store_access
+
+
+
 
 @router.get("", response_model=list[StoreWithRole])
 def list_stores(
