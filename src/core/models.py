@@ -510,10 +510,11 @@ class Coupon(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     store: Mapped["Store"] = relationship(back_populates="coupons")
 
-    rules = relationship("CouponRule", back_populates="coupon", cascade="all, delete-orphan")
+    # A relação com 'usages' está correta
     usages = relationship("CouponUsage", back_populates="coupon", cascade="all, delete-orphan")
-    # A relação com 'Order' é movida para 'CouponUsage'
-
+    rules = relationship("CouponRule", back_populates="coupon", cascade="all, delete-orphan")
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+    store: Mapped["Store"] = relationship(back_populates="coupons")
 
 class CouponRule(Base):
     __tablename__ = "coupon_rules"
@@ -541,12 +542,12 @@ class CouponUsage(Base):
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), unique=True) # Garante um uso por pedido
     used_at: Mapped[datetime] = mapped_column(default=func.now())
 
+    # Relação de volta para Coupon
     coupon = relationship("Coupon", back_populates="usages")
-    customer = relationship("Customer")
+
+    # Relação de um-para-um com Order
     order: Mapped["Order"] = relationship(back_populates="coupon_usage")
-
-
-
+    customer = relationship("Customer")  # Relação com Customer
 
 class TotemAuthorization(Base, TimestampMixin):
     __tablename__ = "totem_authorizations"
