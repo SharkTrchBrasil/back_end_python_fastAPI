@@ -3,8 +3,9 @@ from datetime import timedelta, date
 from typing import Optional
 from venv import logger
 
-
+from src.api.admin.services.analytics_service import get_peak_hours_for_store
 from src.api.schemas.command import CommandOut
+from src.api.schemas.peak_hours import PeakHoursAnalytics
 from src.api.schemas.store_details import StoreDetails
 
 from src.api.schemas.table import TableOut
@@ -131,6 +132,12 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
 
         customer_analytics_data = await get_customer_analytics_for_store(db, store_id)
 
+
+        peak_hours_dict = get_peak_hours_for_store(db, store_id)
+
+
+        peak_hours_data = PeakHoursAnalytics.model_validate(peak_hours_dict)
+
         # Montagem do payload final (agora muito mais simples)
         payload = {
             "store_id": store_id,
@@ -138,7 +145,8 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
             "subscription": subscription_payload,
             "dashboard": dashboard_data.model_dump(mode='json'),
             "product_analytics": product_analytics_data.model_dump(mode='json'),
-            "customer_analytics": customer_analytics_data.model_dump(mode='json')
+            "customer_analytics": customer_analytics_data.model_dump(mode='json'),
+            "peak_hours": peak_hours_data.model_dump(by_alias=True, mode='json')
         }
 
         # Emissão do evento via Socket.IO

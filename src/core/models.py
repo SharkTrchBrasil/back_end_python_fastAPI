@@ -16,6 +16,8 @@ from src.api.schemas.base_schema import VariantType, UIDisplayMode
 
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy import ForeignKey, Enum, Text
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+import uuid
 
 class Base(DeclarativeBase):
     pass
@@ -42,6 +44,14 @@ class Store(Base, TimestampMixin):
     __tablename__ = "stores"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    store_uuid: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        server_default=func.uuid_generate_v4(),
+        unique=True,
+        index=True,
+        nullable=False
+    )
+
 
     # --- Identificação Básica ---
     name: Mapped[str] = mapped_column()
