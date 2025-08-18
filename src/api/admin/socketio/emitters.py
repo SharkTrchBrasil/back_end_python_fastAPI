@@ -177,19 +177,34 @@ async def admin_emit_order_updated_from_obj(order: models.Order):
         logger.error(f'Erro ao emitir order_updated: {e}')
 
 
+
 async def admin_emit_store_updated(db, store_id: int):
+    """
+    Busca os dados de uma loja usando o serviço CRUD e emite uma
+    atualização para os administradores.
+    """
     try:
-        # ✅ CORREÇÃO: Adicione mode='json' ao model_dump()
+        # ✅ 1. BUSCA A LOJA USANDO O SERVIÇO CENTRALIZADO
+        store = store_crud.get_store_with_all_details(db=db, store_id=store_id)
+
+        # ✅ 2. VERIFICA SE A LOJA FOI ENCONTRADA
+        if not store:
+            print(f'❌ Loja {store_id} não encontrada para emitir evento "store_updated".')
+            return
+
+        # ✅ 3. O RESTO DO SEU CÓDIGO AGORA FUNCIONA PERFEITAMENTE
+        # Pois a variável 'store' já contém o objeto completo.
         payload = StoreDetails.model_validate(store).model_dump(mode='json')
 
         await sio.emit(
             'store_updated',
             payload,
             namespace='/admin',
-            room=f'admin_store_{store.id}'
+            room=f'admin_store_{store.id}' # Usamos store.id que agora existe
         )
     except Exception as e:
         print(f'❌ Erro ao emitir store_updated: {str(e)}')
+
 
 
 async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = None):

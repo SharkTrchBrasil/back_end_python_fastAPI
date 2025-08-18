@@ -1,7 +1,7 @@
 from typing import Optional, List
 from pydantic import Field, ConfigDict
 
-
+from src.api.schemas.scheduled_pauses import ScheduledPauseOut
 from src.api.schemas.store_subscription import StoreSubscriptionSchema
 from src.api.schemas.category import CategoryOut
 
@@ -33,6 +33,8 @@ class StoreDetails(StoreSchema):
     products: List[ProductOut] = []
     variants: List[Variant] = []
     coupons: List[CouponOut] = []
+    # ✅ 2. CORRIJA O NOME DO TIPO AQUI
+    scheduled_pauses: list[ScheduledPauseOut] = []
 
     model_config = ConfigDict(
         from_attributes=True,
