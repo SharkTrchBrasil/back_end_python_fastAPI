@@ -4,6 +4,7 @@ from typing import Optional
 from venv import logger
 
 from src.api.admin.services.analytics_service import get_peak_hours_for_store
+from src.api.crud import store_crud
 from src.api.schemas.command import CommandOut
 from src.api.schemas.peak_hours import PeakHoursAnalytics
 from src.api.schemas.store_details import StoreDetails
@@ -28,71 +29,10 @@ from sqlalchemy.orm import selectinload
 
 async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = None):
     try:
-        store = db.query(models.Store).options(
-            # --- Configurações Gerais e Estrutura da Loja ---
-            joinedload(models.Store.segment),  # 1-para-1, joinedload é ideal
-            joinedload(models.Store.theme),  # 1-para-1
-            joinedload(models.Store.store_operation_config),  # 1-para-1
 
-            # --- Listas de Configurações ---
-            selectinload(models.Store.hours),
-            selectinload(models.Store.scheduled_pauses),
-            selectinload(models.Store.banners),
-            selectinload(models.Store.accesses).joinedload(models.StoreAccess.user),
-            selectinload(models.Store.accesses).joinedload(models.StoreAccess.role),
 
-            # --- Logística e Entrega ---
-            selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
+        store = store_crud.get_store_with_all_details(db=db, store_id=store_id)
 
-            # --- Financeiro e Pagamentos ---
-            selectinload(models.Store.payables),
-            selectinload(models.Store.payment_activations)
-            .selectinload(models.StorePaymentMethodActivation.platform_method)
-            .selectinload(models.PlatformPaymentMethod.category)
-            .selectinload(models.PaymentMethodCategory.group),
-
-            # --- Assinatura e Plano (Completo) ---
-            selectinload(models.Store.subscriptions)
-            .joinedload(models.StoreSubscription.plan)
-            .selectinload(models.Plans.included_features)
-            .joinedload(models.PlansFeature.feature),
-            selectinload(models.Store.subscriptions)
-            .selectinload(models.StoreSubscription.subscribed_addons)
-            .joinedload(models.PlansAddon.feature),
-
-            # --- Gestão de Cardápio, Produtos e Categorias ---
-            # Carrega a árvore completa: Categoria -> Produto -> Regras -> Template -> Opções
-            selectinload(models.Store.categories)  # Usando o novo relacionamento sugerido
-            .selectinload(models.Category.products)
-            .selectinload(models.Product.variant_links)  # Regras de complemento
-            .joinedload(models.ProductVariantLink.variant)  # O template do complemento
-            .selectinload(models.Variant.options)  # As opções dentro do template
-            .joinedload(models.VariantOption.linked_product),  # O produto linkado na opção
-
-            # Carrega as opções padrão de cada produto (precisa de um caminho separado)
-            selectinload(models.Store.categories)
-            .selectinload(models.Category.products)
-            .selectinload(models.Product.default_options)
-            .joinedload(models.ProductDefaultOption.option),
-
-            # --- Gestão de Templates de Complementos ---
-            # Carrega TODOS os templates de variantes da loja, mesmo os não usados em produtos.
-            # Essencial para a tela de "Gerenciar Grupos de Complementos".
-            selectinload(models.Store.variants).selectinload(models.Variant.options),
-
-            # --- Operacional (Pedidos, Cupons, Clientes) ---
-            # ATENÇÃO: Carregar 'orders' pode ser pesado para lojas com muitos pedidos.
-            # Considere carregar os pedidos em uma consulta separada com paginação.
-            selectinload(models.Store.orders),
-
-            selectinload(models.Store.coupons).selectinload(models.Coupon.rules),
-
-            selectinload(models.Store.commands),
-            selectinload(models.Store.cashier_sessions),
-            selectinload(models.Store.store_customers).joinedload(models.StoreCustomer.customer),
-            selectinload(models.Store.store_ratings),
-
-        ).filter(models.Store.id == store_id).first()
 
 
         if not store:
@@ -237,7 +177,7 @@ async def admin_emit_order_updated_from_obj(order: models.Order):
         logger.error(f'Erro ao emitir order_updated: {e}')
 
 
-async def admin_emit_store_updated(store: models.Store):
+async def admin_emit_store_updated(db, store_id: int):
     try:
         # ✅ CORREÇÃO: Adicione mode='json' ao model_dump()
         payload = StoreDetails.model_validate(store).model_dump(mode='json')

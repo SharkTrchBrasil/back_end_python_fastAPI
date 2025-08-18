@@ -55,7 +55,7 @@ async def batch_update_store_hours(
 
     await asyncio.gather(
         emit_store_updated(db, store.id),
-        admin_emit_store_updated(store)  # Agora usa o 'store' com os dados corretos
+        admin_emit_store_updated(db, store.id)  # Agora usa o 'store' com os dados corretos
     )
 
     return Response(status_code=204)

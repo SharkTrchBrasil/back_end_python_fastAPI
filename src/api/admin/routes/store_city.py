@@ -31,7 +31,7 @@ async def create_city(
     db.commit()
     db.refresh(city)
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_updated(store)
+    await admin_emit_store_updated(db, store.id)
     return city
 
 
@@ -80,7 +80,7 @@ async def update_city(
     db.commit()
     db.refresh(city)
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_updated(store)
+    await admin_emit_store_updated(db, store.id)
     return city
 
 
@@ -99,4 +99,4 @@ async def delete_city(
     db.refresh(store)
 
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_updated(store)
+    await admin_emit_store_updated(db, store.id)

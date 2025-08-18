@@ -34,5 +34,5 @@ async def update_store_configuration(
     db.refresh(db_config)
 
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_updated(store)
+    await admin_emit_store_updated(db, store.id)
     return db_config

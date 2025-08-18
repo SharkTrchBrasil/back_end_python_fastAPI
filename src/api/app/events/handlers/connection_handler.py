@@ -5,6 +5,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import selectinload, joinedload
 
 from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations_simplified
+from src.api.crud import store_crud
 from src.core import models
 from src.core.database import get_db_manager
 from src.api.app.services.authorize_totem import authorize_totem
@@ -49,34 +50,7 @@ async def handler_totem_on_connect(self, sid, environ):
             await self.enter_room(sid, f"store_{store_id}")
             print(f"🚪 [CONEXÃO] {sid} adicionado à sala da loja {store_id}.")
 
-            # 3. Carregar TODOS os dados da loja com a "Super Consulta"
-            store = db.query(models.Store).options(
-
-                selectinload(models.Store.payment_activations)
-                .selectinload(models.StorePaymentMethodActivation.platform_method)
-                .selectinload(models.PlatformPaymentMethod.category)
-                .selectinload(models.PaymentMethodCategory.group),
-
-                joinedload(models.Store.store_operation_config),
-                selectinload(models.Store.hours),
-                selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
-                # ✅ MUDANÇA AQUI: Agora também carregamos as regras de cada cupom
-                selectinload(models.Store.coupons).selectinload(models.Coupon.rules),
-
-                # ✅ CONSULTA AOS PRODUTOS AGRUPADA E OTIMIZADA
-                selectinload(models.Store.products).options(
-                    selectinload(models.Product.category),
-                    selectinload(models.Product.default_options),  # Carrega as opções padrão
-                    selectinload(models.Product.variant_links).selectinload(
-                        models.ProductVariantLink.variant).selectinload(
-                        models.Variant.options).selectinload(
-                        models.VariantOption.linked_product)
-                ),
-
-                selectinload(models.Store.variants).selectinload(models.Variant.options),
-                selectinload(models.Store.subscriptions).joinedload(models.StoreSubscription.plan)
-
-            ).filter(models.Store.id == store_id).first()
+            store = store_crud.get_store_for_customer_view(db=db, store_id=store_id)
 
             if not store:
                 raise ConnectionRefusedError(f"Loja {store_id} não encontrada.")

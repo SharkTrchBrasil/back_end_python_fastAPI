@@ -1,6 +1,8 @@
 # Em seu arquivo de serviços/emissores do app
 
 from sqlalchemy.orm import selectinload, joinedload
+
+from src.api.crud import store_crud
 from src.core import models
 from src.socketio_instance import sio
 from src.api.schemas.product import ProductOut
@@ -15,24 +17,7 @@ async def emit_store_updated(db, store_id: int):
     Esta função NÃO emite o catálogo de produtos.
     """
 
-    # 3. Carregar TODOS os dados da loja com a "Super Consulta"
-    store = db.query(models.Store).options(
-
-        selectinload(models.Store.payment_activations)
-        .selectinload(models.StorePaymentMethodActivation.platform_method)
-        .selectinload(models.PlatformPaymentMethod.category)
-        .selectinload(models.PaymentMethodCategory.group),
-
-        joinedload(models.Store.store_operation_config),
-        selectinload(models.Store.hours),
-        selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
-        # ✅ MUDANÇA AQUI: Agora também carregamos as regras de cada cupom
-        selectinload(models.Store.coupons).selectinload(models.Coupon.rules),
-
-
-        selectinload(models.Store.subscriptions).joinedload(models.StoreSubscription.plan)
-
-    ).filter(models.Store.id == store_id).first()
+    store = store_crud.get_store_for_customer_view(db=db, store_id=store_id)
 
     if store:
         await sio.emit(

@@ -3,7 +3,8 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Form, HTTPException, File, UploadFile
 
-from src.api.app.socketio.socketio_emitters import emit_products_updated
+from src.api.admin.socketio.emitters import admin_emit_store_updated
+from src.api.app.socketio.socketio_emitters import emit_products_updated, emit_store_updated
 from src.api.schemas.category import CategoryOut
 from src.core import models
 from src.core.aws import upload_file, delete_file
@@ -41,10 +42,13 @@ async def create_category(
     )
 
     db.add(db_category)
-    db.commit()
-    await asyncio.create_task(emit_products_updated(db, store.id))
 
-    # A resposta usará o schema `CategoryOut` e incluirá os novos campos
+    db.commit()
+    db.refresh(db_category)
+
+    await asyncio.create_task(emit_store_updated(db, store.id))
+    await admin_emit_store_updated(db, store.id)
+
     return db_category
 
 
@@ -113,11 +117,13 @@ async def patch_category(
         db_category.file_key = new_file_key
 
     db.commit()
+    db.refresh(db_category)
 
     if file_key_to_delete:
         delete_file(file_key_to_delete)
 
-    await asyncio.create_task(emit_products_updated(db, store.id))
+    await asyncio.create_task(emit_store_updated(db, store.id))
+    await admin_emit_store_updated(db, store.id)
 
     return db_category
 
@@ -143,5 +149,6 @@ async def delete_category(
 
     db.delete(category)
     db.commit()
-
-    await asyncio.create_task(emit_products_updated(db, store.id))
+    db.refresh(category)
+    await asyncio.create_task(emit_store_updated(db, store.id))
+    await admin_emit_store_updated(db, store.id)

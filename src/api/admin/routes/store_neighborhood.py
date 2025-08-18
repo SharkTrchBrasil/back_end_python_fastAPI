@@ -45,7 +45,7 @@ async def create_neighborhood(
 
     store = get_store_from_city(db, city_id)
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_updated(store)
+    await admin_emit_store_updated(db, store.id)
     return neighborhood
 
 
@@ -106,7 +106,7 @@ async def update_neighborhood(
     db.refresh(neighborhood)
     store = get_store_from_city(db, city_id)
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_updated(store)
+    await admin_emit_store_updated(db, store.id)
     return neighborhood
 
 
@@ -130,4 +130,4 @@ async def delete_neighborhood(city_id: int, neighborhood_id: int, db: GetDBDep):
 
     store = get_store_from_city(db, city_id)
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_updated(store)
+    await admin_emit_store_updated(db, store.id)
