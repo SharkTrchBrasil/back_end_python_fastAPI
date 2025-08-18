@@ -36,6 +36,7 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
 
             # --- Listas de Configurações ---
             selectinload(models.Store.hours),
+            selectinload(models.Store.scheduled_pauses),
             selectinload(models.Store.banners),
             selectinload(models.Store.accesses).joinedload(models.StoreAccess.user),
             selectinload(models.Store.accesses).joinedload(models.StoreAccess.role),

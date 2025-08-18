@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import select, Boolean
 import enum
 from datetime import datetime, date, timezone
 from typing import Optional, List
@@ -139,6 +139,10 @@ class Store(Base, TimestampMixin):
 
     # Horários de funcionamento (relacionamento 1:N)
     hours: Mapped[List["StoreHours"]] = relationship(
+        back_populates="store", cascade="all, delete-orphan"
+    )
+
+    scheduled_pauses: Mapped[list["ScheduledPause"]] = relationship(
         back_populates="store", cascade="all, delete-orphan"
     )
 
@@ -1770,3 +1774,19 @@ class CartItemVariantOption(Base, TimestampMixin):
 
     # a partir de um item de carrinho, permitindo buscar seu preço e nome.
     variant_option: Mapped["VariantOption"] = relationship()
+
+
+class ScheduledPause(Base):
+    __tablename__ = "scheduled_pauses"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    reason: Mapped[str | None] = mapped_column(String, nullable=True)  # Ex: "Manutenção da cozinha"
+    start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default="true", nullable=False)
+
+    # Vínculo
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), nullable=False)
+
+    # Relacionamento
+    store: Mapped["Store"] = relationship(back_populates="scheduled_pauses")
