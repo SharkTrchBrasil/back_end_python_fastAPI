@@ -1,5 +1,4 @@
-from pydantic import BaseModel, Field
-
+from pydantic import BaseModel, Field, computed_field
 
 
 class StorePaymentMethodActivationOut(BaseModel):
@@ -23,6 +22,15 @@ class PlatformPaymentMethodOut(BaseModel):
     method_type: str
 
     activation: StorePaymentMethodActivationOut | None = None
+
+
+    # ✅ Adicione um campo computado
+    @computed_field
+    @property
+    def requires_manual_setup(self) -> bool:
+        # A lógica de negócio fica centralizada aqui no backend
+        CONFIGURABLE_TYPES = {'CASH', 'PIX', 'POS_MACHINE'}
+        return self.method_type in CONFIGURABLE_TYPES
 
     class Config:
         from_attributes = True
