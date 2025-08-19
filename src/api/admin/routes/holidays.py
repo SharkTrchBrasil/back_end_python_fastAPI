@@ -1,8 +1,12 @@
 # routers/holidays.py
 
 from fastapi import APIRouter, HTTPException
-import httpx  # Uma biblioteca moderna para fazer requisições HTTP. Instale com: pip install httpx
+import httpx
 from typing import List
+
+
+# ✅ 1. IMPORTE O MÓDULO `date`
+from datetime import date
 
 from src.api.schemas.holiday import HolidayOut
 
@@ -15,23 +19,29 @@ router = APIRouter(
 @router.get("/{year}", response_model=List[HolidayOut])
 async def get_national_holidays(year: int):
     """
-    Busca os feriados nacionais para um determinado ano a partir da BrasilAPI.
+    Busca os feriados nacionais para um determinado ano a partir da BrasilAPI,
+    retornando apenas os feriados a partir da data atual.
     """
-    # Usamos httpx para fazer a chamada assíncrona para a API externa
+    # ✅ 2. PEGUE A DATA ATUAL
+    hoje = date.today()
+
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(f"https://brasilapi.com.br/api/feriados/v1/{year}")
-
-            # Se a API externa falhar, retornamos um erro
             response.raise_for_status()
-
-            # A resposta é uma lista de feriados que validamos com nosso schema
             holidays_data = response.json()
 
-            # Filtramos para pegar apenas feriados nacionais, se desejado
             national_holidays = [h for h in holidays_data if h.get("type") == "national"]
 
-            return national_holidays
+            # ✅ 3. FILTRE A LISTA DE FERIADOS
+            # Converte a string de data de cada feriado para um objeto 'date'
+            # e mantém na lista apenas aqueles cuja data é maior ou igual a hoje.
+            upcoming_holidays = [
+                h for h in national_holidays
+                if date.fromisoformat(h.get("date", "1900-01-01")) >= hoje
+            ]
+
+            return upcoming_holidays
 
         except httpx.RequestError as exc:
             print(f"Erro ao acessar a API de feriados: {exc}")
