@@ -39,6 +39,7 @@ class PlatformPaymentMethodOut(BaseModel):
 
 class PaymentMethodCategoryOut(BaseModel):
     name: str
+
     methods: list[PlatformPaymentMethodOut] = []  # Contém uma lista de métodos
 
     class Config:
@@ -48,6 +49,7 @@ class PaymentMethodCategoryOut(BaseModel):
 
 class PaymentMethodGroupOut(BaseModel):
     name: str
+    description: str | None = None  # ✅ Adicione este campo
     categories: list[PaymentMethodCategoryOut] = []  # Contém uma lista de categorias
 
     class Config:
