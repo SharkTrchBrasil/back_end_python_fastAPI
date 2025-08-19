@@ -4,6 +4,7 @@ from typing import Optional
 from venv import logger
 
 from src.api.admin.services.analytics_service import get_peak_hours_for_store
+from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations_simplified
 from src.api.crud import store_crud
 from src.api.schemas.command import CommandOut
 from src.api.schemas.peak_hours import PeakHoursAnalytics
@@ -21,42 +22,35 @@ from src.api.schemas.rating import RatingsSummaryOut
 from src.socketio_instance import sio
 from src.core import models
 
-
 from src.api.schemas.product import ProductOut
-from sqlalchemy.orm import joinedload
+
 from sqlalchemy.orm import selectinload
 
 
 async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = None):
     try:
-
-
         store = store_crud.get_store_with_all_details(db=db, store_id=store_id)
-
-
 
         if not store:
             print(f"❌ Loja {store_id} não encontrada na função admin_emit_store_full_updated")
             return
 
-        # --- ✅ LÓGICA DE CONFIGURAÇÃO SIMPLIFICADA ---
-        # Apenas garantimos que a configuração exista. Se não existir, criamos uma padrão.
         if not store.store_operation_config:
             print(f"🔧 Loja {store_id} não possui configuração de operação. Criando uma padrão.")
             default_config = models.StoreOperationConfig(store_id=store_id)
             db.add(default_config)
             db.commit()
-            db.refresh(store) # Atualiza o objeto 'store' com a nova configuração
+            db.refresh(store)
 
-        # --- Processamento dos dados carregados (o resto continua igual) ---
         subscription_payload, is_operational = SubscriptionService.get_subscription_details(store)
         if not is_operational:
             print(f"🔒 Loja {store_id} não pode operar. Assinatura: {subscription_payload.get('status')}")
 
         store_schema = StoreDetails.model_validate(store)
 
+        payment_groups_structured = _build_payment_groups_from_activations_simplified(store.payment_activations)
 
-
+        store_schema.payment_method_groups = payment_groups_structured
 
         try:
             store_schema.ratingsSummary = RatingsSummaryOut(**get_store_ratings_summary(db, store_id=store.id))
@@ -70,16 +64,12 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
 
         product_analytics_data = await get_product_analytics_for_store(db, store_id)
 
-
         customer_analytics_data = await get_customer_analytics_for_store(db, store_id)
-
 
         peak_hours_dict = get_peak_hours_for_store(db, store_id)
 
-
         peak_hours_data = PeakHoursAnalytics.model_validate(peak_hours_dict)
 
-        # Montagem do payload final (agora muito mais simples)
         payload = {
             "store_id": store_id,
             "store": store_schema.model_dump(mode='json'),
@@ -90,7 +80,6 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
             "peak_hours": peak_hours_data.model_dump(by_alias=True, mode='json')
         }
 
-        # Emissão do evento via Socket.IO
         if sid:
             await sio.emit("store_full_updated", payload, namespace='/admin', to=sid)
         else:
@@ -99,7 +88,6 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
     except Exception as e:
         # Log de erro robusto
         print(f'❌ Erro crítico em emit_store_full_updated para loja {store_id}: {e.__class__.__name__}: {str(e)}')
-
 
 
 async def admin_emit_orders_initial(db, store_id: int, sid: Optional[str] = None):
@@ -177,7 +165,6 @@ async def admin_emit_order_updated_from_obj(order: models.Order):
         logger.error(f'Erro ao emitir order_updated: {e}')
 
 
-
 async def admin_emit_store_updated(db, store_id: int):
     """
     Busca os dados de uma loja usando o serviço CRUD e emite uma
@@ -201,15 +188,14 @@ async def admin_emit_store_updated(db, store_id: int):
             'store_updated',
             payload,
             namespace='/admin',
-            room=f'admin_store_{store.id}' # Usamos store.id que agora existe
+            room=f'admin_store_{store.id}'  # Usamos store.id que agora existe
         )
     except Exception as e:
         print(f'❌ Erro ao emitir store_updated: {str(e)}')
 
 
-
 async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = None):
-  #  print(f"🔄 [Admin] emit_tables_and_commands para store_id: {store_id}")
+    #  print(f"🔄 [Admin] emit_tables_and_commands para store_id: {store_id}")
     try:
         tables = db.query(models.Table).filter_by(store_id=store_id, is_deleted=False).all()
         commands = db.query(models.Command).filter_by(store_id=store_id).all()
@@ -231,12 +217,11 @@ async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = No
     except Exception as e:
         print(f'❌ Erro em emit_tables_and_commands: {str(e)}')
         if sid:
-            await sio.emit("tables_and_commands", {"store_id": store_id, "tables": [], "commands": []}, namespace="/admin", to=sid)
+            await sio.emit("tables_and_commands", {"store_id": store_id, "tables": [], "commands": []},
+                           namespace="/admin", to=sid)
         else:
-            await sio.emit("tables_and_commands", {"store_id": store_id, "tables": [], "commands": []}, namespace="/admin", room=f"admin_store_{store_id}")
-
-
-
+            await sio.emit("tables_and_commands", {"store_id": store_id, "tables": [], "commands": []},
+                           namespace="/admin", room=f"admin_store_{store_id}")
 
 
 async def emit_new_order_notification(db, store_id: int, order_id: int):
@@ -269,7 +254,7 @@ async def emit_new_order_notification(db, store_id: int, order_id: int):
             'store_id': store_id,
             'order_id': order_id,
             'store_name': store.name if store else "uma de suas lojas",
-                                                   'notification_uuid': notification_uuid  # ✨ 2. Adiciona o ID ao payl
+            'notification_uuid': notification_uuid  # ✨ 2. Adiciona o ID ao payl
         }
 
         # Emite para a sala de notificação pessoal de cada admin
@@ -279,8 +264,6 @@ async def emit_new_order_notification(db, store_id: int, order_id: int):
 
     except Exception as e:
         print(f"❌ Erro ao emitir notificação de novo pedido: {e.__class__.__name__}: {e}")
-
-
 
 
 async def admin_emit_new_print_jobs(store_id: int, order_id: int, jobs: list):
@@ -296,7 +279,6 @@ async def admin_emit_new_print_jobs(store_id: int, order_id: int, jobs: list):
     }
     await sio.emit(event, payload, room=room)
     print(f"Evento '{event}' emitido para a sala {room} com payload: {payload}")
-
 
 
 async def admin_emit_products_updated(db, store_id: int):
