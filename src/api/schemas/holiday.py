@@ -1,4 +1,4 @@
-# schemas/holiday.py ou no final de schemas.py
+
 
 from pydantic import BaseModel
 from datetime import date
