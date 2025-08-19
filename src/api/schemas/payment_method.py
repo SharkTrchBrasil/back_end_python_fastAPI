@@ -49,6 +49,7 @@ class PaymentMethodCategoryOut(BaseModel):
 
 class PaymentMethodGroupOut(BaseModel):
     name: str
+    title: str | None = None  # ✅ Adicione este campo
     description: str | None = None  # ✅ Adicione este campo
     categories: list[PaymentMethodCategoryOut] = []  # Contém uma lista de categorias
 

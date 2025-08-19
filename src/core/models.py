@@ -737,7 +737,7 @@ class PaymentMethodGroup(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(50), unique=True)
-
+    title: Mapped[str] = mapped_column(String(255), nullable=True)
     description: Mapped[str] = mapped_column(String(255), nullable=True)
 
     priority: Mapped[int] = mapped_column(default=0)
