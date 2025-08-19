@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Form, HTTPException, File, UploadFile
 
-from src.api.admin.socketio.emitters import admin_emit_store_updated
+from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_store_full_updated
 from src.api.app.socketio.socketio_emitters import emit_products_updated, emit_store_updated
 from src.api.schemas.category import CategoryOut
 from src.core import models
@@ -47,7 +47,7 @@ async def create_category(
     db.refresh(db_category)
 
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_updated(db, store.id)
+    await admin_emit_store_full_updated(db, store.id)
 
     return db_category
 
@@ -123,7 +123,7 @@ async def patch_category(
         delete_file(file_key_to_delete)
 
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_updated(db, store.id)
+    await admin_emit_store_full_updated(db, store.id)
 
     return db_category
 
@@ -151,4 +151,4 @@ async def delete_category(
     db.commit()
     db.refresh(category)
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_updated(db, store.id)
+    await admin_emit_store_full_updated(db, store.id)

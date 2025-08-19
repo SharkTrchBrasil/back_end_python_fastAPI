@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from sqlalchemy.orm import joinedload
 
-from src.api.admin.socketio.emitters import admin_emit_store_updated
+from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_store_full_updated
 from src.api.app.socketio.socketio_emitters import emit_store_updated
 # Importe seus novos modelos e schemas
 from src.core import models
@@ -114,5 +114,5 @@ async def activate_or_configure_method(
 
     # TODO: Emitir um evento de socket para notificar a UI da mudança
     await emit_store_updated(db, store_id)
-    await admin_emit_store_updated(db)
+    await admin_emit_store_full_updated(db)
     return activation

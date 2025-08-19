@@ -3,7 +3,7 @@ import asyncio
 from fastapi import APIRouter, HTTPException
 from sqlalchemy.orm import joinedload, selectinload  # ✅ Adicionado selectinload
 
-from src.api.admin.socketio.emitters import admin_emit_store_updated
+from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_store_full_updated
 from src.api.app.socketio.socketio_emitters import emit_store_updated
 from src.api.schemas.coupon import CouponCreate, CouponUpdate, CouponOut
 from src.core import models
@@ -52,7 +52,7 @@ async def create_coupon(
     db.refresh(db_coupon)
 
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_updated(db, store.id)
+    await admin_emit_store_full_updated(db, store.id)
 
     # Atualiza o objeto com os dados do banco (incluindo o ID)
     return db_coupon
@@ -138,7 +138,7 @@ async def patch_coupon(
     db.refresh(coupon)
 
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_updated(db, store.id)
+    await admin_emit_store_full_updated(db, store.id)
 
     return coupon
 
@@ -162,6 +162,6 @@ async def delete_coupon(db: GetDBDep, store: GetStoreDep, coupon_id: int):
     db.commit()
     db.refresh(coupon)
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_updated(db, store.id)
+    await admin_emit_store_full_updated(db, store.id)
 
     return None

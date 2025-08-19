@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from src.api import schemas
-from src.api.admin.socketio.emitters import admin_emit_store_updated
+from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_store_full_updated
 from src.api.app.socketio.socketio_emitters import emit_store_updated
 from src.api.schemas.scheduled_pauses import ScheduledPauseOut, ScheduledPauseCreate
 from src.core import models
@@ -27,7 +27,7 @@ async def create_pause(store_id: int, pause: ScheduledPauseCreate, db: GetDBDep)
 
     # TODO: Emitir um evento de socket para notificar a UI da mudança
     await emit_store_updated(db, store_id)
-    await admin_emit_store_updated(db, store_id)
+    await admin_emit_store_full_updated(db, store_id)
 
     return db_pause
 
@@ -44,5 +44,5 @@ async def delete_pause(pause_id: int, db: GetDBDep):
     db.commit()
     # TODO: Emitir um evento de socket para notificar a UI da mudança
     await emit_store_updated(db, store_id_to_update)
-    await admin_emit_store_updated(db, store_id_to_update)
+    await admin_emit_store_full_updated(db, store_id_to_update)
     return {"ok": True}

@@ -12,7 +12,7 @@ from sqlalchemy import func
 
 
 from src.api.schemas.store_access import StoreAccess
-from src.api.admin.socketio.emitters import admin_emit_store_updated
+from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_store_full_updated
 from src.core.utils.enums import StoreVerificationStatus, Roles
 from src.api.app.socketio.socketio_emitters import emit_store_updated
 from src.api.schemas.store import StoreWithRole, StoreCreate, Store
@@ -268,7 +268,7 @@ async def patch_store(
         delete_file(banner_key_to_delete)
 
     await asyncio.create_task(emit_store_updated(db,store.id))
-    await admin_emit_store_updated(db, store.id)
+    await admin_emit_store_full_updated(db, store.id)
     return store
 
 

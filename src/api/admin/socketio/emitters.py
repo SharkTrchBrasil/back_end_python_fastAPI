@@ -182,6 +182,7 @@ async def admin_emit_store_updated(db, store_id: int):
     """
     Busca os dados de uma loja usando o serviço CRUD e emite uma
     atualização para os administradores.
+    NÃO USADA MAIS APAGAR DEPOIS
     """
     try:
         # ✅ 1. BUSCA A LOJA USANDO O SERVIÇO CENTRALIZADO
