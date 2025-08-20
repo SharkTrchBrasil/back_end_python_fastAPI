@@ -20,17 +20,9 @@ class PlatformPaymentMethodOut(BaseModel):
     name: str
     icon_key: str | None = None
     method_type: str
-
+    requires_details: bool
     activation: StorePaymentMethodActivationOut | None = None
 
-
-    # ✅ Adicione um campo computado
-    @computed_field
-    @property
-    def requires_manual_setup(self) -> bool:
-        # A lógica de negócio fica centralizada aqui no backend
-        CONFIGURABLE_TYPES = {'CASH', 'PIX', 'POS_MACHINE'}
-        return self.method_type in CONFIGURABLE_TYPES
 
     class Config:
         from_attributes = True
