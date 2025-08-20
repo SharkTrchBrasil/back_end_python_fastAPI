@@ -2,7 +2,7 @@ import asyncio
 
 from fastapi import APIRouter, Form, HTTPException
 
-from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_store_full_updated
+from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.app.socketio.socketio_emitters import emit_store_updated
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep

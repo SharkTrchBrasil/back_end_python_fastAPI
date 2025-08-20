@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Form, HTTPException, File, UploadFile
 
-from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_store_full_updated
+from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.app.socketio.socketio_emitters import emit_products_updated, emit_store_updated
 from src.api.schemas.category import CategoryOut
 from src.core import models

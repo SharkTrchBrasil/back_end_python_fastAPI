@@ -7,7 +7,7 @@ from .handlers.connection_handler import (
     handle_admin_connect,
     handle_admin_disconnect
 )
-# ✅ CORREÇÃO 1: Importa a função de lógica que faltava
+
 from .handlers.order_handler import handle_update_order_status, claim_specific_print_job, handle_update_print_job_status
 from .handlers.store_handler import (
     handle_join_store_room,
@@ -15,8 +15,6 @@ from .handlers.store_handler import (
 
     handle_set_consolidated_stores, handle_update_operation_config
 )
-from ..socketio.emitters import admin_emit_store_full_updated, admin_emit_orders_initial, \
-    admin_emit_tables_and_commands
 
 
 class AdminNamespace(AsyncNamespace):
@@ -108,28 +106,4 @@ class AdminNamespace(AsyncNamespace):
 
         except ConnectionRefusedError as e:
             await self.emit('subscription_warning', {'message': str(e), 'critical': True}, to=sid)
-            return False
-
-    async def _emit_initial_data(self, db, store_id, sid):
-        """Emite dados iniciais com verificação de assinatura"""
-        try:
-            is_active = await self._check_and_notify_subscription(db, store_id, sid)
-
-            if not is_active:
-                await self.emit('store_blocked', {
-                    'store_id': store_id,
-                    'message': 'Loja bloqueada devido a assinatura vencida',
-                    'can_operate': False
-                }, to=sid)
-                return False
-
-            await admin_emit_store_full_updated(db, store_id, sid=sid)
-
-            await admin_emit_orders_initial(db, store_id, sid=sid)
-            await admin_emit_tables_and_commands(db, store_id, sid)
-
-            return True
-
-        except Exception as e:
-            print(f"❌ Erro ao emitir dados iniciais: {str(e)}")
             return False

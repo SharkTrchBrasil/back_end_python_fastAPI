@@ -30,28 +30,6 @@ from src.api.schemas.product import ProductOut
 from sqlalchemy.orm import selectinload
 
 
-# Em socket_handler.py
-
-async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = None):
-    """
-    Função principal chamada na conexão inicial.
-    Ela orquestra o envio de todos os dados iniciais em eventos separados.
-    """
-    print(f"🚀 [Socket] Enviando estado completo para loja {store_id}...")
-
-    # 1. Envia os dados base da loja
-    await admin_emit_store_updated(db, store_id)
-
-    # 2. Envia os dados do dashboard (analytics e insights)
-    await admin_emit_dashboard_data_updated(db, store_id, sid)
-
-    # 3. Envia os dados operacionais em tempo real (que você já tinha)
-    await admin_emit_orders_initial(db, store_id, sid)
-    await admin_emit_tables_and_commands(db, store_id, sid)
-    await admin_emit_products_updated(db, store_id)
-
-    print(f"✅ [Socket] Estado completo para loja {store_id} enviado com sucesso.")
-
 
 async def admin_emit_store_updated(db, store_id: int):
     """
