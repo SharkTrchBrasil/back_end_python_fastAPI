@@ -47,7 +47,7 @@ async def create_category(
     db.refresh(db_category)
 
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_full_updated(db, store.id)
+    await admin_emit_store_updated(db, store.id)
 
     return db_category
 
@@ -123,7 +123,7 @@ async def patch_category(
         delete_file(file_key_to_delete)
 
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_full_updated(db, store.id)
+    await admin_emit_store_updated(db, store.id)
 
     return db_category
 
@@ -151,4 +151,4 @@ async def delete_category(
     db.commit()
     db.refresh(category)
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_full_updated(db, store.id)
+    await admin_emit_store_updated(db, store.id)

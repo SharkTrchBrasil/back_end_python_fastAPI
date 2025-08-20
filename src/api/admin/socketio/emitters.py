@@ -40,7 +40,7 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
     print(f"🚀 [Socket] Enviando estado completo para loja {store_id}...")
 
     # 1. Envia os dados base da loja
-    await admin_emit_store_details_updated(db, store_id)
+    await admin_emit_store_updated(db, store_id)
 
     # 2. Envia os dados do dashboard (analytics e insights)
     await admin_emit_dashboard_data_updated(db, store_id, sid)
@@ -53,7 +53,7 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
     print(f"✅ [Socket] Estado completo para loja {store_id} enviado com sucesso.")
 
 
-async def admin_emit_store_details_updated(db, store_id: int):
+async def admin_emit_store_updated(db, store_id: int):
     """
     Envia APENAS os dados de configuração da loja.
     É leve e pode ser chamado após qualquer alteração no cadastro.
@@ -209,35 +209,6 @@ async def admin_emit_order_updated_from_obj(order: models.Order):
         await sio.emit("order_updated", order_data, namespace='/admin', room=f"admin_store_{order.store_id}")
     except Exception as e:
         logger.error(f'Erro ao emitir order_updated: {e}')
-
-
-async def admin_emit_store_updated(db, store_id: int):
-    """
-    Busca os dados de uma loja usando o serviço CRUD e emite uma
-    atualização para os administradores.
-    NÃO USADA MAIS APAGAR DEPOIS
-    """
-    try:
-        # ✅ 1. BUSCA A LOJA USANDO O SERVIÇO CENTRALIZADO
-        store = store_crud.get_store_with_all_details(db=db, store_id=store_id)
-
-        # ✅ 2. VERIFICA SE A LOJA FOI ENCONTRADA
-        if not store:
-            print(f'❌ Loja {store_id} não encontrada para emitir evento "store_updated".')
-            return
-
-        # ✅ 3. O RESTO DO SEU CÓDIGO AGORA FUNCIONA PERFEITAMENTE
-        # Pois a variável 'store' já contém o objeto completo.
-        payload = StoreDetails.model_validate(store).model_dump(mode='json')
-
-        await sio.emit(
-            'store_updated',
-            payload,
-            namespace='/admin',
-            room=f'admin_store_{store.id}'  # Usamos store.id que agora existe
-        )
-    except Exception as e:
-        print(f'❌ Erro ao emitir store_updated: {str(e)}')
 
 
 async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = None):

@@ -114,5 +114,5 @@ async def activate_or_configure_method(
 
     # TODO: Emitir um evento de socket para notificar a UI da mudança
     await emit_store_updated(db, store_id)
-    await admin_emit_store_full_updated(db, store_id)
+    await admin_emit_store_updated(db, store_id)
     return activation

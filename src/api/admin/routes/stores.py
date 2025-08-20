@@ -268,7 +268,7 @@ async def patch_store(
         delete_file(banner_key_to_delete)
 
     await asyncio.create_task(emit_store_updated(db,store.id))
-    await admin_emit_store_full_updated(db, store.id)
+    await admin_emit_store_updated(db, store.id)
     return store
 
 

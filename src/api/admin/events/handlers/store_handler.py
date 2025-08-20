@@ -125,7 +125,7 @@ async def handle_update_operation_config(self, sid, data):
             db.refresh(config)
             db.refresh(store)
 
-            await admin_emit_store_full_updated(db, store.id)
+            await admin_emit_store_updated(db, store.id)
 
             return StoreOperationConfigBase.model_validate(config).model_dump(mode='json')
 
@@ -342,7 +342,7 @@ async def check_and_update_setup_status(store_id: int):
                 db.commit()
 
                 # Emite o evento para notificar o frontend que o status da loja mudou
-                await admin_emit_store_full_updated(db, store.id)
+                await admin_emit_store_updated(db, store.id)
 
         except Exception as e:
             # O 'with get_db_manager()' já cuida do rollback em caso de erro.

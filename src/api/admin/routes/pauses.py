@@ -27,7 +27,7 @@ async def create_pause(store_id: int, pause: ScheduledPauseCreate, db: GetDBDep)
 
     # TODO: Emitir um evento de socket para notificar a UI da mudança
     await emit_store_updated(db, store_id)
-    await admin_emit_store_full_updated(db, store_id)
+    await admin_emit_store_updated(db, store_id)
 
     return db_pause
 
@@ -44,5 +44,5 @@ async def delete_pause(pause_id: int, db: GetDBDep):
     db.commit()
     # TODO: Emitir um evento de socket para notificar a UI da mudança
     await emit_store_updated(db, store_id_to_update)
-    await admin_emit_store_full_updated(db, store_id_to_update)
+    await admin_emit_store_updated(db, store_id_to_update)
     return {"ok": True}

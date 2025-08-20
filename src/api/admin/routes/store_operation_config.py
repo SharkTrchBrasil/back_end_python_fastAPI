@@ -2,7 +2,7 @@ import asyncio
 
 from fastapi import APIRouter
 
-from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_store_full_updated
+from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.app.socketio.socketio_emitters import emit_store_updated
 from src.api.schemas.store_operation_config import StoreOperationConfigBase, StoreOperationConfigOut
 
@@ -34,5 +34,5 @@ async def update_store_configuration(
     db.refresh(db_config)
 
     await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_full_updated(db, store.id)
+    await admin_emit_store_updated(db, store.id)
     return db_config
