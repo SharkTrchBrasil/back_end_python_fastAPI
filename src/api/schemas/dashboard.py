@@ -1,7 +1,7 @@
 # Em: src/api/admin/schemas/dashboard.py
 
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Literal
 from datetime import date
 
 
@@ -98,3 +98,19 @@ class DashboardDataSchema(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+
+
+class HolidayInsightDetails(BaseModel):
+    holiday_name: str
+    holiday_date: date
+
+
+class DashboardInsight(BaseModel):
+    # Usamos Literal para que o frontend saiba exatamente que tipo de alerta é este
+    insight_type: Literal["UPCOMING_HOLIDAY"]
+    title: str
+    message: str
+    details: HolidayInsightDetails # O payload específico do insight
+

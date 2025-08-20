@@ -4,6 +4,8 @@ from typing import Optional
 from venv import logger
 
 from src.api.admin.services.analytics_service import get_peak_hours_for_store
+from src.api.admin.services.holiday_service import HolidayService
+from src.api.admin.services.insights_service import InsightsService
 from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations_simplified
 from src.api.crud import store_crud
 from src.api.schemas.command import CommandOut
@@ -70,6 +72,21 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
 
         peak_hours_data = PeakHoursAnalytics.model_validate(peak_hours_dict)
 
+        # ✅ LÓGICA DE INSIGHTS UNIFICADA
+
+        # Busca insights de feriados
+        holiday_insight = await HolidayService.get_upcoming_holiday_insight()
+
+        # Busca insights de produtos (baixo estoque, baixo giro)
+        product_insights = await InsightsService.generate_dashboard_insights(db, store_id)
+
+        # Junta todos os insights em uma única lista
+        insights_payload = []
+        if holiday_insight:
+            insights_payload.append(holiday_insight)
+        insights_payload.extend(product_insights)
+
+
         payload = {
             "store_id": store_id,
             "store": store_schema.model_dump(mode='json'),
@@ -77,7 +94,8 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
             "dashboard": dashboard_data.model_dump(mode='json'),
             "product_analytics": product_analytics_data.model_dump(mode='json'),
             "customer_analytics": customer_analytics_data.model_dump(mode='json'),
-            "peak_hours": peak_hours_data.model_dump(by_alias=True, mode='json')
+            "peak_hours": peak_hours_data.model_dump(by_alias=True, mode='json'),
+            "insights": [insight.model_dump(mode='json') for insight in insights_payload]
         }
 
         if sid:

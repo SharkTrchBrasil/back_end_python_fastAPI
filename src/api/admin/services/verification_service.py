@@ -1,4 +1,5 @@
 # Em: src/api/services/verification_service.py
+import asyncio
 
 from sqlalchemy.orm import Session
 from src.core import models
