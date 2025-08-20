@@ -63,8 +63,6 @@ async def handle_set_consolidated_stores(self, sid, data):
         return {"error": f"Falha interna: {str(e)}"}
 
 
-
-
 async def handle_update_operation_config(self, sid, data):
     with get_db_manager() as db:
         session = SessionService.get_session(db, sid, client_type="admin")

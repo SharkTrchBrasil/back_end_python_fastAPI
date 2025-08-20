@@ -29,77 +29,93 @@ from src.api.schemas.product import ProductOut
 
 from sqlalchemy.orm import selectinload
 
-import asyncio  # Garanta que o asyncio está importado
 
+# Em socket_handler.py
 
 async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = None):
-    try:
-        store = store_crud.get_store_with_all_details(db=db, store_id=store_id)
+    """
+    Função principal chamada na conexão inicial.
+    Ela orquestra o envio de todos os dados iniciais em eventos separados.
+    """
+    print(f"🚀 [Socket] Enviando estado completo para loja {store_id}...")
 
+    # 1. Envia os dados base da loja
+    await admin_emit_store_details_updated(db, store_id)
+
+    # 2. Envia os dados do dashboard (analytics e insights)
+    await admin_emit_dashboard_data_updated(db, store_id, sid)
+
+    # 3. Envia os dados operacionais em tempo real (que você já tinha)
+    await admin_emit_orders_initial(db, store_id, sid)
+    await admin_emit_tables_and_commands(db, store_id, sid)
+    await admin_emit_products_updated(db, store_id)
+
+    print(f"✅ [Socket] Estado completo para loja {store_id} enviado com sucesso.")
+
+
+async def admin_emit_store_details_updated(db, store_id: int):
+    """
+    Envia APENAS os dados de configuração da loja.
+    É leve e pode ser chamado após qualquer alteração no cadastro.
+    """
+    try:
+        # Usa a nova consulta otimizada
+        store = store_crud.get_store_base_details(db=db, store_id=store_id)
         if not store:
-            print(f"❌ Loja {store_id} não encontrada na função admin_emit_store_full_updated")
             return
 
-        # Bloco para garantir que a configuração exista.
-        if not store.store_operation_config:
-            print(f"🔧 Loja {store_id} não possui configuração de operação. Criando uma padrão.")
-            default_config = models.StoreOperationConfig(store_id=store_id)
-            db.add(default_config)
-            db.commit()
-            db.refresh(store)
-
-        # ✅ O 'if' termina aqui. O código abaixo agora executa SEMPRE.
-
-        # --- 1. PREPARE TODAS AS TAREFAS ASSÍNCRONAS ---
-        product_analytics_task = get_product_analytics_for_store(db, store_id)
-        customer_analytics_task = get_customer_analytics_for_store(db, store_id)
-        holiday_insight_task = HolidayService.get_upcoming_holiday_insight()
-        product_insights_task = InsightsService.generate_dashboard_insights(db, store_id)
-
-        # --- 2. EXECUTE TODAS AS TAREFAS EM PARALELO ---
-        results = await asyncio.gather(
-            product_analytics_task,
-            customer_analytics_task,
-            holiday_insight_task,
-            product_insights_task,
-            return_exceptions=True
-        )
-
-        # --- 3. DESEMPACOTE OS RESULTADOS ---
-        product_analytics_data = results[0] if not isinstance(results[0], Exception) else None
-        customer_analytics_data = results[1] if not isinstance(results[1], Exception) else None
-        holiday_insight = results[2] if not isinstance(results[2], Exception) else None
-        product_insights = results[3] if not isinstance(results[3], Exception) else []
-
-        # Junta os insights em uma única lista
-        insights_payload = []
-        if holiday_insight:
-            insights_payload.append(holiday_insight)
-        if product_insights:
-            insights_payload.extend(product_insights)
-
-        # Lógica síncrona
-        subscription_payload, is_operational = SubscriptionService.get_subscription_details(store)
+        subscription_payload, _ = SubscriptionService.get_subscription_details(store)
         store_schema = StoreDetails.model_validate(store)
+
+        # Lógica de grupos de pagamento
         payment_groups_structured = _build_payment_groups_from_activations_simplified(store.payment_activations)
         store_schema.payment_method_groups = payment_groups_structured
 
-        try:
-            store_schema.ratingsSummary = RatingsSummaryOut(**get_store_ratings_summary(db, store_id=store.id))
-        except Exception:
-            store_schema.ratingsSummary = RatingsSummaryOut(average_rating=0, total_ratings=0, distribution={})
+        payload = {
+            "store": store_schema.model_dump(mode='json'),
+            "subscription": subscription_payload,
+        }
+        await sio.emit('store_details_updated', payload, namespace='/admin', room=f"admin_store_{store_id}")
+        print(f"✅ [Socket] Dados da loja {store_id} atualizados e enviados.")
 
+    except Exception as e:
+        print(f'❌ Erro ao emitir store_details_updated: {e}')
+
+
+
+async def admin_emit_dashboard_data_updated(db, store_id: int, sid: str | None = None):
+    """
+    Envia APENAS os dados analíticos e insights para o dashboard.
+    Pode ser chamado ao conectar ou ao clicar em "Atualizar" no dashboard.
+    """
+    try:
+        # --- 1. Prepara e executa as tarefas pesadas em paralelo ---
+        tasks = [
+            get_product_analytics_for_store(db, store_id),
+            get_customer_analytics_for_store(db, store_id),
+            HolidayService.get_upcoming_holiday_insight(),
+            InsightsService.generate_dashboard_insights(db, store_id)
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # --- 2. Desempacota os resultados ---
+        product_analytics_data, customer_analytics_data, holiday_insight, product_insights = (
+            res if not isinstance(res, Exception) else None for res in results
+        )
+        product_insights = product_insights or []
+
+        # --- 3. Monta e envia o payload ---
         end_date = date.today()
         start_date = end_date - timedelta(days=29)
         dashboard_data = get_dashboard_data_for_period(db, store_id, start_date, end_date)
-        peak_hours_dict = get_peak_hours_for_store(db, store_id)
-        peak_hours_data = PeakHoursAnalytics.model_validate(peak_hours_dict)
+        peak_hours_data = PeakHoursAnalytics.model_validate(get_peak_hours_for_store(db, store_id))
 
-        # Montagem do payload final
+        insights_payload = []
+        if holiday_insight:
+            insights_payload.append(holiday_insight)
+        insights_payload.extend(product_insights)
+
         payload = {
-            "store_id": store_id,
-            "store": store_schema.model_dump(mode='json'),
-            "subscription": subscription_payload,
             "dashboard": dashboard_data.model_dump(mode='json'),
             "product_analytics": product_analytics_data.model_dump(mode='json') if product_analytics_data else {},
             "customer_analytics": customer_analytics_data.model_dump(mode='json') if customer_analytics_data else {},
@@ -108,13 +124,15 @@ async def admin_emit_store_full_updated(db, store_id: int, sid: str | None = Non
         }
 
         # Emissão do evento
+        target_room = f"admin_store_{store_id}"
         if sid:
-            await sio.emit("store_full_updated", payload, namespace='/admin', to=sid)
+            await sio.emit("dashboard_data_updated", payload, namespace='/admin', to=sid)
         else:
-            await sio.emit("store_full_updated", payload, namespace='/admin', room=f"admin_store_{store_id}")
+            await sio.emit("dashboard_data_updated", payload, namespace='/admin', room=target_room)
+        print(f"✅ [Socket] Dados do dashboard da loja {store_id} atualizados e enviados.")
 
     except Exception as e:
-        print(f'❌ Erro crítico em emit_store_full_updated para loja {store_id}: {e.__class__.__name__}: {str(e)}')
+        print(f'❌ Erro ao emitir dashboard_data_updated: {e}')
 
 
 

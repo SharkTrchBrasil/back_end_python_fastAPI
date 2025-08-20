@@ -141,3 +141,34 @@ def get_store_for_customer_view(db: Session, store_id: int) -> models.Store | No
         .first()
     )
     return store
+
+
+
+
+
+def get_store_base_details(db: Session, store_id: int) -> models.Store | None:
+    """
+    Consulta Otimizada: Carrega apenas os dados de configuração da loja.
+    (Exclui listas pesadas como produtos, categorias, clientes, etc.)
+    """
+    store = (
+        db.query(models.Store)
+        .options(
+            # --- Carrega apenas o essencial ---
+            joinedload(models.Store.segment),
+            joinedload(models.Store.theme),
+            joinedload(models.Store.store_operation_config),
+            selectinload(models.Store.hours),
+            selectinload(models.Store.scheduled_pauses),
+            selectinload(models.Store.banners),
+            selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
+            selectinload(models.Store.payment_activations) # Carregamento simplificado
+                .selectinload(models.StorePaymentMethodActivation.platform_method)
+                .selectinload(models.PlatformPaymentMethod.category)
+                .selectinload(models.PaymentMethodCategory.group),
+             selectinload(models.Store.subscriptions).joinedload(models.StoreSubscription.plan),
+        )
+        .filter(models.Store.id == store_id)
+        .first()
+    )
+    return store
