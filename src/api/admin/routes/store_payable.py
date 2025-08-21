@@ -1,13 +1,13 @@
 from datetime import date
 
-from fastapi import APIRouter, HTTPException
-from sqlalchemy.orm import Query
+
+from fastapi import APIRouter, HTTPException, Query
 
 from src.api.admin.services.payable_service import payable_service
 from src.api.schemas.store_payable import PayableUpdate, PayableResponse, PayableCreate
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
-from src.core.models import StorePayable
+
 from src.core.utils.enums import PayableStatus
 
 router = APIRouter(prefix="/stores/{store_id}/payables", tags=["Payables"])
