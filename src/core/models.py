@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy import select, Boolean
+from sqlalchemy import select, Boolean, JSON, Integer
 import enum
 from datetime import datetime, date, timezone
 from typing import Optional, List
@@ -10,6 +10,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from src.api.schemas.store_payable import PayableStatus
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
     CartStatus, ProductType, OrderStatus
 from src.api.schemas.base_schema import VariantType, UIDisplayMode
@@ -887,39 +888,99 @@ class StoreNeighborhood(Base, TimestampMixin):
     city: Mapped["StoreCity"] = relationship("StoreCity", back_populates="neighborhoods")
 
 
-class PayableStatus(str, enum.Enum):
-    pending = "pending"
-    paid = "paid"
-    overdue = "overdue"
-    cancelled = "cancelled"
+
+
+# Crie estes novos modelos também
+class PayableCategory(Base):
+    __tablename__ = "payable_categories"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column()
+    # Relacionamento inverso
+    payables: Mapped[list["StorePayable"]] = relationship(back_populates="category")
+
+
+
+
+
+class Supplier(Base):
+    __tablename__ = "suppliers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
+
+    name: Mapped[str] = mapped_column(String(255))
+    trade_name: Mapped[str | None] = mapped_column(String(255))  # Nome Fantasia
+    document: Mapped[str | None] = mapped_column(String(20), unique=True, index=True)  # CPF ou CNPJ
+
+    # Contato
+    email: Mapped[str | None] = mapped_column(String(255))
+    phone: Mapped[str | None] = mapped_column(String(20))
+
+    # Endereço e Informações Bancárias (usando JSON para flexibilidade)
+    address: Mapped[dict | None] = mapped_column(JSON)
+    bank_info: Mapped[dict | None] = mapped_column(JSON)
+
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    # Relacionamento inverso
+    payables: Mapped[list["StorePayable"]] = relationship(back_populates="supplier")
+
+
+
+class PayableRecurrence(Base):
+    __tablename__ = "payable_recurrences"
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    # Vínculo com a conta a pagar original que gerou a recorrência
+    original_payable_id: Mapped[int] = mapped_column(ForeignKey("store_payables.id"))
+
+    frequency: Mapped[str] = mapped_column(String(50))  # Ex: 'daily', 'weekly', 'monthly', 'yearly'
+    interval: Mapped[int] = mapped_column(default=1)  # Ex: a cada 2 meses (frequency='monthly', interval=2)
+    start_date: Mapped[date] = mapped_column()
+    end_date: Mapped[date | None] = mapped_column()  # A recorrência pode ser infinita
+
+    original_payable: Mapped["StorePayable"] = relationship(back_populates="recurrence")
 
 
 class StorePayable(Base, TimestampMixin):
     __tablename__ = "store_payables"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
 
-    title: Mapped[str] = mapped_column()
-    description: Mapped[str] = mapped_column(default="")
+    category_id: Mapped[int | None] = mapped_column(ForeignKey("payable_categories.id"))
+    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"))
 
-    amount: Mapped[float] = mapped_column()  # Valor original
-    discount: Mapped[float] = mapped_column(default=0.0)
-    addition: Mapped[float] = mapped_column(default=0.0)
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
 
-    due_date: Mapped[date] = mapped_column()
-    payment_date: Mapped[date] = mapped_column(nullable=True)
+    amount: Mapped[int] = mapped_column(Integer)  # Valor em centavos
+    discount: Mapped[int] = mapped_column(Integer, default=0)
+    addition: Mapped[int] = mapped_column(Integer, default=0)
 
-    barcode: Mapped[str | None] = mapped_column(nullable=True)
+    due_date: Mapped[date] = mapped_column(index=True)
+    payment_date: Mapped[date | None] = mapped_column()
+    barcode: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[PayableStatus] = mapped_column(default=PayableStatus.pending, index=True)
 
-    status: Mapped[PayableStatus] = mapped_column(default=PayableStatus.pending)
-
-    is_recurring: Mapped[bool] = mapped_column(default=False)
-    notes: Mapped[str | None] = mapped_column(nullable=True)
+    attachment_key: Mapped[str | None] = mapped_column()  # Chave para o arquivo (ex: em um S3)
+    notes: Mapped[str | None] = mapped_column(Text)
 
     # Relacionamentos
     store: Mapped["Store"] = relationship(back_populates="payables")
+    category: Mapped["PayableCategory"] = relationship(back_populates="payables", lazy="joined")
+    supplier: Mapped["Supplier"] = relationship(back_populates="payables", lazy="joined")
+
+    # Relacionamento com a recorrência
+    recurrence: Mapped["PayableRecurrence"] = relationship(back_populates="original_payable",
+                                                           cascade="all, delete-orphan")
+    parent_recurrence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("payable_recurrences.id"))  # Para saber se esta conta foi gerada por uma recorrência
+
+
+
+
 
 
 class CashierSession(Base, TimestampMixin):

@@ -75,3 +75,11 @@ class OrderStatus(str, enum.Enum):
     ON_ROUTE = 'on_route'
     DELIVERED = 'delivered'
     CANCELED = 'canceled'
+
+
+class PayableStatus(str, enum.Enum):
+    pending = "pending"
+    paid = "paid"
+    overdue = "overdue"
+    cancelled = "cancelled"
+

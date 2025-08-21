@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field
 from typing import List, Literal
 from datetime import date
 
+from src.api.schemas.store_payable import PayableResponse
+
 
 # ===================================================================
 # KPIs (INDICADORES CHAVE)
@@ -114,3 +116,12 @@ class DashboardInsight(BaseModel):
     message: str
     details: HolidayInsightDetails # O payload específico do insight
 
+
+
+class DashboardMetrics(BaseModel):
+    total_pending: int       # Valor total de contas pendentes
+    total_overdue: int       # Valor total de contas vencidas
+    total_paid_month: int    # Valor total pago no mês corrente
+    pending_count: int       # Número de contas pendentes
+    overdue_count: int       # Número de contas vencidas
+    next_due_payables: list[PayableResponse] # Lista das próximas 3-5 contas a vencer

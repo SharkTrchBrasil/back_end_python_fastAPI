@@ -45,6 +45,8 @@ from src.api.admin.routes.loyalty_routes import router as loyalty_router
 from src.api.admin.routes.loyalty_customer_routes import router as loyalty_customer_router
 from src.api.admin.routes.pauses import router as pauses_router
 from src.api.admin.routes.holidays import router as holidays_router
+from src.api.admin.routes.supplier_router import router as supplier_router
+from src.api.admin.routes.payable_category_router import router as payable_category_router
 
 router = APIRouter(prefix="/admin")
 router.include_router(stores_router)
@@ -99,3 +101,5 @@ router.include_router(loyalty_router)
 router.include_router(loyalty_customer_router)
 router.include_router(pauses_router)
 router.include_router(holidays_router)
+router.include_router(supplier_router)
+router.include_router(payable_category_router)
