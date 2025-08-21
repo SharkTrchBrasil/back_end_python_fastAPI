@@ -112,7 +112,6 @@ class Store(Base, TimestampMixin):
 
     theme: Mapped["StoreTheme"] = relationship(back_populates="store", uselist=False, cascade="all, delete-orphan")
     banners: Mapped[List["Banner"]] = relationship(back_populates="store", cascade="all, delete-orphan")
-    payables: Mapped[list["StorePayable"]] = relationship()
 
     orders: Mapped[List["Order"]] = relationship("Order", back_populates="store", cascade="all, delete-orphan")
 
@@ -911,6 +910,9 @@ class PayableCategory(Base):
     __tablename__ = "payable_categories"
     id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
+    # ✅ ADIÇÃO: O relacionamento de volta para a loja
+    store: Mapped["Store"] = relationship(back_populates="payable_categories")
+
     name: Mapped[str] = mapped_column()
     # Relacionamento inverso
     payables: Mapped[list["StorePayable"]] = relationship(back_populates="category")
@@ -924,7 +926,7 @@ class Supplier(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
-
+    store: Mapped["Store"] = relationship(back_populates="suppliers")
     name: Mapped[str] = mapped_column(String(255))
     trade_name: Mapped[str | None] = mapped_column(String(255))  # Nome Fantasia
     document: Mapped[str | None] = mapped_column(String(20), unique=True, index=True)  # CPF ou CNPJ
