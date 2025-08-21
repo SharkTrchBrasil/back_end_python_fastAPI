@@ -7,6 +7,7 @@ from venv import logger
 from src.api.admin.services.analytics_service import get_peak_hours_for_store
 from src.api.admin.services.holiday_service import HolidayService
 from src.api.admin.services.insights_service import InsightsService
+from src.api.admin.services.payable_service import payable_service
 from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations_simplified
 from src.api.crud import store_crud
 from src.api.schemas.command import CommandOut
@@ -60,7 +61,6 @@ async def admin_emit_store_updated(db, store_id: int):
         print(f'❌ Erro ao emitir store_details_updated: {e}')
 
 
-
 async def admin_emit_dashboard_data_updated(db, store_id: int, sid: str | None = None):
     """
     Envia APENAS os dados analíticos e insights para o dashboard.
@@ -112,6 +112,34 @@ async def admin_emit_dashboard_data_updated(db, store_id: int, sid: str | None =
     except Exception as e:
         print(f'❌ Erro ao emitir dashboard_data_updated: {e}')
 
+
+async def admin_emit_payables_data_updated(db, store_id: int, sid: str | None = None):
+    """
+    Busca e envia os dados do widget de Contas a Pagar para o dashboard.
+    """
+    print(f"🚀 [Socket] Atualizando dados de Contas a Pagar para loja {store_id}...")
+    try:
+        # 1. Busca os dados usando o service que já temos
+        # Nota: Estamos chamando uma função síncrona de dentro de uma assíncrona.
+        # Para queries pesadas, o ideal seria usar asyncio.to_thread, mas para esta, é aceitável.
+        payables_metrics = payable_service.get_payables_metrics(db, store_id)
+
+        # 2. Prepara o payload para ser enviado via JSON
+        payload = payables_metrics.model_dump(mode='json')
+
+        # 3. Emite o evento com um nome específico
+        event_name = "payables_data_updated"
+        target_room = f"admin_store_{store_id}"
+
+        if sid:
+            await sio.emit(event_name, payload, namespace='/admin', to=sid)
+        else:
+            await sio.emit(event_name, payload, namespace='/admin', room=target_room)
+
+        print(f"✅ [Socket] Dados de Contas a Pagar da loja {store_id} enviados.")
+
+    except Exception as e:
+        print(f'❌ Erro ao emitir payables_data_updated: {e}')
 
 
 async def admin_emit_orders_initial(db, store_id: int, sid: Optional[str] = None):

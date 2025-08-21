@@ -30,7 +30,7 @@ class PayableResponse(BaseModel):
     amount: int
     discount: int
     addition: int
-    final_amount: int  # Propriedade computada
+
     due_date: date
     payment_date: date | None
     status: str  # Usar o enum aqui
@@ -38,7 +38,7 @@ class PayableResponse(BaseModel):
     category: CategoryResponse | None
     supplier: SupplierResponse | None
 
-    # ✅ MELHORIA: Usando o decorador moderno do Pydantic V2
+
     @computed_field
     @property
     def final_amount(self) -> int:
