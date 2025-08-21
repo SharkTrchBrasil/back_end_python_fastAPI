@@ -10,9 +10,9 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from src.api.schemas.store_payable import PayableStatus
+
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
-    CartStatus, ProductType, OrderStatus
+    CartStatus, ProductType, OrderStatus, PayableStatus
 from src.api.schemas.base_schema import VariantType, UIDisplayMode
 
 from sqlalchemy.dialects.postgresql import ARRAY
