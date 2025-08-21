@@ -183,7 +183,23 @@ class Store(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
 
+    # ✅ ADIÇÃO: Relacionamento com Contas a Pagar
+    payables: Mapped[list["StorePayable"]] = relationship(
+        back_populates="store",
+        cascade="all, delete-orphan"
+    )
 
+    # ✅ ADIÇÃO: Relacionamento com Fornecedores
+    suppliers: Mapped[list["Supplier"]] = relationship(
+        back_populates="store",
+        cascade="all, delete-orphan"
+    )
+
+    # ✅ ADIÇÃO: Relacionamento com Categorias de Contas a Pagar
+    payable_categories: Mapped[list["PayableCategory"]] = relationship(
+        back_populates="store",
+        cascade="all, delete-orphan"
+    )
 
 
 
@@ -940,9 +956,18 @@ class PayableRecurrence(Base):
     start_date: Mapped[date] = mapped_column()
     end_date: Mapped[date | None] = mapped_column()  # A recorrência pode ser infinita
 
-    original_payable: Mapped["StorePayable"] = relationship(back_populates="recurrence")
 
+    # ✅ CORREÇÃO: Especifica qual chave estrangeira usar para este relacionamento
+    original_payable: Mapped["StorePayable"] = relationship(
+        back_populates="recurrence",
+        foreign_keys=[original_payable_id]
+    )
 
+    # ✅ ADIÇÃO (Opcional, mas bom): Relacionamento para ver todas as contas geradas
+    generated_payables: Mapped[list["StorePayable"]] = relationship(
+        back_populates="parent_recurrence",
+        foreign_keys="[StorePayable.parent_recurrence_id]"
+    )
 class StorePayable(Base, TimestampMixin):
     __tablename__ = "store_payables"
 
@@ -972,14 +997,23 @@ class StorePayable(Base, TimestampMixin):
     category: Mapped["PayableCategory"] = relationship(back_populates="payables", lazy="joined")
     supplier: Mapped["Supplier"] = relationship(back_populates="payables", lazy="joined")
 
-    # Relacionamento com a recorrência
-    recurrence: Mapped["PayableRecurrence"] = relationship(back_populates="original_payable",
-                                                           cascade="all, delete-orphan")
-    parent_recurrence_id: Mapped[int | None] = mapped_column(
-        ForeignKey("payable_recurrences.id"))  # Para saber se esta conta foi gerada por uma recorrência
 
 
 
+    parent_recurrence_id: Mapped[int | None] = mapped_column(ForeignKey("payable_recurrences.id"))
+
+    # ✅ CORREÇÃO: Especifica qual chave estrangeira usar para o relacionamento "eu sou o original"
+    recurrence: Mapped["PayableRecurrence"] = relationship(
+        back_populates="original_payable",
+        foreign_keys="[PayableRecurrence.original_payable_id]",
+        cascade="all, delete-orphan"
+    )
+
+    # ✅ ADIÇÃO (Opcional, mas bom): Relacionamento para ver a recorrência "mãe"
+    parent_recurrence: Mapped["PayableRecurrence"] = relationship(
+        back_populates="generated_payables",
+        foreign_keys=[parent_recurrence_id]
+    )
 
 
 

@@ -11,8 +11,11 @@ from src.api.admin.services.payable_service import payable_service
 from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations_simplified
 from src.api.crud import store_crud
 from src.api.schemas.command import CommandOut
+from src.api.schemas.payable_category import PayableCategoryResponse
 from src.api.schemas.peak_hours import PeakHoursAnalytics
 from src.api.schemas.store_details import StoreDetails
+from src.api.schemas.store_payable import PayableResponse
+from src.api.schemas.supplier import SupplierResponse
 
 from src.api.schemas.table import TableOut
 from src.api.admin.services.customer_analytic_service import get_customer_analytics_for_store
@@ -113,7 +116,7 @@ async def admin_emit_dashboard_data_updated(db, store_id: int, sid: str | None =
         print(f'❌ Erro ao emitir dashboard_data_updated: {e}')
 
 
-async def admin_emit_payables_data_updated(db, store_id: int, sid: str | None = None):
+async def admin_emit_dashboard_payables_data_updated(db, store_id: int, sid: str | None = None):
     """
     Busca e envia os dados do widget de Contas a Pagar para o dashboard.
     """
@@ -140,6 +143,54 @@ async def admin_emit_payables_data_updated(db, store_id: int, sid: str | None = 
 
     except Exception as e:
         print(f'❌ Erro ao emitir payables_data_updated: {e}')
+
+
+
+async def admin_emit_financials_updated(db, store_id: int, sid: str | None = None):
+    """
+    Carrega e envia as listas completas de Contas a Pagar, Fornecedores e Categorias.
+    """
+    print(f"🚀 [Socket] Atualizando dados financeiros para loja {store_id}...")
+    try:
+        # 1. Busca a loja e carrega as relações necessárias de forma otimizada
+        store_with_financials = (
+            db.query(models.Store)
+            .options(
+                selectinload(models.Store.payables).joinedload(models.StorePayable.supplier),
+                selectinload(models.Store.suppliers),
+                selectinload(models.Store.payable_categories),
+            )
+            .filter(models.Store.id == store_id)
+            .one_or_none()
+        )
+
+        if not store_with_financials:
+            return
+
+        # 2. Prepara o payload usando os Schemas Pydantic para garantir o formato correto
+        payload = {
+            "payables": [PayableResponse.model_validate(p).model_dump(mode='json') for p in
+                         store_with_financials.payables],
+            "suppliers": [SupplierResponse.model_validate(s).model_dump(mode='json') for s in
+                          store_with_financials.suppliers],
+            "categories": [PayableCategoryResponse.model_validate(c).model_dump(mode='json') for c in
+                           store_with_financials.payable_categories],
+        }
+
+        # 3. Emite o evento com um nome específico
+        event_name = "financials_updated"
+        target_room = f"admin_store_{store_id}"
+
+        # Lógica de emissão (pode variar um pouco no seu código)
+        if sid:
+            await sio.emit(event_name, payload, namespace='/admin', to=sid)
+        else:
+            await sio.emit(event_name, payload, namespace='/admin', room=target_room)
+
+        print(f"✅ [Socket] Dados financeiros da loja {store_id} enviados.")
+
+    except Exception as e:
+        print(f'❌ Erro ao emitir financials_updated: {e}')
 
 
 async def admin_emit_orders_initial(db, store_id: int, sid: Optional[str] = None):
