@@ -13,6 +13,7 @@ from src.api.schemas.performance import (
     TopSellingProductSchema,
     CustomerAnalyticsSchema
 )
+from src.core.utils.enums import OrderStatus
 
 
 def get_store_performance_for_date(db: Session, store_id: int, target_date: date) -> StorePerformanceSchema:
