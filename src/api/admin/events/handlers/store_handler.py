@@ -14,7 +14,7 @@ from src.core import models
 from src.api.admin.socketio.emitters import (
     admin_emit_store_updated, admin_emit_dashboard_data_updated,
     admin_emit_orders_initial, admin_emit_tables_and_commands, admin_emit_products_updated,
-    admin_emit_financials_updated,
+    admin_emit_financials_updated, admin_emit_dashboard_payables_data_updated,
 
 )
 from src.core.database import get_db_manager
@@ -170,7 +170,7 @@ async def handle_join_store_room(self, sid, data):
             await asyncio.gather(
                 admin_emit_store_updated(db, store_id),
                 admin_emit_dashboard_data_updated(db, store_id, sid),
-                admin_emit_dashboard_data_updated(db, store_id, sid),
+                admin_emit_dashboard_payables_data_updated(db, store_id, sid),
                 admin_emit_financials_updated(db, store_id, sid),
                 admin_emit_orders_initial(db, store_id, sid),
                 admin_emit_tables_and_commands(db, store_id, sid),
