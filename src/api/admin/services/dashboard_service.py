@@ -59,7 +59,7 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
     previous_revenue = db.query(func.sum(models.Order.discounted_total_price)).filter(
         models.Order.store_id == store_id,
         models.Order.created_at.between(previous_start_date, previous_end_date + timedelta(days=1)),
-        models.Order.order_status == 'completed'
+        models.Order.order_status == OrderStatus.DELIVERED
     ).scalar() or 0
 
     if previous_revenue > 0:

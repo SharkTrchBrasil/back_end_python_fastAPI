@@ -24,7 +24,7 @@ def get_store_performance_for_date(db: Session, store_id: int, target_date: date
 
     # Status que consideramos como "pedido concluído" para as métricas.
     # Ajuste conforme sua regra de negócio (ex: 'delivered', 'completed').
-    COMPLETED_STATUS = 'delivered'
+    COMPLETED_STATUS = OrderStatus.DELIVERED.value
 
     # --- 1. Consulta Base para Pedidos Concluídos ---
     base_query = db.query(models.Order).filter(
