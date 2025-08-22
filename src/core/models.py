@@ -200,8 +200,9 @@ class Store(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
 
-
-
+    receivables: Mapped[list["StoreReceivable"]] = relationship(back_populates="store", cascade="all, delete-orphan")
+    receivable_categories: Mapped[list["ReceivableCategory"]] = relationship(back_populates="store",
+                                                                             cascade="all, delete-orphan")
 
     @hybrid_property
     def active_subscription(self) -> Optional["StoreSubscription"]:  # <- Use a string aqui também
@@ -999,24 +1000,80 @@ class StorePayable(Base, TimestampMixin):
     category: Mapped["PayableCategory"] = relationship(back_populates="payables", lazy="joined")
     supplier: Mapped["Supplier"] = relationship(back_populates="payables", lazy="joined")
 
+    parent_recurrence_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "payable_recurrences.id",
+            use_alter=True,
+            name="fk_payable_parent_recurrence"
+        )
+    )
 
 
-
-    parent_recurrence_id: Mapped[int | None] = mapped_column(ForeignKey("payable_recurrences.id"))
-
-    # ✅ CORREÇÃO: Especifica qual chave estrangeira usar para o relacionamento "eu sou o original"
     recurrence: Mapped["PayableRecurrence"] = relationship(
         back_populates="original_payable",
         foreign_keys="[PayableRecurrence.original_payable_id]",
         cascade="all, delete-orphan"
     )
 
-    # ✅ ADIÇÃO (Opcional, mas bom): Relacionamento para ver a recorrência "mãe"
+
     parent_recurrence: Mapped["PayableRecurrence"] = relationship(
         back_populates="generated_payables",
         foreign_keys=[parent_recurrence_id]
     )
 
+
+class ReceivableCategory(Base):
+    """
+    Categorias para as contas a receber.
+    Exemplos: 'Venda a Prazo', 'Serviço Prestado', 'Mensalidade'.
+    """
+    __tablename__ = "receivable_categories"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(100))
+
+    # Relacionamento de volta para a loja
+    store: Mapped["Store"] = relationship(back_populates="receivable_categories")
+
+    # Lista de recebíveis nesta categoria
+    receivables: Mapped[list["StoreReceivable"]] = relationship(back_populates="category")
+
+
+class StoreReceivable(Base):  # Adicione , TimestampMixin se usar
+    """
+    Representa uma conta a receber de uma loja.
+    """
+    __tablename__ = "store_receivables"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
+    category_id: Mapped[int | None] = mapped_column(ForeignKey("receivable_categories.id"))
+
+    # Chave da mudança: link para um cliente (customer) em vez de um fornecedor
+    # Supondo que você tenha uma tabela 'customers'
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"))
+
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
+    amount: Mapped[int] = mapped_column(Integer)  # Valor em centavos
+
+    due_date: Mapped[date] = mapped_column(index=True)  # Data de Vencimento
+    received_date: Mapped[date | None] = mapped_column()  # Data de Recebimento
+
+    # Status possíveis: 'pending', 'received', 'overdue'
+    status: Mapped[str] = mapped_column(String(50), default='pending', index=True)
+
+    # --- Relacionamentos ---
+    store: Mapped["Store"] = relationship(back_populates="receivables")
+    category: Mapped["ReceivableCategory"] = relationship(back_populates="receivables", lazy="joined")
+
+    # ✅ 2. SINTAXE CORRIGIDA E ADIÇÃO DO back_populates
+    # Supondo que seu modelo Customer tenha um relacionamento 'receivables'
+    customer: Mapped[Optional["Customer"]] = relationship(
+        back_populates="receivables",
+        lazy="joined"
+    )
+
+# --- ATUALIZAÇÕES NECESSÁRIAS EM OUTROS MODELOS ---
 
 
 class CashierSession(Base, TimestampMixin):
@@ -1093,6 +1150,8 @@ class Customer(Base):
     cashback_balance: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.00'))
 
     orders: Mapped[list["Order"]] = relationship(back_populates="customer")
+
+    receivables: Mapped[list["StoreReceivable"]] = relationship()
 
 class StoreCustomer(Base, TimestampMixin):
     __tablename__ = "store_customers"

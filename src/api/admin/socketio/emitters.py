@@ -13,6 +13,7 @@ from src.api.crud import store_crud
 from src.api.schemas.command import CommandOut
 from src.api.schemas.payable_category import PayableCategoryResponse
 from src.api.schemas.peak_hours import PeakHoursAnalytics
+from src.api.schemas.receivable import ReceivableResponse, ReceivableCategoryResponse
 from src.api.schemas.store_details import StoreDetails
 from src.api.schemas.store_payable import PayableResponse
 from src.api.schemas.supplier import SupplierResponse
@@ -159,6 +160,8 @@ async def admin_emit_financials_updated(db, store_id: int, sid: str | None = Non
                 selectinload(models.Store.payables).joinedload(models.StorePayable.supplier),
                 selectinload(models.Store.suppliers),
                 selectinload(models.Store.payable_categories),
+                selectinload(models.Store.receivables).joinedload(models.StoreReceivable.customer),
+                selectinload(models.Store.receivable_categories),
             )
             .filter(models.Store.id == store_id)
             .one_or_none()
@@ -175,7 +178,14 @@ async def admin_emit_financials_updated(db, store_id: int, sid: str | None = Non
                           store_with_financials.suppliers],
             "categories": [PayableCategoryResponse.model_validate(c).model_dump(mode='json') for c in
                            store_with_financials.payable_categories],
+
+            "receivables": [ReceivableResponse.model_validate(r).model_dump(mode='json') for r in
+                            store_with_financials.receivables],
+            "receivable_categories": [ReceivableCategoryResponse.model_validate(c).model_dump(mode='json') for c in
+                                      store_with_financials.receivable_categories],
         }
+
+
 
         # 3. Emite o evento com um nome específico
         event_name = "financials_updated"

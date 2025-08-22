@@ -47,6 +47,8 @@ from src.api.admin.routes.pauses import router as pauses_router
 from src.api.admin.routes.holidays import router as holidays_router
 from src.api.admin.routes.supplier_router import router as supplier_router
 from src.api.admin.routes.payable_category_router import router as payable_category_router
+from src.api.admin.routes.receivable_router import router as receivable_router
+from src.api.admin.routes.receivable_category_router import router as receivable_category_router
 
 router = APIRouter(prefix="/admin")
 router.include_router(stores_router)
@@ -103,3 +105,5 @@ router.include_router(pauses_router)
 router.include_router(holidays_router)
 router.include_router(supplier_router)
 router.include_router(payable_category_router)
+router.include_router(receivable_router)
+router.include_router(receivable_category_router)
