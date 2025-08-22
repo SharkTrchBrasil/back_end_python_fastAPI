@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 from datetime import date
-from typing import List
+from typing import List, Optional
 
 
 class DailySummarySchema(BaseModel):
@@ -25,6 +25,7 @@ class PaymentMethodSummarySchema(BaseModel):
     """Estrutura para o gráfico de formas de pagamento."""
     method_name: str
     total_value: float
+    method_icon: Optional[str] = None  #
     transaction_count: int
 
 

@@ -61,7 +61,6 @@ def get_store_performance_for_date(db: Session, store_id: int, target_date: date
         SalesByHourSchema(hour=row.hour, totalValue=row.total_value / 100 if row.total_value else 0)
         for row in sales_by_hour_data
     ]
-
     # --- 4. Formas de Pagamento ---
     payment_methods_data = base_query.join(
         models.Order.payment_method
@@ -69,13 +68,18 @@ def get_store_performance_for_date(db: Session, store_id: int, target_date: date
         models.StorePaymentMethodActivation.platform_method
     ).with_entities(
         models.PlatformPaymentMethod.name.label("method_name"),
+        models.PlatformPaymentMethod.icon_key.label("method_icon"),  # ✅ ADICIONADO
         func.sum(models.Order.total_price).label("total_value"),
         func.count(models.Order.id).label("transaction_count")
-    ).group_by("method_name").all()
+    ).group_by(
+        models.PlatformPaymentMethod.name,
+        models.PlatformPaymentMethod.icon_key  # ✅ ADICIONADO
+    ).all()
 
     payment_methods = [
         PaymentMethodSummarySchema(
             method_name=row.method_name,
+            method_icon=row.method_icon,  # ✅ ADICIONADO
             total_value=row.total_value / 100 if row.total_value else 0,
             transaction_count=row.transaction_count
         ) for row in payment_methods_data
