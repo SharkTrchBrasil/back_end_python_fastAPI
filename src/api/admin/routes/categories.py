@@ -15,7 +15,7 @@ from src.core.utils.enums import CashbackType
 router = APIRouter(tags=["Categories"], prefix="/stores/{store_id}/categories")
 
 
-@router.post("", response_model=CategoryOut) # Retorna o schema de saída
+@router.post("", response_model=CategoryOut)  # Retorna o schema de saída
 async def create_category(
     db: GetDBDep,
     store: GetStoreDep,
@@ -42,7 +42,6 @@ async def create_category(
     )
 
     db.add(db_category)
-
     db.commit()
     db.refresh(db_category)
 
@@ -50,7 +49,6 @@ async def create_category(
     await admin_emit_store_updated(db, store.id)
 
     return db_category
-
 
 
 @router.get("", response_model=list[CategoryOut])
@@ -61,31 +59,37 @@ def get_categories(
     db_categories = db.query(models.Category).filter(models.Category.store_id == store.id).all()
     return db_categories
 
+
 @router.get("/{category_id}", response_model=CategoryOut)
 def get_category(
     db: GetDBDep,
     store: GetStoreDep,
     category_id: int,
 ):
-    db_category = db.query(models.Category).filter(models.Category.id == category_id, models.Category.store_id == store.id).first()
+    db_category = db.query(models.Category).filter(
+        models.Category.id == category_id,
+        models.Category.store_id == store.id
+    ).first()
+
     if not db_category:
         raise HTTPException(status_code=404, detail="Category not found")
+
     return db_category
 
 
 @router.patch("/{category_id}", response_model=CategoryOut)
 async def patch_category(
-        db: GetDBDep,
-        store: GetStoreDep,
-        category_id: int,
-        name: str | None = Form(None),
-        priority: int | None = Form(None),
-        image: UploadFile | None = File(None),
-        is_active: bool | None = Form(None),  # Corrigido de Form(True) para Form(None)
+    db: GetDBDep,
+    store: GetStoreDep,
+    category_id: int,
+    name: str | None = Form(None),
+    priority: int | None = Form(None),
+    image: UploadFile | None = File(None),
+    is_active: bool | None = Form(None),  # Corrigido de Form(True) para Form(None)
 
-        # ✅ ADICIONADO: Campos de cashback opcionais para atualização
-        cashback_type: str | None = Form(None),
-        cashback_value: Decimal | None = Form(None),
+    # ✅ ADICIONADO: Campos de cashback opcionais para atualização
+    cashback_type: str | None = Form(None),
+    cashback_value: Decimal | None = Form(None),
 ):
     db_category = db.query(models.Category).filter(
         models.Category.id == category_id,
@@ -99,13 +103,12 @@ async def patch_category(
 
     if name is not None:
         db_category.name = name
-    # ✅ CORREÇÃO DE BUG: Sua lógica original para 'is_active' estava incorreta.
     if is_active is not None:
         db_category.is_active = is_active
     if priority is not None:
         db_category.priority = priority
 
-    # ✅ ADICIONADO: Lógica para atualizar os campos de cashback
+    # ✅ Atualizar os campos de cashback
     if cashback_type is not None:
         db_category.cashback_type = CashbackType(cashback_type)
     if cashback_value is not None:
@@ -149,6 +152,7 @@ async def delete_category(
 
     db.delete(category)
     db.commit()
-    db.refresh(category)
+    db.refresh(store)
+
     await asyncio.create_task(emit_store_updated(db, store.id))
     await admin_emit_store_updated(db, store.id)
