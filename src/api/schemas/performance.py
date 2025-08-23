@@ -1,56 +1,83 @@
 # src/api/schemas/performance.py
-
 from pydantic import BaseModel, Field
 from datetime import date
 from typing import List, Optional
 
 
-class DailySummarySchema(BaseModel):
-    """Resumo dos principais KPIs do dia."""
-    completed_sales: int = Field(..., description="Número de vendas concluídas (status 'delivered' ou similar).")
-    total_value: float = Field(..., description="Soma do valor total dos pedidos concluídos.")
-    average_ticket: float = Field(..., description="Ticket médio (Valor Total / Vendas Concluídas).")
-
+# --- SCHEMAS DE DADOS BÁSICOS (PARA GRÁFICOS, ETC) ---
 
 class SalesByHourSchema(BaseModel):
-    """Estrutura para o gráfico de vendas por hora."""
     hour: int
-    total_value: float = Field(..., alias="totalValue")  # Alias para camelCase no JSON
+    total_value: float = Field(..., alias="totalValue")
 
     class Config:
-        populate_by_name = True  # Permite usar o alias
+        populate_by_name = True
 
 
 class PaymentMethodSummarySchema(BaseModel):
-    """Estrutura para o gráfico de formas de pagamento."""
     method_name: str
+    method_icon: Optional[str] = None
     total_value: float
-    method_icon: Optional[str] = None  #
     transaction_count: int
 
 
 class TopSellingProductSchema(BaseModel):
-    """Estrutura para a lista de produtos mais vendidos."""
     product_id: int
     product_name: str
     quantity_sold: int
     total_value: float
 
 
-class CustomerAnalyticsSchema(BaseModel):
-    """Dados sobre clientes novos vs. recorrentes."""
-    new_customers: int
-    returning_customers: int
+class OrderStatusCountSchema(BaseModel):
+    concluidos: int
+    cancelados: int
+    pendentes: int
 
+
+# --- SCHEMAS AVANÇADOS COM COMPARAÇÃO ---
+
+class ComparativeMetricSchema(BaseModel):
+    """Um schema para qualquer métrica que precise de comparação."""
+    current: float
+    previous: float
+    change_percentage: float = Field(..., alias="percentageChange")
+
+    class Config:
+        populate_by_name = True
+
+
+class DailySummarySchema(BaseModel):
+    """Resumo com métricas comparativas."""
+    completed_sales: ComparativeMetricSchema = Field(..., alias="completedSales")
+    total_value: ComparativeMetricSchema = Field(..., alias="totalValue")
+    average_ticket: ComparativeMetricSchema = Field(..., alias="averageTicket")
+
+    class Config:
+        populate_by_name = True
+
+
+class CustomerAnalyticsSchema(BaseModel):
+    """Dados de clientes com métricas comparativas."""
+    new_customers: ComparativeMetricSchema = Field(..., alias="newCustomers")
+    returning_customers: ComparativeMetricSchema = Field(..., alias="returningCustomers")
+
+    class Config:
+        populate_by_name = True
+
+
+# --- O SCHEMA DE RESPOSTA PRINCIPAL E COMPLETO ---
 
 class StorePerformanceSchema(BaseModel):
-    """O objeto de resposta completo para a página de desempenho."""
-    query_date: date
+    query_date: date = Field(..., alias="queryDate")
+    comparison_date: date = Field(..., alias="comparisonDate")
     summary: DailySummarySchema
-    sales_by_hour: List[SalesByHourSchema]
-    payment_methods: List[PaymentMethodSummarySchema]
-    top_selling_products: List[TopSellingProductSchema]
-    customer_analytics: CustomerAnalyticsSchema
+    gross_profit: ComparativeMetricSchema = Field(..., alias="grossProfit")
+    customer_analytics: CustomerAnalyticsSchema = Field(..., alias="customerAnalytics")
+    sales_by_hour: List[SalesByHourSchema] = Field(..., alias="salesByHour")
+    payment_methods: List[PaymentMethodSummarySchema] = Field(..., alias="paymentMethods")
+    top_selling_products: List[TopSellingProductSchema] = Field(..., alias="topSellingProducts")
+    order_status_counts: OrderStatusCountSchema = Field(..., alias="orderStatusCounts")
 
     class Config:
         from_attributes = True
+        populate_by_name = True
