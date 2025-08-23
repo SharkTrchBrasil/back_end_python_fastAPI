@@ -165,52 +165,66 @@ def _calc_sales_and_profit(
     return summary, gross_profit
 
 
+# src/api/admin/services/performance_service.py
+
 def _calc_customer_analytics(
-    db: Session,
-    store_id: int,
-    current_day: date,
-    comparison_day: date,
+        db: Session,
+        store_id: int,
+        start_current: datetime,
+        end_current: datetime,
+        start_previous: datetime,
+        end_previous: datetime,
 ) -> CustomerAnalyticsSchema:
     """
-    Calcula novos vs recorrentes para dia atual e comparativo (com variação %).
+    Calcula novos vs recorrentes para os períodos atual e comparativo.
     """
-    def _day_counts(day: date) -> Tuple[int, int]:
-        # clientes com pedido no dia
-        ids = {
+
+    def _period_counts(start_dt: datetime, end_dt: datetime) -> Tuple[int, int]:
+        """Helper que calcula as contagens para um único intervalo de datas."""
+
+        # 1. Pega os IDs únicos de todos os clientes que fizeram pedidos no período
+        customer_ids_in_period = {
             row.customer_id
             for row in db.query(models.Order.customer_id)
             .filter(
                 models.Order.store_id == store_id,
-                func.date(models.Order.created_at) == day,
+                # ✅ ALTERADO: Usa o intervalo de datas em vez de um único dia
+                models.Order.created_at.between(start_dt, end_dt),
                 models.Order.customer_id.isnot(None),
             )
             .distinct()
             .all()
         }
-        if not ids:
+
+        if not customer_ids_in_period:
             return 0, 0
 
-        new_count = (
-            db.query(func.count(models.StoreCustomer.customer_id))
-            .filter(
-                models.StoreCustomer.store_id == store_id,
-                models.StoreCustomer.customer_id.in_(ids),
-                func.date(models.StoreCustomer.created_at) == day,
-            )
-            .scalar()
-            or 0
+        # 2. Desses clientes, conta quantos foram 'criados' (fizeram a primeira compra) dentro do mesmo período
+        new_customers_count = (
+                db.query(func.count(models.StoreCustomer.customer_id))
+                .filter(
+                    models.StoreCustomer.store_id == store_id,
+                    models.StoreCustomer.customer_id.in_(customer_ids_in_period),
+                    # ✅ ALTERADO: Verifica se a data de criação está no intervalo
+                    models.StoreCustomer.created_at.between(start_dt, end_dt),
+                )
+                .scalar()
+                or 0
         )
-        returning_count = max(len(ids) - new_count, 0)
-        return new_count, returning_count
 
-    c_new, c_ret = _day_counts(current_day)
-    p_new, p_ret = _day_counts(comparison_day)
+        returning_customers_count = max(len(customer_ids_in_period) - new_customers_count, 0)
+        return new_customers_count, returning_customers_count
 
+    # Calcula para o período atual
+    current_new, current_returning = _period_counts(start_current, end_current)
+    # Calcula para o período anterior
+    previous_new, previous_returning = _period_counts(start_previous, end_previous)
+
+    # Monta a resposta final com a comparação
     return CustomerAnalyticsSchema(
-        new_customers=_build_comparative_metric(c_new, p_new),
-        returning_customers=_build_comparative_metric(c_ret, p_ret),
+        new_customers=_build_comparative_metric(current_new, previous_new),
+        returning_customers=_build_comparative_metric(current_returning, previous_returning),
     )
-
 
 def _sales_by_hour(
     db: Session, store_id: int, start_dt: datetime, end_dt: datetime
@@ -495,15 +509,20 @@ def _product_sales_funnel(
 
 
 
-def get_store_performance_for_date(db: Session, store_id: int, target_date: date) -> StorePerformanceSchema:
+def get_store_performance_for_date(db: Session, store_id: int, start_date: date, end_date: date) -> StorePerformanceSchema:
     """
-    Calcula o painel de performance da loja para `target_date`,
-    comparando com D-7. Todos os valores monetários são retornados em reais.
+    Calcula o painel de performance para um intervalo de datas,
+    comparando com o período anterior de mesma duração.
     """
-    comparison_date = target_date - timedelta(days=7)
+    # --- 1. Definir Períodos de Tempo ---
+    period_duration = (end_date - start_date).days + 1
+    comparison_start_date = start_date - timedelta(days=period_duration)
+    comparison_end_date = start_date - timedelta(days=1)
 
-    start_current, end_current = _time_range_for_day(target_date)
-    start_previous, end_previous = _time_range_for_day(comparison_date)
+    # Converte para datetime para as queries
+    start_current, end_current = _time_range_for_day(start_date)[0], _time_range_for_day(end_date)[1]
+    start_previous, end_previous = _time_range_for_day(comparison_start_date)[0], _time_range_for_day(comparison_end_date)[1]
+
 
     # 1) Vendas / Ticket / Lucro
     summary, gross_profit = _calc_sales_and_profit(
@@ -511,7 +530,7 @@ def get_store_performance_for_date(db: Session, store_id: int, target_date: date
     )
 
     # 2) Clientes
-    customer_analytics = _calc_customer_analytics(db, store_id, target_date, comparison_date)
+    customer_analytics = _calc_customer_analytics(db, store_id, start_current, end_current, start_previous, end_previous)
 
     # 3) Gráficos e breakdowns do dia atual
     sales_by_hour = _sales_by_hour(db, store_id, start_current, end_current)
@@ -526,8 +545,8 @@ def get_store_performance_for_date(db: Session, store_id: int, target_date: date
     product_funnel = _product_sales_funnel(db, store_id, start_current, end_current)
 
     return StorePerformanceSchema(
-        query_date=target_date,
-        comparison_date=comparison_date,
+        query_date=end_date,  # Podemos usar a data final como referência
+        comparison_date=comparison_end_date,
         summary=summary,
         gross_profit=gross_profit,
         customer_analytics=customer_analytics,

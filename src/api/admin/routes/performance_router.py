@@ -25,11 +25,14 @@ router = APIRouter(
 def get_performance_data(
     db: GetDBDep,
     store: GetStoreDep,
-    target_date: date = Query(..., description="Data no formato YYYY-MM-DD"),
+    # ✅ ALTERADO: Removemos target_date
+    start_date: date = Query(..., description="Data de início do período no formato YYYY-MM-DD"),
+    end_date: date = Query(..., description="Data de fim do período no formato YYYY-MM-DD"),
 ):
     """Resumo de desempenho da loja em uma data específica"""
     try:
-        performance_data = get_store_performance_for_date(db, store.id, target_date)
+        # ✅ ALTERADO: Passamos o período para o serviço
+        performance_data = get_store_performance_for_date(db, store.id, start_date, end_date)
         return performance_data
     except Exception as e:
         print(f"❌ Erro ao calcular desempenho para loja {store.id}: {e}")
