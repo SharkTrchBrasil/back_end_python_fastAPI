@@ -90,49 +90,49 @@ def list_orders_by_date(
         size=size,
     )
 
-
-# ✅ ADICIONE ESTE NOVO ENDPOINT
-@router.get(
-    "/today-summary",
-    response_model=TodaySummarySchema,
-    summary="Obtém um resumo rápido das vendas do dia de operação atual"
-)
-def get_today_summary_data(
-    db: GetDBDep,
-    store: GetStoreDep,
-    # current_user...
-):
-    return get_today_summary(db, store.id)
-
-
-
-@router.get(
-    "/export/pdf",
-    summary="Exporta o resumo de desempenho do período em PDF"
-)
-def export_performance_pdf(
-        db: GetDBDep,
-        store: GetStoreDep,
-        start_date: date = Query(...),
-        end_date: date = Query(...),
-        # current_user...
-):
-    # 1. Busca os dados de performance
-    performance_data = get_store_performance_for_date(db, store.id, start_date, end_date)
-
-    # 2. Gera o PDF usando o serviço
-    pdf_bytes = create_performance_pdf(
-        store_name=store.name,
-        start_date=start_date.strftime("%d/%m/%Y"),
-        end_date=end_date.strftime("%d/%m/%Y"),
-        performance_data=performance_data
-    )
-
-    # 3. Retorna o arquivo PDF
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f"attachment; filename=desempenho_{store.url_slug}_{start_date}_a_{end_date}.pdf"
-        }
-    )
+#
+# # ✅ ADICIONE ESTE NOVO ENDPOINT
+# @router.get(
+#     "/today-summary",
+#     response_model=TodaySummarySchema,
+#     summary="Obtém um resumo rápido das vendas do dia de operação atual"
+# )
+# def get_today_summary_data(
+#     db: GetDBDep,
+#     store: GetStoreDep,
+#     # current_user...
+# ):
+#     return get_today_summary(db, store.id)
+#
+#
+#
+# @router.get(
+#     "/export/pdf",
+#     summary="Exporta o resumo de desempenho do período em PDF"
+# )
+# def export_performance_pdf(
+#         db: GetDBDep,
+#         store: GetStoreDep,
+#         start_date: date = Query(...),
+#         end_date: date = Query(...),
+#         # current_user...
+# ):
+#     # 1. Busca os dados de performance
+#     performance_data = get_store_performance_for_date(db, store.id, start_date, end_date)
+#
+#     # 2. Gera o PDF usando o serviço
+#     pdf_bytes = create_performance_pdf(
+#         store_name=store.name,
+#         start_date=start_date.strftime("%d/%m/%Y"),
+#         end_date=end_date.strftime("%d/%m/%Y"),
+#         performance_data=performance_data
+#     )
+#
+#     # 3. Retorna o arquivo PDF
+#     return Response(
+#         content=pdf_bytes,
+#         media_type="application/pdf",
+#         headers={
+#             "Content-Disposition": f"attachment; filename=desempenho_{store.url_slug}_{start_date}_a_{end_date}.pdf"
+#         }
+#     )
