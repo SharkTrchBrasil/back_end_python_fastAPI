@@ -8,7 +8,7 @@ from h11 import Response
 from sqlalchemy import cast, String
 from sqlalchemy.orm import Session
 
-from src.api.admin.services.pdf_service import create_performance_pdf
+#from src.api.admin.services.pdf_service import create_performance_pdf
 from src.api.schemas.order import OrderDetails
 from src.api.schemas.pagination import PaginatedResponse
 from src.core import models
