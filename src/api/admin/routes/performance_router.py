@@ -25,7 +25,7 @@ router = APIRouter(
 def get_performance_data(
     db: GetDBDep,
     store: GetStoreDep,
-    # ✅ ALTERADO: Removemos target_date
+
     start_date: date = Query(..., description="Data de início do período no formato YYYY-MM-DD"),
     end_date: date = Query(..., description="Data de fim do período no formato YYYY-MM-DD"),
 ):
@@ -43,7 +43,9 @@ def get_performance_data(
 def list_orders_by_date(
     db: GetDBDep,
     store: GetStoreDep,
-    target_date: date = Query(..., description="Data para a análise"),
+
+    start_date: date = Query(..., description="Data de início do período"),
+    end_date: date = Query(..., description="Data de fim do período"),
     search: Optional[str] = Query(None, description="Busca por nome ou ID do pedido"),
     status: Optional[str] = Query(None, description="Filtra por status do pedido"),
     sort_by: str = Query("created_at", description="Campo para ordenação"),
@@ -51,12 +53,14 @@ def list_orders_by_date(
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=100),
 ):
-    start_of_day = datetime.combine(target_date, time.min)
-    end_of_day = datetime.combine(target_date, time.max)
 
+    start_of_period = datetime.combine(start_date, time.min)
+    end_of_period = datetime.combine(end_date, time.max)
+
+    # A query agora usa o período correto
     query = db.query(models.Order).filter(
         models.Order.store_id == store.id,
-        models.Order.created_at.between(start_of_day, end_of_day)
+        models.Order.created_at.between(start_of_period, end_of_period)
     )
 
     if search:
