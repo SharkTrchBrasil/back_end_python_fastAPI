@@ -19,7 +19,7 @@ from src.api.schemas.performance import (
     SalesByHourSchema,
     StorePerformanceSchema,
     TopAddonSchema,
-    TopSellingProductSchema, CategoryPerformanceSchema, ProductFunnelSchema,
+    TopSellingProductSchema, CategoryPerformanceSchema, ProductFunnelSchema, TodaySummarySchema,
 )
 
 
@@ -507,7 +507,41 @@ def _product_sales_funnel(
     return sorted(funnel_list, key=lambda p: p.view_count, reverse=True)
 
 
+# ✅ CRIE ESTA NOVA FUNÇÃO HELPER
+def get_today_summary(db: Session, store_id: int) -> TodaySummarySchema:
+    """Calcula um resumo rápido das vendas concluídas do dia de operação."""
+    # O iFood considera o dia das 05:00 de hoje até 04:59 de amanhã.
+    # Vamos simular essa lógica.
+    now = datetime.now()
+    start_of_operation_day = now.replace(hour=5, minute=0, second=0, microsecond=0)
+    if now.hour < 5:  # Se for antes das 5 da manhã, pega o dia anterior
+        start_of_operation_day -= timedelta(days=1)
+    end_of_operation_day = start_of_operation_day + timedelta(days=1)
 
+    COMPLETED = OrderStatus.DELIVERED.value
+
+    summary_metrics = (
+        db.query(
+            func.count(models.Order.id).label("count"),
+            func.sum(models.Order.total_price).label("value"),
+        )
+        .filter(
+            models.Order.store_id == store_id,
+            models.Order.order_status == COMPLETED,
+            models.Order.created_at.between(start_of_operation_day, end_of_operation_day),
+        )
+        .one()
+    )
+
+    count = summary_metrics.count or 0
+    value = _to_real(summary_metrics.value)
+    ticket = (value / count) if count > 0 else 0.0
+
+    return TodaySummarySchema(
+        completed_sales=count,
+        total_value=value,
+        average_ticket=ticket,
+    )
 
 def get_store_performance_for_date(db: Session, store_id: int, start_date: date, end_date: date) -> StorePerformanceSchema:
     """

@@ -92,6 +92,13 @@ class ProductFunnelSchema(BaseModel):
 
 # --- O SCHEMA DE RESPOSTA PRINCIPAL E COMPLETO ---
 
+class TodaySummarySchema(BaseModel):
+    """Schema simples para os dados de vendas do dia."""
+    completed_sales: int
+    total_value: float
+    average_ticket: float
+
+
 class StorePerformanceSchema(BaseModel):
     query_date: date = Field(..., alias="queryDate")
     comparison_date: date = Field(..., alias="comparisonDate")

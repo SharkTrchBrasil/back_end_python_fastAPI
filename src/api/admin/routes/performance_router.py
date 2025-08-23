@@ -12,8 +12,8 @@ from src.api.schemas.pagination import PaginatedResponse
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
-from src.api.schemas.performance import StorePerformanceSchema
-from src.api.admin.services.performance_service import get_store_performance_for_date
+from src.api.schemas.performance import StorePerformanceSchema, TodaySummarySchema
+from src.api.admin.services.performance_service import get_store_performance_for_date, get_today_summary
 
 router = APIRouter(
     prefix="/stores/{store_id}/performance",
@@ -87,3 +87,17 @@ def list_orders_by_date(
         page=page,
         size=size,
     )
+
+
+# ✅ ADICIONE ESTE NOVO ENDPOINT
+@router.get(
+    "/today-summary",
+    response_model=TodaySummarySchema,
+    summary="Obtém um resumo rápido das vendas do dia de operação atual"
+)
+def get_today_summary_data(
+    db: GetDBDep,
+    store: GetStoreDep,
+    # current_user...
+):
+    return get_today_summary(db, store.id)
