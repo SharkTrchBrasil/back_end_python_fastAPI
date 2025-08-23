@@ -99,8 +99,30 @@ async def create_product(
 
 
 
+@router.post("/{product_id}/view", status_code=204)
+def record_product_view(
+        product: GetProductDep,  # Usa a dependência para garantir que o produto existe
+        store: GetStoreDep,  # Usa a dependência para pegar a loja
+        db: GetDBDep,
+):
+    """
+    Registra uma única visualização para um produto.
 
+    Este é o endpoint que seu cardápio digital deve chamar toda vez
+    que a página de detalhes de um produto for aberta.
+    """
+    # Cria uma nova entrada na tabela de visualizações
+    new_view = models.ProductView(
+        product_id=product.id,
+        store_id=store.id,
+        # customer_id pode ser adicionado aqui se o cliente estiver logado
+    )
 
+    db.add(new_view)
+    db.commit()
+
+    # Não há necessidade de retornar um corpo, o status 204 (No Content) é suficiente.
+    return
 
 
 

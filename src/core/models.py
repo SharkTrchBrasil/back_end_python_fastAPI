@@ -1949,3 +1949,45 @@ class ScheduledPause(Base):
 
     # Relacionamento
     store: Mapped["Store"] = relationship(back_populates="scheduled_pauses")
+
+
+
+class ProductView(Base):
+    __tablename__ = "product_views"
+
+    # --- Colunas Principais ---
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    # Chave estrangeira para o produto que foi visto.
+    # ON DELETE CASCADE: Se um produto for deletado, todos os seus registros de visualização somem junto.
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
+
+    # Chave estrangeira para a loja, essencial para separar os dados de cada cliente.
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), nullable=False)
+
+    # O timestamp exato de quando a visualização ocorreu.
+    # O banco de dados preencherá isso automaticamente.
+    viewed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+
+    # (Opcional, mas MUITO poderoso para futuras análises)
+    # Se o cliente estiver logado, guardamos o ID dele.
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id", ondelete="SET NULL"), nullable=True)
+
+    # --- Relacionamentos (opcionais, mas boa prática) ---
+    product: Mapped["Product"] = relationship()
+    store: Mapped["Store"] = relationship()
+    customer: Mapped["Customer | None"] = relationship()
+
+    # --- Índices para Performance ---
+    # Otimiza as buscas que faremos para a página de desempenho.
+    __table_args__ = (
+        Index("ix_product_views_store_id_viewed_at", "store_id", "viewed_at"),
+        Index("ix_product_views_product_id_viewed_at", "product_id", "viewed_at"),
+    )
+
+    def __repr__(self):
+        return f"<ProductView(product_id={self.product_id}, viewed_at='{self.viewed_at}')>"

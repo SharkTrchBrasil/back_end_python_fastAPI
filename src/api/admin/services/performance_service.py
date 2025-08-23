@@ -19,7 +19,7 @@ from src.api.schemas.performance import (
     SalesByHourSchema,
     StorePerformanceSchema,
     TopAddonSchema,
-    TopSellingProductSchema,
+    TopSellingProductSchema, CategoryPerformanceSchema, ProductFunnelSchema,
 )
 
 
@@ -383,7 +383,117 @@ def _coupon_performance(
     ]
 
 
-# ------------- Orquestrador -------------
+def _category_performance(
+    db: Session, store_id: int, start_dt: datetime, end_dt: datetime
+) -> list[CategoryPerformanceSchema]:
+    COMPLETED = OrderStatus.DELIVERED.value
+    rows = (
+        db.query(
+            models.Category.id.label("cat_id"),
+            models.Category.name.label("cat_name"),
+            func.sum(models.OrderProduct.quantity).label("items_sold"),
+            func.sum(models.OrderProduct.price * models.OrderProduct.quantity).label("total_value"),
+            func.sum(
+                (models.OrderProduct.price - func.coalesce(models.Product.cost_price, 0)) * models.OrderProduct.quantity
+            ).label("gross_profit"),
+        )
+        .join(models.Product, models.Category.id == models.Product.category_id)
+        .join(models.OrderProduct, models.Product.id == models.OrderProduct.product_id)
+        .join(models.Order, models.OrderProduct.order_id == models.Order.id)
+        .filter(
+            models.Order.store_id == store_id,
+            models.Order.created_at.between(start_dt, end_dt),
+            models.Order.order_status == COMPLETED,
+        )
+        .group_by(models.Category.id, models.Category.name)
+        .order_by(func.sum(models.OrderProduct.price * models.OrderProduct.quantity).desc())
+        .all()
+    )
+    return [
+        CategoryPerformanceSchema(
+            category_id=r.cat_id,
+            category_name=r.cat_name,
+            items_sold=int(r.items_sold or 0),
+            total_value=_to_real(r.total_value),
+            gross_profit=_to_real(r.gross_profit),
+        )
+        for r in rows
+    ]
+
+
+def _product_sales_funnel(
+        db: Session, store_id: int, start_dt: datetime, end_dt: datetime
+) -> list[ProductFunnelSchema]:
+    COMPLETED = OrderStatus.DELIVERED.value
+
+    # 1. Obter dados de VENDAS de produtos no período
+    sales_results = (
+        db.query(
+            models.Product.id,
+            models.Product.name,
+            func.count(models.OrderProduct.id).label("sales_count"),
+            func.sum(models.OrderProduct.quantity).label("quantity_sold"),
+        )
+        .join(models.OrderProduct, models.Product.id == models.OrderProduct.product_id)
+        .join(models.Order, models.OrderProduct.order_id == models.Order.id)
+        .filter(
+            models.Order.store_id == store_id,
+            models.Order.created_at.between(start_dt, end_dt),
+            models.Order.order_status == COMPLETED,
+        )
+        .group_by(models.Product.id, models.Product.name)
+        .all()
+    )
+    sales_data = {row.id: row for row in sales_results}
+
+    # 2. Obter dados de VISUALIZAÇÕES de produtos no período
+    view_results = (
+        db.query(
+            models.ProductView.product_id,
+            func.count(models.ProductView.id).label("view_count"),
+        )
+        .filter(
+            models.ProductView.store_id == store_id,
+            models.ProductView.viewed_at.between(start_dt, end_dt),
+        )
+        .group_by(models.ProductView.product_id)
+        .all()
+    )
+    views_data = {row.product_id: row.view_count for row in view_results}
+
+    # 3. Combinar os dados em Python
+    funnel_list = []
+    all_product_ids = set(sales_data.keys()) | set(views_data.keys())
+
+    # Precisamos dos nomes de todos os produtos envolvidos
+    product_names = {p.id: p.name for p in
+                     db.query(models.Product.id, models.Product.name).filter(models.Product.id.in_(all_product_ids))}
+
+    for pid in all_product_ids:
+        sales = sales_data.get(pid)
+        views = views_data.get(pid, 0)
+
+        sales_count = int(sales.sales_count) if sales else 0
+        quantity_sold = int(sales.quantity_sold) if sales else 0
+
+        conversion_rate = (sales_count / views) * 100 if views > 0 else 0.0
+
+        funnel_list.append(
+            ProductFunnelSchema(
+                product_id=pid,
+                product_name=product_names.get(pid, "Produto Removido"),
+                view_count=views,
+                sales_count=sales_count,
+                quantity_sold=quantity_sold,
+                conversion_rate=conversion_rate,
+            )
+        )
+
+    # Ordena a lista pelos produtos mais vistos
+    return sorted(funnel_list, key=lambda p: p.view_count, reverse=True)
+
+
+
 
 def get_store_performance_for_date(db: Session, store_id: int, target_date: date) -> StorePerformanceSchema:
     """
@@ -410,6 +520,10 @@ def get_store_performance_for_date(db: Session, store_id: int, target_date: date
     order_status_counts = _order_status_counts(db, store_id, start_current, end_current)
     top_selling_addons = _top_addons(db, store_id, start_current, end_current)
     coupon_performance = _coupon_performance(db, store_id, start_current, end_current)
+    # ✅ CHAME A NOVA FUNÇÃO
+    category_performance = _category_performance(db, store_id, start_current, end_current)
+    # ✅ CHAME A NOVA FUNÇÃO DO FUNIL DE VENDAS
+    product_funnel = _product_sales_funnel(db, store_id, start_current, end_current)
 
     return StorePerformanceSchema(
         query_date=target_date,
@@ -423,4 +537,6 @@ def get_store_performance_for_date(db: Session, store_id: int, target_date: date
         order_status_counts=order_status_counts,
         top_selling_addons=top_selling_addons,
         coupon_performance=coupon_performance,
+        category_performance=category_performance,
+        product_funnel=product_funnel,  # ✅ Adicione o resultado aqui
     )

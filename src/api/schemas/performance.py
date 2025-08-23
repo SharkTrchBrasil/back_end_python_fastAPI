@@ -75,6 +75,20 @@ class CustomerAnalyticsSchema(BaseModel):
     class Config:
         populate_by_name = True
 
+class CategoryPerformanceSchema(BaseModel):
+    category_id: int
+    category_name: str
+    total_value: float  # Faturamento gerado pela categoria
+    gross_profit: float # Lucro bruto gerado pela categoria
+    items_sold: int     # Quantidade de itens vendidos da categoria
+
+class ProductFunnelSchema(BaseModel):
+    product_id: int
+    product_name: str
+    view_count: int          # Total de visualizações
+    sales_count: int         # Total de vezes que o item apareceu em pedidos
+    quantity_sold: int       # Total de unidades vendidas
+    conversion_rate: float   # (sales_count / view_count) * 100
 
 # --- O SCHEMA DE RESPOSTA PRINCIPAL E COMPLETO ---
 
@@ -91,6 +105,11 @@ class StorePerformanceSchema(BaseModel):
 
     top_selling_addons: List[TopAddonSchema] = Field(..., alias="topSellingAddons")
     coupon_performance: List[CouponPerformanceSchema] = Field(..., alias="couponPerformance")
+    # ✅ NOVO CAMPO DO NÍVEL 3
+    category_performance: List[CategoryPerformanceSchema] = Field(..., alias="categoryPerformance")
+
+    # ✅ NOVO CAMPO DO FUNIL DE VENDAS
+    product_funnel: List[ProductFunnelSchema] = Field(..., alias="productFunnel")
 
     class Config:
         from_attributes = True
