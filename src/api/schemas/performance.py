@@ -3,8 +3,19 @@ from pydantic import BaseModel, Field
 from datetime import date
 from typing import List, Optional
 
+class TopAddonSchema(BaseModel):
+    """Schema para os complementos (variant options) mais vendidos."""
+    addon_name: str
+    quantity_sold: int
+    total_value: float
 
-# --- SCHEMAS DE DADOS BÁSICOS (PARA GRÁFICOS, ETC) ---
+class CouponPerformanceSchema(BaseModel):
+    """Schema para o desempenho de cada cupom usado no dia."""
+    coupon_code: str
+    times_used: int
+    total_discount: float  # Soma dos descontos concedidos
+    revenue_generated: float # Soma dos valores dos pedidos que usaram o cupom
+
 
 class SalesByHourSchema(BaseModel):
     hour: int
@@ -77,6 +88,9 @@ class StorePerformanceSchema(BaseModel):
     payment_methods: List[PaymentMethodSummarySchema] = Field(..., alias="paymentMethods")
     top_selling_products: List[TopSellingProductSchema] = Field(..., alias="topSellingProducts")
     order_status_counts: OrderStatusCountSchema = Field(..., alias="orderStatusCounts")
+
+    top_selling_addons: List[TopAddonSchema] = Field(..., alias="topSellingAddons")
+    coupon_performance: List[CouponPerformanceSchema] = Field(..., alias="couponPerformance")
 
     class Config:
         from_attributes = True

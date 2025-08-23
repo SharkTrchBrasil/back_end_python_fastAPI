@@ -1,145 +1,416 @@
 # src/api/admin/services/performance_service.py
-from sqlalchemy.orm import Session
-from sqlalchemy import func, case, and_
+from __future__ import annotations
+
 from datetime import date, datetime, time, timedelta
+from typing import Iterable, Optional, Tuple
+
+from sqlalchemy import and_, case, func
+from sqlalchemy.orm import Session
 
 from src.core import models
 from src.core.utils.enums import OrderStatus
 from src.api.schemas.performance import (
-    StorePerformanceSchema,
-    DailySummarySchema,
     ComparativeMetricSchema,
+    CouponPerformanceSchema,
     CustomerAnalyticsSchema,
-    SalesByHourSchema,
-    PaymentMethodSummarySchema,
-    TopSellingProductSchema,
+    DailySummarySchema,
     OrderStatusCountSchema,
+    PaymentMethodSummarySchema,
+    SalesByHourSchema,
+    StorePerformanceSchema,
+    TopAddonSchema,
+    TopSellingProductSchema,
 )
 
 
+# ------------- Utils / Helpers -------------
+
+def _to_real(value: Optional[int | float]) -> float:
+    """Converte centavos para reais (ou retorna 0.0)."""
+    return float((value or 0) / 100)
+
+
 def _build_comparative_metric(current, previous) -> ComparativeMetricSchema:
-    """Helper para criar a métrica comparativa e calcular a porcentagem."""
+    """Cria métrica comparativa com % de variação (prev > 0)."""
     current = float(current or 0.0)
     previous = float(previous or 0.0)
-
-    change = 0.0
-    if previous > 0:
-        change = ((current - previous) / previous) * 100
-
+    change = ((current - previous) / previous) * 100 if previous > 0 else 0.0
     return ComparativeMetricSchema(current=current, previous=previous, change_percentage=change)
 
 
-def get_store_performance_for_date(db: Session, store_id: int, target_date: date) -> StorePerformanceSchema:
-    # --- 1. Definir Períodos de Tempo ---
-    comparison_date = target_date - timedelta(days=7)
-    start_current, end_current = datetime.combine(target_date, time.min), datetime.combine(target_date, time.max)
-    start_previous, end_previous = datetime.combine(comparison_date, time.min), datetime.combine(comparison_date,
-                                                                                                 time.max)
+def _time_range_for_day(target: date) -> Tuple[datetime, datetime]:
+    """Retorna (start_of_day, end_of_day) para a data."""
+    return datetime.combine(target, time.min), datetime.combine(target, time.max)
 
-    # --- 2. Query de Vendas e Lucro (Apenas para pedidos concluídos) ---
-    COMPLETED_STATUS = OrderStatus.DELIVERED.value
-    sales_profit_results = db.query(
-        func.sum(case((models.Order.created_at.between(start_current, end_current), models.Order.total_price),
-                      else_=0)).label("current_total_value"),
-        func.count(
-            case((models.Order.created_at.between(start_current, end_current), models.Order.id), else_=None)).label(
-            "current_sales_count"),
-        func.sum(case((models.Order.created_at.between(start_current, end_current),
-                       (models.OrderProduct.price - models.Product.cost_price) * models.OrderProduct.quantity),
-                      else_=0)).label("current_gross_profit"),
-        func.sum(case((models.Order.created_at.between(start_previous, end_previous), models.Order.total_price),
-                      else_=0)).label("previous_total_value"),
-        func.count(
-            case((models.Order.created_at.between(start_previous, end_previous), models.Order.id), else_=None)).label(
-            "previous_sales_count"),
-        func.sum(case((models.Order.created_at.between(start_previous, end_previous),
-                       (models.OrderProduct.price - models.Product.cost_price) * models.OrderProduct.quantity),
-                      else_=0)).label("previous_gross_profit")
-    ).join(models.OrderProduct, models.Order.id == models.OrderProduct.order_id).join(models.Product,
-                                                                                      models.OrderProduct.product_id == models.Product.id).filter(
+
+def _orders_base_query(
+    db: Session,
+    store_id: int,
+    start_dt: datetime,
+    end_dt: datetime,
+    status: Optional[str] = None,
+):
+    """Query base de pedidos por loja e intervalo, com status opcional."""
+    q = db.query(models.Order).filter(
         models.Order.store_id == store_id,
-        models.Order.order_status == COMPLETED_STATUS,
-        (models.Order.created_at.between(start_current, end_current)) | (
-            models.Order.created_at.between(start_previous, end_previous))
-    ).one_or_none()
+        models.Order.created_at.between(start_dt, end_dt),
+    )
+    if status:
+        q = q.filter(models.Order.order_status == status)
+    return q
 
-    # --- 3. Processar Resultados de Vendas e Lucro ---
-    current_total_value = (sales_profit_results.current_total_value or 0) / 100
-    previous_total_value = (sales_profit_results.previous_total_value or 0) / 100
-    current_sales_count = sales_profit_results.current_sales_count or 0
-    previous_sales_count = sales_profit_results.previous_sales_count or 0
-    current_gross_profit = (sales_profit_results.current_gross_profit or 0) / 100
-    previous_gross_profit = (sales_profit_results.previous_gross_profit or 0) / 100
+
+# ------------- Blocos de cálculo -------------
+
+def _calc_sales_and_profit(
+    db: Session,
+    store_id: int,
+    start_current: datetime,
+    end_current: datetime,
+    start_previous: datetime,
+    end_previous: datetime,
+) -> Tuple[DailySummarySchema, ComparativeMetricSchema]:
+    """
+    Agregações de vendas e lucro bruto comparando dia atual vs. dia comparativo.
+    Trata ausência de dados e custo nulo.
+    """
+    COMPLETED = OrderStatus.DELIVERED.value  # string esperada no banco
+
+    # price e cost_price são em centavos
+    # lucro bruto por item = (preco_venda - custo) * quantidade
+    gross_expr_current = (
+        func.coalesce(
+            (models.OrderProduct.price - func.coalesce(models.Product.cost_price, 0)),
+            0,
+        ) * models.OrderProduct.quantity
+    )
+
+    gross_expr_previous = (
+        func.coalesce(
+            (models.OrderProduct.price - func.coalesce(models.Product.cost_price, 0)),
+            0,
+        ) * models.OrderProduct.quantity
+    )
+
+    agg = (
+        db.query(
+            # Totais do período atual
+            func.sum(
+                case(
+                    (models.Order.created_at.between(start_current, end_current), models.Order.total_price),
+                    else_=0,
+                )
+            ).label("current_total_value"),
+            func.count(
+                case(
+                    (models.Order.created_at.between(start_current, end_current), models.Order.id),
+                    else_=None,
+                )
+            ).label("current_sales_count"),
+            func.sum(
+                case(
+                    (models.Order.created_at.between(start_current, end_current), gross_expr_current),
+                    else_=0,
+                )
+            ).label("current_gross_profit"),
+            # Totais do período anterior
+            func.sum(
+                case(
+                    (models.Order.created_at.between(start_previous, end_previous), models.Order.total_price),
+                    else_=0,
+                )
+            ).label("previous_total_value"),
+            func.count(
+                case(
+                    (models.Order.created_at.between(start_previous, end_previous), models.Order.id),
+                    else_=None,
+                )
+            ).label("previous_sales_count"),
+            func.sum(
+                case(
+                    (models.Order.created_at.between(start_previous, end_previous), gross_expr_previous),
+                    else_=0,
+                )
+            ).label("previous_gross_profit"),
+        )
+        .join(models.OrderProduct, models.Order.id == models.OrderProduct.order_id)
+        .join(models.Product, models.OrderProduct.product_id == models.Product.id)
+        .filter(
+            models.Order.store_id == store_id,
+            models.Order.order_status == COMPLETED,
+            # limita aos dois períodos para otimizar
+            (models.Order.created_at.between(start_current, end_current))
+            | (models.Order.created_at.between(start_previous, end_previous)),
+        )
+        .first()
+    )
+
+    # Trata None com zeros
+    current_total_value = _to_real(getattr(agg, "current_total_value", 0))
+    previous_total_value = _to_real(getattr(agg, "previous_total_value", 0))
+    current_sales_count = int(getattr(agg, "current_sales_count", 0) or 0)
+    previous_sales_count = int(getattr(agg, "previous_sales_count", 0) or 0)
+    current_gross_profit = _to_real(getattr(agg, "current_gross_profit", 0))
+    previous_gross_profit = _to_real(getattr(agg, "previous_gross_profit", 0))
 
     summary = DailySummarySchema(
         completed_sales=_build_comparative_metric(current_sales_count, previous_sales_count),
         total_value=_build_comparative_metric(current_total_value, previous_total_value),
         average_ticket=_build_comparative_metric(
-            current_total_value / current_sales_count if current_sales_count else 0,
-            previous_total_value / previous_sales_count if previous_sales_count else 0)
+            (current_total_value / current_sales_count) if current_sales_count else 0.0,
+            (previous_total_value / previous_sales_count) if previous_sales_count else 0.0,
+        ),
     )
     gross_profit = _build_comparative_metric(current_gross_profit, previous_gross_profit)
+    return summary, gross_profit
 
-    # --- 4. Análise de Clientes ---
-    def get_customer_analytics(day):
-        customer_ids_on_day = {row.customer_id for row in
-                               db.query(models.Order.customer_id).filter(models.Order.store_id == store_id,
-                                                                         func.date(models.Order.created_at) == day,
-                                                                         models.Order.customer_id.isnot(
-                                                                             None)).distinct()}
-        if not customer_ids_on_day: return 0, 0
-        new_customers_count = db.query(func.count(models.StoreCustomer.customer_id)).filter(
-            models.StoreCustomer.store_id == store_id, models.StoreCustomer.customer_id.in_(customer_ids_on_day),
-            func.date(models.StoreCustomer.created_at) == day).scalar() or 0
-        return new_customers_count, len(customer_ids_on_day) - new_customers_count
 
-    current_new, current_returning = get_customer_analytics(target_date)
-    previous_new, previous_returning = get_customer_analytics(comparison_date)
-    customer_analytics = CustomerAnalyticsSchema(new_customers=_build_comparative_metric(current_new, previous_new),
-                                                 returning_customers=_build_comparative_metric(current_returning,
-                                                                                               previous_returning))
+def _calc_customer_analytics(
+    db: Session,
+    store_id: int,
+    current_day: date,
+    comparison_day: date,
+) -> CustomerAnalyticsSchema:
+    """
+    Calcula novos vs recorrentes para dia atual e comparativo (com variação %).
+    """
+    def _day_counts(day: date) -> Tuple[int, int]:
+        # clientes com pedido no dia
+        ids = {
+            row.customer_id
+            for row in db.query(models.Order.customer_id)
+            .filter(
+                models.Order.store_id == store_id,
+                func.date(models.Order.created_at) == day,
+                models.Order.customer_id.isnot(None),
+            )
+            .distinct()
+            .all()
+        }
+        if not ids:
+            return 0, 0
 
-    # --- 5. Dados para Gráficos (Apenas do dia atual) ---
-    base_current_day_query = db.query(models.Order).filter(models.Order.store_id == store_id,
-                                                           models.Order.created_at.between(start_current, end_current))
+        new_count = (
+            db.query(func.count(models.StoreCustomer.customer_id))
+            .filter(
+                models.StoreCustomer.store_id == store_id,
+                models.StoreCustomer.customer_id.in_(ids),
+                func.date(models.StoreCustomer.created_at) == day,
+            )
+            .scalar()
+            or 0
+        )
+        returning_count = max(len(ids) - new_count, 0)
+        return new_count, returning_count
 
-    sales_by_hour_data = base_current_day_query.filter(models.Order.order_status == COMPLETED_STATUS).with_entities(
-        func.extract('hour', models.Order.created_at).label("hour"),
-        func.sum(models.Order.total_price).label("total_value")).group_by("hour").order_by("hour").all()
-    sales_by_hour = [SalesByHourSchema(hour=r.hour, totalValue=(r.total_value or 0) / 100) for r in sales_by_hour_data]
+    c_new, c_ret = _day_counts(current_day)
+    p_new, p_ret = _day_counts(comparison_day)
 
-    payment_methods_data = base_current_day_query.filter(models.Order.order_status == COMPLETED_STATUS).join(
-        models.Order.payment_method).join(models.StorePaymentMethodActivation.platform_method).with_entities(
-        models.PlatformPaymentMethod.name, models.PlatformPaymentMethod.icon_key,
-        func.sum(models.Order.total_price).label("total_value"), func.count(models.Order.id).label("count")).group_by(
-        models.PlatformPaymentMethod.name, models.PlatformPaymentMethod.icon_key).all()
-    payment_methods = [
-        PaymentMethodSummarySchema(method_name=r.name, method_icon=r.icon_key, total_value=(r.total_value or 0) / 100,
-                                   transaction_count=r.count) for r in payment_methods_data]
+    return CustomerAnalyticsSchema(
+        new_customers=_build_comparative_metric(c_new, p_new),
+        returning_customers=_build_comparative_metric(c_ret, p_ret),
+    )
 
-    top_selling_products_data = db.query(models.Product.id, models.Product.name,
-                                         func.sum(models.OrderProduct.quantity).label("qty"),
-                                         func.sum(models.OrderProduct.price * models.OrderProduct.quantity).label(
-                                             "value")).join(models.OrderProduct,
-                                                            models.Product.id == models.OrderProduct.product_id).join(
-        models.Order, models.OrderProduct.order_id == models.Order.id).filter(models.Order.store_id == store_id,
-                                                                              models.Order.created_at.between(
-                                                                                  start_current, end_current),
-                                                                              models.Order.order_status == COMPLETED_STATUS).group_by(
-        models.Product.id, models.Product.name).order_by(func.sum(models.OrderProduct.quantity).desc()).limit(5).all()
-    top_selling_products = [TopSellingProductSchema(product_id=p.id, product_name=p.name, quantity_sold=p.qty,
-                                                    total_value=(p.value or 0) / 100) for p in
-                            top_selling_products_data]
 
-    status_counts_data = {row.order_status: row.count for row in
-                          base_current_day_query.with_entities(models.Order.order_status,
-                                                               func.count(models.Order.id).label("count")).group_by(
-                              models.Order.order_status).all()}
-    order_status_counts = OrderStatusCountSchema(concluidos=status_counts_data.get(OrderStatus.DELIVERED.value, 0),
-                                                 cancelados=status_counts_data.get(OrderStatus.CANCELED.value, 0),
-                                                 pendentes=status_counts_data.get(OrderStatus.PENDING.value, 0))
+def _sales_by_hour(
+    db: Session, store_id: int, start_dt: datetime, end_dt: datetime
+) -> list[SalesByHourSchema]:
+    COMPLETED = OrderStatus.DELIVERED.value
+    rows = (
+        _orders_base_query(db, store_id, start_dt, end_dt, COMPLETED)
+        .with_entities(
+            func.extract("hour", models.Order.created_at).label("hour"),
+            func.sum(models.Order.total_price).label("total_value"),
+        )
+        .group_by("hour")
+        .order_by("hour")
+        .all()
+    )
+    return [SalesByHourSchema(hour=int(r.hour), totalValue=_to_real(r.total_value)) for r in rows]
 
-    # --- 6. Montar a Resposta Final ---
+
+def _payment_methods(
+    db: Session, store_id: int, start_dt: datetime, end_dt: datetime
+) -> list[PaymentMethodSummarySchema]:
+    """
+    Soma por método de pagamento (nome e ícone da plataforma).
+    Mantém os joins conforme seu modelo (Order -> payment_method -> platform_method).
+    """
+    COMPLETED = OrderStatus.DELIVERED.value
+
+    rows = (
+        _orders_base_query(db, store_id, start_dt, end_dt, COMPLETED)
+        .join(models.Order.payment_method)  # relacionamento esperado
+        .join(models.StorePaymentMethodActivation.platform_method)
+        .with_entities(
+            models.PlatformPaymentMethod.name.label("name"),
+            models.PlatformPaymentMethod.icon_key.label("icon_key"),
+            func.sum(models.Order.total_price).label("total_value"),
+            func.count(models.Order.id).label("count"),
+        )
+        .group_by(models.PlatformPaymentMethod.name, models.PlatformPaymentMethod.icon_key)
+        .all()
+    )
+    return [
+        PaymentMethodSummarySchema(
+            method_name=r.name,
+            method_icon=r.icon_key,
+            total_value=_to_real(r.total_value),
+            transaction_count=int(r.count or 0),
+        )
+        for r in rows
+    ]
+
+
+def _top_products(
+    db: Session, store_id: int, start_dt: datetime, end_dt: datetime
+) -> list[TopSellingProductSchema]:
+    COMPLETED = OrderStatus.DELIVERED.value
+    rows = (
+        db.query(
+            models.Product.id.label("pid"),
+            models.Product.name.label("pname"),
+            func.sum(models.OrderProduct.quantity).label("qty"),
+            func.sum(models.OrderProduct.price * models.OrderProduct.quantity).label("value"),
+        )
+        .join(models.OrderProduct, models.Product.id == models.OrderProduct.product_id)
+        .join(models.Order, models.OrderProduct.order_id == models.Order.id)
+        .filter(
+            models.Order.store_id == store_id,
+            models.Order.created_at.between(start_dt, end_dt),
+            models.Order.order_status == COMPLETED,
+        )
+        .group_by(models.Product.id, models.Product.name)
+        .order_by(func.sum(models.OrderProduct.quantity).desc())
+        .limit(5)
+        .all()
+    )
+    return [
+        TopSellingProductSchema(
+            product_id=r.pid,
+            product_name=r.pname,
+            quantity_sold=int(r.qty or 0),
+            total_value=_to_real(r.value),
+        )
+        for r in rows
+    ]
+
+
+def _order_status_counts(
+    db: Session, store_id: int, start_dt: datetime, end_dt: datetime
+) -> OrderStatusCountSchema:
+    rows = (
+        _orders_base_query(db, store_id, start_dt, end_dt)
+        .with_entities(models.Order.order_status, func.count(models.Order.id).label("count"))
+        .group_by(models.Order.order_status)
+        .all()
+    )
+    counts = {r.order_status: int(r.count or 0) for r in rows}
+    return OrderStatusCountSchema(
+        concluidos=counts.get(OrderStatus.DELIVERED.value, 0),
+        cancelados=counts.get(OrderStatus.CANCELED.value, 0),
+        pendentes=counts.get(OrderStatus.PENDING.value, 0),
+    )
+
+
+def _top_addons(
+    db: Session, store_id: int, start_dt: datetime, end_dt: datetime
+) -> list[TopAddonSchema]:
+    COMPLETED = OrderStatus.DELIVERED.value
+    rows = (
+        db.query(
+            models.OrderVariantOption.name.label("name"),
+            func.sum(models.OrderVariantOption.quantity).label("qty"),
+            func.sum(models.OrderVariantOption.price * models.OrderVariantOption.quantity).label("value"),
+        )
+        .join(models.OrderVariant, models.OrderVariantOption.order_variant_id == models.OrderVariant.id)
+        .join(models.OrderProduct, models.OrderVariant.order_product_id == models.OrderProduct.id)
+        .join(models.Order, models.OrderProduct.order_id == models.Order.id)
+        .filter(
+            models.Order.store_id == store_id,
+            models.Order.created_at.between(start_dt, end_dt),
+            models.Order.order_status == COMPLETED,
+        )
+        .group_by(models.OrderVariantOption.name)
+        .order_by(func.sum(models.OrderVariantOption.quantity).desc())
+        .limit(5)
+        .all()
+    )
+    return [
+        TopAddonSchema(
+            addon_name=r.name,
+            quantity_sold=int(r.qty or 0),
+            total_value=_to_real(r.value),
+        )
+        for r in rows
+    ]
+
+
+def _coupon_performance(
+    db: Session, store_id: int, start_dt: datetime, end_dt: datetime
+) -> list[CouponPerformanceSchema]:
+    """
+    Performance de cupons no período.
+    Receita considera discounted_total_price se existir, senão total_price.
+    """
+    # cria a expressão de receita líquida (fallback para total_price)
+    revenue_expr = func.coalesce(models.Order.discounted_total_price, models.Order.total_price)
+
+    rows = (
+        db.query(
+            models.Coupon.code.label("code"),
+            func.count(models.CouponUsage.id).label("uses"),
+            func.sum(models.Order.discount_amount).label("discount"),
+            func.sum(revenue_expr).label("revenue"),
+        )
+        .join(models.CouponUsage, models.Coupon.id == models.CouponUsage.coupon_id)
+        .join(models.Order, models.CouponUsage.order_id == models.Order.id)
+        .filter(
+            models.Order.store_id == store_id,
+            models.Order.created_at.between(start_dt, end_dt),
+        )
+        .group_by(models.Coupon.code)
+        .all()
+    )
+    return [
+        CouponPerformanceSchema(
+            coupon_code=r.code,
+            times_used=int(r.uses or 0),
+            total_discount=_to_real(r.discount),
+            revenue_generated=_to_real(r.revenue),
+        )
+        for r in rows
+    ]
+
+
+# ------------- Orquestrador -------------
+
+def get_store_performance_for_date(db: Session, store_id: int, target_date: date) -> StorePerformanceSchema:
+    """
+    Calcula o painel de performance da loja para `target_date`,
+    comparando com D-7. Todos os valores monetários são retornados em reais.
+    """
+    comparison_date = target_date - timedelta(days=7)
+
+    start_current, end_current = _time_range_for_day(target_date)
+    start_previous, end_previous = _time_range_for_day(comparison_date)
+
+    # 1) Vendas / Ticket / Lucro
+    summary, gross_profit = _calc_sales_and_profit(
+        db, store_id, start_current, end_current, start_previous, end_previous
+    )
+
+    # 2) Clientes
+    customer_analytics = _calc_customer_analytics(db, store_id, target_date, comparison_date)
+
+    # 3) Gráficos e breakdowns do dia atual
+    sales_by_hour = _sales_by_hour(db, store_id, start_current, end_current)
+    payment_methods = _payment_methods(db, store_id, start_current, end_current)
+    top_selling_products = _top_products(db, store_id, start_current, end_current)
+    order_status_counts = _order_status_counts(db, store_id, start_current, end_current)
+    top_selling_addons = _top_addons(db, store_id, start_current, end_current)
+    coupon_performance = _coupon_performance(db, store_id, start_current, end_current)
+
     return StorePerformanceSchema(
         query_date=target_date,
         comparison_date=comparison_date,
@@ -150,4 +421,6 @@ def get_store_performance_for_date(db: Session, store_id: int, target_date: date
         payment_methods=payment_methods,
         top_selling_products=top_selling_products,
         order_status_counts=order_status_counts,
+        top_selling_addons=top_selling_addons,
+        coupon_performance=coupon_performance,
     )
