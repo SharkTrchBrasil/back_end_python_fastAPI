@@ -544,7 +544,7 @@ def get_today_summary(db: Session, store_id: int) -> TodaySummarySchema:
     )
 
 
-# ✅ CRIE ESTA NOVA FUNÇÃO HELPER
+
 def _get_daily_trend(db: Session, store_id: int, start_dt: datetime, end_dt: datetime) -> list[DailyTrendPointSchema]:
     COMPLETED = OrderStatus.DELIVERED.value
 
