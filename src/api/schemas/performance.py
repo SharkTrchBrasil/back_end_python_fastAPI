@@ -99,6 +99,14 @@ class TodaySummarySchema(BaseModel):
     average_ticket: float
 
 
+class DailyTrendPointSchema(BaseModel):
+    """Representa os totais para um único dia no gráfico."""
+    date: date
+    sales_count: int
+    total_value: float
+    average_ticket: float
+    new_customers: int
+
 class StorePerformanceSchema(BaseModel):
     query_date: date = Field(..., alias="queryDate")
     comparison_date: date = Field(..., alias="comparisonDate")
@@ -117,6 +125,8 @@ class StorePerformanceSchema(BaseModel):
 
     # ✅ NOVO CAMPO DO FUNIL DE VENDAS
     product_funnel: List[ProductFunnelSchema] = Field(..., alias="productFunnel")
+    # ✅ NOVO CAMPO PARA O GRÁFICO
+    daily_trend: List[DailyTrendPointSchema] = Field(..., alias="dailyTrend")
 
     class Config:
         from_attributes = True

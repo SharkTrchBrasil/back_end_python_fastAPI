@@ -19,7 +19,7 @@ from src.api.schemas.performance import (
     SalesByHourSchema,
     StorePerformanceSchema,
     TopAddonSchema,
-    TopSellingProductSchema, CategoryPerformanceSchema, ProductFunnelSchema, TodaySummarySchema,
+    TopSellingProductSchema, CategoryPerformanceSchema, ProductFunnelSchema, TodaySummarySchema, DailyTrendPointSchema,
 )
 
 
@@ -543,6 +543,40 @@ def get_today_summary(db: Session, store_id: int) -> TodaySummarySchema:
         average_ticket=ticket,
     )
 
+
+# ✅ CRIE ESTA NOVA FUNÇÃO HELPER
+def _get_daily_trend(db: Session, store_id: int, start_dt: datetime, end_dt: datetime) -> list[DailyTrendPointSchema]:
+    COMPLETED = OrderStatus.DELIVERED.value
+
+    # Query principal que agrupa os pedidos por dia
+    daily_sales = db.query(
+        func.date(models.Order.created_at).label("day"),
+        func.count(models.Order.id).label("sales_count"),
+        func.sum(models.Order.total_price).label("total_value")
+    ).filter(
+        models.Order.store_id == store_id,
+        models.Order.order_status == COMPLETED,
+        models.Order.created_at.between(start_dt, end_dt)
+    ).group_by(func.date(models.Order.created_at)).all()
+
+    # (Lógica para novos clientes por dia - pode ser otimizada depois)
+    # Por enquanto, vamos focar nas métricas de vendas.
+
+    trend_points = []
+    for row in daily_sales:
+        count = row.sales_count or 0
+        value = _to_real(row.total_value)
+        ticket = (value / count) if count > 0 else 0.0
+        trend_points.append(DailyTrendPointSchema(
+            date=row.day,
+            sales_count=count,
+            total_value=value,
+            average_ticket=ticket,
+            new_customers=0  # Placeholder por enquanto
+        ))
+
+    return trend_points
+
 def get_store_performance_for_date(db: Session, store_id: int, start_date: date, end_date: date) -> StorePerformanceSchema:
     """
     Calcula o painel de performance para um intervalo de datas,
@@ -573,10 +607,12 @@ def get_store_performance_for_date(db: Session, store_id: int, start_date: date,
     order_status_counts = _order_status_counts(db, store_id, start_current, end_current)
     top_selling_addons = _top_addons(db, store_id, start_current, end_current)
     coupon_performance = _coupon_performance(db, store_id, start_current, end_current)
-    # ✅ CHAME A NOVA FUNÇÃO
+
     category_performance = _category_performance(db, store_id, start_current, end_current)
-    # ✅ CHAME A NOVA FUNÇÃO DO FUNIL DE VENDAS
+
     product_funnel = _product_sales_funnel(db, store_id, start_current, end_current)
+
+    daily_trend = _get_daily_trend(db, store_id, start_current, end_current)
 
     return StorePerformanceSchema(
         query_date=end_date,  # Podemos usar a data final como referência
@@ -591,5 +627,6 @@ def get_store_performance_for_date(db: Session, store_id: int, start_date: date,
         top_selling_addons=top_selling_addons,
         coupon_performance=coupon_performance,
         category_performance=category_performance,
-        product_funnel=product_funnel,  # ✅ Adicione o resultado aqui
+        product_funnel=product_funnel,
+        daily_trend=daily_trend
     )
