@@ -203,7 +203,7 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
     ).filter(*base_order_filter).group_by(models.Order.order_type).all()
 
     order_type_distribution = [
-        OrderTypeSummarySchema(order_type=row.order_type.name, count=row.count)  # Usamos .name se for um Enum
+        OrderTypeSummarySchema(order_type=row.order_type, count=row.count)  # Usamos .name se for um Enum
         for row in order_type_query
     ]
 
