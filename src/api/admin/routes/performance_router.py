@@ -90,22 +90,22 @@ def list_orders_by_date(
         size=size,
     )
 
-#
-# # ✅ ADICIONE ESTE NOVO ENDPOINT
-# @router.get(
-#     "/today-summary",
-#     response_model=TodaySummarySchema,
-#     summary="Obtém um resumo rápido das vendas do dia de operação atual"
-# )
-# def get_today_summary_data(
-#     db: GetDBDep,
-#     store: GetStoreDep,
-#     # current_user...
-# ):
-#     return get_today_summary(db, store.id)
-#
-#
-#
+
+# ✅ ADICIONE ESTE NOVO ENDPOINT
+@router.get(
+    "/today-summary",
+    response_model=TodaySummarySchema,
+    summary="Obtém um resumo rápido das vendas do dia de operação atual"
+)
+def get_today_summary_data(
+    db: GetDBDep,
+    store: GetStoreDep,
+    # current_user...
+):
+    return get_today_summary(db, store.id)
+
+
+
 # @router.get(
 #     "/export/pdf",
 #     summary="Exporta o resumo de desempenho do período em PDF"
