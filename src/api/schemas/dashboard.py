@@ -22,6 +22,10 @@ class DashboardKpiSchema(BaseModel):
     revenue_change_percentage: float = Field(...,
                                              description="Variação percentual do faturamento em relação ao período anterior.")
     revenue_is_up: bool = Field(..., description="True se o faturamento aumentou em relação ao período anterior.")
+    retention_rate: float = Field(..., description="Percentual de clientes que fizeram mais de um pedido.")
+
+
+
 
     class Config:
         from_attributes = True
@@ -50,6 +54,10 @@ class TopItemSchema(BaseModel):
 
     class Config:
         from_attributes = True
+
+class OrderTypeSummarySchema(BaseModel):
+    order_type: str # Ex: "delivery", "pickup"
+    count: int
 
 
 # ===================================================================
@@ -81,7 +89,10 @@ class CurrencyBalanceSchema(BaseModel):
     class Config:
         from_attributes = True
 
-
+# Crie um schema para o ponto de dado mensal
+class MonthlyDataPoint(BaseModel):
+    month: str  # Ex: "Maio", "Jun"
+    count: int
 # ===================================================================
 # SCHEMA PRINCIPAL DA RESPOSTA
 # ===================================================================
@@ -97,6 +108,9 @@ class DashboardDataSchema(BaseModel):
     # uma lista vazia por enquanto, sugerindo que sejam de outro endpoint.
     user_cards: List[UserCardSchema] = []
     currency_balances: List[CurrencyBalanceSchema] = []
+    new_customers_over_time: list[MonthlyDataPoint] = []
+    top_product_by_revenue: TopItemSchema | None = None  # ✅
+    order_type_distribution: list[OrderTypeSummarySchema] = []  # ✅ NOV
 
     class Config:
         from_attributes = True
