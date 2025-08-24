@@ -51,34 +51,29 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
     ).scalar() or 0
 
     # --- CÁLCULO DA TAXA DE RETENÇÃO ---
-    # Subquery para contar o número de pedidos por cliente
+    # Subquery para contar o número de pedidos por cliente (considerando todos os pedidos da loja)
     order_count_per_customer_subquery = (
         db.query(
             models.Order.customer_id,
             func.count(models.Order.id).label("order_count")
         )
-        .filter(
-            models.Order.store_id == store_id,
-            # Olhamos o histórico completo para definir se um cliente é recorrente
-        )
+        .filter(models.Order.store_id == store_id)
         .group_by(models.Order.customer_id)
         .subquery()
     )
 
-    # Contamos quantos clientes têm mais de 1 pedido
+    # Contamos quantos clientes têm mais de 1 pedido (recorrentes)
     returning_customers_count = db.query(func.count(order_count_per_customer_subquery.c.customer_id)).filter(
         order_count_per_customer_subquery.c.order_count > 1
     ).scalar() or 0
 
-    total_customers_count = db.query(func.count(models.Customer.id)).scalar() or 0  # Ajuste se necessário
+    # ✅ CORREÇÃO: O total de clientes da loja é o número total de
+    # entradas na nossa subquery (clientes com pelo menos 1 pedido).
+    total_store_customers_count = db.query(func.count(order_count_per_customer_subquery.c.customer_id)).scalar() or 0
 
-    retention_rate = (returning_customers_count / total_customers_count) * 100 if total_customers_count > 0 else 0.0
-
-
-
-
-
-
+    # Agora o cálculo da retenção é preciso para a loja
+    retention_rate = (
+                                 returning_customers_count / total_store_customers_count) * 100 if total_store_customers_count > 0 else 0.0
 
 
 
@@ -111,6 +106,7 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
         revenue_change_percentage=revenue_change_percentage,
         revenue_is_up=current_revenue > previous_revenue,
         retention_rate=retention_rate,  # ✅ NOVO DADO
+
     )
 
     # --- 2. DADOS PARA O GRÁFICO DE NOVOS CLIENTES POR MÊS ---
