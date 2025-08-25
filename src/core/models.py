@@ -586,6 +586,10 @@ class CouponUsage(Base):
     order: Mapped["Order"] = relationship(back_populates="coupon_usage")
 
     customer = relationship("Customer")
+
+
+
+    
 class TotemAuthorization(Base, TimestampMixin):
     __tablename__ = "totem_authorizations"
 

@@ -76,6 +76,7 @@ def get_store_base_details(db: Session, store_id: int) -> models.Store | None:
                 .selectinload(models.PlatformPaymentMethod.category)
                 .selectinload(models.PaymentMethodCategory.group),
              selectinload(models.Store.subscriptions).joinedload(models.StoreSubscription.plan),
+             selectinload(models.Store.coupons).selectinload(models.Coupon.rules)
         )
         .filter(models.Store.id == store_id)
         .first()

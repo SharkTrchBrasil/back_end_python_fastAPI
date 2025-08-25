@@ -29,7 +29,7 @@ class CouponBase(BaseModel):
         pattern=r'^[A-Z0-9]+$',
         description="Código do cupom em maiúsculas sem espaços ou caracteres especiais"
     )
-    description: str = Field(..., min_length=3, max_length=255)
+    description: Optional[str] = Field(None, min_length=3, max_length=255)
 
     # A AÇÃO do cupom
     discount_type: str = Field(..., alias="discountType")  # 'PERCENTAGE', 'FIXED_AMOUNT', 'FREE_DELIVERY'
