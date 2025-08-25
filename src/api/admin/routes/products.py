@@ -57,6 +57,16 @@ async def create_product(
     if not category:
         raise HTTPException(status_code=400, detail="Category not found")
 
+    # --- CÁLCULO DE PRIORIDADE SEQUENCIAL ---
+    # 1. Conta quantos produtos já existem na mesma categoria e loja.
+    current_product_count = db.query(models.Product).filter(
+        models.Product.store_id == store.id,
+        models.Product.category_id == category_id
+    ).count()
+
+    # 2. A contagem atual será a prioridade do novo produto (iniciando em 0).
+    new_product_priority = current_product_count
+    # ----------------------------------------
 
     file_key = None
     if image is not None:
@@ -74,6 +84,7 @@ async def create_product(
         category_id=category_id,
         store_id=store.id,
         ean=ean,
+        priority=new_product_priority,
 
         stock_quantity=stock_quantity,
         control_stock=control_stock,
