@@ -7,7 +7,7 @@ from src.api.schemas.variant_selection import VariantSelectionPayload
 from src.api.admin.socketio.emitters import admin_emit_products_updated
 from src.api.app.socketio.socketio_emitters import emit_products_updated
 
-from src.api.schemas.product import ProductOut
+from src.api.schemas.product import ProductOut, BulkDeletePayload
 from src.core import models
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
@@ -302,4 +302,38 @@ async def delete_product(product_id: int,  store: GetStoreDep, db: GetDBDep, db_
     db.commit()
     delete_file(old_file_key)
     await asyncio.create_task(emit_products_updated(db, store.id))
+    return
+
+
+@router.post("/bulk-delete", status_code=204)
+async def bulk_delete_products(
+    store: GetStoreDep,
+    db: GetDBDep,
+    payload: BulkDeletePayload,
+):
+    """
+    Remove uma lista de produtos de uma vez.
+    """
+    if not payload.product_ids:
+        return
+
+    # IMPORTANTE: Antes de deletar, pegue os file_keys para apagar da AWS/S3
+    products_to_delete = db.query(models.Product)\
+                           .filter(models.Product.id.in_(payload.product_ids)).all()
+
+    for product in products_to_delete:
+        if product.file_key:
+            delete_file(product.file_key) # Função que apaga o arquivo da S3
+
+    # Agora, delete os registros do banco
+    db.query(models.Product)\
+      .filter(
+          models.Product.store_id == store.id,
+          models.Product.id.in_(payload.product_ids)
+      )\
+      .delete(synchronize_session=False)
+
+    db.commit()
+
+    await admin_emit_products_updated(db, store.id)
     return

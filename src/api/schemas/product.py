@@ -23,6 +23,14 @@ class KitComponentOut(AppBaseModel):
     # Inclui os dados do produto componente para o front-end saber o que é
     component: "ProductOut"
 
+# Crie este schema Pydantic para o corpo da requisição
+class BulkStatusUpdatePayload(BaseModel):
+    product_ids: List[int]
+    available: bool
+
+
+class BulkDeletePayload(BaseModel):
+    product_ids: List[int]
 
 class Product(AppBaseModel):
     """Campos essenciais que definem um produto."""
