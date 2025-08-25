@@ -7,7 +7,7 @@ from src.api.schemas.variant_selection import VariantSelectionPayload
 from src.api.admin.socketio.emitters import admin_emit_products_updated
 from src.api.app.socketio.socketio_emitters import emit_products_updated
 
-from src.api.schemas.product import ProductOut, BulkDeletePayload
+from src.api.schemas.product import ProductOut, BulkDeletePayload, BulkCategoryUpdatePayload, BulkStatusUpdatePayload
 from src.core import models
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
@@ -336,4 +336,79 @@ async def bulk_delete_products(
     db.commit()
 
     await admin_emit_products_updated(db, store.id)
+    await asyncio.create_task(emit_products_updated(db, store.id))
+    return
+
+
+@router.post("/bulk-update-category", status_code=204)
+async def bulk_update_product_category(
+    store: GetStoreDep,
+    db: GetDBDep,
+    payload: BulkCategoryUpdatePayload,
+):
+    """
+    Muda a categoria de uma lista de produtos de uma vez e recalcula a prioridade
+    de cada um na nova categoria.
+    """
+    if not payload.product_ids:
+        raise HTTPException(status_code=400, detail="No product IDs provided")
+
+    # Verifica se a categoria de destino existe e pertence à loja
+    target_category = db.query(models.Category).filter(
+        models.Category.id == payload.target_category_id,
+        models.Category.store_id == store.id
+    ).first()
+
+    if not target_category:
+        raise HTTPException(status_code=404, detail="Target category not found")
+
+    # Pega a contagem atual de produtos na nova categoria para calcular a prioridade
+    product_count_in_new_category = db.query(models.Product)\
+                                      .filter(models.Product.category_id == payload.target_category_id)\
+                                      .count()
+
+    # Itera pelos IDs dos produtos que precisam ser atualizados
+    for i, product_id in enumerate(payload.product_ids):
+        db.query(models.Product)\
+          .filter(
+              models.Product.id == product_id,
+              models.Product.store_id == store.id
+          )\
+          .update({
+              "category_id": payload.target_category_id,
+              # Define a nova prioridade para colocar o item no final da nova lista
+              "priority": product_count_in_new_category + i
+          }, synchronize_session=False)
+
+    db.commit()
+
+    # Emite o evento para que todas as telas sejam atualizadas com os produtos na nova categoria
+    await admin_emit_products_updated(db, store.id)
+    await asyncio.create_task(emit_products_updated(db, store.id))
+    return
+
+@router.post("/bulk-update-status", status_code=204)
+async def bulk_update_product_status(
+    store: GetStoreDep,
+    db: GetDBDep,
+    payload: BulkStatusUpdatePayload,
+):
+    """
+    Ativa ou desativa uma lista de produtos de uma vez.
+    """
+    if not payload.product_ids:
+        return # Não faz nada se a lista for vazia
+
+    # Executa uma única query para atualizar todos os produtos de uma vez
+    db.query(models.Product)\
+      .filter(
+          models.Product.store_id == store.id,
+          models.Product.id.in_(payload.product_ids)
+      )\
+      .update({"available": payload.available}, synchronize_session=False)
+
+    db.commit()
+
+    await admin_emit_products_updated(db, store.id)
+    await asyncio.create_task(emit_products_updated(db, store.id))
     return

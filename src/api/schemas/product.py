@@ -32,6 +32,12 @@ class BulkStatusUpdatePayload(BaseModel):
 class BulkDeletePayload(BaseModel):
     product_ids: List[int]
 
+
+# Crie este schema Pydantic para o corpo da requisição
+class BulkCategoryUpdatePayload(BaseModel):
+    product_ids: List[int]
+    target_category_id: int
+
 class Product(AppBaseModel):
     """Campos essenciais que definem um produto."""
     name: str
