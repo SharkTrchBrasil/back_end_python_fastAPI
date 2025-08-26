@@ -53,7 +53,7 @@ async def create_category(
     db.refresh(db_category)
 
     # Não é necessário emitir o evento duas vezes, o admin_emit já cobre o caso.
-    # await asyncio.create_task(emit_store_updated(db, store.id))
+    await asyncio.create_task(emit_store_updated(db, store.id))
     await admin_emit_store_updated(db, store.id)
 
     return db_category
