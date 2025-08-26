@@ -27,3 +27,6 @@ class ProductVariantLinkUpdate(AppBaseModel):
 class ProductVariantLink(ProductVariantLinkBase):
     # CORRECT: Usa uma string para a referência, que será resolvida depois
     variant: "Variant"
+
+
+ProductVariantLink.model_rebuild()

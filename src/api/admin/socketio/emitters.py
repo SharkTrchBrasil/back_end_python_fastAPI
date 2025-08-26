@@ -33,6 +33,7 @@ from src.core import models
 from src.api.schemas.product import ProductOut
 
 from sqlalchemy.orm import selectinload
+from src.api.schemas.variant import Variant
 
 
 
@@ -365,34 +366,47 @@ async def admin_emit_new_print_jobs(store_id: int, order_id: int, jobs: list):
     print(f"Evento '{event}' emitido para a sala {room} com payload: {payload}")
 
 
+
 async def admin_emit_products_updated(db, store_id: int):
     """
-    Busca a lista COMPLETA de produtos e emite para a sala do admin.
-    Esta é a versão UNIFICADA e CORRIGIDA.
+    Busca a lista COMPLETA de produtos E a lista COMPLETA de complementos (variants)
+    e emite para a sala do admin em um único evento otimizado.
     """
     print(f"📢 [ADMIN] Preparando emissão 'products_updated' para a loja {store_id}...")
 
-    # 1. Consulta mais completa para carregar tudo que o ProductOut precisa
+    # 1. Busca os produtos com todos os relacionamentos aninhados.
+    # Sua consulta está perfeita e é a forma mais eficiente.
     products_from_db = db.query(models.Product).options(
         selectinload(models.Product.category),
-        selectinload(models.Product.default_options),  # <-- Garante que default_options seja carregado
+        selectinload(models.Product.default_options),
         selectinload(models.Product.variant_links)
-        .selectinload(models.ProductVariantLink.variant)
-        .selectinload(models.Variant.options)
-        .selectinload(models.VariantOption.linked_product)
+            .selectinload(models.ProductVariantLink.variant)
+            .selectinload(models.Variant.options)
+            .selectinload(models.VariantOption.linked_product)
     ).filter(models.Product.store_id == store_id).order_by(models.Product.priority).all()
 
-    # 2. Anexa as avaliações diretamente ao objeto
+    # 2. Busca TODOS os complementos da loja, também com seus relacionamentos.
+    all_variants_from_db = db.query(models.Variant).options(
+        selectinload(models.Variant.options)
+            .selectinload(models.VariantOption.linked_product)
+    ).filter(models.Variant.store_id == store_id).order_by(models.Variant.name).all()
+
+    # 3. Anexa as avaliações (se houver)
     product_ratings = {p.id: get_product_ratings_summary(db, product_id=p.id) for p in products_from_db}
     for product in products_from_db:
         product.rating = product_ratings.get(product.id)
 
-    # 3. Serializa a lista usando o Pydantic da forma mais limpa possível
+    # 4. Serializa os dados usando os schemas Pydantic (que agora estão corrigidos)
     products_payload = [ProductOut.model_validate(p).model_dump(mode='json') for p in products_from_db]
+    variants_payload = [Variant.model_validate(v).model_dump(mode='json') for v in all_variants_from_db]
 
-    # 4. Emite para a sala e namespace corretos do ADMIN
-    payload = {'store_id': store_id, 'products': products_payload}
+    # 5. Emite o payload completo
+    payload = {
+        'store_id': store_id,
+        'products': products_payload,
+        'variants': variants_payload,
+    }
     room_name = f'admin_store_{store_id}'
     await sio.emit('products_updated', payload, to=room_name, namespace='/admin')
 
-    print(f"✅ [ADMIN] Emissão 'products_updated' para a sala: {room_name} no namespace /admin concluída.")
+    print(f"✅ [ADMIN] Emissão 'products_updated' (com variants) para a sala: {room_name} concluída.")
