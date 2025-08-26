@@ -21,4 +21,3 @@ class Variant(VariantBase):
     # CORRECT: Usa uma string para a referência, que será resolvida depois
     options: List["VariantOption"]
 
-Variant.model_rebuild()

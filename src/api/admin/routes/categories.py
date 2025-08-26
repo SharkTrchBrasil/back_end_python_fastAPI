@@ -15,28 +15,35 @@ from src.core.utils.enums import CashbackType
 router = APIRouter(tags=["Categories"], prefix="/stores/{store_id}/categories")
 
 
-@router.post("", response_model=CategoryOut)  # Retorna o schema de saída
+@router.post("", response_model=CategoryOut)
 async def create_category(
-    db: GetDBDep,
-    store: GetStoreDep,
-    name: str = Form(...),
-    priority: int = Form(...),
-    image: UploadFile = File(...),
-    is_active: bool = Form(True),
-
-    # ✅ ADICIONADO: Novos campos de cashback no formulário
-    cashback_type: str = Form(default=CashbackType.NONE.value),
-    cashback_value: Decimal = Form(default=Decimal('0.00')),
+        db: GetDBDep,
+        store: GetStoreDep,
+        name: str = Form(...),
+        # ✅ REMOVIDO: 'priority' não é mais um parâmetro do formulário.
+        # priority: int = Form(...),
+        image: UploadFile = File(...),
+        is_active: bool = Form(True),
+        cashback_type: str = Form(default=CashbackType.NONE.value),
+        cashback_value: Decimal = Form(default=Decimal('0.00')),
 ):
+    # ✅ LÓGICA DE PRIORIDADE AUTOMÁTICA
+    # 1. Conta quantas categorias já existem nesta loja.
+    current_category_count = db.query(models.Category).filter(
+        models.Category.store_id == store.id
+    ).count()
+
+    # 2. A contagem atual será a prioridade da nova categoria (ex: se já existem 3, a nova será a 4ª com prioridade 3).
+    new_priority = current_category_count
+
     file_key = upload_file(image)
 
     db_category = models.Category(
         name=name,
-        store=store,
-        priority=priority,
+        store_id=store.id,  # É uma boa prática passar o ID diretamente
+        priority=new_priority,  # ✅ USA a prioridade calculada
         file_key=file_key,
         is_active=is_active,
-        # ✅ ADICIONADO: Passando os valores para o modelo do banco
         cashback_type=CashbackType(cashback_type),
         cashback_value=cashback_value
     )
@@ -45,11 +52,11 @@ async def create_category(
     db.commit()
     db.refresh(db_category)
 
-    await asyncio.create_task(emit_store_updated(db, store.id))
+    # Não é necessário emitir o evento duas vezes, o admin_emit já cobre o caso.
+    # await asyncio.create_task(emit_store_updated(db, store.id))
     await admin_emit_store_updated(db, store.id)
 
     return db_category
-
 
 @router.get("", response_model=list[CategoryOut])
 def get_categories(

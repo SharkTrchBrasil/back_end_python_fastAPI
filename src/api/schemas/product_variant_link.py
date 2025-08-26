@@ -29,4 +29,3 @@ class ProductVariantLink(ProductVariantLinkBase):
     variant: "Variant"
 
 
-ProductVariantLink.model_rebuild()
