@@ -4,6 +4,7 @@ from datetime import timedelta, date
 from typing import Optional
 from venv import logger
 
+from src.api.schemas.category import CategoryOut
 from src.api.admin.services.analytics_service import get_peak_hours_for_store
 from src.api.admin.services.holiday_service import HolidayService
 from src.api.admin.services.insights_service import InsightsService
@@ -391,22 +392,31 @@ async def admin_emit_products_updated(db, store_id: int):
             .selectinload(models.VariantOption.linked_product)
     ).filter(models.Variant.store_id == store_id).order_by(models.Variant.name).all()
 
+    # ✅ NOVO: 3. Busca TODAS as categorias da loja
+    all_categories_from_db = db.query(models.Category) \
+        .filter(models.Category.store_id == store_id) \
+        .order_by(models.Category.priority).all()
+
     # 3. Anexa as avaliações (se houver)
     product_ratings = {p.id: get_product_ratings_summary(db, product_id=p.id) for p in products_from_db}
     for product in products_from_db:
         product.rating = product_ratings.get(product.id)
 
-    # 4. Serializa os dados usando os schemas Pydantic (que agora estão corrigidos)
+
+    # 5. Serializa TODOS os dados
     products_payload = [ProductOut.model_validate(p).model_dump(mode='json') for p in products_from_db]
     variants_payload = [Variant.model_validate(v).model_dump(mode='json') for v in all_variants_from_db]
+    categories_payload = [CategoryOut.model_validate(c).model_dump(mode='json') for c in
+                          all_categories_from_db]  # ✅ Serializa as categorias
 
-    # 5. Emite o payload completo
+    # 6. Emite o payload completo
     payload = {
         'store_id': store_id,
         'products': products_payload,
         'variants': variants_payload,
+        'categories': categories_payload,  # ✅ Envia a lista COMPLETA de categorias
     }
     room_name = f'admin_store_{store_id}'
     await sio.emit('products_updated', payload, to=room_name, namespace='/admin')
 
-    print(f"✅ [ADMIN] Emissão 'products_updated' (com variants) para a sala: {room_name} concluída.")
+    print(f"✅ [ADMIN] Emissão 'products_updated' (com variants e categories) para a sala: {room_name} concluída.")
