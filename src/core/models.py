@@ -12,7 +12,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
-    CartStatus, ProductType, OrderStatus, PayableStatus
+    CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode
 from src.api.schemas.base_schema import VariantType, UIDisplayMode
 
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -660,42 +660,40 @@ class AdminConsolidatedStoreSelection(Base, TimestampMixin):  # Adicionei Timest
     store: Mapped["Store"] = relationship()
 
 
+
+
 class StoreTheme(Base, TimestampMixin):
     __tablename__ = "store_themes"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), unique=True)
 
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+    # --- As ÚNICAS coisas que o lojista escolhe e salvamos no banco ---
 
-    primary_color: Mapped[str] = mapped_column()
-    secondary_color: Mapped[str] = mapped_column()
-    background_color: Mapped[str] = mapped_column()
-    card_color: Mapped[str] = mapped_column()
-    on_primary_color: Mapped[str] = mapped_column()
-    on_secondary_color: Mapped[str] = mapped_column()
-    on_background_color: Mapped[str] = mapped_column()
-    on_card_color: Mapped[str] = mapped_column()
-    inactive_color: Mapped[str] = mapped_column()
-    on_inactive_color: Mapped[str] = mapped_column()
+    primary_color: Mapped[str] = mapped_column(
+        doc="Cor primária da marca em formato HEX (ex: 'FF6B2C')"
+    )
 
-    # Novas cores personalizadas
-    sidebar_background_color: Mapped[str] = mapped_column()
-    sidebar_text_color: Mapped[str] = mapped_column()
-    sidebar_icon_color: Mapped[str] = mapped_column()
-    category_background_color: Mapped[str] = mapped_column()
-    category_text_color: Mapped[str] = mapped_column()
-    product_background_color: Mapped[str] = mapped_column()
-    product_text_color: Mapped[str] = mapped_column()
-    price_text_color: Mapped[str] = mapped_column()
-    cart_background_color: Mapped[str] = mapped_column()
-    cart_text_color: Mapped[str] = mapped_column()
+    mode: Mapped[ThemeMode] = mapped_column(
+        Enum(ThemeMode, native_enum=False, values_callable=lambda obj: [e.value for e in obj]),
+        default=ThemeMode.LIGHT,
+        doc="O modo do tema: claro (light) ou escuro (dark)"
+    )
 
-    font_family: Mapped[str] = mapped_column()
+    font_family: Mapped[str] = mapped_column(
+        default='roboto',
+        doc="A família de fontes escolhida (ex: 'roboto', 'montserrat')"
+    )
 
-    category_layout: Mapped[str] = mapped_column()
-    product_layout: Mapped[str] = mapped_column()
-    theme_name: Mapped[str] = mapped_column()
+    # ✅ NOVO CAMPO ADICIONADO
+    theme_name: Mapped[str] = mapped_column(
+        default='custom',
+        doc="Nome do tema pré-definido (ex: 'default', 'speed') ou 'custom' se for personalizado."
+    )
+
+    # Relacionamento
     store: Mapped["Store"] = relationship(back_populates="theme")
+
 
 class StorePixConfig(Base, TimestampMixin):
     __tablename__ = "store_pix_configs"

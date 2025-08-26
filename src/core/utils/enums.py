@@ -84,6 +84,9 @@ class PayableStatus(str, enum.Enum):
     cancelled = "cancelled"
 
 
+class ThemeMode(enum.Enum):
+    LIGHT = "light"
+    DARK = "dark"
 
 
 

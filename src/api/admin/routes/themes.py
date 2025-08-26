@@ -20,8 +20,6 @@ def get_store_theme(
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))]
 ):
 
-    if not store.subscription.plan.style_guide:
-        return None
 
     store_theme = db.query(models.StoreTheme).filter(
         models.StoreTheme.store_id == store.id
