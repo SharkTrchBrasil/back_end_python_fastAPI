@@ -184,7 +184,3 @@ class ProductRatingOut(ProductRatingBase):
     customer_id: int
 
 
-
-# É crucial chamar model_rebuild para resolver as referências circulares (ex: KitComponentOut -> ProductOut)
-KitComponentOut.model_rebuild()
-ProductOut.model_rebuild()
