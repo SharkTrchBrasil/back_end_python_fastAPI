@@ -50,6 +50,7 @@ from src.api.admin.routes.payable_category_router import router as payable_categ
 from src.api.admin.routes.receivable_router import router as receivable_router
 from src.api.admin.routes.receivable_category_router import router as receivable_category_router
 from src.api.admin.routes.performance_router import router as performance_router
+from src.api.admin.routes.master_products import router as master_products_router
 
 router = APIRouter(prefix="/admin")
 router.include_router(stores_router)
@@ -109,3 +110,4 @@ router.include_router(payable_category_router)
 router.include_router(receivable_router)
 router.include_router(receivable_category_router)
 router.include_router(performance_router)
+router.include_router(master_products_router)

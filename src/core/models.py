@@ -352,6 +352,12 @@ class Product(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
 
+    # ✅ SUGESTÃO: Adicione este campo para vincular ao catálogo
+    master_product_id: Mapped[int | None] = mapped_column(ForeignKey("master_products.id"), nullable=True)
+    master_product: Mapped[Optional["MasterProduct"]] = relationship()
+
+
+
     @hybrid_property
     def image_path(self):
         from src.core.aws import get_presigned_url
@@ -1993,3 +1999,38 @@ class ProductView(Base):
 
     def __repr__(self):
         return f"<ProductView(product_id={self.product_id}, viewed_at='{self.viewed_at}')>"
+
+
+class MasterProduct(Base):
+    __tablename__ = "master_products"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), index=True)
+    description: Mapped[str | None] = mapped_column(String(1000))
+    ean: Mapped[str | None] = mapped_column(String(13), unique=True, index=True)
+    file_key: Mapped[str | None] = mapped_column(String)  # Chave para a imagem no S3/AWS
+    brand: Mapped[str | None] = mapped_column(String(80))  # Marca do produto, ex: "Coca-Cola"
+
+    # ✅ SUGESTÃO: Adicione o vínculo com a categoria mestre
+    category_id: Mapped[int | None] = mapped_column(ForeignKey("master_categories.id"))
+    category:  Mapped[Optional["MasterCategory"]]  = relationship(back_populates="master_products")
+
+
+    @hybrid_property
+    def image_path(self):
+        from src.core.aws import get_presigned_url
+        return get_presigned_url(self.file_key) if self.file_key else None
+
+    __table_args__ = (
+        Index("ix_master_products_name", "name"),
+    )
+
+
+class MasterCategory(Base):
+    __tablename__ = "master_categories"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(80), unique=True)
+
+    # Relacionamento reverso
+    master_products: Mapped[List["MasterProduct"]] = relationship(back_populates="category")
