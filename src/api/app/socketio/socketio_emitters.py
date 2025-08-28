@@ -3,11 +3,11 @@
 from sqlalchemy.orm import selectinload, joinedload
 
 from src.api.crud import store_crud
+from src.api.schemas import StoreDetails, StoreThemeOut
 from src.core import models
 from src.socketio_instance import sio
 from src.api.schemas.product import ProductOut
-from src.api.schemas.store_details import StoreDetails
-from src.api.schemas.store_theme import StoreThemeOut
+
 from src.api.app.services.rating import get_product_ratings_summary
 
 

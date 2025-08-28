@@ -6,7 +6,7 @@ from typing import cast
 from src.api.admin.events.handlers.order_handler import process_new_order_automations
 from src.api.admin.socketio.emitters import admin_emit_order_updated_from_obj, emit_new_order_notification
 from src.api.admin.utils.order_code import generate_unique_public_id, gerar_sequencial_do_dia
-
+from src.api.schemas import CreateOrderInput
 
 from src.core import models
 
@@ -23,7 +23,6 @@ from src.api.schemas.order import Order as OrderSchema
 import traceback
 from .cart_handler import _get_full_cart_query
 
-from src.api.schemas.new_order import CreateOrderInput  # Seu novo schema de entrada
 from ...utils.coupon_logic import apply_coupon
 
 

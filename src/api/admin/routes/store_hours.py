@@ -5,10 +5,11 @@ import asyncio
 import logging  # Use o logging para depuração
 
 from src.api.admin.socketio.emitters import admin_emit_store_updated
+from src.api.schemas.store import StoreHoursCreate
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 from src.core.models import StoreHours as StoreHoursModel
-from src.api.schemas.store_hours import StoreHoursCreate
+
 from src.api.app.socketio.socketio_emitters import emit_store_updated
 
 # Configuração básica de logging

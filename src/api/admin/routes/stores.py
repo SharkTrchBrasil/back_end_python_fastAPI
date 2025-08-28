@@ -2,8 +2,9 @@
 import asyncio
 import base64
 import uuid
+
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
+
 
 from fastapi import  UploadFile, Form
 from fastapi.params import File
@@ -11,21 +12,21 @@ from fastapi.params import File
 from sqlalchemy import func
 
 
-from src.api.schemas.store_access import StoreAccess
 from src.api.admin.socketio.emitters import admin_emit_store_updated
+from src.api.schemas import StoreDetails, StoreAccess
 from src.core.utils.enums import StoreVerificationStatus, Roles
 from src.api.app.socketio.socketio_emitters import emit_store_updated
-from src.api.schemas.store import StoreWithRole, StoreCreate, Store
-from src.api.schemas.store_details import StoreDetails
+from src.api.schemas.store import StoreWithRole
+
 from src.core import models
 
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
 from src.core.defaults.delivery_methods import default_delivery_settings
 
-from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetStore
+from src.core.dependencies import GetCurrentUserDep, GetStoreDep
 
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, HTTPException, status, Response
 router = APIRouter(prefix="/stores", tags=["Stores"])
 
 
@@ -190,7 +191,7 @@ def list_stores(
 
 @router.get("/{store_id}", response_model=StoreDetails)
 def get_store(
-    store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
+    store: GetStoreDep,
 ):
     return store
 
@@ -198,7 +199,7 @@ def get_store(
 @router.patch("/{store_id}", response_model=StoreDetails)
 async def patch_store(
     db: GetDBDep,
-    store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
+    store: GetStoreDep,
     name: str | None = Form(None),
     phone: str | None = Form(None),
     email: str | None = Form(None),

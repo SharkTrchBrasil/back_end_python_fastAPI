@@ -3,12 +3,12 @@ from typing import List
 
 from fastapi import APIRouter, Form
 
-from src.api.schemas.variant_selection import VariantSelectionPayload
+
 from src.api.admin.socketio.emitters import admin_emit_products_updated
 from src.api.app.socketio.socketio_emitters import emit_products_updated
+from src.api.schemas import ProductWizardCreate, BulkDeletePayload, BulkCategoryUpdatePayload, \
+    ProductCategoryUpdatePayload, BulkStatusUpdatePayload, ProductOut
 
-from src.api.schemas.product import ProductOut, BulkDeletePayload, BulkCategoryUpdatePayload, BulkStatusUpdatePayload, \
-    ProductWizardCreate, ProductCategoryUpdatePayload
 from src.core import models
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep

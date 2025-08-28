@@ -2,9 +2,10 @@
 from sqlalchemy import func, case
 from sqlalchemy.orm import Session
 
+from src.api.schemas import PayableUpdate, PayableCreate, PayableResponse
 from src.api.schemas.dashboard import DashboardMetrics
 from src.core.models import StorePayable, Store
-from src.api.schemas.store_payable import PayableCreate, PayableUpdate, PayableResponse
+
 from src.core.utils.enums import PayableStatus
 from datetime import date
 

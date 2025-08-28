@@ -2,7 +2,7 @@ from datetime import date, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case, extract
 
-from src.api.schemas.store_payable import PayableResponse
+
 from src.core import models
 from src.api.schemas.dashboard import (
     DashboardDataSchema,

@@ -90,3 +90,16 @@ class ThemeMode(enum.Enum):
 
 
 
+class VariantType(str, enum.Enum):
+    INGREDIENTS = "Ingredientes"
+    SPECIFICATIONS = "Especificações"
+    CROSS_SELL = "Cross-sell"
+    DISPOSABLES = "Descartáveis" # ✅ ESTA OPÇÃO ESTAVA FALTANDO
+
+class UIDisplayMode(str, enum.Enum):
+    SINGLE = "Seleção Única"
+    MULTIPLE = "Seleção Múltipla"
+    QUANTITY = "Seleção com Quantidade"
+
+
+

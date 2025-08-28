@@ -1,6 +1,8 @@
 from sqlalchemy.orm import Session
+
+from src.api.schemas.payable.supplier import SupplierCreate, SupplierUpdate
 from src.core.models import Supplier, Store
-from src.api.schemas.supplier import SupplierCreate, SupplierUpdate
+
 
 
 class SupplierService:

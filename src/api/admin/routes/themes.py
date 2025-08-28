@@ -3,8 +3,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from src.api.app.socketio.socketio_emitters import emit_theme_updated
-
-from src.api.schemas.store_theme import StoreThemeOut, StoreThemeIn
+from src.api.schemas import StoreThemeOut
+from src.api.schemas.store import StoreThemeIn
 
 from src.core import models
 from src.core.database import GetDBDep

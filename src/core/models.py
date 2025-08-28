@@ -12,8 +12,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
-    CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode
-from src.api.schemas.base_schema import VariantType, UIDisplayMode
+    CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode, UIDisplayMode, VariantType
 
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy import ForeignKey, Enum, Text

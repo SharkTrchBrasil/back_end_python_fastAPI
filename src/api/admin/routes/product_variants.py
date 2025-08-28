@@ -2,22 +2,24 @@ from fastapi import APIRouter, HTTPException, status
 
 from src.api.admin.socketio.emitters import admin_emit_products_updated
 from src.api.app.socketio.socketio_emitters import emit_products_updated
+from src.api.schemas import ProductVariantLink
+from src.api.schemas.product import ProductVariantLinkCreate, ProductVariantLinkUpdate
 from src.core.database import GetDBDep
 from src.core import models
-from src.api.schemas import product_variant_link as link_schemas
+
 from src.core.dependencies import GetProductDep  # Supondo que você tenha essas dependências
 
 router = APIRouter(tags=["3. Product Variant Links & Rules"], prefix="/stores/{store_id}/products/{product_id}/variants")
 
 # No seu arquivo de rotas: src/api/routers/product_variant_link.py (ou similar)
 
-@router.post("/{variant_id}", response_model=link_schemas.ProductVariantLink, status_code=status.HTTP_201_CREATED,
+@router.post("/{variant_id}", response_model=ProductVariantLink, status_code=status.HTTP_201_CREATED,
              summary="Liga um grupo a um produto com regras ('Copiar')")
 async def link_variant_to_product(
         store_id: int,  # ✅ 1. Receba o store_id diretamente da URL
         product: GetProductDep,
         variant_id: int,
-        link_data: link_schemas.ProductVariantLinkCreate,
+        link_data: ProductVariantLinkCreate,
         db: GetDBDep
 ):
 
@@ -46,19 +48,19 @@ async def link_variant_to_product(
     return db_link
 
 
-@router.get("", response_model=list[link_schemas.ProductVariantLink],
+@router.get("", response_model=list[ProductVariantLink],
             summary="Lista todos os grupos e suas regras para um produto")
 def get_links_for_product(product: GetProductDep):
     """Retorna a lista de complementos e suas regras aplicadas a este produto específico."""
     return product.variant_links
 
 
-@router.patch("/{variant_id}", response_model=link_schemas.ProductVariantLink,
+@router.patch("/{variant_id}", response_model=ProductVariantLink,
               summary="Atualiza as regras de um grupo em um produto")
 def update_link_rules(
         product_id: int,
         variant_id: int,
-        update_data: link_schemas.ProductVariantLinkUpdate,
+        update_data: ProductVariantLinkUpdate,
         db: GetDBDep
 ):
     """Atualiza as regras (min/max, UI mode, etc) de uma ligação existente."""

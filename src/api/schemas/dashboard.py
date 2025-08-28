@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from typing import List, Literal
 from datetime import date
 
-from src.api.schemas.store_payable import PayableResponse
+from src.api.schemas import PayableResponse
 
 
 # ===================================================================

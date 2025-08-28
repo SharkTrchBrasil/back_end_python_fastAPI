@@ -4,10 +4,11 @@ from fastapi import APIRouter, Form, HTTPException
 
 from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.app.socketio.socketio_emitters import emit_store_updated
+from src.api.schemas import StoreCitySchema
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 from src.core.models import StoreCity
-from src.api.schemas.store_city import StoreCitySchema
+
 
 router = APIRouter(prefix="/stores/{store_id}/cities", tags=["Cities"])
 

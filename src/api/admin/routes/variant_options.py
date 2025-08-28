@@ -1,7 +1,9 @@
 from fastapi import APIRouter
 
 from src.api.app.socketio.socketio_emitters import emit_products_updated
-from src.api.schemas.variant_option import VariantOptionCreate, VariantOptionUpdate, VariantOption
+from src.api.schemas import VariantOption
+from src.api.schemas.variant import VariantOptionCreate, VariantOptionUpdate
+
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetVariantDep, GetVariantOptionDep
