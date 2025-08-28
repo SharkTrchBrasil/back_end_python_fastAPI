@@ -1,6 +1,6 @@
 # schemas/category/product_category_link.py
 from __future__ import annotations
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from pydantic import Field
 
 from ..base_schema import AppBaseModel
@@ -28,6 +28,10 @@ class ProductCategoryLinkOut(ProductCategoryLinkBase):
     category: CategoryOut  # Referência futura
 
 
-# Resolução de referências futuras (evita import circular)
-from .category import CategoryOut
-ProductCategoryLinkOut.model_rebuild()
+# REMOVA estas linhas:
+# from .category import CategoryOut
+# ProductCategoryLinkOut.model_rebuild()
+
+# Use TYPE_CHECKING:
+if TYPE_CHECKING:
+    from .category import CategoryOut

@@ -1,6 +1,6 @@
 # schemas/store/store.py
 from pydantic import Field, computed_field, ConfigDict
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 
 from src.core.utils.enums import StoreVerificationStatus
 from src.core.aws import get_presigned_url
@@ -82,9 +82,15 @@ class StoreWithRole(AppBaseModel):
     role: 'RoleSchema'
 
 
-# Resolução de referências futuras
-from .address import AddressCreate
-from .responsible import ResponsibleCreate
-from .role import RoleSchema
-StoreCreate.model_rebuild()
-StoreWithRole.model_rebuild()
+# REMOVA estas linhas de model_rebuild():
+# from .address import AddressCreate
+# from .responsible import ResponsibleCreate
+# from .role import RoleSchema
+# StoreCreate.model_rebuild()
+# StoreWithRole.model_rebuild()
+
+# Use TYPE_CHECKING para as referências futuras:
+if TYPE_CHECKING:
+    from .address import AddressCreate
+    from .responsible import ResponsibleCreate
+    from .role import RoleSchema

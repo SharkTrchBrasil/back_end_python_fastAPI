@@ -34,5 +34,3 @@ class VariantCreateInWizard(AppBaseModel):
     type: str
     options: List[VariantOptionCreateInWizard] = []
 
-# Resolução de referências futuras
-Variant.model_rebuild()
