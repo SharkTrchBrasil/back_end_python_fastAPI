@@ -119,9 +119,14 @@ class ProductOut(AppBaseModel):
 
     # Relacionamentos aninhados
     category_links: List[ProductCategoryLinkOut] = []
-    variant_links: List[ProductVariantLink] = []
-    components: List[KitComponentOut] = []
-    rating: Optional[RatingsSummaryOut] = None
+
+
+
+
+    variant_links: List["ProductVariantLink"] = []
+
+    components: List["KitComponentOut"] = []  # Boa prática fazer isso para todos os tipos internos
+    rating: Optional["RatingsSummaryOut"] = None
 
     # Campo computado que não existe no DB, mas é gerado pela API
     @computed_field
@@ -133,10 +138,9 @@ class ProductOut(AppBaseModel):
         return None
 
 
-# Permite que o Pydantic resolva a referência circular de `component: "ProductOut"`
+
 KitComponentOut.model_rebuild()
-
-
+ProductOut.model_rebuild()
 # -------------------------------------------------
 # 3. Schemas para AÇÕES EM MASSA (Bulk Actions)
 # -------------------------------------------------
