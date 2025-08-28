@@ -8,24 +8,24 @@ from .store_operation_config import StoreOperationConfigOut
 from .store_hours import StoreHoursOut
 from .store_city import StoreCitySchema
 
-# REMOVA o TYPE_CHECKING para PaymentMethodGroupOut e importe diretamente
+# IMPORTE DIRETAMENTE os schemas necessários:
 from src.api.schemas.payment_method import PaymentMethodGroupOut
+from src.api.schemas.rating import RatingsSummaryOut  # ← ADICIONE ESTA LINHA
 
 if TYPE_CHECKING:
     from src.api.schemas.category import CategoryOut
     from src.api.schemas.product.product import ProductOut
     from src.api.schemas.variant.variant import Variant
-    from src.api.schemas.rating.rating import RatingsSummaryOut
     from src.api.schemas.coupon import CouponOut
     from src.api.schemas.store.scheduled_pauses import ScheduledPauseOut
 
 
 class StoreDetails(StoreSchema):
-    payment_method_groups: list[PaymentMethodGroupOut] = []  # ← Agora importado diretamente
+    payment_method_groups: list[PaymentMethodGroupOut] = []
     store_operation_config: Optional['StoreOperationConfigOut'] = None
     hours: list['StoreHoursOut'] = []
     cities: list['StoreCitySchema'] = []
-    ratingsSummary: Optional['RatingsSummaryOut'] = Field(None, alias="ratingsSummary")
+    ratingsSummary: Optional[RatingsSummaryOut] = Field(None, alias="ratingsSummary")  # ← Agora importado diretamente
     subscription: Optional['StoreSubscriptionSchema'] = None
     is_setup_complete: bool
     categories: List['CategoryOut'] = []
