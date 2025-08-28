@@ -1,59 +1,52 @@
 from sqlalchemy.orm import Session, joinedload, selectinload, noload
 from src.core import models
 
-
+from sqlalchemy.orm import Session, joinedload, selectinload, noload
+from src.core import models
 
 
 def get_store_for_customer_view(db: Session, store_id: int) -> models.Store | None:
     """
-    Optimized Query for Customer View (Menu/Totem).
+    Consulta Otimizada para a Visão do Cliente (Cardápio/Totem).
+    Atualizada para a relação muitos-para-muitos entre produtos e categorias.
     """
     store = (
         db.query(models.Store)
         .options(
-            # --- Branding & Core Info ---
+            # --- Seções que não mudam ---
             joinedload(models.Store.segment),
             joinedload(models.Store.theme),
-
-            # --- Operational Status ---
             joinedload(models.Store.store_operation_config),
             selectinload(models.Store.hours),
             selectinload(models.Store.scheduled_pauses),
-
-            # --- Marketing & UI ---
             selectinload(models.Store.banners),
             selectinload(models.Store.coupons).selectinload(models.Coupon.rules),
-
-            # --- Logistics ---
             selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
-
-            # --- Payment Methods ---
             selectinload(models.Store.payment_activations)
-                .selectinload(models.StorePaymentMethodActivation.platform_method)
-                .selectinload(models.PlatformPaymentMethod.category)
-                .selectinload(models.PaymentMethodCategory.group),
+            .selectinload(models.StorePaymentMethodActivation.platform_method)
+            .selectinload(models.PlatformPaymentMethod.category)
+            .selectinload(models.PaymentMethodCategory.group),
 
-            # --- Full Menu/Catalog Loading ---
+            # ✅ CORREÇÃO PRINCIPAL AQUI: Carregamento do Cardápio Completo
             selectinload(models.Store.categories)
-                .selectinload(models.Category.products)
-                .options(
-                    selectinload(models.Product.variant_links)
-                        .joinedload(models.ProductVariantLink.variant)
-                        .selectinload(models.Variant.options)
-                        .joinedload(models.VariantOption.linked_product),
-                    selectinload(models.Product.default_options)
-                        .joinedload(models.ProductDefaultOption.option),
-                ),
+            .selectinload(models.Category.product_links)  # Passo 1: Da Categoria para a Tabela de Vínculo
+            .selectinload(models.ProductCategoryLink.product)  # Passo 2: Do Vínculo para o Produto
+            .options(  # Passo 3: A partir do Produto, carrega o resto como antes
+                selectinload(models.Product.variant_links)
+                .joinedload(models.ProductVariantLink.variant)
+                .selectinload(models.Variant.options)
+                .joinedload(models.VariantOption.linked_product),
+                selectinload(models.Product.default_options)
+                .joinedload(models.ProductDefaultOption.option),
+            ),
 
-            # Path 2: Load all available add-on templates for the store.
+            # Carregar os templates de complementos da loja (não muda)
             selectinload(models.Store.variants).selectinload(models.Variant.options),
         )
         .filter(models.Store.id == store_id)
         .first()
     )
     return store
-
-
 
 
 def get_store_base_details(db: Session, store_id: int) -> models.Store | None:
