@@ -186,14 +186,15 @@ def create_store(
     return db_store_access
 
 
-
-
 @router.get("", response_model=list[StoreWithRole])
-def list_stores(
-    db: GetDBDep,
-    user: GetCurrentUserDep,
-):
-    db_store_accesses = db.query(models.StoreAccess).filter(models.StoreAccess.user == user).all()
+def list_stores(db: GetDBDep, user: GetCurrentUserDep):
+    from sqlalchemy.orm import joinedload
+
+    db_store_accesses = db.query(models.StoreAccess).options(
+        joinedload(models.StoreAccess.store),
+        joinedload(models.StoreAccess.role)
+    ).filter(models.StoreAccess.user == user).all()
+
     return db_store_accesses
 
 @router.get("/{store_id}", response_model=StoreDetails)
