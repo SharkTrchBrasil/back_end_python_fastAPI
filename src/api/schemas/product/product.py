@@ -5,7 +5,7 @@ from pydantic import Field, computed_field
 
 from src.core.aws import get_presigned_url
 from src.core.utils.enums import CashbackType, ProductType
-from .. import ProductCategoryLinkCreate, ProductCategoryLinkOut, RatingsSummaryOut
+from src.api.schemas import ProductCategoryLinkCreate, ProductCategoryLinkOut, RatingsSummaryOut
 
 from ..base_schema import AppBaseModel
 
