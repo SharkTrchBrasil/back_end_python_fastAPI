@@ -5,8 +5,10 @@ from pydantic import Field, computed_field
 
 from ..base_schema import AppBaseModel
 from src.core.aws import get_presigned_url
-from ..product.product import ProductOut
 
+
+# USE:
+from src.api.schemas.product.product import ProductOut
 
 class ProductMinimal(AppBaseModel):
     id: int

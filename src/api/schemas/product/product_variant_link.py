@@ -4,10 +4,12 @@ from typing import Optional, Annotated
 from pydantic import Field
 
 from ..base_schema import AppBaseModel
-from ..variant.variant import Variant, VariantCreateInWizard
+
 from src.core.utils.enums import UIDisplayMode
 
 
+# USE:
+from src.api.schemas.variant.variant import Variant, VariantCreateInWizard
 class ProductVariantLinkCreate(AppBaseModel):
     min_selected_options: int
     max_selected_options: int
