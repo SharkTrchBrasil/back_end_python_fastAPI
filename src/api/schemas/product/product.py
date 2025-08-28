@@ -1,6 +1,5 @@
-# schemas/product/product.py
 from __future__ import annotations
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING  # Adicione TYPE_CHECKING
 from pydantic import Field, computed_field
 
 from src.core.aws import get_presigned_url
@@ -9,9 +8,14 @@ from src.api.schemas.category import ProductCategoryLinkCreate, ProductCategoryL
 from src.api.schemas.rating import RatingsSummaryOut
 from ..base_schema import AppBaseModel
 
-from .product_variant_link import ProductVariantLink, ProductVariantLinkCreate
-from .kit_component import KitComponentOut
+# REMOVA estas importações circulares:
+# from .product_variant_link import ProductVariantLink, ProductVariantLinkCreate
+# from .kit_component import KitComponentOut
 
+# Use TYPE_CHECKING para as importações circulares
+if TYPE_CHECKING:
+    from .product_variant_link import ProductVariantLink, ProductVariantLinkCreate
+    from .kit_component import KitComponentOut
 
 
 class ProductWizardCreate(AppBaseModel):
@@ -25,7 +29,7 @@ class ProductWizardCreate(AppBaseModel):
     stock_quantity: Optional[int] = 0
     control_stock: bool = False
     category_links: List[ProductCategoryLinkCreate] = Field(..., min_length=1)
-    variant_links: List[ProductVariantLinkCreate] = []
+    variant_links: List['ProductVariantLinkCreate'] = []  # Use referência de string
 
 
 class ProductOut(AppBaseModel):
@@ -51,8 +55,8 @@ class ProductOut(AppBaseModel):
     product_type: ProductType
 
     category_links: List[ProductCategoryLinkOut] = []
-    variant_links: List[ProductVariantLink] = []
-    components: List[KitComponentOut] = []
+    variant_links: List['ProductVariantLink'] = []  # Use referência de string
+    components: List['KitComponentOut'] = []  # Use referência de string
     rating: Optional[RatingsSummaryOut] = None
 
     file_key: Optional[str] = Field(None, exclude=True)

@@ -1,20 +1,24 @@
 # schemas/product/product_variant_link.py
 from __future__ import annotations
-from typing import Optional, Annotated
+from typing import Optional, Annotated, TYPE_CHECKING  # Adicione TYPE_CHECKING
 from pydantic import Field
 
 from ..base_schema import AppBaseModel
-
 from src.core.utils.enums import UIDisplayMode
 
+# REMOVA esta importação circular:
+# from src.api.schemas.variant.variant import Variant, VariantCreateInWizard
 
-# USE:
-from src.api.schemas.variant.variant import Variant, VariantCreateInWizard
+# Use TYPE_CHECKING para importações circulares
+if TYPE_CHECKING:
+    from src.api.schemas.variant.variant import Variant, VariantCreateInWizard
+
+
 class ProductVariantLinkCreate(AppBaseModel):
     min_selected_options: int
     max_selected_options: int
     variant_id: int
-    new_variant_data: Optional[VariantCreateInWizard] = None
+    new_variant_data: Optional['VariantCreateInWizard'] = None  # Use referência de string
 
 
 class ProductVariantLinkBase(AppBaseModel):
@@ -40,8 +44,9 @@ class ProductVariantLinkUpdate(AppBaseModel):
 
 
 class ProductVariantLink(ProductVariantLinkBase):
-    variant: Variant
+    variant: 'Variant'  # Use referência de string
 
 
 # Resolução de referências futuras
+ProductVariantLinkCreate.model_rebuild()
 ProductVariantLink.model_rebuild()
