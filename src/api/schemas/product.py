@@ -136,7 +136,7 @@ class BulkCategoryUpdatePayload(BaseModel):
 #    Isso deve ser feito no final do arquivo.
 # -------------------------------------------------
 from .product_category_link import ProductCategoryLinkOut
-from .product_variant_link import ProductVariantLink
+
 from .rating import RatingsSummaryOut
 
 KitComponentOut.model_rebuild()
