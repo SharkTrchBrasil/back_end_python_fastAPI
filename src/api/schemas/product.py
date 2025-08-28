@@ -1,6 +1,4 @@
-# src/api/schemas/product.py
 
-# ✅ 1. ESSENCIAL: Permite que o Pydantic adie a resolução dos tipos
 from __future__ import annotations
 from typing import Optional, List
 from pydantic import BaseModel, Field, ConfigDict, computed_field
@@ -131,12 +129,10 @@ class BulkCategoryUpdatePayload(BaseModel):
 
 
 # -------------------------------------------------
-# 4. RESOLUÇÃO DAS REFERÊNCIAS
-#    Importamos os schemas referenciados com aspas e chamamos model_rebuild()
-#    Isso deve ser feito no final do arquivo.
+# 4. RESOLUÇÃO DAS REFERÊNCIAS FUTURAS
 # -------------------------------------------------
 from .product_category_link import ProductCategoryLinkOut
-
+from .product_variant_link import ProductVariantLink   # ✅ adicione de volta aqui
 from .rating import RatingsSummaryOut
 
 KitComponentOut.model_rebuild()
