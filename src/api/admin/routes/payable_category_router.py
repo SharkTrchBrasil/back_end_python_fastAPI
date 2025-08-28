@@ -3,8 +3,8 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 # ✅ 1. ADIÇÃO DOS IMPORTS
 from src.api.admin.socketio.emitters import admin_emit_financials_updated
 from src.api.admin.services.payable_category_service import payable_category_service
-from src.api.schemas import PayableCategoryResponse
-from src.api.schemas.category import PayableCategoryCreate, PayableCategoryUpdate
+
+from src.api.schemas.category import PayableCategoryCreate, PayableCategoryUpdate, PayableCategoryResponse
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 

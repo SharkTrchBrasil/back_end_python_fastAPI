@@ -7,7 +7,8 @@ from typing import List
 
 
 from src.api.admin.services import partial_payment_service
-from src.api.schemas import PartialPaymentResponseSchema, PartialPaymentCreateSchema
+from src.api.schemas.order import PartialPaymentResponseSchema, PartialPaymentCreateSchema
+
 from src.core.database import GetDBDep
 
 router = APIRouter(prefix="/admin", tags=["Admin Orders"])

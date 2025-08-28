@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 # ✅ 1. ADIÇÃO DOS IMPORTS NECESSÁRIOS
 from src.api.admin.socketio.emitters import admin_emit_financials_updated
 from src.api.admin.services.supplier_service import supplier_service
-from src.api.schemas import SupplierResponse
-from src.api.schemas.payable.supplier import SupplierUpdate, SupplierCreate
+
+from src.api.schemas.payable.supplier import SupplierUpdate, SupplierCreate, SupplierResponse
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 

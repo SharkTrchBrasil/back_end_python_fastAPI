@@ -2,8 +2,9 @@ from fastapi import APIRouter, HTTPException, status
 
 from src.api.admin.socketio.emitters import admin_emit_products_updated
 from src.api.app.socketio.socketio_emitters import emit_products_updated
-from src.api.schemas import ProductVariantLink
-from src.api.schemas.product import ProductVariantLinkCreate, ProductVariantLinkUpdate
+from src.api.schemas.product.product_variant_link import ProductVariantLink, ProductVariantLinkCreate, \
+    ProductVariantLinkUpdate
+
 from src.core.database import GetDBDep
 from src.core import models
 

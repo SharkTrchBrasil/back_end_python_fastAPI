@@ -3,7 +3,7 @@
 from sqlalchemy.orm import Session
 from typing import List
 
-from src.api.schemas import PartialPaymentCreateSchema, PartialPaymentResponseSchema
+from src.api.schemas.order import PartialPaymentResponseSchema, PartialPaymentCreateSchema
 from src.core import models
 
 

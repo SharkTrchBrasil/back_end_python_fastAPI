@@ -6,7 +6,7 @@ from typing import cast
 from src.api.admin.events.handlers.order_handler import process_new_order_automations
 from src.api.admin.socketio.emitters import admin_emit_order_updated_from_obj, emit_new_order_notification
 from src.api.admin.utils.order_code import generate_unique_public_id, gerar_sequencial_do_dia
-from src.api.schemas import CreateOrderInput
+
 
 from src.core import models
 
@@ -17,8 +17,7 @@ from src.core.database import get_db_manager
 
 from src.socketio_instance import sio
 
-from src.api.schemas.order import Order as OrderSchema
-
+from src.api.schemas.order import Order as OrderSchema, CreateOrderInput
 
 import traceback
 from .cart_handler import _get_full_cart_query

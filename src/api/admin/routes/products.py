@@ -6,8 +6,9 @@ from fastapi import APIRouter, Form
 
 from src.api.admin.socketio.emitters import admin_emit_products_updated
 from src.api.app.socketio.socketio_emitters import emit_products_updated
-from src.api.schemas import ProductWizardCreate, BulkDeletePayload, BulkCategoryUpdatePayload, \
-    ProductCategoryUpdatePayload, BulkStatusUpdatePayload, ProductOut
+from src.api.schemas.product import ProductWizardCreate, ProductOut
+from src.api.schemas.product.bulk_actions import ProductCategoryUpdatePayload, BulkCategoryUpdatePayload, \
+    BulkDeletePayload, BulkStatusUpdatePayload
 
 from src.core import models
 from src.core.aws import upload_file, delete_file
