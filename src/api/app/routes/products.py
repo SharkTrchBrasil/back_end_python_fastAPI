@@ -4,8 +4,10 @@ from sqlalchemy.orm import selectinload # Use selectinload para coleções
 from src import templates
 from src.core import models
 from src.core.database import GetDBDep
-from src.api.schemas.product import ProductOut
 
+
+# USE IMPORTAÇÃO DIRETA:
+from src.api.schemas.product.product import ProductOut
 router = APIRouter(prefix="/products", tags=["Products"])
 
 @router.get("/{subdomain}/{product_id}")
