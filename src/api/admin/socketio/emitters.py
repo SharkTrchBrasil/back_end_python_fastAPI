@@ -4,7 +4,11 @@ from datetime import timedelta, date
 from typing import Optional
 from venv import logger
 
-from src.api.schemas import StoreDetails, PayableResponse, SupplierResponse, PayableCategoryResponse
+
+from src.api.schemas.store.store_details import StoreDetails
+from src.api.schemas.payable import PayableResponse, SupplierResponse
+from src.api.schemas.category import PayableCategoryResponse
+
 from src.api.schemas.category import CategoryOut
 from src.api.admin.services.analytics_service import get_peak_hours_for_store
 from src.api.admin.services.holiday_service import HolidayService
@@ -34,7 +38,7 @@ from src.core import models
 from src.api.schemas.product import ProductOut
 
 from sqlalchemy.orm import selectinload
-from src.api.schemas.variant import Variant
+from src.api.schemas.variant.variant import Variant
 
 
 
