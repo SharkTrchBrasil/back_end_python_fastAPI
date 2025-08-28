@@ -31,7 +31,7 @@ from src.api.admin.services.subscription_service import SubscriptionService
 
 from src.api.app.services.rating import get_product_ratings_summary, get_store_ratings_summary
 from src.api.schemas.order import OrderDetails
-from src.api.schemas.rating import RatingsSummaryOut
+
 from src.socketio_instance import sio
 from src.core import models
 

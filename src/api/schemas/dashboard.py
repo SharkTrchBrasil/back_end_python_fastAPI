@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field
 from typing import List, Literal
 from datetime import date
 
-from src.api.schemas import PayableResponse
 
+from src.api.schemas.payable import PayableResponse
 
 # ===================================================================
 # KPIs (INDICADORES CHAVE)
