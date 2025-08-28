@@ -29,3 +29,13 @@ class ProductVariantLink(ProductVariantLinkBase):
     variant: "Variant"
 
 
+# -------------------------------------------------
+# RESOLUÇÃO DA REFERÊNCIA FUTURA
+# -------------------------------------------------
+# 1. Importamos a classe que prometemos APÓS a definição de ProductVariantLinkOut
+from .variant import Variant
+
+# 2. Agora que VariantOut é conhecido, mandamos o Pydantic resolver a promessa
+ProductVariantLink.model_rebuild()
+
+
