@@ -2,7 +2,9 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 from typing import List
 
-from src.api.schemas import StoreCityOut, StoreNeighborhoodSchema
+# EM /app/src/api/app/routes/Store_cities_neig.py (linha 5), mude:
+from src.api.schemas.store.store_city import StoreCityOut
+from src.api.schemas.store.store_neighborhood import StoreNeighborhoodSchema
 from src.core.database import GetDBDep
 from src.core.models import Store, StoreNeighborhood
 
