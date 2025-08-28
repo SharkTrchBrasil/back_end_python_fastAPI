@@ -20,18 +20,18 @@ if TYPE_CHECKING:
 
 
 class StoreDetails(StoreSchema):
-    payment_method_groups: list['PaymentMethodGroupOut'] = []  # Use string reference
-    store_operation_config: 'StoreOperationConfigOut' | None = None
+    payment_method_groups: list['PaymentMethodGroupOut'] = []
+    store_operation_config: Optional['StoreOperationConfigOut'] = None  # ← Use Optional
     hours: list['StoreHoursOut'] = []
     cities: list['StoreCitySchema'] = []
     ratingsSummary: Optional['RatingsSummaryOut'] = Field(None, alias="ratingsSummary")
     subscription: Optional['StoreSubscriptionSchema'] = None
     is_setup_complete: bool
-    categories: List['CategoryOut'] = []  # Use string reference
-    products: List['ProductOut'] = []  # Use string reference
-    variants: List['Variant'] = []  # Use string reference
-    coupons: List['CouponOut'] = []  # Use string reference
-    scheduled_pauses: list['ScheduledPauseOut'] = []  # Use string reference
+    categories: List['CategoryOut'] = []
+    products: List['ProductOut'] = []
+    variants: List['Variant'] = []
+    coupons: List['CouponOut'] = []
+    scheduled_pauses: list['ScheduledPauseOut'] = []
 
     model_config = ConfigDict(
         from_attributes=True,
