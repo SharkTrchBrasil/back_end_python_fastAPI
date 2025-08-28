@@ -16,5 +16,3 @@ class KitComponentOut(AppBaseModel):
     component: 'ProductOut'  # Use referência de string
 
 
-# Resolução de referências futuras
-KitComponentOut.model_rebuild()

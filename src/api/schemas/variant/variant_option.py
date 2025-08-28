@@ -85,6 +85,3 @@ class VariantOption(VariantOptionBase):
             return True
         return self.stock_quantity > 0
 
-
-# Resolução de referências futuras
-VariantOption.model_rebuild()

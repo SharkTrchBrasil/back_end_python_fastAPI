@@ -47,6 +47,3 @@ class ProductVariantLink(ProductVariantLinkBase):
     variant: 'Variant'  # Use referência de string
 
 
-# Resolução de referências futuras
-ProductVariantLinkCreate.model_rebuild()
-ProductVariantLink.model_rebuild()
