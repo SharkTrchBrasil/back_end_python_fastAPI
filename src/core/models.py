@@ -277,10 +277,10 @@ class Category(Base, TimestampMixin):
     file_key: Mapped[str] = mapped_column()
     is_active: Mapped[bool] = mapped_column(default=True)
     store: Mapped[Store] = relationship()
-    products: Mapped[list["Product"]] = relationship(
-        back_populates="category",
-        cascade="all, delete-orphan"
-    )
+
+
+    product_links: Mapped[List["ProductCategoryLink"]] = relationship(back_populates="category",
+                                                                      cascade="all, delete-orphan")
 
     # --- NOVOS CAMPOS PARA CASHBACK NA CATEGORIA ---
     cashback_type: Mapped[CashbackType] = mapped_column(Enum(CashbackType, name="cashback_type_enum"),
@@ -308,8 +308,9 @@ class Product(Base, TimestampMixin):
     # ✅ ADICIONE ESTA LINHA PARA O RELACIONAMENTO REVERSO
     store: Mapped["Store"] = relationship(back_populates="products")
 
-    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
-    category: Mapped[Category] = relationship(back_populates="products")
+    # ✅ ADICIONE ESTA LINHA PARA O RELACIONAMENTO MUITOS-PARA-MUITOS:
+    category_links: Mapped[List["ProductCategoryLink"]] = relationship(back_populates="product", cascade="all, delete-orphan")
+
     file_key: Mapped[str] = mapped_column()
 
 
@@ -2034,3 +2035,21 @@ class MasterCategory(Base):
 
     # Relacionamento reverso
     master_products: Mapped[List["MasterProduct"]] = relationship(back_populates="category")
+
+
+# Em src/core/models.py
+
+class ProductCategoryLink(Base):
+    __tablename__ = "product_category_links"
+
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
+    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), primary_key=True)
+
+    # CAMPOS PARA SOBRESCREVER OS VALORES DO PRODUTO NESTA CATEGORIA ESPECÍFICA
+    price_override: Mapped[int | None] = mapped_column(nullable=True)
+    pos_code_override: Mapped[str | None] = mapped_column(String, nullable=True)
+    available_override: Mapped[bool | None] = mapped_column(nullable=True)
+
+    # Relacionamentos para facilitar o acesso
+    product: Mapped["Product"] = relationship(back_populates="category_links")
+    category: Mapped["Category"] = relationship(back_populates="product_links")
