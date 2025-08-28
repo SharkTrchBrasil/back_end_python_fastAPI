@@ -8,7 +8,7 @@ from src.api.admin.socketio.emitters import admin_emit_products_updated
 from src.api.app.socketio.socketio_emitters import emit_products_updated
 
 from src.api.schemas.product import ProductOut, BulkDeletePayload, BulkCategoryUpdatePayload, BulkStatusUpdatePayload, \
-    ProductWizardCreate
+    ProductWizardCreate, ProductCategoryUpdatePayload
 from src.core import models
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
@@ -267,6 +267,54 @@ def get_product_details(product: GetProductDep, db: GetDBDep):
         raise HTTPException(status_code=404, detail="Product not found")
     return product_with_details
 
+
+@router.put("/{product_id}/categories", status_code=204)
+async def update_product_categories(
+        store: GetStoreDep,
+        db_product: GetProductDep,
+        payload: ProductCategoryUpdatePayload,
+        db: GetDBDep,
+):
+    """
+    Substitui TODAS as categorias de um produto pela nova lista fornecida.
+    """
+    # 1. Deleta todos os vínculos de categoria existentes para este produto.
+    db.query(models.ProductCategoryLink) \
+        .filter(models.ProductCategoryLink.product_id == db_product.id) \
+        .delete(synchronize_session=False)
+
+    # 2. Verifica se as novas categorias existem e pertencem à loja
+    target_categories = db.query(models.Category.id).filter(
+        models.Category.store_id == store.id,
+        models.Category.id.in_(payload.category_ids)
+    ).all()
+
+    valid_category_ids = {c.id for c in target_categories}
+    if len(valid_category_ids) != len(payload.category_ids):
+        raise HTTPException(status_code=404,
+                            detail="Uma ou mais categorias não foram encontradas ou não pertencem à loja.")
+
+    # 3. Cria os novos vínculos
+    new_links = [
+        models.ProductCategoryLink(
+            product_id=db_product.id,
+            category_id=cat_id
+        ) for cat_id in payload.category_ids
+    ]
+
+    if new_links:
+        db.add_all(new_links)
+
+    db.commit()
+
+    await _emit_updates(db, store.id)
+    return
+
+
+
+
+
+
 @router.patch("/{product_id}", response_model=ProductOut)
 async def patch_product(
     product_id: int,
@@ -399,8 +447,7 @@ async def bulk_delete_products(
 
     db.commit()
 
-    await admin_emit_products_updated(db, store.id)
-    await asyncio.create_task(emit_products_updated(db, store.id))
+    await _emit_updates(db, store.id)
     return
 
 
@@ -462,8 +509,7 @@ async def bulk_update_product_category(
     # 5. Emite o evento para que as telas sejam atualizadas.
     # (Supondo que você tenha essas funções)
 
-    await admin_emit_products_updated(db, store.id)
-    await asyncio.create_task(emit_products_updated(db, store.id))
+    await _emit_updates(db, store.id)
 
     return
 
@@ -489,6 +535,5 @@ async def bulk_update_product_status(
 
     db.commit()
 
-    await admin_emit_products_updated(db, store.id)
-    await asyncio.create_task(emit_products_updated(db, store.id))
+    await _emit_updates(db, store.id)
     return

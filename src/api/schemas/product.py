@@ -140,6 +140,10 @@ KitComponentOut.model_rebuild()
 # -------------------------------------------------
 # 3. Schemas para AÇÕES EM MASSA (Bulk Actions)
 # -------------------------------------------------
+class ProductCategoryUpdatePayload(BaseModel):
+    # Espera uma lista de IDs de categorias
+    category_ids: List[int]
+
 
 class BulkStatusUpdatePayload(BaseModel):
     product_ids: List[int]
