@@ -47,7 +47,7 @@ class VariantOptionUpdate(VariantOptionBase):
 class VariantOption(VariantOptionBase):
     id: int
     variant_id: int
-    linked_product: ProductMinimal | None = None
+    linked_product: "ProductOut" | None = None
 
     @computed_field
     @property
@@ -91,3 +91,13 @@ class VariantOption(VariantOptionBase):
             return True
         # Se o estoque é rastreado, depende da quantidade.
         return self.stock_quantity > 0
+
+
+# -------------------------------------------------
+# RESOLUÇÃO DA REFERÊNCIA FUTURA
+# -------------------------------------------------
+# 1. Importamos a classe que prometemos DEPOIS da definição da classe atual.
+from .product import ProductOut
+
+# 2. Mandamos o Pydantic resolver a promessa.
+VariantOption.model_rebuild()

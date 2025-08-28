@@ -21,3 +21,9 @@ class Variant(VariantBase):
     # CORRECT: Usa uma string para a referência, que será resolvida depois
     options: List["VariantOption"]
 
+# 1. Importamos a classe que prometemos (VariantOptionOut) DEPOIS da definição da classe atual.
+from .variant_option import VariantOption
+
+# 2. Agora que VariantOptionOut é conhecido, mandamos o Pydantic resolver a promessa.
+Variant.model_rebuild()
+
