@@ -1,7 +1,7 @@
 # schemas/__init__.py
 from .base_schema import AppBaseModel
 from .payable import PayableResponse, PayableCreate, PayableUpdate, CategoryResponse, SupplierResponse
-from .product import ProductOut, ProductWizardCreate, KitComponentOut, ProductVariantLink
+
 from .variant import Variant, VariantOption, VariantCreateInWizard, VariantOptionCreateInWizard, VariantSelectionPayload
 from .category import CategoryOut, PayableCategoryResponse, ProductCategoryLinkCreate, ProductCategoryLinkOut
 from .rating import RatingOut, RatingsSummaryOut, StoreRatingCreate, ProductRatingCreate
@@ -23,10 +23,7 @@ from .product.bulk_actions import (
 
 __all__ = [
     'AppBaseModel',
-    'ProductOut',
-    'ProductWizardCreate',
-    'KitComponentOut',
-    'ProductVariantLink',
+
     'Variant',
     'VariantOption',
     'VariantCreateInWizard',
