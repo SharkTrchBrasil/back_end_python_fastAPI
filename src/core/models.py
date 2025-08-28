@@ -363,6 +363,21 @@ class Product(Base, TimestampMixin):
         from src.core.aws import get_presigned_url
         return get_presigned_url(self.file_key) if self.file_key else None
 
+class ProductCategoryLink(Base):
+    __tablename__ = "product_category_links"
+
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
+    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), primary_key=True)
+
+    # CAMPOS PARA SOBRESCREVER OS VALORES DO PRODUTO NESTA CATEGORIA ESPECÍFICA
+    price_override: Mapped[int | None] = mapped_column(nullable=True)
+    pos_code_override: Mapped[str | None] = mapped_column(String, nullable=True)
+    available_override: Mapped[bool | None] = mapped_column(nullable=True)
+
+    # Relacionamentos para facilitar o acesso
+    product: Mapped["Product"] = relationship(back_populates="category_links")
+    category: Mapped["Category"] = relationship(back_populates="product_links")
+
 
 
 class KitComponent(Base, TimestampMixin):
@@ -2038,17 +2053,4 @@ class MasterCategory(Base):
 
 # Em src/core/models.py
 
-class ProductCategoryLink(Base):
-    __tablename__ = "product_category_links"
 
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
-    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), primary_key=True)
-
-    # CAMPOS PARA SOBRESCREVER OS VALORES DO PRODUTO NESTA CATEGORIA ESPECÍFICA
-    price_override: Mapped[int | None] = mapped_column(nullable=True)
-    pos_code_override: Mapped[str | None] = mapped_column(String, nullable=True)
-    available_override: Mapped[bool | None] = mapped_column(nullable=True)
-
-    # Relacionamentos para facilitar o acesso
-    product: Mapped["Product"] = relationship(back_populates="category_links")
-    category: Mapped["Category"] = relationship(back_populates="product_links")

@@ -68,3 +68,5 @@ class ProductOut(AppBaseModel):
             return get_presigned_url(self.file_key)
         return None
 
+
+ProductOut.model_rebuild()

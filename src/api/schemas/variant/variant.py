@@ -34,3 +34,10 @@ class VariantCreateInWizard(AppBaseModel):
     type: str
     options: List[VariantOptionCreateInWizard] = []
 
+
+
+
+Variant.model_rebuild()
+
+
+

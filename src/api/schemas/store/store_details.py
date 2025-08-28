@@ -22,3 +22,6 @@ class StoreDetails(StoreSchema):
     variants: List[Variant] = []
     coupons: List[CouponOut] = []
     scheduled_pauses: list[ScheduledPauseOut] = []
+
+StoreDetails.model_rebuild()
+
