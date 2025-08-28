@@ -1,29 +1,26 @@
+# src/api/schemas/product.py
+
+# ✅ 1. ESSENCIAL: Permite que o Pydantic adie a resolução dos tipos
+from __future__ import annotations
 from typing import Optional, List
 from pydantic import BaseModel, Field, ConfigDict, computed_field
 
-# Importe os outros schemas que este arquivo depende
+# Importe apenas os schemas que NÃO causam importação circular direta
 from .category import CategoryOut
-
-from .rating import RatingsSummaryOut
-
-# Importe seus helpers e enums
 from src.core.aws import get_presigned_url
 from src.core.utils.enums import CashbackType, ProductType
-from .. import ProductVariantLink
 
 
 # --- Configuração Pydantic Base ---
 class AppBaseModel(BaseModel):
-    # from_attributes=True permite que o Pydantic leia os dados de modelos SQLAlchemy
     model_config = ConfigDict(from_attributes=True)
 
 
 # -------------------------------------------------
-# 1. Schemas para o WIZARD DE CRIAÇÃO (Entrada da API)
+# 1. Schemas de ENTRADA da API (Payloads)
 # -------------------------------------------------
 
 class VariantOptionCreateInWizard(AppBaseModel):
-    """Representa um complemento (opção) sendo criado dentro do wizard."""
     name_override: str
     price_override: int = 0
     pos_code: Optional[str] = None
@@ -31,14 +28,12 @@ class VariantOptionCreateInWizard(AppBaseModel):
 
 
 class VariantCreateInWizard(AppBaseModel):
-    """Representa um grupo de complementos (variante) sendo criado dentro do wizard."""
     name: str
-    type: str  # Ex: "Ingredientes", "Especificações"
+    type: str
     options: List[VariantOptionCreateInWizard] = []
 
 
 class ProductCategoryLinkCreate(AppBaseModel):
-    """Representa o vínculo do produto a uma categoria no momento da criação."""
     category_id: int
     price_override: Optional[int] = None
     pos_code_override: Optional[str] = None
@@ -46,19 +41,13 @@ class ProductCategoryLinkCreate(AppBaseModel):
 
 
 class ProductVariantLinkCreate(AppBaseModel):
-    """Representa a regra de um grupo de complementos para o produto."""
     min_selected_options: int
     max_selected_options: int
-    variant_id: int  # Se > 0, vincula um grupo existente. Se < 0, é um novo grupo.
+    variant_id: int
     new_variant_data: Optional[VariantCreateInWizard] = None
 
 
 class ProductWizardCreate(AppBaseModel):
-    """
-    Schema principal para receber todos os dados da rota de criação do wizard.
-    Este é o corpo (body) da sua requisição POST.
-    """
-    # Campos base do produto
     name: str
     description: Optional[str] = None
     base_price: int
@@ -68,34 +57,20 @@ class ProductWizardCreate(AppBaseModel):
     product_type: ProductType = ProductType.INDIVIDUAL
     stock_quantity: Optional[int] = 0
     control_stock: bool = False
-
-    # Listas de vínculos
     category_links: List[ProductCategoryLinkCreate] = Field(..., min_length=1)
     variant_links: List[ProductVariantLinkCreate] = []
 
 
 # -------------------------------------------------
-# 2. Schemas de RESPOSTA DA API (Saída da API)
+# 2. Schemas de RESPOSTA da API (Saída)
 # -------------------------------------------------
 
-class ProductCategoryLinkOut(AppBaseModel):
-    """Como o vínculo entre produto e categoria é retornado na API."""
-    category: CategoryOut
-    price_override: Optional[int] = None
-    pos_code_override: Optional[str] = None
-    available_override: Optional[bool] = None
-
-
 class KitComponentOut(AppBaseModel):
-    """Como um componente de um kit é retornado na API."""
     quantity: int
-    component: "ProductOut"
+    component: "ProductOut"  # ✅ Usando aspas (Forward Reference)
 
 
 class ProductOut(AppBaseModel):
-    """
-    Schema de resposta completo da API para um produto, com todos os campos e relacionamentos.
-    """
     id: int
     name: str
     description: Optional[str] = None
@@ -117,35 +92,27 @@ class ProductOut(AppBaseModel):
     cashback_value: int
     product_type: ProductType
 
-    # Relacionamentos aninhados
-    category_links: List[ProductCategoryLinkOut] = []
-
-
-
-
+    # ✅ Usando aspas para todos os tipos aninhados para evitar ciclos
+    category_links: List["ProductCategoryLinkOut"] = []
     variant_links: List["ProductVariantLink"] = []
-
-    components: List["KitComponentOut"] = []  # Boa prática fazer isso para todos os tipos internos
+    components: List["KitComponentOut"] = []
     rating: Optional["RatingsSummaryOut"] = None
 
-    # Campo computado que não existe no DB, mas é gerado pela API
+    # Este campo não precisa estar no DB, ele é gerado na hora
+    file_key: Optional[str] = Field(None, exclude=True)
+
     @computed_field
     @property
     def image_path(self) -> str | None:
-        """Gera a URL da imagem a partir da file_key."""
-        if hasattr(self, 'file_key') and self.file_key:
+        if self.file_key:
             return get_presigned_url(self.file_key)
         return None
 
 
-
-KitComponentOut.model_rebuild()
-ProductOut.model_rebuild()
 # -------------------------------------------------
 # 3. Schemas para AÇÕES EM MASSA (Bulk Actions)
 # -------------------------------------------------
 class ProductCategoryUpdatePayload(BaseModel):
-    # Espera uma lista de IDs de categorias
     category_ids: List[int]
 
 
@@ -161,3 +128,16 @@ class BulkDeletePayload(BaseModel):
 class BulkCategoryUpdatePayload(BaseModel):
     product_ids: List[int]
     target_category_id: int
+
+
+# -------------------------------------------------
+# 4. RESOLUÇÃO DAS REFERÊNCIAS
+#    Importamos os schemas referenciados com aspas e chamamos model_rebuild()
+#    Isso deve ser feito no final do arquivo.
+# -------------------------------------------------
+from .product_category_link import ProductCategoryLinkOut
+from .product_variant_link import ProductVariantLink
+from .rating import RatingsSummaryOut
+
+KitComponentOut.model_rebuild()
+ProductOut.model_rebuild()
