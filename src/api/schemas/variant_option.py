@@ -1,6 +1,7 @@
+from __future__ import annotations
 from typing import Annotated, Optional
 from pydantic import Field, computed_field
-from .base_schema import AppBaseModel  # Importa da base de schemas
+from .base_schema import AppBaseModel
 from src.core.aws import get_presigned_url
 
 
@@ -16,7 +17,7 @@ class ProductMinimal(AppBaseModel):
         return get_presigned_url(self.file_key)
 
 
-# ✅ --- SCHEMA BASE ATUALIZADO --- ✅
+# --- SCHEMA BASE ---
 class VariantOptionBase(AppBaseModel):
     available: bool = True
     pos_code: Annotated[str | None, Field(max_length=50)] = None
@@ -25,10 +26,10 @@ class VariantOptionBase(AppBaseModel):
     file_key: Annotated[str | None, Field(exclude=True)] = None
     linked_product_id: int | None = None
 
-    # ✅ 1. CAMPO DE DESCRIÇÃO
+    # Descrição
     description: Annotated[str | None, Field(max_length=1000)] = None
 
-    # ✅ 2. CAMPOS DE CONTROLE DE ESTOQUE
+    # Controle de estoque
     track_inventory: bool = Field(default=False, description="Se True, o estoque será controlado")
     stock_quantity: Annotated[int, Field(ge=0)] = Field(
         default=0,
@@ -44,7 +45,7 @@ class VariantOptionUpdate(VariantOptionBase):
     pass
 
 
-# ✅ --- SCHEMA DE SAÍDA (RESPOSTA DA API) ATUALIZADO --- ✅
+# --- SCHEMA DE SAÍDA ---
 class VariantOption(VariantOptionBase):
     id: int
     variant_id: int
@@ -76,7 +77,6 @@ class VariantOption(VariantOptionBase):
             return None
         return get_presigned_url(key_to_use)
 
-    # ✅ 3. PROPRIEDADE DE DISPONIBILIDADE REAL
     @computed_field
     @property
     def is_actually_available(self) -> bool:

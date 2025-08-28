@@ -1,9 +1,11 @@
 # ===================================================================
 # ARQUIVO: src/api/shared_schemas/product_variant_link.py
 # ===================================================================
+from __future__ import annotations
 from typing import Annotated
 from pydantic import Field
-from .base_schema import AppBaseModel, UIDisplayMode # CORRECT: Importa da base de schemas
+from .base_schema import AppBaseModel, UIDisplayMode
+
 
 class ProductVariantLinkBase(AppBaseModel):
     ui_display_mode: UIDisplayMode
@@ -13,8 +15,10 @@ class ProductVariantLinkBase(AppBaseModel):
     display_order: int = 0
     available: bool = True
 
+
 class ProductVariantLinkCreate(ProductVariantLinkBase):
     pass
+
 
 class ProductVariantLinkUpdate(AppBaseModel):
     ui_display_mode: UIDisplayMode | None = None
@@ -24,18 +28,13 @@ class ProductVariantLinkUpdate(AppBaseModel):
     display_order: int | None = None
     available: bool | None = None
 
+
 class ProductVariantLink(ProductVariantLinkBase):
-    # CORRECT: Usa uma string para a referência, que será resolvida depois
-    variant: "Variant"
+    variant: "Variant"   # <- referência como string
 
 
 # -------------------------------------------------
 # RESOLUÇÃO DA REFERÊNCIA FUTURA
 # -------------------------------------------------
-# 1. Importamos a classe que prometemos APÓS a definição de ProductVariantLinkOut
-from .variant import Variant
-
-# 2. Agora que VariantOut é conhecido, mandamos o Pydantic resolver a promessa
+from .variant import Variant  # import atrasado
 ProductVariantLink.model_rebuild()
-
-
