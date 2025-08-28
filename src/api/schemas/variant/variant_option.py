@@ -48,7 +48,7 @@ class VariantOptionUpdate(VariantOptionBase):
 class VariantOption(VariantOptionBase):
     id: int
     variant_id: int
-    linked_product: Optional[ProductOut] = None
+    linked_product: Optional["ProductOut"] = None
 
     @computed_field
     @property
