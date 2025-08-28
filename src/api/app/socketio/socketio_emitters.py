@@ -3,7 +3,8 @@
 from sqlalchemy.orm import selectinload, joinedload
 
 from src.api.crud import store_crud
-from src.api.schemas.store import StoreDetails, StoreThemeOut
+from src.api.schemas.store.store_details import StoreDetails
+from src.api.schemas.store.store_theme import StoreThemeOut
 
 from src.core import models
 from src.socketio_instance import sio

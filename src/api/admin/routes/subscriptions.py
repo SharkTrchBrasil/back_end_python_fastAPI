@@ -3,7 +3,7 @@ from datetime import datetime, timedelta  # Importe datetime e timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from src.api.schemas.store import CreateStoreSubscription
+from src.api.schemas.store.store_subscription import CreateStoreSubscription
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStore

@@ -4,8 +4,7 @@ from fastapi import APIRouter
 
 from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.app.socketio.socketio_emitters import emit_store_updated
-from src.api.schemas.store import StoreOperationConfigOut
-from src.api.schemas.store import StoreOperationConfigBase
+from src.api.schemas.store.store_operation_config import StoreOperationConfigOut, StoreOperationConfigBase
 
 from src.core import models
 from src.core.database import GetDBDep

@@ -16,7 +16,14 @@ from src.api.admin.socketio.emitters import admin_emit_store_updated
 
 from src.core.utils.enums import StoreVerificationStatus, Roles
 from src.api.app.socketio.socketio_emitters import emit_store_updated
-from src.api.schemas.store import StoreWithRole, StoreDetails, StoreAccess
+
+
+# USE IMPORTAÇÕES DIRETAS:
+from src.api.schemas.store.store import StoreWithRole
+from src.api.schemas.store.store_details import StoreDetails
+from src.api.schemas.store.store_access import StoreAccess
+
+
 
 from src.core import models
 

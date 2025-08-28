@@ -77,19 +77,16 @@ class StoreSchema(StoreBase):
     model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
 
 
+# Use TYPE_CHECKING:
+if TYPE_CHECKING:
+    from .role import RoleSchema
+
 class StoreWithRole(AppBaseModel):
     store: StoreSchema
-    role: 'RoleSchema'
+    role: 'RoleSchema'  # ← Use referência de string
 
 
-# REMOVA estas linhas de model_rebuild():
-# from .address import AddressCreate
-# from .responsible import ResponsibleCreate
-# from .role import RoleSchema
-# StoreCreate.model_rebuild()
-# StoreWithRole.model_rebuild()
 
-# Use TYPE_CHECKING para as referências futuras:
 if TYPE_CHECKING:
     from .address import AddressCreate
     from .responsible import ResponsibleCreate
