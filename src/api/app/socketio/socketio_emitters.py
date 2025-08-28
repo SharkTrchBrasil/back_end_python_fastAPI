@@ -36,26 +36,29 @@ async def emit_theme_updated(theme: models.StoreTheme):
     )
 
 
-# ✅ FUNÇÃO ATUALIZADA E AUTOSSUFICIENTE
+
+# ✅ FUNÇÃO ATUALIZADA E CORRIGIDA
 async def emit_products_updated(db, store_id: int):
     """
-    Busca a lista de produtos ATUALIZADA, serializa-a incluindo as avaliações,
+    Busca a lista de produtos ATUALIZADA com seus VÍNCULOS de categoria
     e emite para todos os clientes da loja.
     """
     print(f"📢 Preparando emissão 'products_updated' para a loja {store_id}...")
 
-    # 1. Consulta completa que carrega tudo que o ProductOut precisa
+    # 1. CONSULTA CORRIGIDA para usar a nova estrutura de muitos-para-muitos
     products_from_db = db.query(models.Product).options(
-        selectinload(models.Product.category),
+        # ✅ CORREÇÃO: Carrega os links da categoria e, dentro de cada link, a categoria em si.
+        selectinload(models.Product.category_links)
+        .selectinload(models.ProductCategoryLink.category),
+
         selectinload(models.Product.default_options),
         selectinload(models.Product.variant_links)
         .selectinload(models.ProductVariantLink.variant)
         .selectinload(models.Variant.options)
-
         .selectinload(models.VariantOption.linked_product)
     ).filter(models.Product.store_id == store_id).all()
 
-    # 2. Anexa as avaliações aos objetos SQLAlchemy antes de serializar
+    # 2. Anexa as avaliações (lógica inalterada)
     product_ratings = {
         p.id: get_product_ratings_summary(db, product_id=p.id)
         for p in products_from_db
@@ -63,11 +66,9 @@ async def emit_products_updated(db, store_id: int):
     for product in products_from_db:
         product.rating = product_ratings.get(product.id)
 
-    # 3. Serializa a lista de produtos usando o schema ProductOut.
-    #    O Pydantic irá ler o atributo 'rating' e executar os @computed_field.
+    # 3. Serializa a lista de produtos (lógica inalterada, o Pydantic já sabe lidar com `category_links`)
     products_payload = [ProductOut.model_validate(p).model_dump(mode='json') for p in products_from_db]
 
-    # 4. Emite o payload final
+    # 4. Emite o payload final (lógica inalterada)
     await sio.emit('products_updated', products_payload, to=f'store_{store_id}')
     print(f"✅ Emissão 'products_updated' para a loja {store_id} concluída.")
-

@@ -375,16 +375,19 @@ async def admin_emit_products_updated(db, store_id: int):
     """
     print(f"📢 [ADMIN] Preparando emissão 'products_updated' para a loja {store_id}...")
 
-    # 1. Busca os produtos com todos os relacionamentos aninhados.
-    # Sua consulta está perfeita e é a forma mais eficiente.
+    # 1. Busca os produtos com a consulta CORRIGIDA
     products_from_db = db.query(models.Product).options(
-        selectinload(models.Product.category),
+        # ✅ CORREÇÃO: Carrega os links da categoria e, dentro de cada link, a categoria.
+        selectinload(models.Product.category_links)
+        .selectinload(models.ProductCategoryLink.category),
+
         selectinload(models.Product.default_options),
         selectinload(models.Product.variant_links)
-            .selectinload(models.ProductVariantLink.variant)
-            .selectinload(models.Variant.options)
-            .selectinload(models.VariantOption.linked_product)
-    ).filter(models.Product.store_id == store_id).order_by(models.Product.priority).all()
+        .selectinload(models.ProductVariantLink.variant)
+        .selectinload(models.Variant.options)
+        .selectinload(models.VariantOption.linked_product)
+    ).filter(models.Product.store_id == store_id).order_by(
+        models.Product.id.desc()).all()  # Adicionado order_by para consistência
 
     # 2. Busca TODOS os complementos da loja, também com seus relacionamentos.
     all_variants_from_db = db.query(models.Variant).options(
