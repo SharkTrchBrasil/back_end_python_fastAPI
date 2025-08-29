@@ -292,15 +292,17 @@ class Product(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(80))
-    description: Mapped[str] = mapped_column(String(1000))
+    # ✅ Torne a descrição opcional também, é uma boa prática
+    description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     base_price: Mapped[int] = mapped_column()
     cost_price: Mapped[int] = mapped_column(default=0)
-    available: Mapped[bool] = mapped_column()
-    priority: Mapped[int] = mapped_column()
-    promotion_price: Mapped[int] = mapped_column(default=0)
 
-    featured: Mapped[bool] = mapped_column()
-    activate_promotion: Mapped[bool] = mapped_column()
+    # ✅ Adicione os padrões aqui
+    available: Mapped[bool] = mapped_column(default=True)
+    priority: Mapped[int] = mapped_column(default=0)
+    promotion_price: Mapped[int] = mapped_column(default=0)
+    featured: Mapped[bool] = mapped_column(default=False)
+    activate_promotion: Mapped[bool] = mapped_column(default=False)
 
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     # ✅ ADICIONE ESTA LINHA PARA O RELACIONAMENTO REVERSO
@@ -309,7 +311,8 @@ class Product(Base, TimestampMixin):
     # ✅ ADICIONE ESTA LINHA PARA O RELACIONAMENTO MUITOS-PARA-MUITOS:
     category_links: Mapped[List["ProductCategoryLink"]] = relationship(back_populates="product", cascade="all, delete-orphan")
 
-    file_key: Mapped[str] = mapped_column()
+    # ✅ CORREÇÃO PRINCIPAL: Permite que a file_key seja nula
+    file_key: Mapped[str | None] = mapped_column(nullable=True)
 
 
 
