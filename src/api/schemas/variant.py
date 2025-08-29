@@ -1,16 +1,17 @@
-# ===================================================================
-# ARQUIVO: src/api/shared_schemas/variant.py
-# ===================================================================
+# ARQUIVO: src/api/schemas/variant.py
 from typing import Annotated, List
 from pydantic import Field
-from .base_schema import AppBaseModel, VariantType # CORRECT: Importa da base de schemas
+
+from .base_schema import AppBaseModel, VariantType
+from .variant_option import VariantOption, VariantOptionCreate # ✅ IMPORTAÇÃO DIRETA
 
 class VariantBase(AppBaseModel):
     name: Annotated[str, Field(min_length=2, max_length=100, examples=["Adicionais Premium"])]
     type: VariantType
 
 class VariantCreate(VariantBase):
-    pass
+    # Opcional: permitir criar opções junto com o grupo
+    options: List[VariantOptionCreate] = []
 
 class VariantUpdate(AppBaseModel):
     name: Annotated[str | None, Field(min_length=2, max_length=100)] = None
@@ -18,6 +19,5 @@ class VariantUpdate(AppBaseModel):
 
 class Variant(VariantBase):
     id: int
-    # CORRECT: Usa uma string para a referência, que será resolvida depois
-    options: List["VariantOption"]
-
+    # ✅ SEM ASPAS! A referência circular foi eliminada.
+    options: List[VariantOption]
