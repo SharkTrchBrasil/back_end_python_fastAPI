@@ -96,7 +96,12 @@ async def create_product_from_wizard(
         **new_product_data,
         store_id=store.id,
         file_key=file_key,
-        priority=new_priority
+        priority=new_priority,
+        featured = False,
+        activate_promotion = False,
+        promotion_price = 0,
+        unit = "Unidade",  # Adicionando um padrão para unidade também
+        sold_count = 0
     )
     db.add(new_product)
     db.flush()  # Aplica a transação para obter o ID do new_product
