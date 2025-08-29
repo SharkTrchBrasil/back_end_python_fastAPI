@@ -9,6 +9,7 @@ from src.api.admin.socketio.emitters import admin_emit_products_updated
 from src.api.app.socketio.socketio_emitters import emit_products_updated
 from src.core.database import get_db, GetDBDep
 from src.core import models
+from src.core.dependencies import GetProductDep
 from src.core.models import Product
 
 
@@ -36,7 +37,7 @@ async def link_variant_to_product(
     variant_id: int,
     link_data: ProductVariantLinkCreate,
     db:  GetDBDep,
-    product: Product # ✅ Usa a dependência
+    product: Product = Depends(GetProductDep) # ✅ Usa a dependência
 ):
     # ✅ VALIDAÇÃO 1: Garante que o grupo de complemento (Variant) existe e pertence à loja.
     variant = db.query(models.Variant).filter_by(id=variant_id, store_id=store_id).first()
@@ -77,7 +78,7 @@ async def link_variant_to_product(
     summary="Lista todos os grupos e suas regras para um produto"
 )
 async def get_links_for_product(
-    product: Product # ✅ Usa a dependência
+    product: Product = Depends(GetProductDep)
 ):
     """Retorna a lista de complementos e suas regras aplicadas a este produto específico."""
     return product.variant_links
@@ -93,7 +94,7 @@ async def update_link_rules(
     variant_id: int,
     update_data: ProductVariantLinkUpdate,
     db: GetDBDep,
-    product: Product
+    product: Product = Depends(GetProductDep)
 ):
     """Atualiza as regras (min/max, UI mode, etc) de uma ligação existente."""
     # ✅ Busca o link a partir do produto já validado pela dependência
@@ -124,7 +125,7 @@ async def unlink_variant_from_product(
     store_id: int,
     variant_id: int,
     db: GetDBDep,
-    product: Product
+    product: Product = Depends(GetProductDep)
 ):
     """Remove a ligação entre um produto e um grupo, mas não apaga o template do grupo."""
     # ✅ Busca o link a partir do produto já validado
