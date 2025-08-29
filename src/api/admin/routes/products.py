@@ -1,8 +1,10 @@
 import asyncio
 from typing import List
 
-from fastapi import APIRouter, Form, Body
 
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
+import json
+from pydantic import ValidationError
 from src.api.admin.socketio.emitters import admin_emit_products_updated
 from src.api.app.socketio.socketio_emitters import emit_products_updated
 from src.api.schemas.bulk_actions import ProductCategoryUpdatePayload, BulkDeletePayload, BulkCategoryUpdatePayload, \
@@ -31,11 +33,25 @@ async def _emit_updates(db, store_id: int):
 
 @router.post("/wizard", response_model=ProductOut)
 async def create_product_from_wizard(
-        store: GetStoreDep,
-        db: GetDBDep,
-        payload: ProductWizardCreate = Body(...),  # ← Adicione Body(...) aqui
-        image: UploadFile | None = File(None),
+    store: GetStoreDep,
+    db: GetDBDep,
+    # ✅ 2. Receba o payload como uma string de um campo de formulário
+    payload_str: str = Form(..., alias="payload"),
+    image: UploadFile | None = File(None),
 ):
+    """
+    Cria um produto completo a partir do wizard, recebendo
+    um payload JSON como string dentro de um multipart/form-data.
+    """
+    try:
+        # ✅ 3. Valide a string JSON manualmente para transformá-la no objeto Pydantic
+        payload = ProductWizardCreate.model_validate_json(payload_str)
+    except (ValidationError, json.JSONDecodeError) as e:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Erro de validação no payload JSON: {e}"
+        )
+
     """
     Cria um produto completo com categorias e grupos de complementos,
     recebendo todos os dados do wizard do frontend de uma só vez.
