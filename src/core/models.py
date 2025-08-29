@@ -377,21 +377,6 @@ class ProductCategoryLink(Base):
     product: Mapped["Product"] = relationship(back_populates="category_links")
     category: Mapped["Category"] = relationship(back_populates="product_links")
 
-
-
-class KitComponent(Base, TimestampMixin):
-    __tablename__ = "kit_components"
-
-    kit_product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
-    component_product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
-
-    quantity: Mapped[int] = mapped_column(default=1)  # Qtd do componente dentro do kit
-
-    # Relacionamentos
-    kit: Mapped["Product"] = relationship(foreign_keys=[kit_product_id], back_populates="components")
-    component: Mapped["Product"] = relationship(foreign_keys=[component_product_id])
-
-
 class Variant(Base, TimestampMixin):
     __tablename__ = "variants"
 
@@ -538,6 +523,17 @@ class ProductDefaultOption(Base, TimestampMixin):
     product: Mapped["Product"] = relationship(back_populates="default_options")
     option: Mapped["VariantOption"] = relationship()
 
+class KitComponent(Base, TimestampMixin):
+    __tablename__ = "kit_components"
+
+    kit_product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
+    component_product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
+
+    quantity: Mapped[int] = mapped_column(default=1)  # Qtd do componente dentro do kit
+
+    # Relacionamentos
+    kit: Mapped["Product"] = relationship(foreign_keys=[kit_product_id], back_populates="components")
+    component: Mapped["Product"] = relationship(foreign_keys=[component_product_id])
 
 
 class Coupon(Base, TimestampMixin):

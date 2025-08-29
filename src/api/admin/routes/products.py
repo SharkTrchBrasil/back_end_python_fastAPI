@@ -30,12 +30,11 @@ async def _emit_updates(db, store_id: int):
     print(f"Eventos de atualização emitidos para a loja {store_id}")
 
 
-# ✅ ROTA NOVA E PRINCIPAL: Criar um produto completo via Wizard
 @router.post("/wizard", response_model=ProductOut)
 async def create_product_from_wizard(
         store: GetStoreDep,
-        payload: ProductWizardCreate,  # Recebe um único JSON com todos os dados
         db: GetDBDep,
+        payload: ProductWizardCreate = Body(...),  # ← Adicione Body(...) aqui
         image: UploadFile | None = File(None),
 ):
     """
