@@ -7,12 +7,11 @@ from src.api.schemas.product_variant_link import ProductVariantLinkOut, ProductV
 
 from src.api.admin.socketio.emitters import admin_emit_products_updated
 from src.api.app.socketio.socketio_emitters import emit_products_updated
-from src.core.database import get_db
+from src.core.database import get_db, GetDBDep
 from src.core import models
 from src.core.models import Product
 
-# ✅ Use um nome mais descritivo para a dependência de banco de dados
-GetDBDep = Depends(get_db)
+
 
 router = APIRouter(
     tags=["Product Variant Links"],

@@ -9,7 +9,7 @@ from src.api.schemas.dashboard import (
     DashboardDataSchema,
 
 )
-from src.core.database import get_db
+from src.core.database import get_db, GetDBDep
 
 router = APIRouter(
     prefix="/admin/stores/{store_id}/dashboard",  # Endpoint um pouco mais limpo
@@ -17,10 +17,11 @@ router = APIRouter(
 )
 @router.get("/", response_model=DashboardDataSchema)
 def get_dashboard_summary(
+        db: GetDBDep,
         store_id: int,
         start_date: date = date.today() - timedelta(days=29),
         end_date: date = date.today(),
-        db: Session = Depends(get_db),
+
 ):
     """
     Retorna um resumo de dados agregados para o dashboard da loja.

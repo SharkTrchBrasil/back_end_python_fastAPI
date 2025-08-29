@@ -69,7 +69,7 @@ def search_master_products(
 
 
 @router.get("/categories", response_model=List[MasterCategoryOut])
-def get_master_categories(db: Session = Depends(get_db)):
+def get_master_categories(db):
     """
     Retorna uma lista de todas as categorias do catálogo mestre.
 
