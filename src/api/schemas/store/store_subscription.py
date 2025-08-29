@@ -8,8 +8,8 @@ from .customer import Customer
 from .tokenized_card import TokenizedCard
 
 if TYPE_CHECKING:
-    from ..plans import PlanSchema
-    from ..plans_addon import SubscribedAddonSchema
+    from src.api.schemas.plans import PlanSchema
+    from src.api.schemas.plans_addon import SubscribedAddonSchema
 
 class StoreSubscriptionSchema(AppBaseModel):
     id: int

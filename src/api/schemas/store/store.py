@@ -6,7 +6,7 @@ from src.core.utils.enums import StoreVerificationStatus
 from src.core.aws import get_presigned_url
 
 from ..base_schema import AppBaseModel
-from .store_subscription import StoreSubscriptionSchema
+
 
 class StoreBase(AppBaseModel):
     name: str = Field(min_length=3, max_length=100)
@@ -76,6 +76,7 @@ if TYPE_CHECKING:
     from .role import RoleSchema
     from .address import AddressCreate
     from .responsible import ResponsibleCreate
+    from .store_subscription import StoreSubscriptionSchema
 
 class StoreWithRole(AppBaseModel):
     store: StoreSchema
