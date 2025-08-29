@@ -1,8 +1,7 @@
 import asyncio
 from typing import List
 
-from fastapi import APIRouter, Form
-
+from fastapi import APIRouter, Form, Body
 
 from src.api.admin.socketio.emitters import admin_emit_products_updated
 from src.api.app.socketio.socketio_emitters import emit_products_updated
