@@ -1,25 +1,27 @@
 from typing import Optional, List
 from pydantic import BaseModel, Field, ConfigDict, computed_field
 
-from .bulk_actions import KitComponentOut
-from .category import CategoryOut
+# ✅ CORRIGIDO: Importações diretas, sem dependência circular
 from .product_category_link import ProductCategoryLinkCreate
-from .product_variant_link import ProductVariantLink as ProductVariantLinkOut
+
+from .category import CategoryOut
+from .bulk_actions import KitComponentOut
+from .product_variant_link import ProductVariantLinkOut
+from .rating import RatingsSummaryOut
 
 from src.core.aws import get_presigned_url
 from src.core.utils.enums import CashbackType, ProductType
-from .rating import RatingsSummaryOut
+from .. import ProductVariantLinkCreate
 
 
 # --- Configuração Pydantic Base ---
 class AppBaseModel(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
+
 # -------------------------------------------------
 # 1. Schemas de Produto
 # -------------------------------------------------
-
-
 
 class ProductWizardCreate(AppBaseModel):
     name: str
@@ -32,8 +34,9 @@ class ProductWizardCreate(AppBaseModel):
     stock_quantity: Optional[int] = 0
     control_stock: bool = False
     category_links: List[ProductCategoryLinkCreate] = Field(..., min_length=1)
-    variant_links: List['ProductVariantLinkCreate'] = []  # Use referência de string
 
+    # ✅ CORRIGIDO: Sem aspas! A classe foi importada diretamente.
+    variant_links: List[ProductVariantLinkCreate] = []
 
 
 class Product(AppBaseModel):
@@ -54,16 +57,16 @@ class Product(AppBaseModel):
     max_stock: int
     unit: str
     sold_count: int
-    file_key: str | None = Field(default=None, exclude=True) # Exclui do JSON de resposta
-
+    file_key: str | None = Field(default=None, exclude=True)
     cashback_type: CashbackType = CashbackType.NONE
-    cashback_value: int = 0  # Armazenado em centavos para valores fixos
+    cashback_value: int = 0
 
 
 class ProductCreate(Product):
-    """Schema para criar um novo produto. Note a ausência de 'variant_ids'."""
+    """Schema para criar um novo produto."""
     category_id: int
-    store_id: int # O store_id virá da URL, mas pode ser útil no corpo
+    store_id: int
+
 
 class ProductUpdate(AppBaseModel):
     """Schema para atualizar um produto. Todos os campos são opcionais."""
@@ -83,7 +86,6 @@ class ProductUpdate(AppBaseModel):
     unit: Optional[str] = None
     category_id: Optional[int] = None
     file_key: Optional[str] = Field(default=None, exclude=True)
-
     cashback_type: Optional[CashbackType] = None
     cashback_value: Optional[int] = None
 
@@ -92,76 +94,45 @@ class ProductDefaultOptionOut(AppBaseModel):
     variant_option_id: int
 
 
-
 class ProductOut(Product):
-    """
-    Schema de resposta da API. É declarativo e poderoso.
-    Ele retorna as REGRAS e os complementos aninhados.
-    """
+    """Schema de resposta da API."""
     id: int
     category: CategoryOut
 
-    variant_links: List["ProductVariantLinkOut"] = []  # <-- Usar aspas
+    # ✅ CORRIGIDO: Sem aspas! A classe foi importada diretamente.
+    variant_links: List[ProductVariantLinkOut] = []
     components: List[KitComponentOut] = []
     rating: Optional[RatingsSummaryOut] = None
     default_options: List[ProductDefaultOptionOut] = Field(default=[], exclude=True)
 
-
-
-
-
-
-
-
     @computed_field
     @property
     def image_path(self) -> str | None:
-        """Gera a URL da imagem a partir da file_key."""
         return get_presigned_url(self.file_key) if self.file_key else None
-
 
     @computed_field
     @property
     def default_option_ids(self) -> list[int]:
-        """
-        Extrai apenas os IDs das opções padrão para o frontend consumir facilmente.
-        """
-        # O 'self' aqui é uma instância do modelo SQLAlchemy 'Product'
-        # que o Pydantic está usando para criar o schema.
-        # Ele precisa ter o relacionamento 'default_options' carregado.
         if not hasattr(self, 'default_options') or not self.default_options:
             return []
-
         return [default.variant_option_id for default in self.default_options]
 
-
-    # ✅ DIFERENCIAL GIGANTE: Estoque calculado para kits
     @computed_field
     @property
     def calculated_stock(self) -> int | None:
-        """
-        Calcula o estoque real. Se for um produto individual, retorna seu próprio estoque.
-        Se for um kit, calcula o estoque com base no componente mais limitado.
-        """
-        # Se não for um kit, ou se for um kit sem componentes, use o estoque padrão
         if self.product_type != ProductType.KIT or not self.components:
-            return self.stock_quantity if self.control_stock else None  # Retorna None para estoque infinito
+            return self.stock_quantity if self.control_stock else None
 
         possible_kits = []
         for item in self.components:
-            # Se algum componente não controla estoque, ele não limita o kit
             if not item.component.control_stock:
                 continue
-
-                # Calcula quantos kits podem ser feitos com base neste componente
             stock_for_this_item = item.component.stock_quantity // item.quantity
             possible_kits.append(stock_for_this_item)
 
-        # Se nenhum componente tem estoque controlado, o estoque do kit é "infinito"
         if not possible_kits:
             return None
 
-        # O estoque do kit é o mínimo de kits que podemos montar
         return min(possible_kits)
 
 
@@ -173,12 +144,12 @@ class ProductRatingBase(AppBaseModel):
     rating: int = Field(..., ge=1, le=5)
     comment: Optional[str] = None
 
+
 class ProductRatingCreate(ProductRatingBase):
     pass
+
 
 class ProductRatingOut(ProductRatingBase):
     id: int
     product_id: int
     customer_id: int
-
-
