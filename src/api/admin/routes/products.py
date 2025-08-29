@@ -129,6 +129,20 @@ async def create_product_from_wizard(
             db.add(new_variant)
             db.flush()
 
+            # ✅ --- LÓGICA DE SALVAMENTO DAS OPÇÕES ATUALIZADA --- ✅
+            for option_data in link_data.new_variant_data.options:
+                # 'option_data' agora é um objeto Pydantic com todos os campos:
+                # estoque, descrição, etc.
+                new_option = models.VariantOption(
+                    variant_id=new_variant.id,
+                    store_id=store.id,  # O modelo do banco também precisa do store_id
+                    # O model_dump() passa todos os campos do schema para o modelo de uma vez!
+                    **option_data.model_dump()
+                )
+                db.add(new_option)
+            # ✅ --- FIM DA ATUALIZAÇÃO --- ✅
+
+
             for option_data in link_data.new_variant_data.options:
                 new_option = models.VariantOption(
                     variant_id=new_variant.id,
@@ -144,14 +158,14 @@ async def create_product_from_wizard(
                 raise HTTPException(404, f"Variant with id {link_data.variant_id} not found.")
             variant_to_link = existing_variant
 
-        # Cria o vínculo (ProductVariantLink)
+        # passar todos os dados do payload (min, max, ui_display_mode, etc.) de uma vez.
         new_link = models.ProductVariantLink(
+            **link_data.model_dump(exclude={'new_variant_data', 'variant_id'}),
             product_id=new_product.id,
-            variant_id=variant_to_link.id,
-            min_selected_options=link_data.min_selected_options,
-            max_selected_options=link_data.max_selected_options,
+            variant_id=variant_to_link.id
         )
         db.add(new_link)
+
 
     # 6. Salva tudo no banco de dados
     db.commit()

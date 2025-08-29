@@ -6,30 +6,31 @@ from src.api.schemas.base_schema import AppBaseModel
 from src.api.schemas.product_minimal import ProductMinimal
 from src.core.aws import get_presigned_url
 
-
-# ✅ IMPORTAÇÃO LIMPA DO ARQUIVO COMPARTILHADO
-
 # --- SCHEMA BASE ATUALIZADO ---
 class VariantOptionBase(AppBaseModel):
     available: bool = True
     pos_code: Annotated[str | None, Field(max_length=50)] = None
     name_override: Annotated[str | None, Field(max_length=100)] = None
     price_override: Annotated[int | None, Field(ge=0, description="Preço em centavos")] = None
-    file_key: Annotated[str | None, Field(exclude=True)] = None
     linked_product_id: int | None = None
     description: Annotated[str | None, Field(max_length=1000)] = None
     track_inventory: bool = Field(default=False)
     stock_quantity: Annotated[int, Field(ge=0)] = Field(default=0)
 
+# ✅ CORREÇÃO: O schema de criação agora herda da base para incluir todos os campos
 class VariantOptionCreate(VariantOptionBase):
-    variant_id: int
+    variant_id: int # A única informação extra necessária na criação
 
-class VariantOptionUpdate(VariantOptionBase):
-    # Permite atualizar todos os campos da base
-    # Para Pydantic v2, não precisa listar todos os campos com Optional
-    # A menos que queira um comportamento específico.
-    # Esta classe pode até ser removida se o PATCH usar o modelo Base diretamente.
-    pass
+# ✅ NOVO: Um schema de atualização dedicado com todos os campos opcionais
+class VariantOptionUpdate(AppBaseModel):
+    available: bool | None = None
+    pos_code: Annotated[str | None, Field(max_length=50)] = None
+    name_override: Annotated[str | None, Field(max_length=100)] = None
+    price_override: Annotated[int | None, Field(ge=0)] = None
+    linked_product_id: int | None = None
+    description: Annotated[str | None, Field(max_length=1000)] = None
+    track_inventory: bool | None = None
+    stock_quantity: Annotated[int | None, Field(ge=0)] = None
 
 # --- SCHEMA DE SAÍDA (RESPOSTA DA API) ATUALIZADO ---
 class VariantOption(VariantOptionBase):
