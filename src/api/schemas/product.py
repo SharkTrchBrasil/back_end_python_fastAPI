@@ -6,12 +6,12 @@ from .product_category_link import ProductCategoryLinkCreate
 
 from .category import CategoryOut
 from .bulk_actions import KitComponentOut
-from .product_variant_link import ProductVariantLinkOut
+from .product_variant_link import ProductVariantLinkOut, ProductVariantLinkCreate
 from .rating import RatingsSummaryOut
 
 from src.core.aws import get_presigned_url
 from src.core.utils.enums import CashbackType, ProductType
-from .. import ProductVariantLinkCreate
+
 
 
 # --- Configuração Pydantic Base ---
