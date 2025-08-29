@@ -1,12 +1,11 @@
-# schemas/category/product_category_link.py
+# ✅ SUBSTITUA o arquivo INTEIRO por este código:
+
 from __future__ import annotations
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 from pydantic import Field
 
-from ..base_schema import AppBaseModel
-
-# ✅ ADICIONE IMPORT DIRETO:
-from .category import CategoryOut
+from src.api.schemas.base_schema import AppBaseModel
+from src.api.schemas.category.category import CategoryOut  # IMPORT DIRETO
 
 class ProductCategoryLinkBase(AppBaseModel):
     price_override: Optional[int] = None
@@ -20,5 +19,4 @@ class ProductCategoryLinkOut(ProductCategoryLinkBase):
     id: int
     product_id: int
     category_id: int
-    category: CategoryOut  # ✅ AGORA ESTÁ IMPORTADO DIRETAMENTE
-
+    category: CategoryOut  # USA IMPORT DIRETO
