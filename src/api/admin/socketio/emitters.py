@@ -378,7 +378,9 @@ async def admin_emit_products_updated(db, store_id: int):
     # 1. Busca os produtos com todos os relacionamentos aninhados.
     # Sua consulta está perfeita e é a forma mais eficiente.
     products_from_db = db.query(models.Product).options(
-        selectinload(models.Product.category),
+        # 🔄 ajustado para carregar categorias
+        selectinload(models.Product.category_links).selectinload(models.ProductCategoryLink.category),
+
         selectinload(models.Product.default_options),
         selectinload(models.Product.variant_links)
             .selectinload(models.ProductVariantLink.variant)

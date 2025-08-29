@@ -2,11 +2,9 @@ from sqlalchemy.orm import Session, joinedload, selectinload, noload
 from src.core import models
 
 
-
-
 def get_store_for_customer_view(db: Session, store_id: int) -> models.Store | None:
     """
-    Optimized Query for Customer View (Menu/Totem).
+    Optimized Query for Customer View (Menu/Totem) com nova estrutura de categorias.
     """
     store = (
         db.query(models.Store)
@@ -29,31 +27,33 @@ def get_store_for_customer_view(db: Session, store_id: int) -> models.Store | No
 
             # --- Payment Methods ---
             selectinload(models.Store.payment_activations)
-                .selectinload(models.StorePaymentMethodActivation.platform_method)
-                .selectinload(models.PlatformPaymentMethod.category)
-                .selectinload(models.PaymentMethodCategory.group),
+            .selectinload(models.StorePaymentMethodActivation.platform_method)
+            .selectinload(models.PlatformPaymentMethod.category)
+            .selectinload(models.PaymentMethodCategory.group),
 
             # --- Full Menu/Catalog Loading ---
-            selectinload(models.Store.categories)
-                .selectinload(models.Category.products)
-                .options(
-                    selectinload(models.Product.variant_links)
-                        .joinedload(models.ProductVariantLink.variant)
-                        .selectinload(models.Variant.options)
-                        .joinedload(models.VariantOption.linked_product),
-                    selectinload(models.Product.default_options)
-                        .joinedload(models.ProductDefaultOption.option),
-                ),
+            selectinload(models.Store.categories)  # categorias da loja
+            .selectinload(models.Category.product_links)  # link categoria-produto
+            .selectinload(models.ProductCategoryLink.product)  # produto associado
+            .options(
+                # Carrega variantes, opções e produtos vinculados
+                selectinload(models.Product.variant_links)
+                .joinedload(models.ProductVariantLink.variant)
+                .selectinload(models.Variant.options)
+                .joinedload(models.VariantOption.linked_product),
 
-            # Path 2: Load all available add-on templates for the store.
+                # Carrega opções padrão
+                selectinload(models.Product.default_options)
+                .joinedload(models.ProductDefaultOption.option),
+            ),
+
+            # --- Add-on templates (variantes soltas da loja) ---
             selectinload(models.Store.variants).selectinload(models.Variant.options),
         )
         .filter(models.Store.id == store_id)
         .first()
     )
     return store
-
-
 
 
 def get_store_base_details(db: Session, store_id: int) -> models.Store | None:

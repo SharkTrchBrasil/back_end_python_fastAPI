@@ -396,11 +396,11 @@ def _coupon_performance(
         for r in rows
     ]
 
-
 def _category_performance(
     db: Session, store_id: int, start_dt: datetime, end_dt: datetime
 ) -> list[CategoryPerformanceSchema]:
     COMPLETED = OrderStatus.DELIVERED.value
+
     rows = (
         db.query(
             models.Category.id.label("cat_id"),
@@ -411,7 +411,9 @@ def _category_performance(
                 (models.OrderProduct.price - func.coalesce(models.Product.cost_price, 0)) * models.OrderProduct.quantity
             ).label("gross_profit"),
         )
-        .join(models.Product, models.Category.id == models.Product.category_id)
+        # 🔄 Agora passando pela tabela de associação
+        .join(models.ProductCategoryLink, models.Category.id == models.ProductCategoryLink.category_id)
+        .join(models.Product, models.ProductCategoryLink.product_id == models.Product.id)
         .join(models.OrderProduct, models.Product.id == models.OrderProduct.product_id)
         .join(models.Order, models.OrderProduct.order_id == models.Order.id)
         .filter(
@@ -423,6 +425,7 @@ def _category_performance(
         .order_by(func.sum(models.OrderProduct.price * models.OrderProduct.quantity).desc())
         .all()
     )
+
     return [
         CategoryPerformanceSchema(
             category_id=r.cat_id,
