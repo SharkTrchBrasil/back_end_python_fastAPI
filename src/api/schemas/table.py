@@ -26,5 +26,5 @@ class TableOut(TableBase):
     closed_at: Optional[datetime]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 

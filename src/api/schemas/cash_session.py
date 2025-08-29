@@ -33,6 +33,5 @@ class CashierSessionOut(CashierSessionBase):
     expected_amount: float  # quanto o sistema esperava
     informed_amount: float  # quanto o operador contou
 
-
     class Config:
-        orm_mode = True
+        from_attributes = True

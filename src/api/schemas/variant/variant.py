@@ -37,7 +37,7 @@ class VariantCreateInWizard(AppBaseModel):
 
 
 
-Variant.model_rebuild()
+
 
 
 

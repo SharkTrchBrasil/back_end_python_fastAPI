@@ -4,11 +4,11 @@ from pydantic import Field, computed_field
 
 from src.core.aws import get_presigned_url
 from src.core.utils.enums import CashbackType, ProductType
-from src.api.schemas.category import ProductCategoryLinkCreate, ProductCategoryLinkOut
-from src.api.schemas.rating import RatingsSummaryOut
 from ..base_schema import AppBaseModel
 
 if TYPE_CHECKING:
+    from src.api.schemas.category import ProductCategoryLinkCreate, ProductCategoryLinkOut
+    from src.api.schemas.rating import RatingsSummaryOut
     from .product_variant_link import ProductVariantLink, ProductVariantLinkCreate
     from .kit_component import KitComponentOut
 

@@ -42,7 +42,7 @@ class CustomerOut(CustomerBase):
     addresses: List[AddressOut] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class CustomerUpdate(BaseModel):

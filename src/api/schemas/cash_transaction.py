@@ -34,4 +34,4 @@ class CashierTransactionOut(BaseModel):
     updated_at: datetime
 
     class Config:
-        orm_mode = True  # ✅ importante para conversão automática via ORM
+        from_attributes = True # ✅ importante para conversão automática via ORM

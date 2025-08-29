@@ -1,14 +1,12 @@
-# schemas/variant/variant_option.py
 from __future__ import annotations
-from typing import Annotated, Optional
+from typing import Annotated, Optional, TYPE_CHECKING
 from pydantic import Field, computed_field
 
 from ..base_schema import AppBaseModel
 from src.core.aws import get_presigned_url
 
-
-# USE:
-from src.api.schemas.product.product import ProductOut
+if TYPE_CHECKING:
+    from src.api.schemas.product.product import ProductOut
 
 class ProductMinimal(AppBaseModel):
     id: int

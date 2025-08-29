@@ -34,11 +34,8 @@ class TotemAuthorizationResponse(BaseModel):
     sid: Optional[str] = None
     store_url: str # A URL sem os traços (slug)
 
-
-
     class Config:
-        from_attributes = True # Para Pydantic v2+ (anteriormente orm_mode = True em v1)
-
+        from_attributes = True
 
 class TotemTokenBySubdomainResponse(BaseModel):
     token: str
