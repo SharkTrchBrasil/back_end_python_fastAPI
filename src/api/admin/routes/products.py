@@ -166,16 +166,21 @@ async def create_product_from_wizard(
         )
         db.add(new_link)
 
-
     # 6. Salva tudo no banco de dados
     db.commit()
-    db.refresh(new_product)
 
+    # ✅ --- AJUSTE FINAL: BUSCA E RETORNO DO OBJETO COMPLETO --- ✅
+    # Em vez de apenas dar um refresh, fazemos uma nova busca pelo produto
+    # recém-criado, já carregando todas as relações que o ProductOut precisa.
+    product_to_return = db.query(models.Product).options(
+        selectinload(models.Product.category_links).selectinload(models.ProductCategoryLink.category),
+        selectinload(models.Product.variant_links).selectinload(models.ProductVariantLink.variant).selectinload(
+            models.Variant.options)
+    ).filter(models.Product.id == new_product.id).first()
+
+    # 7. Emite os eventos e retorna o objeto completo e validado
     await _emit_updates(db, store.id)
-    return new_product
-
-
-
+    return product_to_return
 
 
 # @router.post("", response_model=ProductOut)
