@@ -186,13 +186,20 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
 
     # --- 4. Top 5 Categorias ---
     # (Requer que OrderProduct tenha uma relação com Product, que tem uma relação com Category)
+    # --- 4. Top 5 Categorias (CORRIGIDA para N-N) ---
     top_categories_query = db.query(
         models.Category.name,
         func.sum(models.OrderProduct.quantity).label("count"),
         func.sum(models.OrderProduct.price * models.OrderProduct.quantity).label("revenue")
-    ).select_from(models.OrderProduct).join(models.Order).join(models.Product).join(models.Category).filter(
-        *base_order_filter
-    ).group_by(models.Category.name).order_by(func.sum(models.OrderProduct.quantity).desc()).limit(5).all()
+    ).select_from(models.OrderProduct) \
+        .join(models.Order, models.OrderProduct.order_id == models.Order.id) \
+        .join(models.Product, models.OrderProduct.product_id == models.Product.id) \
+        .join(models.ProductCategoryLink, models.Product.id == models.ProductCategoryLink.product_id) \
+        .join(models.Category, models.ProductCategoryLink.category_id == models.Category.id) \
+        .filter(*base_order_filter) \
+        .group_by(models.Category.name) \
+        .order_by(func.sum(models.OrderProduct.quantity).desc()) \
+        .limit(5).all()
 
     top_categories = [TopItemSchema(name=row.name, count=row.count, revenue=(row.revenue or 0) / 100) for row in
                       top_categories_query]

@@ -1,7 +1,9 @@
 from typing import Optional, List
 from pydantic import BaseModel, Field, ConfigDict, computed_field
 
+from .bulk_actions import KitComponentOut
 from .category import CategoryOut
+from .product_category_link import ProductCategoryLinkCreate
 from .product_variant_link import ProductVariantLink as ProductVariantLinkOut
 
 from src.core.aws import get_presigned_url
@@ -18,25 +20,21 @@ class AppBaseModel(BaseModel):
 # -------------------------------------------------
 
 
-class KitComponentOut(AppBaseModel):
-    quantity: int
-    # Inclui os dados do produto componente para o front-end saber o que é
-    component: "ProductOut"
 
-# Crie este schema Pydantic para o corpo da requisição
-class BulkStatusUpdatePayload(BaseModel):
-    product_ids: List[int]
-    available: bool
+class ProductWizardCreate(AppBaseModel):
+    name: str
+    description: Optional[str] = None
+    base_price: int
+    cost_price: Optional[int] = 0
+    ean: Optional[str] = None
+    available: bool = True
+    product_type: ProductType = ProductType.INDIVIDUAL
+    stock_quantity: Optional[int] = 0
+    control_stock: bool = False
+    category_links: List[ProductCategoryLinkCreate] = Field(..., min_length=1)
+    variant_links: List['ProductVariantLinkCreate'] = []  # Use referência de string
 
 
-class BulkDeletePayload(BaseModel):
-    product_ids: List[int]
-
-
-# Crie este schema Pydantic para o corpo da requisição
-class BulkCategoryUpdatePayload(BaseModel):
-    product_ids: List[int]
-    target_category_id: int
 
 class Product(AppBaseModel):
     """Campos essenciais que definem um produto."""
