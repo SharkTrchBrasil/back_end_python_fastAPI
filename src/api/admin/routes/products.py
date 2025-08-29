@@ -68,6 +68,23 @@ async def create_product_from_wizard(
     if not category:
         raise HTTPException(status_code=404, detail=f"Categoria principal com id {main_category_id} não encontrada.")
 
+        # ✅ NOVO BLOCO DE CÓDIGO PARA CALCULAR A PRIORIDADE ✅
+        # Conta quantos produtos já existem NAQUELA categoria e loja.
+        # Usamos a tabela de junção (ProductCategoryLink) para a contagem.
+    current_product_count_in_category = db.query(models.ProductCategoryLink) \
+        .join(models.Product, models.Product.id == models.ProductCategoryLink.product_id) \
+        .filter(
+        models.ProductCategoryLink.category_id == main_category_id,
+        models.Product.store_id == store.id
+    ).count()
+
+    # A prioridade do novo produto será a contagem atual (ex: se há 5 produtos, a contagem é 5,
+    # e o novo terá a prioridade 5, ficando em sexto lugar na lista 0-5).
+    new_priority = current_product_count_in_category
+    # ✅ FIM DO NOVO BLOCO DE CÓDIGO ✅
+
+
+
     # 2. Upload da Imagem (se houver)
     file_key = None
     if image is not None:
@@ -78,7 +95,8 @@ async def create_product_from_wizard(
     new_product = models.Product(
         **new_product_data,
         store_id=store.id,
-        file_key=file_key
+        file_key=file_key,
+        priority=new_priority
     )
     db.add(new_product)
     db.flush()  # Aplica a transação para obter o ID do new_product
