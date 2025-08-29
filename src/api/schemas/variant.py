@@ -3,7 +3,7 @@ from typing import Annotated, List
 from pydantic import Field
 
 from .base_schema import AppBaseModel, VariantType
-from .variant_option import VariantOption, VariantOptionCreate # ✅ IMPORTAÇÃO DIRETA
+from .variant_option import VariantOption, VariantOptionCreate, WizardVariantOptionCreate  # ✅ IMPORTAÇÃO DIRETA
 
 class VariantBase(AppBaseModel):
     name: Annotated[str, Field(min_length=2, max_length=100, examples=["Adicionais Premium"])]
@@ -11,7 +11,7 @@ class VariantBase(AppBaseModel):
 
 class VariantCreate(VariantBase):
     # Opcional: permitir criar opções junto com o grupo
-    options: List[VariantOptionCreate] = []
+    options: List[WizardVariantOptionCreate] = []
 
 class VariantUpdate(AppBaseModel):
     name: Annotated[str | None, Field(min_length=2, max_length=100)] = None

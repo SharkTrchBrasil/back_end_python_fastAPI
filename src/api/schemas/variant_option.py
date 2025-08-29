@@ -24,6 +24,9 @@ class VariantOptionBase(AppBaseModel):
 class VariantOptionCreate(VariantOptionBase):
     variant_id: int
 
+class WizardVariantOptionCreate(VariantOptionBase):
+    pass # Herda tudo da base, sem adicionar o variant_id
+
 
 class VariantOptionUpdate(AppBaseModel):
     available: bool | None = None
