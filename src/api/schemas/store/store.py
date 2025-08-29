@@ -1,4 +1,4 @@
-# schemas/store/store.py
+from __future__ import annotations
 from pydantic import Field, computed_field, ConfigDict
 from typing import List, Optional, TYPE_CHECKING
 
@@ -7,7 +7,6 @@ from src.core.aws import get_presigned_url
 
 from ..base_schema import AppBaseModel
 from .store_subscription import StoreSubscriptionSchema
-
 
 class StoreBase(AppBaseModel):
     name: str = Field(min_length=3, max_length=100)
@@ -34,7 +33,6 @@ class StoreBase(AppBaseModel):
     file_key: Optional[str] = None
     banner_file_key: Optional[str] = None
 
-
 class StoreCreate(AppBaseModel):
     name: str
     store_url: str
@@ -46,13 +44,11 @@ class StoreCreate(AppBaseModel):
     address: 'AddressCreate'
     responsible: 'ResponsibleCreate'
 
-
 class StoreUpdate(StoreBase):
     name: Optional[str] = Field(None, min_length=3, max_length=100)
     url_slug: Optional[str] = None
     phone: Optional[str] = Field(None, min_length=10, max_length=15)
     is_setup_complete: Optional[bool] = None
-
 
 class StoreSchema(StoreBase):
     id: int
@@ -76,18 +72,11 @@ class StoreSchema(StoreBase):
 
     model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
 
-
-# Use TYPE_CHECKING:
 if TYPE_CHECKING:
     from .role import RoleSchema
+    from .address import AddressCreate
+    from .responsible import ResponsibleCreate
 
 class StoreWithRole(AppBaseModel):
     store: StoreSchema
-    role: 'RoleSchema'  # ← Use referência de string
-
-
-
-if TYPE_CHECKING:
-    from .address import AddressCreate
-    from .responsible import ResponsibleCreate
-    from .role import RoleSchema
+    role: 'RoleSchema'

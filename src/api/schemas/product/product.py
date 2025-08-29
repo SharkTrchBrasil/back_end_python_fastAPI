@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, List, TYPE_CHECKING  # Adicione TYPE_CHECKING
+from typing import Optional, List, TYPE_CHECKING
 from pydantic import Field, computed_field
 
 from src.core.aws import get_presigned_url
@@ -8,15 +8,9 @@ from src.api.schemas.category import ProductCategoryLinkCreate, ProductCategoryL
 from src.api.schemas.rating import RatingsSummaryOut
 from ..base_schema import AppBaseModel
 
-# REMOVA estas importações circulares:
-# from .product_variant_link import ProductVariantLink, ProductVariantLinkCreate
-# from .kit_component import KitComponentOut
-
-# Use TYPE_CHECKING para as importações circulares
 if TYPE_CHECKING:
     from .product_variant_link import ProductVariantLink, ProductVariantLinkCreate
     from .kit_component import KitComponentOut
-
 
 class ProductWizardCreate(AppBaseModel):
     name: str
@@ -29,8 +23,7 @@ class ProductWizardCreate(AppBaseModel):
     stock_quantity: Optional[int] = 0
     control_stock: bool = False
     category_links: List[ProductCategoryLinkCreate] = Field(..., min_length=1)
-    variant_links: List['ProductVariantLinkCreate'] = []  # Use referência de string
-
+    variant_links: List['ProductVariantLinkCreate'] = []
 
 class ProductOut(AppBaseModel):
     id: int
@@ -53,12 +46,10 @@ class ProductOut(AppBaseModel):
     cashback_type: CashbackType
     cashback_value: int
     product_type: ProductType
-
     category_links: List[ProductCategoryLinkOut] = []
-    variant_links: List['ProductVariantLink'] = []  # Use referência de string
-    components: List['KitComponentOut'] = []  # Use referência de string
+    variant_links: List['ProductVariantLink'] = []
+    components: List['KitComponentOut'] = []
     rating: Optional[RatingsSummaryOut] = None
-
     file_key: Optional[str] = Field(None, exclude=True)
 
     @computed_field
@@ -67,6 +58,3 @@ class ProductOut(AppBaseModel):
         if self.file_key:
             return get_presigned_url(self.file_key)
         return None
-
-
-ProductOut.model_rebuild()

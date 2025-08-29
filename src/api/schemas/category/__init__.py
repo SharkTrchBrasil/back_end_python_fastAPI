@@ -1,4 +1,3 @@
-# schemas/category/__init__.py
 from .category import CategoryOut, CategoryBase, CategoryCreate, CategoryUpdate
 from .payable_category import PayableCategoryResponse, PayableCategoryBase, PayableCategoryCreate, PayableCategoryUpdate
 from .product_category_link import ProductCategoryLinkCreate, ProductCategoryLinkOut

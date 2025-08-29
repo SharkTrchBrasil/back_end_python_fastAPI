@@ -1,9 +1,11 @@
-# schemas/store/store_access.py
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from ..base_schema import AppBaseModel
 from .role import RoleSchema
-from ..user import UserSchema
 
+if TYPE_CHECKING:
+    from ..user import UserSchema
 
 class StoreAccess(AppBaseModel):
-    user: UserSchema
+    user: 'UserSchema'
     role: RoleSchema
