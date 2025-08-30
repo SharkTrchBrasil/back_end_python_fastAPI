@@ -63,6 +63,7 @@ def _orders_base_query(
 
 # ------------- Blocos de cálculo -------------
 
+
 def _calc_sales_and_profit(
         db: Session,
         store_id: int,
@@ -71,13 +72,14 @@ def _calc_sales_and_profit(
         start_previous: datetime,
         end_previous: datetime,
 ) -> Tuple[DailySummarySchema, ComparativeMetricSchema]:
+    """
+    Agregações de vendas e lucro bruto, agora tratando o caso de não haver
+    pedidos no período e buscando o custo do lugar certo.
+    """
     COMPLETED = OrderStatus.DELIVERED.value
-
-    # ✅ --- LÓGICA DE CÁLCULO DE LUCRO CORRIGIDA --- ✅
-    # Criamos um 'alias' para a tabela de links para usar no join
     pcl = aliased(models.ProductCategoryLink)
 
-    # A expressão agora busca o custo no 'pcl' (ProductCategoryLink)
+    # Expressão de lucro que busca o custo do link de categoria
     gross_expr = (
             (models.OrderProduct.price - func.coalesce(pcl.cost_price, 0))
             * models.OrderProduct.quantity
@@ -100,7 +102,6 @@ def _calc_sales_and_profit(
                 "previous_gross_profit"),
         )
         .join(models.OrderProduct, models.Order.id == models.OrderProduct.order_id)
-        # ✅ Adicionamos o JOIN com a tabela de links para encontrar o custo
         .join(pcl, and_(
             models.OrderProduct.product_id == pcl.product_id,
             models.OrderProduct.category_id == pcl.category_id
@@ -113,6 +114,31 @@ def _calc_sales_and_profit(
         )
         .first()
     )
+
+    # ✅ A MÁGICA ESTÁ AQUI:
+    # Mesmo que a query não retorne nada e 'agg' seja None,
+    # o getattr com um valor padrão (0) garante que nunca teremos um erro.
+    current_total_value = _to_real(getattr(agg, "current_total_value", 0))
+    previous_total_value = _to_real(getattr(agg, "previous_total_value", 0))
+    current_sales_count = int(getattr(agg, "current_sales_count", 0) or 0)
+    previous_sales_count = int(getattr(agg, "previous_sales_count", 0) or 0)
+    current_gross_profit = _to_real(getattr(agg, "current_gross_profit", 0))
+    previous_gross_profit = _to_real(getattr(agg, "previous_gross_profit", 0))
+
+    summary = DailySummarySchema(
+        completed_sales=_build_comparative_metric(current_sales_count, previous_sales_count),
+        total_value=_build_comparative_metric(current_total_value, previous_total_value),
+        average_ticket=_build_comparative_metric(
+            (current_total_value / current_sales_count) if current_sales_count else 0.0,
+            (previous_total_value / previous_sales_count) if previous_sales_count else 0.0,
+        ),
+    )
+    gross_profit = _build_comparative_metric(current_gross_profit, previous_gross_profit)
+
+    # ✅ A função SEMPRE chegará aqui e retornará a tupla, nunca None.
+    return summary, gross_profit
+
+
 
 
 def _calc_customer_analytics(
