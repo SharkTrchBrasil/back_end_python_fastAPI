@@ -6,6 +6,7 @@ from typing import Iterable, Optional, Tuple
 
 from sqlalchemy import and_, case, func
 from sqlalchemy.orm import Session
+from sqlalchemy.orm import aliased # ✅ Adicione este import
 
 from src.core import models
 from src.core.utils.enums import OrderStatus
@@ -63,109 +64,56 @@ def _orders_base_query(
 # ------------- Blocos de cálculo -------------
 
 def _calc_sales_and_profit(
-    db: Session,
-    store_id: int,
-    start_current: datetime,
-    end_current: datetime,
-    start_previous: datetime,
-    end_previous: datetime,
+        db: Session,
+        store_id: int,
+        start_current: datetime,
+        end_current: datetime,
+        start_previous: datetime,
+        end_previous: datetime,
 ) -> Tuple[DailySummarySchema, ComparativeMetricSchema]:
-    """
-    Agregações de vendas e lucro bruto comparando dia atual vs. dia comparativo.
-    Trata ausência de dados e custo nulo.
-    """
-    COMPLETED = OrderStatus.DELIVERED.value  # string esperada no banco
+    COMPLETED = OrderStatus.DELIVERED.value
 
-    # price e cost_price são em centavos
-    # lucro bruto por item = (preco_venda - custo) * quantidade
-    gross_expr_current = (
-        func.coalesce(
-            (models.OrderProduct.price - func.coalesce(models.Product.cost_price, 0)),
-            0,
-        ) * models.OrderProduct.quantity
-    )
+    # ✅ --- LÓGICA DE CÁLCULO DE LUCRO CORRIGIDA --- ✅
+    # Criamos um 'alias' para a tabela de links para usar no join
+    pcl = aliased(models.ProductCategoryLink)
 
-    gross_expr_previous = (
-        func.coalesce(
-            (models.OrderProduct.price - func.coalesce(models.Product.cost_price, 0)),
-            0,
-        ) * models.OrderProduct.quantity
+    # A expressão agora busca o custo no 'pcl' (ProductCategoryLink)
+    gross_expr = (
+            (models.OrderProduct.price - func.coalesce(pcl.cost_price, 0))
+            * models.OrderProduct.quantity
     )
 
     agg = (
         db.query(
-            # Totais do período atual
-            func.sum(
-                case(
-                    (models.Order.created_at.between(start_current, end_current), models.Order.total_price),
-                    else_=0,
-                )
-            ).label("current_total_value"),
+            func.sum(case((models.Order.created_at.between(start_current, end_current), models.Order.total_price),
+                          else_=0)).label("current_total_value"),
             func.count(
-                case(
-                    (models.Order.created_at.between(start_current, end_current), models.Order.id),
-                    else_=None,
-                )
-            ).label("current_sales_count"),
-            func.sum(
-                case(
-                    (models.Order.created_at.between(start_current, end_current), gross_expr_current),
-                    else_=0,
-                )
-            ).label("current_gross_profit"),
-            # Totais do período anterior
-            func.sum(
-                case(
-                    (models.Order.created_at.between(start_previous, end_previous), models.Order.total_price),
-                    else_=0,
-                )
-            ).label("previous_total_value"),
-            func.count(
-                case(
-                    (models.Order.created_at.between(start_previous, end_previous), models.Order.id),
-                    else_=None,
-                )
-            ).label("previous_sales_count"),
-            func.sum(
-                case(
-                    (models.Order.created_at.between(start_previous, end_previous), gross_expr_previous),
-                    else_=0,
-                )
-            ).label("previous_gross_profit"),
+                case((models.Order.created_at.between(start_current, end_current), models.Order.id), else_=None)).label(
+                "current_sales_count"),
+            func.sum(case((models.Order.created_at.between(start_current, end_current), gross_expr), else_=0)).label(
+                "current_gross_profit"),
+            func.sum(case((models.Order.created_at.between(start_previous, end_previous), models.Order.total_price),
+                          else_=0)).label("previous_total_value"),
+            func.count(case((models.Order.created_at.between(start_previous, end_previous), models.Order.id),
+                            else_=None)).label("previous_sales_count"),
+            func.sum(case((models.Order.created_at.between(start_previous, end_previous), gross_expr), else_=0)).label(
+                "previous_gross_profit"),
         )
         .join(models.OrderProduct, models.Order.id == models.OrderProduct.order_id)
-        .join(models.Product, models.OrderProduct.product_id == models.Product.id)
+        # ✅ Adicionamos o JOIN com a tabela de links para encontrar o custo
+        .join(pcl, and_(
+            models.OrderProduct.product_id == pcl.product_id,
+            models.OrderProduct.category_id == pcl.category_id
+        ))
         .filter(
             models.Order.store_id == store_id,
             models.Order.order_status == COMPLETED,
-            # limita aos dois períodos para otimizar
             (models.Order.created_at.between(start_current, end_current))
             | (models.Order.created_at.between(start_previous, end_previous)),
         )
         .first()
     )
 
-    # Trata None com zeros
-    current_total_value = _to_real(getattr(agg, "current_total_value", 0))
-    previous_total_value = _to_real(getattr(agg, "previous_total_value", 0))
-    current_sales_count = int(getattr(agg, "current_sales_count", 0) or 0)
-    previous_sales_count = int(getattr(agg, "previous_sales_count", 0) or 0)
-    current_gross_profit = _to_real(getattr(agg, "current_gross_profit", 0))
-    previous_gross_profit = _to_real(getattr(agg, "previous_gross_profit", 0))
-
-    summary = DailySummarySchema(
-        completed_sales=_build_comparative_metric(current_sales_count, previous_sales_count),
-        total_value=_build_comparative_metric(current_total_value, previous_total_value),
-        average_ticket=_build_comparative_metric(
-            (current_total_value / current_sales_count) if current_sales_count else 0.0,
-            (previous_total_value / previous_sales_count) if previous_sales_count else 0.0,
-        ),
-    )
-    gross_profit = _build_comparative_metric(current_gross_profit, previous_gross_profit)
-    return summary, gross_profit
-
-
-# src/api/admin/services/performance_service.py
 
 def _calc_customer_analytics(
         db: Session,
@@ -396,10 +344,14 @@ def _coupon_performance(
         for r in rows
     ]
 
+
 def _category_performance(
-    db: Session, store_id: int, start_dt: datetime, end_dt: datetime
+        db: Session, store_id: int, start_dt: datetime, end_dt: datetime
 ) -> list[CategoryPerformanceSchema]:
     COMPLETED = OrderStatus.DELIVERED.value
+
+    # ✅ Alias para a tabela de links
+    pcl = aliased(models.ProductCategoryLink)
 
     rows = (
         db.query(
@@ -407,15 +359,18 @@ def _category_performance(
             models.Category.name.label("cat_name"),
             func.sum(models.OrderProduct.quantity).label("items_sold"),
             func.sum(models.OrderProduct.price * models.OrderProduct.quantity).label("total_value"),
+            # ✅ Cálculo de lucro corrigido para usar o custo do link (pcl)
             func.sum(
-                (models.OrderProduct.price - func.coalesce(models.Product.cost_price, 0)) * models.OrderProduct.quantity
+                (models.OrderProduct.price - func.coalesce(pcl.cost_price, 0)) * models.OrderProduct.quantity
             ).label("gross_profit"),
         )
-        # 🔄 Agora passando pela tabela de associação
-        .join(models.ProductCategoryLink, models.Category.id == models.ProductCategoryLink.category_id)
-        .join(models.Product, models.ProductCategoryLink.product_id == models.Product.id)
-        .join(models.OrderProduct, models.Product.id == models.OrderProduct.product_id)
-        .join(models.Order, models.OrderProduct.order_id == models.Order.id)
+        .join(models.Order, models.Category.id == models.OrderProduct.category_id)
+        .join(models.OrderProduct, models.Order.id == models.OrderProduct.order_id)
+        # ✅ Adicionamos o JOIN com a tabela de links
+        .join(pcl, and_(
+            models.OrderProduct.product_id == pcl.product_id,
+            models.OrderProduct.category_id == pcl.category_id
+        ))
         .filter(
             models.Order.store_id == store_id,
             models.Order.created_at.between(start_dt, end_dt),
@@ -425,18 +380,6 @@ def _category_performance(
         .order_by(func.sum(models.OrderProduct.price * models.OrderProduct.quantity).desc())
         .all()
     )
-
-    return [
-        CategoryPerformanceSchema(
-            category_id=r.cat_id,
-            category_name=r.cat_name,
-            items_sold=int(r.items_sold or 0),
-            total_value=_to_real(r.total_value),
-            gross_profit=_to_real(r.gross_profit),
-        )
-        for r in rows
-    ]
-
 
 def _product_sales_funnel(
         db: Session, store_id: int, start_dt: datetime, end_dt: datetime
