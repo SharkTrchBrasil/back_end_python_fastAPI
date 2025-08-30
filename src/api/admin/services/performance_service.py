@@ -369,13 +369,13 @@ def _coupon_performance(
     ]
 
 
+
+
 def _category_performance(
-        db: Session, store_id: int, start_dt: datetime, end_dt: datetime
+    db, store_id: int, start_dt: datetime, end_dt: datetime
 ) -> list[CategoryPerformanceSchema]:
     COMPLETED = OrderStatus.DELIVERED.value
-
-    # ✅ Alias para a tabela de links
-    pcl = aliased(models.ProductCategoryLink)
+    pcl = aliased(models.ProductCategoryLink) # Alias para a tabela de links
 
     rows = (
         db.query(
@@ -383,18 +383,20 @@ def _category_performance(
             models.Category.name.label("cat_name"),
             func.sum(models.OrderProduct.quantity).label("items_sold"),
             func.sum(models.OrderProduct.price * models.OrderProduct.quantity).label("total_value"),
-            # ✅ Cálculo de lucro corrigido para usar o custo do link (pcl)
             func.sum(
                 (models.OrderProduct.price - func.coalesce(pcl.cost_price, 0)) * models.OrderProduct.quantity
             ).label("gross_profit"),
         )
-        .join(models.Order, models.Category.id == models.OrderProduct.category_id)
-        .join(models.OrderProduct, models.Order.id == models.OrderProduct.order_id)
-        # ✅ Adicionamos o JOIN com a tabela de links
+        # ✅ 1. SEJA EXPLÍCITO: Diga ao SQLAlchemy para começar pela tabela Category
+        .select_from(models.Category)
+        # ✅ 2. GUIA DOS JOINS: Conecte as tabelas em uma ordem lógica e sem ambiguidades
+        .join(models.OrderProduct, models.OrderProduct.category_id == models.Category.id)
+        .join(models.Order, models.OrderProduct.order_id == models.Order.id)
         .join(pcl, and_(
             models.OrderProduct.product_id == pcl.product_id,
             models.OrderProduct.category_id == pcl.category_id
         ))
+        # O resto da função continua igual
         .filter(
             models.Order.store_id == store_id,
             models.Order.created_at.between(start_dt, end_dt),
@@ -404,6 +406,17 @@ def _category_performance(
         .order_by(func.sum(models.OrderProduct.price * models.OrderProduct.quantity).desc())
         .all()
     )
+
+    return [
+        CategoryPerformanceSchema(
+            category_id=r.cat_id,
+            category_name=r.cat_name,
+            items_sold=int(r.items_sold or 0),
+            total_value=_to_real(r.total_value),
+            gross_profit=_to_real(r.gross_profit),
+        )
+        for r in rows
+    ]
 
 def _product_sales_funnel(
         db: Session, store_id: int, start_dt: datetime, end_dt: datetime
