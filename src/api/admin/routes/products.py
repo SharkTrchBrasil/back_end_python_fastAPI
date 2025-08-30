@@ -5,11 +5,13 @@ from typing import List
 from fastapi import APIRouter, Form
 import json
 from pydantic import ValidationError
+from starlette import status
+
 from src.api.admin.socketio.emitters import admin_emit_products_updated
 from src.api.app.socketio.socketio_emitters import emit_products_updated
 from src.api.schemas.bulk_actions import ProductCategoryUpdatePayload, BulkDeletePayload, BulkCategoryUpdatePayload, \
     BulkStatusUpdatePayload
-from src.api.schemas.product import ProductWizardCreate, ProductOut
+from src.api.schemas.product import ProductWizardCreate, ProductOut, ProductUpdate
 from src.api.schemas.product_category_link import ProductCategoryLinkOut, ProductCategoryLinkUpdate
 
 from src.core import models
@@ -44,65 +46,25 @@ async def create_product_from_wizard(
     um payload JSON como string dentro de um multipart/form-data.
     """
     try:
-        # ✅ 3. Valide a string JSON manualmente para transformá-la no objeto Pydantic
         payload = ProductWizardCreate.model_validate_json(payload_str)
     except (ValidationError, json.JSONDecodeError) as e:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Erro de validação no payload JSON: {e}"
-        )
-
-    """
-    Cria um produto completo com categorias e grupos de complementos,
-    recebendo todos os dados do wizard do frontend de uma só vez.
-    """
-    # 1. Validação da Categoria Principal (a primeira da lista)
+        raise HTTPException(status_code=422, detail=f"Erro de validação no payload JSON: {e}")
     if not payload.category_links:
         raise HTTPException(status_code=400, detail="O produto deve pertencer a pelo menos uma categoria.")
-
     main_category_id = payload.category_links[0].category_id
-    category = db.query(models.Category).filter(
-        models.Category.id == main_category_id,
-        models.Category.store_id == store.id
-    ).first()
+    category = db.query(models.Category).filter(models.Category.id == main_category_id,
+                                                models.Category.store_id == store.id).first()
     if not category:
         raise HTTPException(status_code=404, detail=f"Categoria principal com id {main_category_id} não encontrada.")
-
-        # ✅ NOVO BLOCO DE CÓDIGO PARA CALCULAR A PRIORIDADE ✅
-        # Conta quantos produtos já existem NAQUELA categoria e loja.
-        # Usamos a tabela de junção (ProductCategoryLink) para a contagem.
-    current_product_count_in_category = db.query(models.ProductCategoryLink) \
-        .join(models.Product, models.Product.id == models.ProductCategoryLink.product_id) \
-        .filter(
-        models.ProductCategoryLink.category_id == main_category_id,
-        models.Product.store_id == store.id
-    ).count()
-
-    # A prioridade do novo produto será a contagem atual (ex: se há 5 produtos, a contagem é 5,
-    # e o novo terá a prioridade 5, ficando em sexto lugar na lista 0-5).
+    current_product_count_in_category = db.query(models.ProductCategoryLink).join(models.Product,
+                                                                                  models.Product.id == models.ProductCategoryLink.product_id).filter(
+        models.ProductCategoryLink.category_id == main_category_id, models.Product.store_id == store.id).count()
     new_priority = current_product_count_in_category
-    # ✅ FIM DO NOVO BLOCO DE CÓDIGO ✅
-
-
-
-    # 2. Upload da Imagem (se houver)
-    file_key = None
-    if image is not None:
-        file_key = upload_file(image)
-
-    # 3. Criação do Objeto Produto (sem salvar ainda)
+    file_key = upload_file(image) if image is not None else None
     new_product_data = payload.model_dump(exclude={'category_links', 'variant_links'})
-    new_product = models.Product(
-        **new_product_data,
-        store_id=store.id,
-        file_key=file_key,
-        priority=new_priority,
-        featured = False,
-        unit = "Unidade",  # Adicionando um padrão para unidade também
-        sold_count = 0
-    )
+    new_product = models.Product(**new_product_data, store_id=store.id, file_key=file_key, priority=new_priority)
     db.add(new_product)
-    db.flush()  # Aplica a transação para obter o ID do new_product
+    db.flush()
 
     # 4. Vinculando as Categorias (usando a tabela de junção)
     for link_data in payload.category_links:
@@ -256,31 +218,10 @@ async def create_product_from_wizard(
 
 
 @router.post("/{product_id}/view", status_code=204)
-def record_product_view(
-        product: GetProductDep,  # Usa a dependência para garantir que o produto existe
-        store: GetStoreDep,  # Usa a dependência para pegar a loja
-        db: GetDBDep,
-):
-    """
-    Registra uma única visualização para um produto.
-
-    Este é o endpoint que seu cardápio digital deve chamar toda vez
-    que a página de detalhes de um produto for aberta.
-    """
-    # Cria uma nova entrada na tabela de visualizações
-    new_view = models.ProductView(
-        product_id=product.id,
-        store_id=store.id,
-        # customer_id pode ser adicionado aqui se o cliente estiver logado
-    )
-
-    db.add(new_view)
+def record_product_view(product: GetProductDep, store: GetStoreDep, db: GetDBDep):
+    db.add(models.ProductView(product_id=product.id, store_id=store.id))
     db.commit()
-
-    # Não há necessidade de retornar um corpo, o status 204 (No Content) é suficiente.
     return
-
-
 
 
 @router.get("/minimal", response_model=list[dict])
@@ -294,215 +235,93 @@ def get_products(db: GetDBDep, store: GetStoreDep, skip: int = 0, limit: int = 1
     products = db.query(models.Product).filter(models.Product.store_id == store.id).options(
         selectinload(models.Product.category_links).selectinload(models.ProductCategoryLink.category),
         selectinload(models.Product.variant_links).selectinload(models.ProductVariantLink.variant).selectinload(models.Variant.options)
-    ).order_by(models.Product.id.desc()).offset(skip).limit(limit).all()
+    ).order_by(models.Product.priority).offset(skip).limit(limit).all()
     return products
 
-
 @router.get("/{product_id}", response_model=ProductOut)
-def get_product_details(product: GetProductDep, db: GetDBDep):
-    product_with_details = db.query(models.Product).options(
-        selectinload(models.Product.category_links).selectinload(models.ProductCategoryLink.category),
-        selectinload(models.Product.variant_links).selectinload(models.ProductVariantLink.variant).selectinload(models.Variant.options)
-    ).filter(models.Product.id == product.id).first()
-    if not product_with_details:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return product_with_details
-
-
-@router.put("/{product_id}/categories", status_code=204)
-async def update_product_categories(
-        store: GetStoreDep,
-        db_product: GetProductDep,
-        payload: ProductCategoryUpdatePayload,
-        db: GetDBDep,
-):
-    """
-    Substitui TODAS as categorias de um produto pela nova lista fornecida.
-    """
-    # 1. Deleta todos os vínculos de categoria existentes para este produto.
-    db.query(models.ProductCategoryLink) \
-        .filter(models.ProductCategoryLink.product_id == db_product.id) \
-        .delete(synchronize_session=False)
-
-    # 2. Verifica se as novas categorias existem e pertencem à loja
-    target_categories = db.query(models.Category.id).filter(
-        models.Category.store_id == store.id,
-        models.Category.id.in_(payload.category_ids)
-    ).all()
-
-    valid_category_ids = {c.id for c in target_categories}
-    if len(valid_category_ids) != len(payload.category_ids):
-        raise HTTPException(status_code=404,
-                            detail="Uma ou mais categorias não foram encontradas ou não pertencem à loja.")
-
-    # 3. Cria os novos vínculos
-    new_links = [
-        models.ProductCategoryLink(
-            product_id=db_product.id,
-            category_id=cat_id
-        ) for cat_id in payload.category_ids
-    ]
-
-    if new_links:
-        db.add_all(new_links)
-
-    db.commit()
-
-    await _emit_updates(db, store.id)
-    return
-
-
-
+def get_product_details(product: GetProductDep):
+    # A dependência GetProductDep já faz o trabalho de buscar o produto.
+    # Para garantir que as relações estejam carregadas para o ProductOut,
+    # o ideal é que a própria dependência já use o `selectinload`.
+    return product
+# --- ROTA PARA ATUALIZAR PREÇO/PROMOÇÃO EM UMA CATEGORIA ---
 
 @router.patch(
     "/{product_id}/categories/{category_id}",
-    response_model=ProductCategoryLinkOut,  # Usa o schema de saída que criamos
+    response_model=ProductCategoryLinkOut,
     summary="Atualiza o preço/promoção de um produto em uma categoria específica"
 )
 async def update_product_category_link(
-        store: GetStoreDep,
-        product_id: int,
-        category_id: int,
-        update_data: ProductCategoryLinkUpdate,  # Usa o schema de atualização que criamos
-        db: GetDBDep,
+    store: GetStoreDep,
+    product_id: int,
+    category_id: int,
+    update_data: ProductCategoryLinkUpdate,
+    db: GetDBDep,
 ):
-    """
-    Atualiza os dados da ligação entre um produto e uma categoria,
-    como preço, custo, status de promoção, etc.
-    """
-    # 1. Encontra a ligação específica no banco de dados.
-    #    A dependência GetStoreDep já garante que a loja é válida e o usuário tem acesso.
     db_link = db.query(models.ProductCategoryLink).join(models.Product).filter(
         models.Product.store_id == store.id,
         models.ProductCategoryLink.product_id == product_id,
         models.ProductCategoryLink.category_id == category_id
     ).first()
-
     if not db_link:
-        raise HTTPException(
-            status_code=404,
-            detail="Este produto não está vinculado a esta categoria."
-        )
-
-    # 2. Aplica as atualizações parciais enviadas no corpo da requisição.
-    #    O `exclude_unset=True` garante que apenas os campos enviados sejam atualizados.
+        raise HTTPException(status_code=404, detail="Este produto não está vinculado a esta categoria.")
     for field, value in update_data.model_dump(exclude_unset=True).items():
         setattr(db_link, field, value)
-
-    # 3. Salva as alterações no banco.
     db.commit()
     db.refresh(db_link)
-
-    # 4. Emite um evento para notificar os clientes que o catálogo mudou.
     await _emit_updates(db, store.id)
-
     return db_link
 
-
-
-
+# --- ROTAS ADICIONAIS E EM MASSA ---
 
 @router.patch("/{product_id}", response_model=ProductOut)
 async def patch_product(
-    product_id: int,
-    db: GetDBDep,
-    store: GetStoreDep,
-    db_product: GetProductDep,
-
-    name: str | None = Form(None),
-    description: str | None = Form(None),
-    #base_price: int | None = Form(None),
-   # cost_price: int | None = Form(None),
-   # promotion_price: int | None = Form(None),
-    featured: bool | None = Form(None),
-   # activate_promotion: bool | None = Form(None),
-    available: bool | None = Form(None),
-   # category_id: int | None = Form(None),
-    ean: str | None = Form(None),
-
-    stock_quantity: int | None = Form(None),
-    control_stock: bool | None = Form(None),
-    min_stock: int | None = Form(None),
-    max_stock: int | None = Form(None),
-    unit: str | None = Form(None),
-    image: UploadFile | None = File(None),
-
-    cashback_type: str | None = Form(None),
-    cashback_value: int | None = Form(None),
+        db: GetDBDep,
+        db_product: GetProductDep,
+        # ✅ REFATORADO: Recebe um único payload, igual ao wizard
+        payload_str: str = Form(..., alias="payload"),
+        image: UploadFile | None = File(None),
 ):
-    # Atualizar campos presentes
-    if name is not None:
-        db_product.name = name
-    if description is not None:
-        db_product.description = description
-    # if base_price is not None:
-    #     db_product.base_price = base_price
-    # if cost_price is not None:
-    #     db_product.cost_price = cost_price
-    # if promotion_price is not None:
-    #     db_product.promotion_price = promotion_price
-    if featured is not None:
-        db_product.featured = featured
-    # if activate_promotion is not None:
-    #     db_product.activate_promotion = activate_promotion
-    if available is not None:
-        db_product.available = available
-    if ean is not None:
-        db_product.ean = ean
-    if stock_quantity is not None:
-        db_product.stock_quantity = stock_quantity
-    if control_stock is not None:
-        db_product.control_stock = control_stock
-    if min_stock is not None:
-        db_product.min_stock = min_stock
-    if max_stock is not None:
-        db_product.max_stock = max_stock
-    if unit is not None:
-        db_product.unit = unit
+    """Atualiza os dados gerais de um produto (nome, estoque, etc.)."""
+    try:
+        update_data = ProductUpdate.model_validate_json(payload_str)
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=f"Erro de validação: {e}")
 
-    if cashback_type is not None:
-        db_product.cashback_type = CashbackType(cashback_type) # Converte string para Enum
-    if cashback_value is not None:
-        db_product.cashback_value = cashback_value
-
-    # if category_id is not None:
-    #     category = db.query(models.Category).filter(
-    #         models.Category.id == category_id,
-    #         models.Category.store_id == store.id
-    #     ).first()
-    #     if not category:
-    #         raise HTTPException(status_code=400, detail="Category not found")
-    #     db_product.category_id = category_id
-
+    # Aplica as atualizações
+    for field, value in update_data.model_dump(exclude_unset=True).items():
+        setattr(db_product, field, value)
 
     if image:
         old_file_key = db_product.file_key
-        new_file_key = upload_file(image)
-        db_product.file_key = new_file_key
-        db.commit()
-        delete_file(old_file_key)
-    else:
-        db.commit()
+        db_product.file_key = upload_file(image)
+        if old_file_key:
+            delete_file(old_file_key)
 
-    db.refresh(db_product)
-    await asyncio.create_task(emit_products_updated(db, store.id))
+    db.commit()
 
-    # Este evento atualiza todos os painéis de admin conectados àquela loja
-    await admin_emit_products_updated(db, store.id)
-    return db_product
+    # Recarrega o produto com suas relações para a resposta
+    product_to_return = db.query(models.Product).options(
+        selectinload(models.Product.category_links).selectinload(models.ProductCategoryLink.category),
+        selectinload(models.Product.variant_links).selectinload(models.ProductVariantLink.variant)
+    ).filter(models.Product.id == db_product.id).first()
+
+    await _emit_updates(db, db_product.store_id)
+    return product_to_return
 
 
-
-
-@router.delete("/{product_id}", status_code=204)
-async def delete_product(product_id: int,  store: GetStoreDep, db: GetDBDep, db_product: GetProductDep):
+@router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_product(store: GetStoreDep, db: GetDBDep, db_product: GetProductDep):
     old_file_key = db_product.file_key
     db.delete(db_product)
     db.commit()
-    delete_file(old_file_key)
-    await asyncio.create_task(emit_products_updated(db, store.id))
+    # ✅ Adicionada checagem de segurança
+    if old_file_key:
+        delete_file(old_file_key)
+    await _emit_updates(db, store.id)
     return
 
+# --- ROTA PARA ATUALIZAR PREÇO/PROMOÇÃO EM UMA CATEGORIA --
 
 @router.post("/bulk-delete", status_code=204)
 async def bulk_delete_products(
