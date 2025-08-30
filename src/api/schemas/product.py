@@ -28,8 +28,8 @@ class AppBaseModel(BaseModel):
 class ProductWizardCreate(AppBaseModel):
     name: str
     description: Optional[str] = None
-    base_price: int
-    cost_price: Optional[int] = 0
+   # base_price: int
+    #cost_price: Optional[int] = 0
     ean: Optional[str] = None
     available: bool = True
     product_type: ProductType = ProductType.INDIVIDUAL
@@ -45,14 +45,14 @@ class Product(AppBaseModel):
     """Campos essenciais que definem um produto."""
     name: str
     description: str
-    base_price: int
+    #base_price: int
     product_type: ProductType = ProductType.INDIVIDUAL
     available: bool
-    promotion_price: int
+   # promotion_price: int
     featured: bool
-    activate_promotion: bool
+   # activate_promotion: bool
     ean: str
-    cost_price: int
+   # cost_price: int
     stock_quantity: int
     control_stock: bool
     min_stock: int
@@ -74,11 +74,13 @@ class ProductUpdate(AppBaseModel):
     """Schema para atualizar um produto. Todos os campos são opcionais."""
     name: Optional[str] = None
     description: Optional[str] = None
-    base_price: Optional[int] = None
-    cost_price: Optional[int] = None
-    available: Optional[bool] = None
-    promotion_price: Optional[int] = None
+    # base_price: Optional[int] = None
+    # cost_price: Optional[int] = None
+    # available: Optional[bool] = None
+    # promotion_price: Optional[int] = None
+
     featured: Optional[bool] = None
+
     activate_promotion: Optional[bool] = None
     ean: Optional[str] = None
     stock_quantity: Optional[int] = None
@@ -86,7 +88,7 @@ class ProductUpdate(AppBaseModel):
     min_stock: Optional[int] = None
     max_stock: Optional[int] = None
     unit: Optional[str] = None
-    category_id: Optional[int] = None
+    #category_id: Optional[int] = None
     file_key: Optional[str] = Field(default=None, exclude=True)
     cashback_type: Optional[CashbackType] = None
     cashback_value: Optional[int] = None
@@ -154,6 +156,40 @@ class ProductOut(Product):
             return None
 
         return min(possible_kits)
+
+    # ✅ --- NOVOS CAMPOS CALCULADOS PARA PREÇO --- ✅
+
+    @computed_field
+    @property
+    def price(self) -> int:
+        """Retorna o preço da categoria principal."""
+        if self.category_links:
+            return self.category_links[0].price
+        return 0 # Valor padrão caso não haja link (pouco provável)
+
+    @computed_field
+    @property
+    def cost_price(self) -> int | None:
+        """Retorna o preço de custo da categoria principal."""
+        if self.category_links:
+            return self.category_links[0].cost_price
+        return None
+
+    @computed_field
+    @property
+    def is_on_promotion(self) -> bool:
+        """Verifica se há promoção na categoria principal."""
+        if self.category_links:
+            return self.category_links[0].is_on_promotion
+        return False
+
+    @computed_field
+    @property
+    def promotional_price(self) -> int | None:
+        """Retorna o preço promocional da categoria principal."""
+        if self.category_links:
+            return self.category_links[0].promotional_price
+        return None
 
 
 # -------------------------------------------------

@@ -2,7 +2,7 @@ import asyncio
 from typing import List
 
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Form
 import json
 from pydantic import ValidationError
 from src.api.admin.socketio.emitters import admin_emit_products_updated
@@ -98,8 +98,6 @@ async def create_product_from_wizard(
         file_key=file_key,
         priority=new_priority,
         featured = False,
-        activate_promotion = False,
-        promotion_price = 0,
         unit = "Unidade",  # Adicionando um padrão para unidade também
         sold_count = 0
     )
@@ -110,9 +108,7 @@ async def create_product_from_wizard(
     for link_data in payload.category_links:
         new_category_link = models.ProductCategoryLink(
             product_id=new_product.id,
-            category_id=link_data.category_id,
-            price_override=link_data.price_override,
-            # ... outros overrides
+            **link_data.model_dump()  # <-- Passa tudo de uma vez
         )
         db.add(new_category_link)
 
@@ -129,25 +125,12 @@ async def create_product_from_wizard(
             db.add(new_variant)
             db.flush()
 
-            # ✅ --- LÓGICA DE SALVAMENTO DAS OPÇÕES ATUALIZADA --- ✅
+            # Este é o loop correto que salva todos os detalhes da opção
             for option_data in link_data.new_variant_data.options:
-                # 'option_data' agora é um objeto Pydantic com todos os campos:
-                # estoque, descrição, etc.
                 new_option = models.VariantOption(
                     variant_id=new_variant.id,
-                    store_id=store.id,  # O modelo do banco também precisa do store_id
-                    # O model_dump() passa todos os campos do schema para o modelo de uma vez!
+                    store_id=store.id,
                     **option_data.model_dump()
-                )
-                db.add(new_option)
-            # ✅ --- FIM DA ATUALIZAÇÃO --- ✅
-
-
-            for option_data in link_data.new_variant_data.options:
-                new_option = models.VariantOption(
-                    variant_id=new_variant.id,
-                    name_override=option_data.name_override,
-                    price_override=option_data.price_override,
                 )
                 db.add(new_option)
 
@@ -382,13 +365,13 @@ async def patch_product(
 
     name: str | None = Form(None),
     description: str | None = Form(None),
-    base_price: int | None = Form(None),
-    cost_price: int | None = Form(None),
-    promotion_price: int | None = Form(None),
+    #base_price: int | None = Form(None),
+   # cost_price: int | None = Form(None),
+   # promotion_price: int | None = Form(None),
     featured: bool | None = Form(None),
-    activate_promotion: bool | None = Form(None),
+   # activate_promotion: bool | None = Form(None),
     available: bool | None = Form(None),
-    category_id: int | None = Form(None),
+   # category_id: int | None = Form(None),
     ean: str | None = Form(None),
 
     stock_quantity: int | None = Form(None),
@@ -406,16 +389,16 @@ async def patch_product(
         db_product.name = name
     if description is not None:
         db_product.description = description
-    if base_price is not None:
-        db_product.base_price = base_price
-    if cost_price is not None:
-        db_product.cost_price = cost_price
-    if promotion_price is not None:
-        db_product.promotion_price = promotion_price
+    # if base_price is not None:
+    #     db_product.base_price = base_price
+    # if cost_price is not None:
+    #     db_product.cost_price = cost_price
+    # if promotion_price is not None:
+    #     db_product.promotion_price = promotion_price
     if featured is not None:
         db_product.featured = featured
-    if activate_promotion is not None:
-        db_product.activate_promotion = activate_promotion
+    # if activate_promotion is not None:
+    #     db_product.activate_promotion = activate_promotion
     if available is not None:
         db_product.available = available
     if ean is not None:
@@ -436,14 +419,14 @@ async def patch_product(
     if cashback_value is not None:
         db_product.cashback_value = cashback_value
 
-    if category_id is not None:
-        category = db.query(models.Category).filter(
-            models.Category.id == category_id,
-            models.Category.store_id == store.id
-        ).first()
-        if not category:
-            raise HTTPException(status_code=400, detail="Category not found")
-        db_product.category_id = category_id
+    # if category_id is not None:
+    #     category = db.query(models.Category).filter(
+    #         models.Category.id == category_id,
+    #         models.Category.store_id == store.id
+    #     ).first()
+    #     if not category:
+    #         raise HTTPException(status_code=400, detail="Category not found")
+    #     db_product.category_id = category_id
 
 
     if image:

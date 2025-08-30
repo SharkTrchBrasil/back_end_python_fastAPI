@@ -294,15 +294,15 @@ class Product(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(80))
     # ✅ Torne a descrição opcional também, é uma boa prática
     description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
-    base_price: Mapped[int] = mapped_column()
-    cost_price: Mapped[int] = mapped_column(default=0)
+   # base_price: Mapped[int] = mapped_column()
+   # cost_price: Mapped[int] = mapped_column(default=0)
 
     # ✅ Adicione os padrões aqui
     available: Mapped[bool] = mapped_column(default=True)
     priority: Mapped[int] = mapped_column(default=0)
-    promotion_price: Mapped[int] = mapped_column(default=0)
+   # promotion_price: Mapped[int] = mapped_column(default=0)
     featured: Mapped[bool] = mapped_column(default=False)
-    activate_promotion: Mapped[bool] = mapped_column(default=False)
+   # activate_promotion: Mapped[bool] = mapped_column(default=False)
 
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     # ✅ ADICIONE ESTA LINHA PARA O RELACIONAMENTO REVERSO
@@ -365,20 +365,40 @@ class Product(Base, TimestampMixin):
         from src.core.aws import get_presigned_url
         return get_presigned_url(self.file_key) if self.file_key else None
 
+
+
+
 class ProductCategoryLink(Base):
     __tablename__ = "product_category_links"
 
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), primary_key=True)
 
-    # CAMPOS PARA SOBRESCREVER OS VALORES DO PRODUTO NESTA CATEGORIA ESPECÍFICA
-    price_override: Mapped[int | None] = mapped_column(nullable=True)
-    pos_code_override: Mapped[str | None] = mapped_column(String, nullable=True)
-    available_override: Mapped[bool | None] = mapped_column(nullable=True)
+    # --- CAMPOS UNIFICADOS E CORRIGIDOS ---
 
-    # Relacionamentos para facilitar o acesso
+    # Preço principal, obrigatório
+    price: Mapped[int] = mapped_column(nullable=False)
+
+    # Custo, opcional
+    cost_price: Mapped[int | None] = mapped_column(nullable=True)
+
+    # Regras de promoção
+    is_on_promotion: Mapped[bool] = mapped_column(default=False)
+    promotional_price: Mapped[int | None] = mapped_column(nullable=True)
+
+    # Controles de visibilidade e ordem
+    is_available: Mapped[bool] = mapped_column(default=True)
+    is_featured: Mapped[bool] = mapped_column(default=False)
+    display_order: Mapped[int] = mapped_column(default=0)  # 'display_order' é um nome melhor que 'priority' aqui
+
+    # Campo de integração
+    pos_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # Relacionamentos
     product: Mapped["Product"] = relationship(back_populates="category_links")
     category: Mapped["Category"] = relationship(back_populates="product_links")
+
+
 
 class Variant(Base, TimestampMixin):
     __tablename__ = "variants"
@@ -446,43 +466,31 @@ class VariantOption(Base, TimestampMixin):
         CheckConstraint('stock_quantity >= 0', name='check_stock_quantity_non_negative'),
     )
 
-    def get_price(self) -> int:
-        """
-        Retorna o preço correto da opção em centavos, seguindo a regra de negócio:
-        1. Usa o preço de sobreposição (override) se ele existir.
-        2. Se não, usa o preço do produto linkado.
-        3. Se nenhum dos dois, o preço é zero.
-        """
-        if self.price_override is not None:
-            return self.price_override
-        if self.linked_product:
-            return self.linked_product.promotion_price if self.linked_product.activate_promotion else self.linked_product.base_price
-        return 0
 
     @hybrid_property
-    def resolvedName(self):
+    def resolved_name(self) -> str:
+        """Retorna o nome de sobreposição ou o nome do produto vinculado."""
         if self.name_override:
             return self.name_override
         if self.linked_product:
             return self.linked_product.name
         return "Opção sem nome"
 
-    # ✅ 3. PROPRIEDADE INTELIGENTE PARA DISPONIBILIDADE REAL
+    @hybrid_property
+    def resolved_price(self) -> int:
+        """
+        Retorna o preço da opção. Com a nova regra, ele é SEMPRE
+        o price_override, ou 0 se não for definido.
+        """
+        return self.price_override if self.price_override is not None else 0
+
     @hybrid_property
     def is_actually_available(self) -> bool:
-        """
-        Verifica a disponibilidade real do item, considerando o controle de estoque.
-        Esta é a propriedade que o front-end deve usar para habilitar/desabilitar a opção.
-        """
-        # 1. Se foi desabilitado manualmente, está indisponível. Ponto final.
+        """Verifica a disponibilidade real do item, considerando o controle de estoque."""
         if not self.available:
             return False
-
-        # 2. Se o estoque não é rastreado, está sempre disponível.
         if not self.track_inventory:
             return True
-
-        # 3. Se o estoque é rastreado, só está disponível se a quantidade for maior que zero.
         return self.stock_quantity > 0
 
 
