@@ -139,8 +139,6 @@ def _calc_sales_and_profit(
     return summary, gross_profit
 
 
-
-
 def _calc_customer_analytics(
         db: Session,
         store_id: int,
