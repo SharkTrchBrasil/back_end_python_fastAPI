@@ -4,6 +4,8 @@ from datetime import timedelta, date
 from typing import Optional
 from venv import logger
 
+from sqlalchemy.orm.exc import DetachedInstanceError
+
 from src.api.schemas.category import CategoryOut
 from src.api.admin.services.analytics_service import get_peak_hours_for_store
 from src.api.admin.services.holiday_service import HolidayService
@@ -375,6 +377,11 @@ async def admin_emit_products_updated(db, store_id: int):
     e emite para a sala do admin em um único evento otimizado.
     """
     print(f"📢 [ADMIN] Preparando emissão 'products_updated' para a loja {store_id}...")
+    # ✅ --- PASSO 1: A "IMPRESSÃO DIGITAL" ---
+    # Este print nos dirá se o servidor está executando esta versão do código.
+    print("\n--- [DEBUG] EXECUTANDO VERSÃO NOVA DO EMITTER (COM SELECTINLOAD E PRINTS) ---\n")
+
+    print(f"📢 [ADMIN] Preparando emissão 'products_updated' para a loja {store_id}...")
 
     # 1. Busca os produtos com todos os relacionamentos aninhados.
     # Sua consulta está perfeita e é a forma mais eficiente.
@@ -400,10 +407,31 @@ async def admin_emit_products_updated(db, store_id: int):
         .filter(models.Category.store_id == store_id) \
         .order_by(models.Category.priority).all()
 
-    # 3. Anexa as avaliações de forma otimizada
-    all_ratings = get_all_ratings_summaries_for_store(db, store_id=store_id)
-    for product in products_from_db:
-        product.rating = all_ratings.get(product.id)
+    # ✅ --- PASSO 2: INSPECIONANDO OS DADOS ANTES DA "QUEBRA" ---
+    print("\n--- [DEBUG] Verificando produtos antes de serializar ---\n")
+    for p in products_from_db:
+        print(f"  - Verificando Produto ID: {p.id}, Nome: {p.name}")
+        try:
+            # Tentamos acessar as relações que o Pydantic precisa
+            if p.category_links:
+                print(f"    -> Link de Categoria 0: {p.category_links[0]}")
+                print(f"    -> Categoria do Link 0: {p.category_links[0].category.name}")  # Teste crucial
+            else:
+                print("    -> SEM LINKS DE CATEGORIA!")
+
+            if p.variant_links:
+                print(f"    -> Link de Variante 0: {p.variant_links[0]}")
+                print(f"    -> ID do Link de Variante 0: {p.variant_links[0].id}")  # Teste crucial
+            else:
+                print("    -> SEM LINKS DE VARIANTE!")
+
+        except DetachedInstanceError:
+            print(
+                "    -> 🔥 ERRO: DetachedInstanceError! Prova de que a relação não foi carregada (lazy loading falhou).")
+        except Exception as e:
+            print(f"    -> 🔥 ERRO ao acessar relação: {e}")
+        print("-" * 20)
+    print("\n--- [DEBUG] Fim da verificação. Tentando serializar agora... ---\n")
 
     # 5. Serializa TODOS os dados
     products_payload = [ProductOut.model_validate(p).model_dump(mode='json') for p in products_from_db]
