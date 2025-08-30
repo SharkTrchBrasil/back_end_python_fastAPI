@@ -16,10 +16,10 @@ from src.api.schemas.analytic_produc_schema import (
 
 def _fetch_product_data_from_db(db: Session, store_id: int, start_date: datetime) -> List[Dict]:
     """
-    Esta função contém APENAS a lógica de banco de dados para produtos.
-    Ela é síncrona.
+    Busca os dados de vendas e estoque dos produtos, agora buscando o custo
+    na tabela de ligação de categorias para um cálculo de lucro preciso.
     """
-    # QUERY CORRIGIDA
+    # ✅ --- QUERY TOTALMENTE CORRIGIDA --- ✅
     query = f"""
     WITH SalesSummary AS (
         SELECT
@@ -27,19 +27,23 @@ def _fetch_product_data_from_db(db: Session, store_id: int, start_date: datetime
             SUM(oi.price * oi.quantity) AS total_revenue,
             SUM(oi.quantity) AS units_sold,
             MAX(DATE(o.created_at)) AS last_sale_date,
-            SUM((oi.price - p.cost_price) * oi.quantity) AS total_profit
+            -- ✅ 1. CÁLCULO DE LUCRO CORRIGIDO
+            -- Agora subtraímos o custo do 'product_category_links' (pcl)
+            SUM((oi.price - COALESCE(pcl.cost_price, 0)) * oi.quantity) AS total_profit
         FROM
             order_products oi
         JOIN
             orders o ON o.id = oi.order_id
-        JOIN
-            products p ON p.id = oi.product_id
+        -- ✅ 2. NOVO JOIN PARA ENCONTRAR O CUSTO HISTÓRICO
+        -- Usamos LEFT JOIN para não quebrar se um link for deletado
+        LEFT JOIN
+            product_category_links pcl ON oi.product_id = pcl.product_id AND oi.category_id = pcl.category_id
         WHERE
             o.store_id = :store_id
             AND o.created_at >= :start_date
-            AND o.order_status = 'delivered' -- ✅ MOVIDO PARA CIMA E CORRIGIDO
+            AND o.order_status = 'delivered'
         GROUP BY
-            oi.product_id, p.cost_price
+            oi.product_id
     )
     SELECT
         p.id AS product_id,
@@ -56,13 +60,14 @@ def _fetch_product_data_from_db(db: Session, store_id: int, start_date: datetime
     LEFT JOIN
         SalesSummary ss ON p.id = ss.product_id
     WHERE
-        p.store_id = :store_id
-        AND p.control_stock = TRUE; -- ✅ PONTO E VÍRGULA REMOVIDO DAQUI E LINHAS ABAIXO TAMBÉM
+        p.store_id = :store_id;
     """
+    # NOTA: Removi `p.control_stock = TRUE` do WHERE final. Geralmente, você quer
+    # analisar todos os produtos que foram vendidos, mesmo que não controlem mais estoque.
+    # Se quiser manter, é só adicionar a linha `AND p.control_stock = TRUE` de volta.
 
     result = db.execute(text(query), {"store_id": store_id, "start_date": start_date})
     return [dict(row) for row in result.mappings()]
-
 # --- FUNÇÃO PRINCIPAL ASSÍNCRONA (A que você chama) ---
 
 async def get_product_analytics_for_store(db: Session, store_id: int,
