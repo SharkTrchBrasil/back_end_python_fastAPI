@@ -25,7 +25,8 @@ from src.api.admin.services.dashboard_service import get_dashboard_data_for_peri
 from src.api.admin.services.product_analytic_services import get_product_analytics_for_store
 from src.api.admin.services.subscription_service import SubscriptionService
 
-from src.api.app.services.rating import get_product_ratings_summary, get_store_ratings_summary
+from src.api.app.services.rating import get_product_ratings_summary, get_store_ratings_summary, \
+    get_all_ratings_summaries_for_store
 from src.api.schemas.order import OrderDetails
 from src.api.schemas.rating import RatingsSummaryOut
 from src.socketio_instance import sio
@@ -399,11 +400,10 @@ async def admin_emit_products_updated(db, store_id: int):
         .filter(models.Category.store_id == store_id) \
         .order_by(models.Category.priority).all()
 
-    # 3. Anexa as avaliações (se houver)
-    product_ratings = {p.id: get_product_ratings_summary(db, product_id=p.id) for p in products_from_db}
+    # 3. Anexa as avaliações de forma otimizada
+    all_ratings = get_all_ratings_summaries_for_store(db, store_id=store_id)
     for product in products_from_db:
-        product.rating = product_ratings.get(product.id)
-
+        product.rating = all_ratings.get(product.id)
 
     # 5. Serializa TODOS os dados
     products_payload = [ProductOut.model_validate(p).model_dump(mode='json') for p in products_from_db]

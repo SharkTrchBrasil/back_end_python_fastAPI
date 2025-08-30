@@ -1,36 +1,44 @@
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import Dict, Any
 
 from src.core.models import StoreRating, ProductRating
 
+
 def get_store_ratings_summary(db: Session, *, store_id: int) -> dict:
-    from src.core.models import StoreRating
+    """
+    Busca um resumo completo e otimizado das avaliações de uma loja.
+    Faz apenas UMA query no banco de dados.
+    """
+    # ✅ 1. Busca todas as avaliações e seus clientes de uma só vez.
+    ratings_list = db.query(StoreRating).options(
+        joinedload(StoreRating.customer)
+    ).filter(StoreRating.store_id == store_id).order_by(StoreRating.created_at.desc()).all()
 
-    query = db.query(StoreRating).filter(StoreRating.store_id == store_id)
+    if not ratings_list:
+        return {
+            "average_rating": 0.0, "total_ratings": 0,
+            "distribution": {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}, "ratings": []
+        }
 
-    avg = query.with_entities(func.avg(StoreRating.stars)).scalar() or 0
-    count = query.with_entities(func.count(StoreRating.id)).scalar() or 0
+    # ✅ 2. Calcula tudo em memória (muito mais rápido).
+    total_ratings = len(ratings_list)
+    total_stars = sum(r.stars for r in ratings_list)
+    average_rating = round(total_stars / total_ratings, 1) if total_ratings > 0 else 0.0
 
-    distribution_query = (
-        query.with_entities(StoreRating.stars, func.count(StoreRating.id))
-        .group_by(StoreRating.stars)
-        .order_by(StoreRating.stars.desc())
-        .all()
-    )
-    dist_dict = {stars: cnt for stars, cnt in distribution_query}
-    full_dist = {i: dist_dict.get(i, 0) for i in range(5, 0, -1)}
+    distribution = {i: 0 for i in range(5, 0, -1)}
+    for r in ratings_list:
+        distribution[r.stars] += 1
 
-    ratings_list = query.order_by(StoreRating.created_at.desc()).all()
-
+    # ✅ 3. Monta a resposta final.
     return {
-        "average_rating": float(round(avg, 1)),
-        "total_ratings": count,
-        "distribution": full_dist,
+        "average_rating": float(average_rating),
+        "total_ratings": total_ratings,
+        "distribution": distribution,
         "ratings": [
             {
                 "id": r.id,
-                "customer_name": r.customer.name if r.customer else None,
+                "customer_name": r.customer.name if r.customer else "Anônimo",
                 "stars": r.stars,
                 "is_active": r.is_active,
                 "comment": r.comment,
@@ -40,39 +48,42 @@ def get_store_ratings_summary(db: Session, *, store_id: int) -> dict:
             for r in ratings_list
         ],
     }
-
-
-
-
 
 
 def get_product_ratings_summary(db: Session, *, product_id: int) -> dict:
-    from src.core.models import ProductRating
+    """
+    Busca um resumo completo e otimizado das avaliações de um produto.
+    Faz apenas UMA query no banco de dados.
+    """
+    # ✅ 1. Busca todas as avaliações e seus clientes de uma só vez.
+    ratings_list = db.query(ProductRating).options(
+        joinedload(ProductRating.customer)
+    ).filter(ProductRating.product_id == product_id).order_by(ProductRating.created_at.desc()).all()
 
-    query = db.query(ProductRating).filter(ProductRating.product_id == product_id)
+    if not ratings_list:
+        return {
+            "average_rating": 0.0, "total_ratings": 0,
+            "distribution": {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}, "ratings": []
+        }
 
-    avg = query.with_entities(func.avg(ProductRating.stars)).scalar() or 0
-    count = query.with_entities(func.count(ProductRating.id)).scalar() or 0
+    # ✅ 2. Calcula tudo em memória.
+    total_ratings = len(ratings_list)
+    total_stars = sum(r.stars for r in ratings_list)
+    average_rating = round(total_stars / total_ratings, 1) if total_ratings > 0 else 0.0
 
-    distribution_query = (
-        query.with_entities(ProductRating.stars, func.count(ProductRating.id))
-        .group_by(ProductRating.stars)
-        .order_by(ProductRating.stars.desc())
-        .all()
-    )
-    dist_dict = {stars: cnt for stars, cnt in distribution_query}
-    full_dist = {i: dist_dict.get(i, 0) for i in range(5, 0, -1)}
+    distribution = {i: 0 for i in range(5, 0, -1)}
+    for r in ratings_list:
+        distribution[r.stars] += 1
 
-    ratings_list = query.order_by(ProductRating.created_at.desc()).all()
-
+    # ✅ 3. Monta a resposta final.
     return {
-        "average_rating": float(round(avg, 1)),
-        "total_ratings": count,
-        "distribution": full_dist,
+        "average_rating": float(average_rating),
+        "total_ratings": total_ratings,
+        "distribution": distribution,
         "ratings": [
             {
                 "id": r.id,
-                "customer_name": r.customer.name if r.customer else None,
+                "customer_name": r.customer.name if r.customer else "Anônimo",
                 "stars": r.stars,
                 "is_active": r.is_active,
                 "comment": r.comment,
@@ -87,13 +98,27 @@ def get_product_ratings_summary(db: Session, *, product_id: int) -> dict:
 
 
 
+def get_all_ratings_summaries_for_store(db, store_id: int) -> dict[int, RatingsSummaryOut]:
+    """
+    Busca o resumo das avaliações para TODOS os produtos de uma loja
+    em uma única e eficiente query.
+    """
+    # Agrupa por product_id, calcula a média de 'stars' e a contagem de 'id'
+    results = db.query(
+        models.ProductRating.product_id,
+        func.avg(models.ProductRating.stars).label('average_rating'),
+        func.count(models.ProductRating.id).label('rating_count')
+    ).join(models.Product) \
+     .filter(models.Product.store_id == store_id) \
+     .group_by(models.ProductRating.product_id) \
+     .all()
 
-
-
-
-
-
-
-
-
-
+    # Transforma o resultado em um dicionário para acesso rápido:
+    # {product_id: RatingsSummaryOut, ...}
+    return {
+        product_id: RatingsSummaryOut(
+            average_rating=float(avg) if avg is not None else 0.0,
+            rating_count=count
+        )
+        for product_id, avg, count in results
+    }
