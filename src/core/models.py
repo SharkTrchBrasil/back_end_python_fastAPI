@@ -314,10 +314,7 @@ class Product(Base, TimestampMixin):
     # ✅ CORREÇÃO PRINCIPAL: Permite que a file_key seja nula
     file_key: Mapped[str | None] = mapped_column(nullable=True)
 
-
-
-
-    ean: Mapped[str] = mapped_column(default="")
+    ean: Mapped[str | None] = mapped_column(nullable=True)
 
     stock_quantity: Mapped[int] = mapped_column(default=0)
     control_stock: Mapped[bool] = mapped_column(default=False)
@@ -332,7 +329,7 @@ class Product(Base, TimestampMixin):
 
     cashback_type: Mapped[CashbackType] = mapped_column(Enum(CashbackType, name="cashback_type_enum"),
                                                         default=CashbackType.NONE)
-    cashback_value: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.00'))
+    cashback_value: Mapped[int] = mapped_column(default=0)
 
     product_type: Mapped[ProductType] = mapped_column(default=ProductType.INDIVIDUAL)
 
@@ -1095,8 +1092,7 @@ class StoreReceivable(Base):  # Adicione , TimestampMixin se usar
     store: Mapped["Store"] = relationship(back_populates="receivables")
     category: Mapped["ReceivableCategory"] = relationship(back_populates="receivables", lazy="joined")
 
-    # ✅ 2. SINTAXE CORRIGIDA E ADIÇÃO DO back_populates
-    # Supondo que seu modelo Customer tenha um relacionamento 'receivables'
+    # ✅ CORREÇÃO: Usa o nome correto no back_populates
     customer: Mapped[Optional["Customer"]] = relationship(
         back_populates="receivables",
         lazy="joined"
@@ -1114,13 +1110,14 @@ class CashierSession(Base, TimestampMixin):
     user_closed_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
     opened_at: Mapped[datetime] = mapped_column(default=datetime.now(timezone.utc), )
     closed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    opening_amount: Mapped[float] = mapped_column()
-    cash_added: Mapped[float] = mapped_column(default=0.0)
-    cash_removed: Mapped[float] = mapped_column(default=0.0)
 
-    cash_difference: Mapped[float] = mapped_column(default=0.0)
-    expected_amount: Mapped[float] = mapped_column(default=0.0)
-    informed_amount: Mapped[float] = mapped_column(default=0.0)
+    opening_amount: Mapped[int] = mapped_column(Integer)
+    cash_added: Mapped[int] = mapped_column(Integer, default=0)
+    cash_removed: Mapped[int] = mapped_column(Integer, default=0)
+    cash_difference: Mapped[int] = mapped_column(Integer, default=0)
+    expected_amount: Mapped[int] = mapped_column(Integer, default=0)
+    informed_amount: Mapped[int] = mapped_column(Integer, default=0)
+
 
     status: Mapped[str] = mapped_column(default="open")
 
@@ -1180,7 +1177,8 @@ class Customer(Base):
 
     orders: Mapped[list["Order"]] = relationship(back_populates="customer")
 
-    receivables: Mapped[list["StoreReceivable"]] = relationship()
+    # ✅ CORREÇÃO: Adiciona o back_populates
+    receivables: Mapped[list["StoreReceivable"]] = relationship(back_populates="customer")
 
 class StoreCustomer(Base, TimestampMixin):
     __tablename__ = "store_customers"
