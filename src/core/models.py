@@ -493,10 +493,14 @@ class VariantOption(Base, TimestampMixin):
 
 class ProductVariantLink(Base, TimestampMixin):
     __tablename__ = "product_variant_links"
-    __table_args__ = (UniqueConstraint('product_id', 'variant_id', name='uix_product_variant_link'),)
 
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
-    variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id"), primary_key=True)
+    # ✅ 1. ADICIONE UMA COLUNA DE ID PRIMÁRIO SIMPLES
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+
+    # ✅ 2. REMOVA O `primary_key=True` DOS CAMPOS ABAIXO
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id"))
 
     # --- REGRAS DE COMPORTAMENTO E INTERFACE ---
 
@@ -516,9 +520,15 @@ class ProductVariantLink(Base, TimestampMixin):
     display_order: Mapped[int] = mapped_column(default=0, doc="Ordem de exibição do grupo no produto.")
     available: Mapped[bool] = mapped_column(default=True, doc="Se este grupo está ativo neste produto.")
 
-    # Relacionamentos
-    product: Mapped["Product"] = relationship()  # Assumindo que Product tem o back_populates
+    # ✅ 3. ATUALIZE OS RELACIONAMENTOS PARA USAR `back_populates`
+    product: Mapped["Product"] = relationship(back_populates="variant_links")
     variant: Mapped["Variant"] = relationship(back_populates="product_links")
+
+   # ✅ 4. GARANTA A UNICIDADE COM UMA `UniqueConstraint`
+    # Isso impede que o mesmo produto seja ligado ao mesmo grupo mais de uma vez.
+    __table_args__ = (
+        UniqueConstraint('product_id', 'variant_id', name='uq_product_variant'),
+    )
 
 class ProductDefaultOption(Base, TimestampMixin):
     __tablename__ = "product_default_options"
