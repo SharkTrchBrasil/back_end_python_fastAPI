@@ -10,7 +10,7 @@ from src.api.app.socketio.socketio_emitters import emit_products_updated
 from src.api.schemas.bulk_actions import ProductCategoryUpdatePayload, BulkDeletePayload, BulkCategoryUpdatePayload, \
     BulkStatusUpdatePayload
 from src.api.schemas.product import ProductWizardCreate, ProductOut
-
+from src.api.schemas.product_category_link import ProductCategoryLinkOut, ProductCategoryLinkUpdate
 
 from src.core import models
 from src.core.aws import upload_file, delete_file
@@ -351,6 +351,52 @@ async def update_product_categories(
     await _emit_updates(db, store.id)
     return
 
+
+
+
+@router.patch(
+    "/{product_id}/categories/{category_id}",
+    response_model=ProductCategoryLinkOut,  # Usa o schema de saída que criamos
+    summary="Atualiza o preço/promoção de um produto em uma categoria específica"
+)
+async def update_product_category_link(
+        store: GetStoreDep,
+        product_id: int,
+        category_id: int,
+        update_data: ProductCategoryLinkUpdate,  # Usa o schema de atualização que criamos
+        db: GetDBDep,
+):
+    """
+    Atualiza os dados da ligação entre um produto e uma categoria,
+    como preço, custo, status de promoção, etc.
+    """
+    # 1. Encontra a ligação específica no banco de dados.
+    #    A dependência GetStoreDep já garante que a loja é válida e o usuário tem acesso.
+    db_link = db.query(models.ProductCategoryLink).join(models.Product).filter(
+        models.Product.store_id == store.id,
+        models.ProductCategoryLink.product_id == product_id,
+        models.ProductCategoryLink.category_id == category_id
+    ).first()
+
+    if not db_link:
+        raise HTTPException(
+            status_code=404,
+            detail="Este produto não está vinculado a esta categoria."
+        )
+
+    # 2. Aplica as atualizações parciais enviadas no corpo da requisição.
+    #    O `exclude_unset=True` garante que apenas os campos enviados sejam atualizados.
+    for field, value in update_data.model_dump(exclude_unset=True).items():
+        setattr(db_link, field, value)
+
+    # 3. Salva as alterações no banco.
+    db.commit()
+    db.refresh(db_link)
+
+    # 4. Emite um evento para notificar os clientes que o catálogo mudou.
+    await _emit_updates(db, store.id)
+
+    return db_link
 
 
 

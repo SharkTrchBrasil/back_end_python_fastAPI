@@ -17,7 +17,7 @@ from src.api.schemas.cart import (CartSchema, CartItemSchema,
 
 
 
-def _get_item_fingerprint(product_id: int, variants_input: list, note: str | None) -> str:
+def _get_item_fingerprint(product_id: int,  category_id: int, variants_input: list, note: str | None) -> str:
     """
     Cria uma "impressão digital" única para um item, agora incluindo a observação.
     """
@@ -39,7 +39,7 @@ def _get_item_fingerprint(product_id: int, variants_input: list, note: str | Non
     if normalized_note:
         parts.append(f"note:{normalized_note}")
 
-    return f"prod:{product_id}|" + '|'.join(parts)
+    return f"prod:{product_id}|cat:{category_id}|" + '|'.join(parts)
 
 
 def _get_full_cart_query(db, customer_id: int, store_id: int) -> models.Cart | None:
@@ -47,7 +47,8 @@ def _get_full_cart_query(db, customer_id: int, store_id: int) -> models.Cart | N
     # (Esta função permanece a mesma da versão anterior, é uma boa query)
     return db.query(models.Cart).options(
         selectinload(models.Cart.items).options(
-            joinedload(models.CartItem.product),
+            joinedload(models.CartItem.product).selectinload(models.Product.category_links),
+            joinedload(models.CartItem.category),
             selectinload(models.CartItem.variants).options(
                 selectinload(models.CartItemVariant.options).options(
                     joinedload(models.CartItemVariantOption.variant_option).options(
@@ -69,7 +70,7 @@ def _get_full_cart_query(db, customer_id: int, store_id: int) -> models.Cart | N
 def _build_cart_schema(db_cart: models.Cart) -> CartSchema:
     """
     Calcula totais e converte um objeto Cart do SQLAlchemy para um schema Pydantic,
-    garantindo que todos os campos necessários para a UI (nomes, preços) sejam incluídos.
+    seguindo a nova arquitetura de preços por categoria.
     """
     if not db_cart:
         return CartSchema(id=0, status='empty', items=[], subtotal=0, discount=0, total=0)
@@ -84,30 +85,44 @@ def _build_cart_schema(db_cart: models.Cart) -> CartSchema:
             for option in variant.options:
                 db_option = option.variant_option
 
-                # ✅ 1. PREENCHIMENTO EXPLÍCITO DOS DADOS DA OPÇÃO
-                #    Em vez de `model_validate`, criamos o schema com todos os campos.
-                option_price = db_option.get_price() * option.quantity
+                # 🔄 ATUALIZAÇÃO: Usa a propriedade 'resolved_price' que criamos no modelo,
+                # que já contém a lógica de fallback correta.
+                option_price = db_option.resolved_price * option.quantity
                 variants_price += option_price
 
                 options_schemas.append(CartItemVariantOptionSchema(
                     variant_option_id=option.variant_option_id,
                     quantity=option.quantity,
-                    name=db_option.resolvedName,  # Usa a propriedade que criamos
-                    price=db_option.get_price()  # Usa o método que criamos
+                    name=db_option.resolved_name,
+                    price=db_option.resolved_price
                 ))
 
-            # ✅ 2. PREENCHIMENTO EXPLÍCITO DOS DADOS DA VARIANTE
             variants_schemas.append(CartItemVariantSchema(
                 variant_id=variant.variant_id,
-                name=variant.variant.name,  # Acessa o nome do grupo através da relação
+                name=variant.variant.name,
                 options=options_schemas
             ))
 
-        base_price = item.product.promotion_price if item.product.activate_promotion else item.product.base_price
+        # ✅ --- LÓGICA DE PREÇO DO PRODUTO PRINCIPAL CORRIGIDA --- ✅
+        # 1. Encontra o link específico para a categoria de onde este item foi adicionado.
+        link = next(
+            (l for l in item.product.category_links if l.category_id == item.category_id),
+            None
+        )
+
+        # 2. Se não encontrar o link (improvável), usa 0. Senão, usa o preço correto.
+        if not link:
+            base_price = 0  # Fallback de segurança
+        else:
+            # Usa o preço promocional se a promoção estiver ativa, senão usa o preço normal do link.
+            base_price = link.promotional_price if link.is_on_promotion else link.price
+        # ✅ --- FIM DA CORREÇÃO --- ✅
+
         unit_price = base_price + (variants_price // item.quantity if item.quantity > 0 else 0)
         total_item_price = unit_price * item.quantity
         subtotal += total_item_price
 
+        # A validação do ProductOut agora funciona, pois ele tem os campos calculados
         full_product_schema = ProductOut.model_validate(item.product)
 
         cart_items_schemas.append(CartItemSchema(
@@ -120,19 +135,15 @@ def _build_cart_schema(db_cart: models.Cart) -> CartSchema:
             total_price=total_item_price
         ))
 
-
+    # O resto da lógica de cupom e totais permanece a mesma
     discount = 0
     if db_cart.coupon and db_cart.coupon.is_valid:
-
         if db_cart.coupon.product_id is None:
-
             _, calculated_discount = apply_coupon(db_cart.coupon, subtotal)
             discount = calculated_discount
 
-    # O total final é o subtotal menos o desconto calculado.
     total = subtotal - discount
 
-    # Retorna o schema completo com os valores corretos.
     return CartSchema(
         id=db_cart.id,
         status=db_cart.status.value,
@@ -140,10 +151,9 @@ def _build_cart_schema(db_cart: models.Cart) -> CartSchema:
         observation=db_cart.observation,
         items=cart_items_schemas,
         subtotal=subtotal,
-        discount=discount,  # ✅ Preenchido
-        total=total  # ✅ Preenchido
+        discount=discount,
+        total=total
     )
-
 
 # =====================================================================================
 # SEÇÃO 2: EVENTOS SOCKET.IO
@@ -250,14 +260,19 @@ async def update_cart_item(sid, data):
                             new_variant = models.CartItemVariant(...)
                             existing_item.variants.append(new_variant)
                     existing_item.fingerprint = _get_item_fingerprint(
+
                         update_data.product_id, data.get('variants', []), update_data.note
                     )
 
             # ✅ --- MODO ADIÇÃO ---
             else:
                 fingerprint = _get_item_fingerprint(
-                    update_data.product_id, data.get('variants', []), update_data.note
+                    update_data.product_id,
+                    update_data.category_id,  # ✅ Passe o category_id
+                    data.get('variants', []),
+                    update_data.note
                 )
+
                 existing_item = db.query(models.CartItem).filter_by(cart_id=cart.id,
                                                                     fingerprint=fingerprint).first()
 
@@ -278,7 +293,7 @@ async def update_cart_item(sid, data):
                         print(f"✨ Item novo (Fingerprint: {fingerprint}). Criando no carrinho.")
                         new_item = models.CartItem(
                             cart_id=cart.id, store_id=customer_session.store_id,
-                            product_id=update_data.product_id, quantity=update_data.quantity,
+                            product_id=update_data.product_id, category_id=update_data.category_id,quantity=update_data.quantity,
                             note=update_data.note, fingerprint=fingerprint
                         )
                         if update_data.variants:

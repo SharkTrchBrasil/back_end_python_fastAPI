@@ -1313,12 +1313,19 @@ class Order(Base, TimestampMixin):
     needs_change: Mapped[bool] = mapped_column(default=False)
 
     # Cashback - VERSÃO CORRIGIDA
-    cashback_amount_generated: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal('0.00'))
+    cashback_amount_generated: Mapped[int] = mapped_column(default=0)
     cashback_used: Mapped[int] = mapped_column(default=0)
 
 
-    products: Mapped[list["OrderProduct"]] = relationship(backref="order")
+    # ✅ CORREÇÃO 1: Usando back_populates para consistência
+    products: Mapped[list["OrderProduct"]] = relationship(
+        back_populates="order",
+        cascade="all, delete-orphan" # Adicionando cascade que estava faltando
+    )
+
     store = relationship("Store", back_populates="orders")
+
+
     transactions: Mapped[list["CashierTransaction"]] = relationship(back_populates="order")
 
     # Agendamento e consumo
@@ -1373,6 +1380,10 @@ class OrderProduct(Base, TimestampMixin):
     order_id: Mapped[int] = mapped_column(
         ForeignKey("orders.id", ondelete="CASCADE")
     )
+
+    # ✅ CORREÇÃO 1: Adicionando a relação de volta para o Pedido
+    order: Mapped["Order"] = relationship(back_populates="products")
+
     store_id: Mapped[int] = mapped_column(
         ForeignKey("stores.id", ondelete="CASCADE")
     )
@@ -1389,6 +1400,11 @@ class OrderProduct(Base, TimestampMixin):
     image_url: Mapped[str | None] = mapped_column(nullable=True)  # URL da imagem do produto no momento do pedido
    # file_key: Mapped[str] = mapped_column(String(255))
 
+    # ✅ ADICIONE ESTA COLUNA OBRIGATÓRIA
+    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=False)
+
+    # ✅ E ADICIONE O RELACIONAMENTO (RECOMENDADO)
+    category: Mapped["Category"] = relationship()
 
     original_price: Mapped[int] = mapped_column()  # Preço antes de descontos
     discount_amount: Mapped[int] = mapped_column(default=0)  # Valor do desconto neste item
@@ -1403,6 +1419,10 @@ class OrderVariant(Base, TimestampMixin):
     order_product_id: Mapped[int] = mapped_column(
         ForeignKey("order_products.id", ondelete="CASCADE")
     )
+
+    # ✅ CORREÇÃO 1: Adicionando a relação de volta
+    order_product: Mapped["OrderProduct"] = relationship(back_populates="variants")
+
     variant_id: Mapped[int] = mapped_column(
         ForeignKey("variants.id", ondelete="SET NULL"),
         nullable=True
@@ -1414,7 +1434,7 @@ class OrderVariant(Base, TimestampMixin):
 
     options: Mapped[List["OrderVariantOption"]] = relationship(back_populates="order_variant")
 
-    order_product: Mapped["OrderProduct"] = relationship(back_populates="variants")
+
 
 class OrderVariantOption(Base, TimestampMixin):
     __tablename__ = "order_variant_options"
@@ -1428,6 +1448,8 @@ class OrderVariantOption(Base, TimestampMixin):
         ForeignKey("variant_options.id", ondelete="SET NULL"),  # se quiser
         nullable=True
     )
+    # ✅ CORREÇÃO 1: Adicionando a relação de volta
+    order_variant: Mapped["OrderVariant"] = relationship(back_populates="options")
 
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
 
@@ -1436,7 +1458,6 @@ class OrderVariantOption(Base, TimestampMixin):
     quantity: Mapped[int] = mapped_column()
 
 
-    order_variant: Mapped["OrderVariant"] = relationship(back_populates="options")
 
 
 
@@ -1892,6 +1913,8 @@ class Cart(Base, TimestampMixin):
     store: Mapped["Store"] = relationship()
     coupon: Mapped["Coupon"] = relationship()
 
+
+
     items: Mapped[list["CartItem"]] = relationship(
         back_populates="cart",
         cascade="all, delete-orphan"
@@ -1917,6 +1940,12 @@ class CartItem(Base, TimestampMixin):
     # Relacionamentos
     cart: Mapped["Cart"] = relationship(back_populates="items")
     product: Mapped["Product"] = relationship()  # Para fácil acesso aos dados do produto
+
+    # ✅ ADICIONE ESTA COLUNA OBRIGATÓRIA
+    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=False)
+
+    # ✅ E ADICIONE O RELACIONAMENTO (OPCIONAL, MAS RECOMENDADO)
+    category: Mapped["Category"] = relationship()
 
     variants: Mapped[list["CartItemVariant"]] = relationship(
         back_populates="cart_item",

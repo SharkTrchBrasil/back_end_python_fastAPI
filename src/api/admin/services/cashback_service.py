@@ -3,51 +3,64 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from src.core import models
 
 
-def get_cashback_rule_for_product(product: models.Product) -> tuple[models.CashbackType, Decimal]:
-    """Determina a regra de cashback a ser aplicada, seguindo a hierarquia: Produto > Categoria."""
+# ✅ FUNÇÃO RENOMEADA E CORRIGIDA
+def get_cashback_rule_for_order_item(order_item: models.OrderProduct) -> tuple[models.CashbackType, Decimal]:
+    """
+    Determina a regra de cashback a ser aplicada, seguindo a hierarquia: Produto > Categoria.
+    Agora recebe o OrderProduct completo para ter o contexto da categoria.
+    """
+    product = order_item.product
+    category = order_item.category  # Acessa a categoria através da nova relação
+
     # 1. Verifica regra específica no produto
-    if product.cashback_type != models.CashbackType.NONE and product.cashback_value > 0:
+    if product and product.cashback_type != models.CashbackType.NONE and product.cashback_value > 0:
         return product.cashback_type, product.cashback_value
 
-    # 2. Se não, verifica a regra da categoria (requer que a relação product.category esteja carregada)
-    if product.category and product.category.cashback_type != models.CashbackType.NONE and product.category.cashback_value > 0:
-        return product.category.cashback_type, product.category.cashback_value
+    # 2. Se não, verifica a regra da categoria
+    if category and category.cashback_type != models.CashbackType.NONE and category.cashback_value > 0:
+        return category.cashback_type, category.cashback_value
 
     return models.CashbackType.NONE, Decimal('0.00')
 
 
 def calculate_and_apply_cashback_for_order(order: models.Order, db: Session):
     """
-    Calcula o cashback para um pedido, considerando o preço total dos itens com suas variantes.
-    Funciona com valores em CENTAVOS e só aplica se o pedido tiver um cliente.
+    Calcula o cashback para um pedido, agora usando a lógica de cashback contextual.
+    IMPORTANTE: A query que busca o 'order' para passar para esta função
+    deve carregar as relações com 'selectinload' para evitar N+1 queries.
+    Ex: .options(selectinload(models.Order.products).selectinload(models.OrderProduct.category))
     """
-    # GUARDA DE SEGURANÇA: Só gera cashback para pedidos com cliente logado.
     if not order.customer_id or not order.customer:
-        print(f"Pedido {order.id} não possui cliente, cashback não será gerado.")
         return
 
     total_cashback_generated_in_cents = 0
 
     for item in order.products:
-        # PULA se o produto associado foi deletado ou não existe.
         if not item.product:
             continue
 
-        # 1. CALCULA O PREÇO EFETIVO DO ITEM (BASE + VARIANTES)
-        # O preço do item já inclui a quantidade, então calculamos o preço unitário efetivo
-        item_base_price_in_cents = item.price
-        variants_price_in_cents = sum(option.price for variant in item.variants for option in variant.options)
+        # O preço do item no pedido (item.price) já é o preço final (base + variantes).
+        # Multiplicamos pela quantidade para ter o total do item.
+        item_total_price_in_cents = item.price * item.quantity
 
-        effective_unit_price_in_cents = item_base_price_in_cents + variants_price_in_cents
-        item_total_price_in_cents = effective_unit_price_in_cents * item.quantity
-
-        # 2. OBTÉM A REGRA DE CASHBACK APLICÁVEL (Produto > Categoria)
-        rule_type, rule_value = get_cashback_rule_for_product(item.product)
+        # ✅ CHAMA A FUNÇÃO CORRIGIDA, PASSANDO O ITEM INTEIRO
+        rule_type, rule_value = get_cashback_rule_for_order_item(item)
 
         if rule_type == models.CashbackType.NONE:
             continue
 
         cashback_for_item_in_cents = 0
+
+        if rule_type == models.CashbackType.PERCENTAGE:
+            cashback_for_item_in_cents = (item_total_price_in_cents * int(rule_value)) // 100
+        elif rule_type == models.CashbackType.FIXED:
+            fixed_value_in_cents = int(rule_value * 100)
+            cashback_for_item_in_cents = fixed_value_in_cents * item.quantity
+
+        total_cashback_generated_in_cents += cashback_for_item_in_cents
+
+    if total_cashback_generated_in_cents > 0:
+
 
         # 3. CALCULA O CASHBACK USANDO MATEMÁTICA DE INTEIROS
         if rule_type == models.CashbackType.PERCENTAGE:

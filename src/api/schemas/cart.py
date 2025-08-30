@@ -78,6 +78,7 @@ class UpdateCartItemVariantInput(BaseModel):
 
 class UpdateCartItemInput(BaseModel):
     product_id: int
+    category_id: int
     quantity: int = Field(..., ge=0)
     note: Optional[str] = None
     variants: Optional[List[UpdateCartItemVariantInput]] = None
