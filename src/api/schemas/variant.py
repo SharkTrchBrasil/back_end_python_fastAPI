@@ -21,3 +21,6 @@ class Variant(VariantBase):
     id: int
     # ✅ SEM ASPAS! A referência circular foi eliminada.
     options: List[VariantOption]
+
+
+

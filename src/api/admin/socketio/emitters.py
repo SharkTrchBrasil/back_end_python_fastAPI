@@ -422,3 +422,6 @@ async def admin_emit_products_updated(db, store_id: int):
     await sio.emit('products_updated', payload, to=room_name, namespace='/admin')
 
     print(f"✅ [ADMIN] Emissão 'products_updated' (com variants e categories) para a sala: {room_name} concluída.")
+
+
+

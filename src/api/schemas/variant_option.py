@@ -60,14 +60,17 @@ class VariantOption(VariantOptionBase):
             return self.linked_product.name
         return "Opção sem nome"
 
+
+    # ✅ CORREÇÃO APLICADA AQUI
     @computed_field
     @property
     def resolved_price(self) -> int:
-        if self.price_override is not None:
-            return self.price_override
-        if self.linked_product:
-            return self.linked_product.base_price
-        return 0
+        """
+        Retorna o preço da opção. A regra de negócio é que ele é SEMPRE
+        o price_override, ou 0 se não for definido.
+        """
+        return self.price_override if self.price_override is not None else 0
+
 
     @computed_field
     @property
