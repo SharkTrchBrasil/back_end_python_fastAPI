@@ -1,5 +1,6 @@
 from typing import Optional, List
 from pydantic import BaseModel, Field, ConfigDict, computed_field
+from pydantic_core.core_schema import FieldValidationInfo
 
 # ✅ CORRIGIDO: Importações diretas, sem dependência circular
 from .product_category_link import ProductCategoryLinkCreate
@@ -11,7 +12,8 @@ from .rating import RatingsSummaryOut
 
 from src.core.aws import get_presigned_url
 from src.core.utils.enums import CashbackType, ProductType
-
+from pydantic import field_validator # ✅ 1. Adicione este import
+from typing import Any # ✅ Adicione este import também
 
 
 # --- Configuração Pydantic Base ---
@@ -104,6 +106,24 @@ class ProductOut(Product):
     components: List[KitComponentOut] = []
     rating: Optional[RatingsSummaryOut] = None
     default_options: List[ProductDefaultOptionOut] = Field(default=[], exclude=True)
+
+    # ✅ 2. ADICIONE ESTE MÉTODO "TRADUTOR" DENTRO DA CLASSE ProductOut
+    @field_validator('category', mode='before')
+    @classmethod
+    def get_primary_category_from_links(cls, v: Any, info: FieldValidationInfo) -> Any:
+        """
+        Este validador executa ANTES da validação normal. Ele pega o objeto
+        SQLAlchemy e extrai a categoria principal da lista de 'category_links'.
+        """
+        # `info.data` contém o objeto `Product` do SQLAlchemy.
+        if 'category_links' in info.data and info.data['category_links']:
+            # Retorna o objeto 'category' do primeiro link da lista.
+            return info.data['category_links'][0].category
+
+        # Se por algum motivo não houver links, retorna nulo ou levanta um erro.
+        # Levantar um erro é mais seguro para garantir a integridade dos dados.
+        raise ValueError("O produto não possui uma categoria principal vinculada.")
+
 
     @computed_field
     @property
