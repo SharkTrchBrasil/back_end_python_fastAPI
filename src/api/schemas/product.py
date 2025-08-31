@@ -74,10 +74,7 @@ class ProductUpdate(AppBaseModel):
     """Schema para atualizar um produto. Todos os campos são opcionais."""
     name: Optional[str] = None
     description: Optional[str] = None
-    # base_price: Optional[int] = None
-    # cost_price: Optional[int] = None
-    # available: Optional[bool] = None
-    # promotion_price: Optional[int] = None
+
 
     featured: Optional[bool] = None
 
@@ -88,7 +85,7 @@ class ProductUpdate(AppBaseModel):
     min_stock: Optional[int] = None
     max_stock: Optional[int] = None
     unit: Optional[str] = None
-    #category_id: Optional[int] = None
+
     file_key: Optional[str] = Field(default=None, exclude=True)
     cashback_type: Optional[CashbackType] = None
     cashback_value: Optional[int] = None

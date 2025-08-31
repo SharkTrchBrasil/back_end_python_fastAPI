@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from starlette import status
 
 from src.api.admin.socketio.emitters import admin_emit_products_updated
-from src.api.admin.utils.emit_updates import emit_updates, emit_updates_products
+from src.api.admin.utils.emit_updates import emit_updates_products
 from src.api.app.socketio.socketio_emitters import emit_products_updated
 from src.api.schemas.bulk_actions import ProductCategoryUpdatePayload, BulkDeletePayload, BulkCategoryUpdatePayload, \
     BulkStatusUpdatePayload
