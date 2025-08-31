@@ -2,6 +2,8 @@
 
 from pydantic import BaseModel, Field, ConfigDict
 
+from src.api.schemas.category import CategoryOut
+
 
 # --- Schema Base ---
 # Contém todos os campos que podem ser enviados ou recebidos
@@ -39,7 +41,11 @@ class ProductCategoryLinkUpdate(BaseModel):
     display_order: int | None = None
     pos_code: str | None = None
 
-# --- Schema de Resposta (Saída da API) ---
+
 class ProductCategoryLinkOut(ProductCategoryLinkBase):
-    product_id: int # Adiciona os IDs na resposta
-    # Você pode adicionar o objeto 'category: CategoryOut' aqui se precisar
+    product_id: int
+
+
+    category: CategoryOut
+
+    model_config = ConfigDict(from_attributes=True)
