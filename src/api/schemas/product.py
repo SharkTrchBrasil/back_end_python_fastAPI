@@ -106,7 +106,7 @@ class ProductOut(Product):
     # ✅ --- CORREÇÃO ADICIONADA AQUI --- ✅
     # Adicionamos o campo para que o Pydantic o carregue do banco,
     # mas o `exclude=True` impede que ele seja enviado no JSON final.
-    category_links: List[ProductCategoryLinkOut] = Field(..., exclude=True)
+    category_links: List[ProductCategoryLinkOut] = Field(...)
 
     components: List[KitComponentOut] = []
     rating: Optional[RatingsSummaryOut] = None
