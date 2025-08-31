@@ -70,25 +70,33 @@ class ProductCreate(Product):
     store_id: int
 
 
+
+
 class ProductUpdate(AppBaseModel):
     """Schema para atualizar um produto. Todos os campos são opcionais."""
     name: Optional[str] = None
     description: Optional[str] = None
-
-
     featured: Optional[bool] = None
-
-    activate_promotion: Optional[bool] = None
     ean: Optional[str] = None
+
+    # ✅ --- CAMPOS ADICIONADOS AQUI --- ✅
+    available: Optional[bool] = None
+    tag: Optional[str] = None
+
+    # --- Campos de Estoque ---
     stock_quantity: Optional[int] = None
     control_stock: Optional[bool] = None
     min_stock: Optional[int] = None
     max_stock: Optional[int] = None
     unit: Optional[str] = None
 
+
+
+    # --- Outros Campos ---
     file_key: Optional[str] = Field(default=None, exclude=True)
     cashback_type: Optional[CashbackType] = None
     cashback_value: Optional[int] = None
+
 
 
 class ProductDefaultOptionOut(AppBaseModel):

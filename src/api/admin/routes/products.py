@@ -217,7 +217,7 @@ async def patch_product(
         selectinload(models.Product.variant_links).selectinload(models.ProductVariantLink.variant)
     ).filter(models.Product.id == db_product.id).first()
 
-    await emit_updates(db, db_product.store_id)
+    await emit_updates_products(db, db_product.store_id)
     return product_to_return
 
 
