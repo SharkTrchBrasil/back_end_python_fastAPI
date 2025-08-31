@@ -1,6 +1,7 @@
 # ARQUIVO: src/api/schemas/product_category_link.py
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
+
 
 # --- Schema Base ---
 # Contém todos os campos que podem ser enviados ou recebidos
@@ -14,6 +15,12 @@ class ProductCategoryLinkBase(BaseModel):
     is_featured: bool = False
     display_order: int = 0
     pos_code: str | None = None
+
+
+   # ✅ --- CONFIGURAÇÃO FALTANTE ADICIONADA AQUI --- ✅
+    # Esta linha dá permissão ao Pydantic para ler os dados
+    # a partir de um objeto do SQLAlchemy (ex: models.ProductCategoryLink)
+    model_config = ConfigDict(from_attributes=True)
 
 # --- Schema para Criação (Wizard) ---
 # Herda da base, já está perfeito para o wizard
