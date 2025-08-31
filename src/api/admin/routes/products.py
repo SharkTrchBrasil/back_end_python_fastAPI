@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from starlette import status
 
 from src.api.admin.socketio.emitters import admin_emit_products_updated
+from src.api.admin.utils.emit_updates import emit_updates, emit_updates_products
 from src.api.app.socketio.socketio_emitters import emit_products_updated
 from src.api.schemas.bulk_actions import ProductCategoryUpdatePayload, BulkDeletePayload, BulkCategoryUpdatePayload, \
     BulkStatusUpdatePayload
@@ -26,11 +27,7 @@ router = APIRouter(prefix="/stores/{store_id}/products", tags=["Products"])
 from fastapi import UploadFile, File, HTTPException
 from sqlalchemy.orm import selectinload
 
-# Função helper para os emitters (para não repetir código)
-async def _emit_updates(db, store_id: int):
-    # await admin_emit_products_updated(db, store_id)
-    # await asyncio.create_task(emit_products_updated(db, store_id))
-    print(f"Eventos de atualização emitidos para a loja {store_id}")
+
 
 
 @router.post("/wizard", response_model=ProductOut)
@@ -124,97 +121,11 @@ async def create_product_from_wizard(
     ).filter(models.Product.id == new_product.id).first()
 
     # 7. Emite os eventos e retorna o objeto completo e validado
-    await _emit_updates(db, store.id)
+    await emit_updates_products(db, store.id)
     return product_to_return
 
 
-# @router.post("", response_model=ProductOut)
-# async def create_product(
-#     db: GetDBDep,
-#     store: GetStoreDep,
-#
-#     name: str = Form(...),
-#     description: str | None = Form(None),
-#     base_price: int = Form(...),
-#     cost_price: int | None = Form(None),
-#     promotion_price: int | None = Form(None),
-#     featured: bool = Form(False),
-#     activate_promotion: bool = Form(False),
-#     available: bool = Form(True),
-#     category_id: int | None = Form(None),
-#     ean: str | None = Form(None),
-#
-#     stock_quantity: int | None = Form(None),
-#     control_stock: bool = Form(False),
-#     min_stock: int | None = Form(None),
-#     max_stock: int | None = Form(None),
-#     unit: str | None = Form(None),
-#
-#     cashback_type: str = Form(default=CashbackType.NONE.value),
-#
-#     cashback_value: int = Form(default=0),
-#
-#     image: UploadFile | None = File(None),
-# ):
-#     category = db.query(models.Category).filter(
-#         models.Category.id == category_id,
-#         models.Category.store_id == store.id
-#     ).first()
-#
-#     if not category:
-#         raise HTTPException(status_code=400, detail="Category not found")
-#
-#     # --- CÁLCULO DE PRIORIDADE SEQUENCIAL ---
-#     # 1. Conta quantos produtos já existem na mesma categoria e loja.
-#     current_product_count = db.query(models.Product).filter(
-#         models.Product.store_id == store.id,
-#         models.Product.category_id == category_id
-#     ).count()
-#
-#     # 2. A contagem atual será a prioridade do novo produto (iniciando em 0).
-#     new_product_priority = current_product_count
-#     # ----------------------------------------
-#
-#     file_key = None
-#     if image is not None:
-#         file_key = upload_file(image)
-#
-#     new_product = models.Product(
-#         name=name,
-#         description=description,
-#         base_price=base_price,
-#         cost_price=cost_price,
-#         promotion_price=promotion_price,
-#         featured=featured,
-#         activate_promotion=activate_promotion,
-#         available=available,
-#         category_id=category_id,
-#         store_id=store.id,
-#         ean=ean,
-#         priority=new_product_priority,
-#
-#         stock_quantity=stock_quantity,
-#         control_stock=control_stock,
-#         min_stock=min_stock,
-#         max_stock=max_stock,
-#         unit=unit,
-#         sold_count=0,
-#
-#         file_key=file_key,
-#         # ✅ ADICIONADO: Passando os valores de cashback para o modelo do banco
-#         cashback_type=CashbackType(cashback_type),  # Converte a string de volta para o Enum
-#         cashback_value=cashback_value
-#     )
-#
-#     db.add(new_product)
-#     db.commit()
-#     db.refresh(new_product)
-#
-#     await asyncio.create_task(emit_products_updated(db, store.id))
-#     # Este evento atualiza todos os painéis de admin conectados àquela loja
-#     await admin_emit_products_updated(db, store.id)
-#     return new_product
-#
+
 
 
 @router.post("/{product_id}/view", status_code=204)
@@ -269,7 +180,7 @@ async def update_product_category_link(
         setattr(db_link, field, value)
     db.commit()
     db.refresh(db_link)
-    await _emit_updates(db, store.id)
+    await emit_updates_products(db, store.id)
     return db_link
 
 # --- ROTAS ADICIONAIS E EM MASSA ---
@@ -306,7 +217,7 @@ async def patch_product(
         selectinload(models.Product.variant_links).selectinload(models.ProductVariantLink.variant)
     ).filter(models.Product.id == db_product.id).first()
 
-    await _emit_updates(db, db_product.store_id)
+    await emit_updates(db, db_product.store_id)
     return product_to_return
 
 
@@ -318,7 +229,7 @@ async def delete_product(store: GetStoreDep, db: GetDBDep, db_product: GetProduc
     # ✅ Adicionada checagem de segurança
     if old_file_key:
         delete_file(old_file_key)
-    await _emit_updates(db, store.id)
+    await emit_updates_products(db, store.id)
     return
 
 # --- ROTA PARA ATUALIZAR PREÇO/PROMOÇÃO EM UMA CATEGORIA --
@@ -353,7 +264,7 @@ async def bulk_delete_products(
 
     db.commit()
 
-    await _emit_updates(db, store.id)
+    await emit_updates_products(db, store.id)
     return
 
 
@@ -415,7 +326,7 @@ async def bulk_update_product_category(
     # 5. Emite o evento para que as telas sejam atualizadas.
     # (Supondo que você tenha essas funções)
 
-    await _emit_updates(db, store.id)
+    await emit_updates_products(db, store.id)
 
     return
 
@@ -441,5 +352,5 @@ async def bulk_update_product_status(
 
     db.commit()
 
-    await _emit_updates(db, store.id)
+    await emit_updates_products(db, store.id)
     return

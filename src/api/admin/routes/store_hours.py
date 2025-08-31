@@ -5,6 +5,7 @@ import asyncio
 import logging  # Use o logging para depuração
 
 from src.api.admin.socketio.emitters import admin_emit_store_updated
+from src.api.admin.utils.emit_updates import emit_store_updates
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 from src.core.models import StoreHours as StoreHoursModel
@@ -53,9 +54,6 @@ async def batch_update_store_hours(
 
     db.refresh(store)
 
-    await asyncio.gather(
-        emit_store_updated(db, store.id),
-        admin_emit_store_updated(db, store.id)  # Agora usa o 'store' com os dados corretos
-    )
+    await emit_store_updates(db, store_id)
 
     return Response(status_code=204)
