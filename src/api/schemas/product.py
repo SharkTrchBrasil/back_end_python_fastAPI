@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field, ConfigDict, computed_field
 from pydantic_core.core_schema import FieldValidationInfo
 
 # ✅ CORRIGIDO: Importações diretas, sem dependência circular
-from .product_category_link import ProductCategoryLinkCreate
+from .product_category_link import ProductCategoryLinkCreate, ProductCategoryLinkOut
 
 from .category import CategoryOut
 from .bulk_actions import KitComponentOut
@@ -99,11 +99,14 @@ class ProductDefaultOptionOut(AppBaseModel):
 
 
 class ProductOut(Product):
-    """Schema de resposta da API."""
     id: int
     category: Optional[CategoryOut] = None
-
     variant_links: List[ProductVariantLinkOut] = []
+
+    # ✅ --- CORREÇÃO ADICIONADA AQUI --- ✅
+    # Adicionamos o campo para que o Pydantic o carregue do banco,
+    # mas o `exclude=True` impede que ele seja enviado no JSON final.
+    category_links: List[ProductCategoryLinkOut] = Field(..., exclude=True)
 
     components: List[KitComponentOut] = []
     rating: Optional[RatingsSummaryOut] = None
@@ -112,16 +115,11 @@ class ProductOut(Product):
     @field_validator('category', mode='before')
     @classmethod
     def get_primary_category_from_links(cls, v: Any, info: FieldValidationInfo) -> Any:
-        """
-        Este validador executa ANTES da validação normal. Ele pega o objeto
-        SQLAlchemy e extrai a categoria principal da lista de 'category_links'.
-        """
-        # ✅ CORREÇÃO FINAL: Usamos `info.instance` para acessar o objeto SQLAlchemy diretamente.
-        # Nossos prints provaram que `instance.category_links` está carregado.
+        # Esta função já estava correta
         if hasattr(info, 'instance') and info.instance.category_links:
             return info.instance.category_links[0].category
+        return None
 
-        raise ValueError("O produto não possui uma categoria principal vinculada.")
 
     @computed_field
     @property
