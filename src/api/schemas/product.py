@@ -101,10 +101,10 @@ class ProductDefaultOptionOut(AppBaseModel):
 class ProductOut(Product):
     """Schema de resposta da API."""
     id: int
-    category: CategoryOut
+    category: Optional[CategoryOut] = None
 
-    # ✅ CORRIGIDO: Sem aspas! A classe foi importada diretamente.
     variant_links: List[ProductVariantLinkOut] = []
+
     components: List[KitComponentOut] = []
     rating: Optional[RatingsSummaryOut] = None
     default_options: List[ProductDefaultOptionOut] = Field(default=[], exclude=True)
