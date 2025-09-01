@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field, computed_field
 
-from src.core.aws import get_presigned_url
+from src.core.aws import get_presigned_url, S3_PUBLIC_BASE_URL
 
 
 class BannerBase(BaseModel):
@@ -28,7 +28,8 @@ class BannerOut(BannerBase):
     @computed_field
     @property
     def image_path(self) -> str:
-        return get_presigned_url(self.file_key)
+        # ✅ 2. USE A NOVA LÓGICA DE URL ESTÁTICA E PERMANENTE
+        return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if self.file_key else None
 
     class Config:
         from_attributes = True

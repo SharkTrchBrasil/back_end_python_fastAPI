@@ -359,8 +359,9 @@ class Product(Base, TimestampMixin):
 
     @hybrid_property
     def image_path(self):
-        from src.core.aws import get_presigned_url
-        return get_presigned_url(self.file_key) if self.file_key else None
+
+        # ✅ 2. USE A NOVA LÓGICA DE URL ESTÁTICA E PERMANENTE
+        return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if self.file_key else None
 
 
 
@@ -2076,8 +2077,9 @@ class MasterProduct(Base):
 
     @hybrid_property
     def image_path(self):
-        from src.core.aws import get_presigned_url
-        return get_presigned_url(self.file_key) if self.file_key else None
+
+
+        return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if self.file_key else None
 
     __table_args__ = (
         Index("ix_master_products_name", "name"),

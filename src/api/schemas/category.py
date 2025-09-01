@@ -3,7 +3,7 @@ from pydantic import BaseModel, computed_field, Field
 
 # ✅ ADICIONADO: Importe o Enum que criamos
 from src.core.models import CashbackType
-from src.core.aws import get_presigned_url
+from src.core.aws import get_presigned_url, S3_PUBLIC_BASE_URL
 
 
 # --- Schemas de Categoria Atualizados ---
@@ -51,4 +51,5 @@ class CategoryOut(CategoryBase):
     @property
     def image_path(self) -> str:
         """Gera a URL da imagem a partir da file_key."""
-        return get_presigned_url(self.file_key) if self.file_key else None
+        # ✅ 2. USE A NOVA LÓGICA DE URL ESTÁTICA E PERMANENTE
+        return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if self.file_key else None

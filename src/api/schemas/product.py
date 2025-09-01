@@ -10,7 +10,7 @@ from .bulk_actions import KitComponentOut
 from .product_variant_link import ProductVariantLinkOut, ProductVariantLinkCreate
 from .rating import RatingsSummaryOut
 
-from src.core.aws import get_presigned_url
+from src.core.aws import get_presigned_url, S3_PUBLIC_BASE_URL
 from src.core.utils.enums import CashbackType, ProductType
 from pydantic import field_validator # ✅ 1. Adicione este import
 from typing import Any # ✅ Adicione este import também
@@ -62,12 +62,6 @@ class Product(AppBaseModel):
     file_key: str | None = Field(default=None, exclude=True)
     cashback_type: CashbackType = CashbackType.NONE
     cashback_value: int = 0
-
-
-class ProductCreate(Product):
-    """Schema para criar um novo produto."""
-    category_id: int
-    store_id: int
 
 
 
@@ -129,7 +123,8 @@ class ProductOut(Product):
     @computed_field
     @property
     def image_path(self) -> str | None:
-        return get_presigned_url(self.file_key) if self.file_key else None
+        # ✅ 2. USE A NOVA LÓGICA DE URL ESTÁTICA E PERMANENTE
+        return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if self.file_key else None
 
     @computed_field
     @property

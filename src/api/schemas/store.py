@@ -4,9 +4,7 @@ from typing import List, Optional
 
 from src.api.schemas.store_subscription import StoreSubscriptionSchema
 from src.core.utils.enums import StoreVerificationStatus
-from src.core.aws import get_presigned_url
-
-
+from src.core.aws import get_presigned_url, S3_PUBLIC_BASE_URL
 
 
 # --- Schemas aninhados para a criação (Estão perfeitos!) ---
@@ -111,16 +109,17 @@ class StoreSchema(Store):
     # --- Relacionamentos ---
     active_subscription: Optional[StoreSubscriptionSchema] = None
 
-    # --- Campos Computados para URLs de Imagem ---
     @computed_field
     @property
-    def image_path(self) -> str:
-        return get_presigned_url(self.file_key) if self.file_key else ""
+    def image_path(self) -> str | None:  # ✅ CORRIGIDO
+        return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if self.file_key else None
 
     @computed_field
     @property
-    def banner_path(self) -> str:
-        return get_presigned_url(self.banner_file_key) if self.banner_file_key else ""
+    def banner_path(self) -> str | None:  # ✅ CORRIGIDO
+        return f"{S3_PUBLIC_BASE_URL}/{self.banner_file_key}" if self.banner_file_key else None
+
+
 
     # Configuração Pydantic v2
     model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)

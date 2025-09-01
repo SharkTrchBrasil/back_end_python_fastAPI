@@ -4,7 +4,7 @@ from pydantic import Field, computed_field
 
 from src.api.schemas.base_schema import AppBaseModel
 from src.api.schemas.product_minimal import ProductMinimal  # Garanta que este import está correto
-from src.core.aws import get_presigned_url
+from src.core.aws import get_presigned_url, S3_PUBLIC_BASE_URL
 
 
 # --- SCHEMA BASE ATUALIZADO ---
@@ -17,9 +17,9 @@ class VariantOptionBase(AppBaseModel):
     description: Annotated[str | None, Field(max_length=1000)] = None
     track_inventory: bool = Field(default=False)
     stock_quantity: Annotated[int, Field(ge=0)] = Field(default=0)
-    # ✅ CORREÇÃO: file_key adicionado à base para que possa ser criado
-    # Não precisa ser enviado no JSON de criação, pois virá do upload do arquivo.
 
+
+    file_key: str | None = None
 
 class VariantOptionCreate(VariantOptionBase):
     variant_id: int
@@ -37,8 +37,7 @@ class VariantOptionUpdate(AppBaseModel):
     description: Annotated[str | None, Field(max_length=1000)] = None
     track_inventory: bool | None = None
     stock_quantity: Annotated[int | None, Field(ge=0)] = None
-    # ✅ CORREÇÃO: file_key não é atualizado via JSON, mas sim via upload,
-    # então não precisa estar aqui.
+
 
 
 # --- SCHEMA DE SAÍDA (RESPOSTA DA API) ATUALIZADO ---
@@ -71,13 +70,19 @@ class VariantOption(VariantOptionBase):
         """
         return self.price_override if self.price_override is not None else 0
 
+        # ✅ 2. LÓGICA DO `image_path` TOTALMENTE CORRIGIDA
 
     @computed_field
     @property
     def image_path(self) -> str | None:
-        # Agora `self.file_key` existe e este código funcionará.
+        """
+        Gera a URL da imagem seguindo a hierarquia correta:
+        1. Imagem da própria opção (se existir).
+        2. Se não, imagem do produto vinculado (se existir).
+        3. Se não, nulo.
+        """
         key_to_use = self.file_key or (self.linked_product.file_key if self.linked_product else None)
-        return get_presigned_url(key_to_use) if key_to_use else None
+        return f"{S3_PUBLIC_BASE_URL}/{key_to_use}" if key_to_use else None
 
     @computed_field
     @property
