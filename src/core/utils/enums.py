@@ -89,4 +89,10 @@ class ThemeMode(enum.Enum):
     DARK = "dark"
 
 
+# Usamos um Enum para garantir que o tipo seja sempre um dos valores esperados
+class CategoryType(str, enum.Enum):
+    GENERAL = "GENERAL"
+    PIZZA = "PIZZA"
+
+
 

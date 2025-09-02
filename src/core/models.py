@@ -12,7 +12,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
-    CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode
+    CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode, CategoryType
 from src.api.schemas.base_schema import VariantType, UIDisplayMode
 
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -265,26 +265,65 @@ class StoreAccess(Base, TimestampMixin):
 
     __table_args__ = (Index("ix_store_user", "store_id", "user_id"),)
 
+
+# --- MODELO PRINCIPAL DE CATEGORIA (ATUALIZADO) ---
 class Category(Base, TimestampMixin):
     __tablename__ = "categories"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column()
-    priority: Mapped[int] = mapped_column()
+    name: Mapped[str] = mapped_column(String(100))
+    priority: Mapped[int] = mapped_column(default=0)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    file_key: Mapped[str] = mapped_column()
+    file_key: Mapped[str | None] = mapped_column(String, nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
+    type: Mapped[CategoryType] = mapped_column(Enum(CategoryType, name="category_type_enum"),
+                                               default=CategoryType.GENERAL)
+
     store: Mapped[Store] = relationship()
-
-
     product_links: Mapped[List["ProductCategoryLink"]] = relationship(back_populates="category",
                                                                       cascade="all, delete-orphan")
 
-    # --- NOVOS CAMPOS PARA CASHBACK NA CATEGORIA ---
+    # ✨ RELAÇÃO ATUALIZADA: Uma categoria agora tem vários "Grupos de Opções"
+    option_groups: Mapped[List["OptionGroup"]] = relationship(back_populates="category", cascade="all, delete-orphan",
+                                                              lazy="selectin")
+
+    # Campos de cashback e impressora
     cashback_type: Mapped[CashbackType] = mapped_column(Enum(CashbackType, name="cashback_type_enum"),
                                                         default=CashbackType.NONE)
     cashback_value: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.00'))
     printer_destination: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+
+# --- NOVOS MODELOS GENÉRICOS ---
+
+class OptionGroup(Base, TimestampMixin):
+    __tablename__ = "option_groups"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))  # Ex: "Tamanho", "Sabores", "Recheios"
+    min_selection: Mapped[int] = mapped_column(default=1)
+    max_selection: Mapped[int] = mapped_column(default=1)
+    priority: Mapped[int] = mapped_column(default=0)
+
+    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
+    category: Mapped["Category"] = relationship(back_populates="option_groups")
+
+    items: Mapped[List["OptionItem"]] = relationship(back_populates="group", cascade="all, delete-orphan",
+                                                     lazy="selectin")
+
+
+class OptionItem(Base, TimestampMixin):
+    __tablename__ = "option_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))  # Ex: "Média", "Calabresa", "Frango com Catupiry"
+    description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    price: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.00'))
+    is_active: Mapped[bool] = mapped_column(default=True)
+    priority: Mapped[int] = mapped_column(default=0)
+
+    option_group_id: Mapped[int] = mapped_column(ForeignKey("option_groups.id"))
+    group: Mapped["OptionGroup"] = relationship(back_populates="items")
 
 
 class Product(Base, TimestampMixin):

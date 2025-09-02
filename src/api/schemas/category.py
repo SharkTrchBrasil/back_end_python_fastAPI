@@ -1,55 +1,94 @@
+from pydantic import BaseModel, Field, computed_field
+
+from src.core.aws import S3_PUBLIC_BASE_URL
+from src.core.models import CategoryType, CashbackType
 from decimal import Decimal
-from pydantic import BaseModel, computed_field, Field
-
-# ✅ ADICIONADO: Importe o Enum que criamos
-from src.core.models import CashbackType
-from src.core.aws import get_presigned_url, S3_PUBLIC_BASE_URL
 
 
-# --- Schemas de Categoria Atualizados ---
+# --- Schemas para Itens e Grupos de Opções ---
+
+class OptionItemBase(BaseModel):
+    name: str
+    description: str | None = None
+    price: float = 0.0
+    is_active: bool = True
+
+
+class OptionItemCreate(OptionItemBase):
+    pass
+
+
+class OptionItem(OptionItemBase):
+    id: int
+    priority: int
+
+    class Config: from_attributes = True
+
+
+class OptionGroupBase(BaseModel):
+    name: str
+    min_selection: int = 1
+    max_selection: int = 1
+
+
+class OptionGroupCreate(OptionGroupBase):
+    pass
+
+
+class OptionGroup(OptionGroupBase):
+    id: int
+    priority: int
+    items: list[OptionItem] = []
+
+    class Config: from_attributes = True
+
+
+# --- Schemas principais de Categoria (Atualizados) ---
 
 class CategoryBase(BaseModel):
-    """Campos base de uma categoria."""
     name: str
-    priority: int
-    is_active: bool
+    is_active: bool = True
+    type: CategoryType
 
 
 class CategoryCreate(CategoryBase):
-    """Schema para criar uma nova categoria, com campos de cashback opcionais."""
-    # O frontend enviará o tipo como string ('none', 'fixed', 'percentage')
-    cashback_type: CashbackType = Field(default=CashbackType.NONE)
-    # O valor pode ser o percentual (ex: 5 para 5%) ou o valor fixo em centavos
-    cashback_value: Decimal = Field(default=Decimal('0.00'))
+    pass  # Para criar, só precisamos do nome e tipo, o resto vem depois
 
 
 class CategoryUpdate(BaseModel):
-    """Schema para atualizar uma categoria, todos os campos são opcionais."""
     name: str | None = None
-    priority: int | None = None
     is_active: bool | None = None
 
-    # ✅ ADICIONADO: Campos para atualizar a regra de cashback
-    cashback_type: CashbackType | None = None
-    cashback_value: Decimal | None = None
 
 
-class CategoryOut(CategoryBase):
-    """Schema de resposta da API, incluindo os dados de cashback."""
+class Category(CategoryBase):  # O schema de resposta
     id: int
-    file_key: str = Field(exclude=True)
+    priority: int
 
-    # ✅ ADICIONADO: Retornando as regras de cashback salvas
-    cashback_type: CashbackType
-    cashback_value: Decimal
-
-    model_config = {
-        "from_attributes": True
-    }
+    # ✨ CORREÇÃO 1: Adicionar a URL da imagem para o frontend
+    file_key: str | None = Field(None, exclude=True)  # Exclui do JSON final
 
     @computed_field
     @property
-    def image_path(self) -> str:
-        """Gera a URL da imagem a partir da file_key."""
-        # ✅ 2. USE A NOVA LÓGICA DE URL ESTÁTICA E PERMANENTE
-        return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if self.file_key else None
+    def image_path(self) -> str | None:
+        """Gera a URL completa e pública da imagem."""
+        if self.file_key:
+            return f"{S3_PUBLIC_BASE_URL}/{self.file_key}"
+        return None
+
+    # ✨ CORREÇÃO 2: Cashback não é opcional, pois sempre terá um valor padrão
+    cashback_type: CashbackType
+    cashback_value: Decimal
+
+
+    option_groups: list[OptionGroup] = []
+
+    class Config:
+        from_attributes = True
+
+
+
+
+
+
+

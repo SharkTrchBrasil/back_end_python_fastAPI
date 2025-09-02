@@ -3,62 +3,63 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Form, HTTPException, File, UploadFile
 
+from src.api import crud
 from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.app.socketio.socketio_emitters import emit_products_updated, emit_store_updated
-from src.api.schemas.category import CategoryOut
+from src.api.crud import crud_category, crud_option
+from src.api.schemas.category import CategoryCreate, Category, OptionGroup, OptionGroupCreate, OptionItemCreate, \
+    OptionItem
+
 from src.core import models
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
-from src.core.utils.enums import CashbackType
+from src.core.utils.enums import CashbackType, CategoryType
 
 router = APIRouter(tags=["Categories"], prefix="/stores/{store_id}/categories")
 
 
-@router.post("", response_model=CategoryOut)
-async def create_category(
-        db: GetDBDep,
-        store: GetStoreDep,
-        name: str = Form(...),
-        # ✅ REMOVIDO: 'priority' não é mais um parâmetro do formulário.
-        # priority: int = Form(...),
-        image: UploadFile = File(...),
-        is_active: bool = Form(True),
-        cashback_type: str = Form(default=CashbackType.NONE.value),
-        cashback_value: Decimal = Form(default=Decimal('0.00')),
-):
-    # ✅ LÓGICA DE PRIORIDADE AUTOMÁTICA
-    # 1. Conta quantas categorias já existem nesta loja.
-    current_category_count = db.query(models.Category).filter(
-        models.Category.store_id == store.id
-    ).count()
+# --- ROTAS PARA CATEGORIAS ---
 
-    # 2. A contagem atual será a prioridade da nova categoria (ex: se já existem 3, a nova será a 4ª com prioridade 3).
-    new_priority = current_category_count
+@router.post("/stores/{store_id}/categories", response_model=Category, status_code=201)
+def create_category_route(store_id: int, category_data: CategoryCreate,    db: GetDBDep, ):
+    return crud.crud_category.create_category(db=db, category_data=category_data, store_id=store_id)
 
-    file_key = upload_file(image)
-
-    db_category = models.Category(
-        name=name,
-        store_id=store.id,  # É uma boa prática passar o ID diretamente
-        priority=new_priority,  # ✅ USA a prioridade calculada
-        file_key=file_key,
-        is_active=is_active,
-        cashback_type=CashbackType(cashback_type),
-        cashback_value=cashback_value
-    )
-
-    db.add(db_category)
-    db.commit()
-    db.refresh(db_category)
-
-    # Não é necessário emitir o evento duas vezes, o admin_emit já cobre o caso.
-    await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_updated(db, store.id)
-
+@router.get("/stores/{store_id}/categories/{category_id}", response_model=Category)
+def get_category_route(category_id: int, store_id: int,    db: GetDBDep,):
+    db_category = crud.crud_category.get_category(db, category_id=category_id, store_id=store_id)
+    if not db_category:
+        raise HTTPException(status_code=404, detail="Category not found")
     return db_category
 
-@router.get("", response_model=list[CategoryOut])
+# --- ROTAS PARA GRUPOS DE OPÇÕES ---
+
+@router.post("/categories/{category_id}/option-groups", response_model=OptionGroup, status_code=201)
+def create_option_group_route(category_id: int, group_data: OptionGroupCreate,    db: GetDBDep,):
+    # TODO: Adicionar verificação para garantir que a categoria pertence à loja do usuário logado
+    return crud_option.create_option_group(db=db, group_data=group_data, category_id=category_id)
+
+# --- ROTAS PARA ITENS DE OPÇÃO ---
+
+@router.post("/option-groups/{group_id}/items", response_model=OptionItem, status_code=201)
+def create_option_item_route(group_id: int, item_data: OptionItemCreate,    db: GetDBDep,):
+    # TODO: Adicionar verificação de segurança
+    return crud_option.create_option_item(db=db, item_data=item_data, group_id=group_id)
+
+# Adicione aqui as outras rotas (GET all, PA
+
+
+
+
+
+
+
+
+
+
+
+
+@router.get("", response_model=list[Category])
 def get_categories(
     db: GetDBDep,
     store: GetStoreDep,
@@ -67,7 +68,7 @@ def get_categories(
     return db_categories
 
 
-@router.get("/{category_id}", response_model=CategoryOut)
+@router.get("/{category_id}", response_model=Category)
 def get_category(
     db: GetDBDep,
     store: GetStoreDep,
@@ -84,7 +85,7 @@ def get_category(
     return db_category
 
 
-@router.patch("/{category_id}", response_model=CategoryOut)
+@router.patch("/{category_id}", response_model=Category)
 async def patch_category(
     db: GetDBDep,
     store: GetStoreDep,
