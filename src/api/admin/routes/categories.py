@@ -9,7 +9,7 @@ from src.api.admin.utils.emit_updates import emit_updates_products
 from src.api.app.socketio.socketio_emitters import emit_products_updated, emit_store_updated
 from src.api.crud import crud_category, crud_option
 from src.api.schemas.category import CategoryCreate, Category, OptionGroup, OptionGroupCreate, OptionItemCreate, \
-    OptionItem
+    OptionItem, CategoryUpdate
 
 from src.core import models
 from src.core.aws import upload_file, delete_file
@@ -109,21 +109,14 @@ def get_category(
 
     return db_category
 
-
 @router.patch("/{category_id}", response_model=Category)
 async def patch_category(
-        db: GetDBDep,
-        store: GetStoreDep,
-        category_id: int,
-        name: str | None = Form(None),
-        priority: int | None = Form(None),
-        image: UploadFile | None = File(None),
-        is_active: bool | None = Form(None),  # Corrigido de Form(True) para Form(None)
-
-        # ✅ ADICIONADO: Campos de cashback opcionais para atualização
-        cashback_type: str | None = Form(None),
-        cashback_value: Decimal | None = Form(None),
+    category_id: int,
+    update_data: CategoryUpdate, # 👈 Recebe o schema Pydantic, não mais Form()
+    db: GetDBDep,
+    store: GetStoreDep,
 ):
+    # A busca pelo objeto no banco continua a mesma
     db_category = db.query(models.Category).filter(
         models.Category.id == category_id,
         models.Category.store_id == store.id
@@ -132,32 +125,18 @@ async def patch_category(
     if not db_category:
         raise HTTPException(status_code=404, detail="Category not found")
 
-    file_key_to_delete = None
+    # Pega os dados do schema e os converte para um dicionário,
+    # excluindo os campos que não foram enviados pelo cliente (mantendo os valores atuais).
+    update_dict = update_data.model_dump(exclude_unset=True)
 
-    if name is not None:
-        db_category.name = name
-    if is_active is not None:
-        db_category.is_active = is_active
-    if priority is not None:
-        db_category.priority = priority
-
-    # ✅ Atualizar os campos de cashback
-    if cashback_type is not None:
-        db_category.cashback_type = CashbackType(cashback_type)
-    if cashback_value is not None:
-        db_category.cashback_value = cashback_value
-
-    if image:
-        file_key_to_delete = db_category.file_key
-        new_file_key = upload_file(image)
-        db_category.file_key = new_file_key
+    # Itera sobre os campos enviados e atualiza o objeto do banco
+    for key, value in update_dict.items():
+        setattr(db_category, key, value)
 
     db.commit()
     db.refresh(db_category)
 
-    if file_key_to_delete:
-        delete_file(file_key_to_delete)
-
+    # A lógica de emitir o evento continua a mesma
     await emit_updates_products(db, store.id)
 
     return db_category

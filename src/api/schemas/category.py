@@ -58,7 +58,10 @@ class CategoryCreate(CategoryBase):
 class CategoryUpdate(BaseModel):
     name: str | None = None
     is_active: bool | None = None
-
+    priority: int | None = None
+    # Adicione aqui outros campos que podem ser atualizados
+    cashback_type: CashbackType | None = None
+    cashback_value: Decimal | None = None
 
 
 class Category(CategoryBase):  # O schema de resposta
