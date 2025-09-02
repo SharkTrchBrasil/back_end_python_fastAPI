@@ -109,39 +109,45 @@ def get_category(
 
     return db_category
 
+
+# ...
+
 @router.patch("/{category_id}", response_model=Category)
 async def patch_category(
-    category_id: int,
-    update_data: CategoryUpdate, # 👈 Recebe o schema Pydantic, não mais Form()
-    db: GetDBDep,
-    store: GetStoreDep,
+        category_id: int,
+        update_data: CategoryUpdate,
+        db: GetDBDep,
+        store: GetStoreDep,
 ):
-    # A busca pelo objeto no banco continua a mesma
-    db_category = db.query(models.Category).filter(
-        models.Category.id == category_id,
-        models.Category.store_id == store.id
-    ).first()
+    db_category = crud.crud_category.get_category(db, category_id=category_id, store_id=store.id)
 
     if not db_category:
         raise HTTPException(status_code=404, detail="Category not found")
 
-    # Pega os dados do schema e os converte para um dicionário,
-    # excluindo os campos que não foram enviados pelo cliente (mantendo os valores atuais).
     update_dict = update_data.model_dump(exclude_unset=True)
 
-    # Itera sobre os campos enviados e atualiza o objeto do banco
+    # ✨ LÓGICA ATUALIZADA ✨
+    # Se 'is_active' está sendo alterado, usamos a função especial
+    if 'is_active' in update_dict:
+        crud.crud_category.update_category_status(
+            db=db,
+            db_category=db_category,
+            is_active=update_data.is_active
+        )
+        # Removemos para não ser atualizado de novo
+        update_dict.pop('is_active')
+
+    # Atualiza os outros campos normalmente
     for key, value in update_dict.items():
         setattr(db_category, key, value)
 
     db.commit()
     db.refresh(db_category)
 
-    # A lógica de emitir o evento continua a mesma
-    await emit_updates_products(db, store.id)
+    # O evento de socket vai notificar o frontend sobre todas as mudanças
+    await admin_emit_store_updated(db, store.id)
 
     return db_category
-
-
 
 
 @router.delete("/{category_id}", status_code=204)

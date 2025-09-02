@@ -7,7 +7,7 @@ import json
 from pydantic import ValidationError
 from starlette import status
 
-from src.api.admin.socketio.emitters import admin_emit_products_updated
+from src.api.admin.socketio.emitters import admin_emit_products_updated, admin_emit_store_updated
 from src.api.admin.utils.emit_updates import emit_updates_products
 from src.api.app.socketio.socketio_emitters import emit_products_updated
 from src.api.schemas.bulk_actions import ProductCategoryUpdatePayload, BulkDeletePayload, BulkCategoryUpdatePayload, \
@@ -185,24 +185,42 @@ async def update_product_category_link(
 
 # --- ROTAS ADICIONAIS E EM MASSA ---
 
+# ... seus outros imports ...
+from src.api.crud import crud_product # ✨ Importe o crud_product
+
 @router.patch("/{product_id}", response_model=ProductOut)
 async def patch_product(
         db: GetDBDep,
         db_product: GetProductDep,
-        # ✅ REFATORADO: Recebe um único payload, igual ao wizard
         payload_str: str = Form(..., alias="payload"),
         image: UploadFile | None = File(None),
 ):
-    """Atualiza os dados gerais de um produto (nome, estoque, etc.)."""
+    """Atualiza os dados de um produto."""
     try:
         update_data = ProductUpdate.model_validate_json(payload_str)
     except ValidationError as e:
         raise HTTPException(status_code=422, detail=f"Erro de validação: {e}")
 
-    # Aplica as atualizações
-    for field, value in update_data.model_dump(exclude_unset=True).items():
+    # Converte os dados recebidos em um dicionário
+    update_dict = update_data.model_dump(exclude_unset=True)
+
+    # ✨ LÓGICA DE ATUALIZAÇÃO EM CASCATA ADICIONADA AQUI ✨
+    # 1. Verificamos se o status 'available' foi enviado na requisição
+    if 'available' in update_dict:
+        # 2. Se sim, chamamos a função CRUD especial que lida com a cascata
+        crud_product.update_product_availability(
+            db=db,
+            db_product=db_product,
+            is_available=update_data.available
+        )
+        # 3. Removemos 'available' do dicionário para não ser atualizado de novo pelo loop genérico
+        update_dict.pop('available')
+
+    # O loop agora atualiza todos os OUTROS campos que podem ter sido enviados
+    for field, value in update_dict.items():
         setattr(db_product, field, value)
 
+    # Lógica para atualizar a imagem (continua a mesma)
     if image:
         old_file_key = db_product.file_key
         db_product.file_key = upload_file(image)
