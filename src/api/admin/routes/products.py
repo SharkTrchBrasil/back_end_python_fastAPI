@@ -6,6 +6,7 @@ import json
 from pydantic import ValidationError
 from starlette import status
 
+from src.api.admin.socketio.emitters import admin_emit_products_updated
 from src.api.admin.utils.emit_updates import emit_updates_products
 from src.api.schemas.products.bulk_actions import BulkDeletePayload, BulkCategoryUpdatePayload, \
     BulkStatusUpdatePayload
@@ -117,7 +118,7 @@ async def create_product_from_wizard(
     ).filter(models.Product.id == new_product.id).first()
 
     # 7. Emite os eventos e retorna o objeto completo e validado
-    await emit_updates_products(db, store.id)
+    await admin_emit_products_updated(db, store.id)
     return product_to_return
 
 
@@ -176,7 +177,7 @@ async def update_product_category_link(
         setattr(db_link, field, value)
     db.commit()
     db.refresh(db_link)
-    await emit_updates_products(db, store.id)
+    await admin_emit_products_updated(db, store.id)
     return db_link
 
 # --- ROTAS ADICIONAIS E EM MASSA ---
@@ -231,7 +232,7 @@ async def patch_product(
         selectinload(models.Product.variant_links).selectinload(models.ProductVariantLink.variant)
     ).filter(models.Product.id == db_product.id).first()
 
-    await emit_updates_products(db, db_product.store_id)
+    await admin_emit_products_updated(db, db_product.store_id)
     return product_to_return
 
 
@@ -243,7 +244,7 @@ async def delete_product(store: GetStoreDep, db: GetDBDep, db_product: GetProduc
     # ✅ Adicionada checagem de segurança
     if old_file_key:
         delete_file(old_file_key)
-    await emit_updates_products(db, store.id)
+    await admin_emit_products_updated(db, store.id)
     return
 
 # --- ROTA PARA ATUALIZAR PREÇO/PROMOÇÃO EM UMA CATEGORIA --
@@ -278,7 +279,7 @@ async def bulk_delete_products(
 
     db.commit()
 
-    await emit_updates_products(db, store.id)
+    await admin_emit_products_updated(db, store.id)
     return
 
 
@@ -340,7 +341,7 @@ async def bulk_update_product_category(
     # 5. Emite o evento para que as telas sejam atualizadas.
     # (Supondo que você tenha essas funções)
 
-    await emit_updates_products(db, store.id)
+    await admin_emit_products_updated(db, store.id)
 
     return
 

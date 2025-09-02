@@ -56,7 +56,7 @@ async def create_option_group_route(category_id: int, group_data: OptionGroupCre
     db_group = crud.crud_option.create_option_group(db=db, group_data=group_data, category_id=category_id)
 
     # Emitimos o evento para a loja correta
-    await emit_updates_products(db, category.store_id)
+    await admin_emit_products_updated(db, category.store_id)
 
     return db_group
 
@@ -73,7 +73,7 @@ async def create_option_item_route(group_id: int, item_data: OptionItemCreate,  
 
     db_item = crud.crud_option.create_option_item(db=db, item_data=item_data, group_id=group_id)
 
-    await emit_updates_products(db, group.category.store_id)
+    await admin_emit_products_updated(db, group.category.store_id)
 
     return db_item
 
@@ -140,7 +140,7 @@ async def patch_category(
     db.refresh(db_category)
 
     # O evento de socket vai notificar o frontend sobre todas as mudanças
-    await admin_emit_store_updated(db, store.id)
+    await admin_emit_products_updated(db, store.id)
 
     return db_category
 
