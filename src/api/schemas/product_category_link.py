@@ -3,6 +3,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field, ConfigDict
 
 from src.api.schemas.category import Category
+from src.api.schemas.product import ProductNestedOut
 from src.api.schemas.product_minimal import ProductMinimal, CategoryMinimal
 
 
@@ -45,10 +46,10 @@ class ProductCategoryLinkOut(ProductCategoryLinkBase):
     product_id: int
 
     # Ao ver um link dentro de um Produto, você quer saber a qual Categoria ele pertence
-    category: CategoryMinimal
+    category: Category
 
     # Ao ver um link dentro de uma Categoria, você quer saber a qual Produto ele pertence
-    product: ProductMinimal
+    product: ProductNestedOut
 
 
     model_config = ConfigDict(from_attributes=True)

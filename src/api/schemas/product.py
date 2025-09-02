@@ -97,6 +97,16 @@ class ProductUpdate(AppBaseModel):
 class ProductDefaultOptionOut(AppBaseModel):
     variant_option_id: int
 
+class ProductNestedOut(Product):
+    id: int
+
+    @computed_field
+    @property
+    def image_path(self) -> str | None:
+        return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if self.file_key else None
+
+
+
 
 class ProductOut(Product):
     id: int
