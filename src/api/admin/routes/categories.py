@@ -21,11 +21,11 @@ router = APIRouter(tags=["Categories"], prefix="/stores/{store_id}/categories")
 
 # --- ROTAS PARA CATEGORIAS ---
 
-@router.post("/stores/{store_id}/categories", response_model=Category, status_code=201)
+@router.post("", response_model=Category, status_code=201)
 def create_category_route(store_id: int, category_data: CategoryCreate,    db: GetDBDep, ):
     return crud.crud_category.create_category(db=db, category_data=category_data, store_id=store_id)
 
-@router.get("/stores/{store_id}/categories/{category_id}", response_model=Category)
+@router.get("/{category_id}", response_model=Category)
 def get_category_route(category_id: int, store_id: int,    db: GetDBDep,):
     db_category = crud.crud_category.get_category(db, category_id=category_id, store_id=store_id)
     if not db_category:
@@ -34,7 +34,7 @@ def get_category_route(category_id: int, store_id: int,    db: GetDBDep,):
 
 # --- ROTAS PARA GRUPOS DE OPÇÕES ---
 
-@router.post("/categories/{category_id}/option-groups", response_model=OptionGroup, status_code=201)
+@router.post("/{category_id}/option-groups", response_model=OptionGroup, status_code=201)
 def create_option_group_route(category_id: int, group_data: OptionGroupCreate,    db: GetDBDep,):
     # TODO: Adicionar verificação para garantir que a categoria pertence à loja do usuário logado
     return crud_option.create_option_group(db=db, group_data=group_data, category_id=category_id)
