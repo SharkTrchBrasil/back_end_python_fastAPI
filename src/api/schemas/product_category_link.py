@@ -1,8 +1,9 @@
-# ARQUIVO: src/api/schemas/product_category_link.py
 from __future__ import annotations
+
 from pydantic import BaseModel, Field, ConfigDict
 
 from src.api.schemas.category import Category
+from src.api.schemas.product_minimal import ProductMinimal
 
 
 # --- Schema Base ---
@@ -45,7 +46,8 @@ class ProductCategoryLinkUpdate(BaseModel):
 class ProductCategoryLinkOut(ProductCategoryLinkBase):
     product_id: int
 
-
+    # ✨ AGORA USA O SCHEMA MÍNIMO PARA EVITAR O LOOP DE IMPORTAÇÃO
+    product: ProductMinimal
     category: Category
 
     model_config = ConfigDict(from_attributes=True)

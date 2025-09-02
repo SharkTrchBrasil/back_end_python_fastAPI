@@ -3,8 +3,7 @@ from typing import Optional, List
 from pydantic import BaseModel, Field, ConfigDict, computed_field
 from pydantic_core.core_schema import FieldValidationInfo
 
-from .category import Category
-# ✅ CORRIGIDO: Importações diretas, sem dependência circular
+
 from .product_category_link import ProductCategoryLinkCreate, ProductCategoryLinkOut
 
 
