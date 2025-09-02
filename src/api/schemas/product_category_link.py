@@ -3,7 +3,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field, ConfigDict
 
 from src.api.schemas.category import Category
-from src.api.schemas.product_minimal import ProductMinimal
+from src.api.schemas.product_minimal import ProductMinimal, CategoryMinimal
 
 
 # --- Schema Base ---
@@ -44,7 +44,10 @@ class ProductCategoryLinkUpdate(BaseModel):
 class ProductCategoryLinkOut(ProductCategoryLinkBase):
     product_id: int
 
-    # ✨ AGORA USA O SCHEMA MÍNIMO PARA EVITAR O LOOP DE IMPORTAÇÃO
+    # Ao ver um link dentro de um Produto, você quer saber a qual Categoria ele pertence
+    category: CategoryMinimal
+
+    # Ao ver um link dentro de uma Categoria, você quer saber a qual Produto ele pertence
     product: ProductMinimal
 
 
