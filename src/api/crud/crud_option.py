@@ -28,3 +28,7 @@ def create_option_item(db: Session, item_data: OptionItemCreate, group_id: int):
     db.commit()
     db.refresh(db_item)
     return db_item
+
+
+def get_option_group(db: Session, group_id: int):
+    return db.query(models.OptionGroup).filter(models.OptionGroup.id == group_id).first()

@@ -21,4 +21,7 @@ def create_category(db: Session, category_data: CategoryCreate, store_id: int):
 def get_category(db: Session, category_id: int, store_id: int):
     return db.query(models.Category).filter(models.Category.id == category_id, models.Category.store_id == store_id).first()
 
+
+def get_all_categories(db: Session, store_id: int):
+    return db.query(models.Category).filter(models.Category.store_id == store_id).all()
 # Adicione get_all, update, delete aqui...
