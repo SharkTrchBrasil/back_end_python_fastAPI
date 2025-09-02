@@ -100,12 +100,9 @@ class ProductDefaultOptionOut(AppBaseModel):
 
 class ProductOut(Product):
     id: int
-    category: Optional[Category] = None
     variant_links: List[ProductVariantLinkOut] = []
 
-    # ✅ --- CORREÇÃO ADICIONADA AQUI --- ✅
-    # Adicionamos o campo para que o Pydantic o carregue do banco,
-    # mas o `exclude=True` impede que ele seja enviado no JSON final.
+
     category_links: List[ProductCategoryLinkOut] = Field(...)
 
     components: List[KitComponentOut] = []

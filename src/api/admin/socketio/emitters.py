@@ -405,6 +405,10 @@ async def admin_emit_products_updated(db, store_id: int):
 
     # ✅ NOVO: 3. Busca TODAS as categorias da loja
     all_categories_from_db = db.query(models.Category) \
+        .options(
+            selectinload(models.Category.product_links) # Carrega os links
+            .selectinload(models.ProductCategoryLink.product) # E os produtos dentro dos links
+        ) \
         .filter(models.Category.store_id == store_id) \
         .order_by(models.Category.priority).all()
 

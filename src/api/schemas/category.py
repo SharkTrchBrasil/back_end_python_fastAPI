@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, computed_field
 
+from src.api.schemas.product_category_link import ProductCategoryLinkOut
 from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.models import CategoryType, CashbackType
 from decimal import Decimal
@@ -82,7 +83,7 @@ class Category(CategoryBase):  # O schema de resposta
     # ✨ CORREÇÃO 2: Cashback não é opcional, pois sempre terá um valor padrão
     cashback_type: CashbackType
     cashback_value: Decimal
-
+    product_links: list[ProductCategoryLinkOut] = []
 
     option_groups: list[OptionGroup] = []
 
