@@ -142,12 +142,15 @@ async def patch_category(
     return db_category
 
 
+
+
 @router.delete("/{category_id}", status_code=204)
 async def delete_category(
         category_id: int,
         db: GetDBDep,
         store: GetStoreDep,
 ):
+    # 1. Busca a categoria no banco de dados
     category = db.query(models.Category).filter(
         models.Category.id == category_id,
         models.Category.store_id == store.id
@@ -156,13 +159,20 @@ async def delete_category(
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
 
-    # Deletar os arquivos dos produtos da categoria
-    for product in category.products:
-        if product.file_key:
-            delete_file(product.file_key)
+    # 2. (Opcional, mas recomendado) Guarda a chave da imagem da categoria para deletar depois
+    file_key_to_delete = category.file_key
 
+    # 3. Deleta a categoria do banco.
+    #    O SQLAlchemy/Banco de Dados irá automaticamente remover os 'product_links'
+    #    graças à configuração 'cascade', mas NÃO irá deletar os produtos.
     db.delete(category)
     db.commit()
-    db.refresh(store)
 
-    await emit_updates_products(db, store.id)
+    # 4. Se havia uma imagem da categoria, deleta do seu serviço de arquivos (ex: S3)
+    if file_key_to_delete:
+        delete_file(file_key_to_delete)
+
+    # 5. Emite o evento para notificar a UI que os dados da loja mudaram
+    await emit_updates_products(db, store.id)  # ou admin_emit_store_updated
+
+    # Com status_code=204, a resposta não tem corpo, então não há 'return'.
