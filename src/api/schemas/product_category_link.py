@@ -45,11 +45,9 @@ class ProductCategoryLinkUpdate(BaseModel):
 class ProductCategoryLinkOut(ProductCategoryLinkBase):
     product_id: int
 
-    # Ao ver um link dentro de um Produto, você quer saber a qual Categoria ele pertence
-    category: Category
-
-    # Ao ver um link dentro de uma Categoria, você quer saber a qual Produto ele pertence
-    product: ProductNestedOut
+    # ✨ USA OS SCHEMAS MÍNIMOS, QUEBRANDO O CICLO
+    product: ProductMinimal
+    category: CategoryMinimal
 
 
     model_config = ConfigDict(from_attributes=True)

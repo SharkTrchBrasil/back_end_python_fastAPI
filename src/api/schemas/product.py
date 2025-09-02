@@ -119,14 +119,6 @@ class ProductOut(Product):
     rating: Optional[RatingsSummaryOut] = None
     default_options: List[ProductDefaultOptionOut] = Field(default=[], exclude=True)
 
-    @field_validator('category', mode='before')
-    @classmethod
-    def get_primary_category_from_links(cls, v: Any, info: FieldValidationInfo) -> Any:
-        # Esta função já estava correta
-        if hasattr(info, 'instance') and info.instance.category_links:
-            return info.instance.category_links[0].category
-        return None
-
 
     @computed_field
     @property

@@ -1,4 +1,3 @@
-# src/api/schemas/shared.py
 from __future__ import annotations
 from pydantic import Field, computed_field
 from .base_schema import AppBaseModel
@@ -8,6 +7,9 @@ from src.core.aws import S3_PUBLIC_BASE_URL
 class ProductMinimal(AppBaseModel):
     id: int
     name: str
+    description: str | None = None
+    available: bool = True
+    stock_quantity: int = 0
     file_key: str | None = Field(None, exclude=True)
 
     @computed_field
