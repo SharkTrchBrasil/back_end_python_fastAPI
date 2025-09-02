@@ -4,7 +4,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Form, HTTPException, File, UploadFile
 
 from src.api import crud
-from src.api.admin.socketio.emitters import admin_emit_store_updated
+from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_products_updated
 from src.api.admin.utils.emit_updates import emit_updates_products
 from src.api.app.socketio.socketio_emitters import emit_products_updated, emit_store_updated
 from src.api.crud import crud_category, crud_option
@@ -29,7 +29,7 @@ async def create_category_route(store_id: int, category_data: CategoryCreate,   
     db_category = crud.crud_category.create_category(db=db, category_data=category_data, store_id=store_id)
 
     # ✨ Depois de salvar com sucesso, emitimos o evento
-    await admin_emit_store_updated(db, store_id)
+    await admin_emit_products_updated(db, store_id)
 
     # ✨ Por último, retornamos o resultado
     return db_category
@@ -61,7 +61,7 @@ async def create_option_group_route(category_id: int, group_data: OptionGroupCre
     db_group = crud.crud_option.create_option_group(db=db, group_data=group_data, category_id=category_id)
 
     # Emitimos o evento para a loja correta
-    await admin_emit_store_updated(db, category.store_id)
+    await emit_updates_products(db, category.store_id)
 
     return db_group
 
@@ -78,7 +78,7 @@ async def create_option_item_route(group_id: int, item_data: OptionItemCreate,  
 
     db_item = crud.crud_option.create_option_item(db=db, item_data=item_data, group_id=group_id)
 
-    await admin_emit_store_updated(db, group.category.store_id)
+    await emit_updates_products(db, group.category.store_id)
 
     return db_item
 
