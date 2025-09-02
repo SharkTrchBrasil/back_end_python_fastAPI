@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 from pydantic import BaseModel, Field, computed_field
 
 from src.api.schemas.product_category_link import ProductCategoryLinkOut

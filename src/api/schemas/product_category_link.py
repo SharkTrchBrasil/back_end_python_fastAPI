@@ -1,5 +1,5 @@
 # ARQUIVO: src/api/schemas/product_category_link.py
-
+from __future__ import annotations
 from pydantic import BaseModel, Field, ConfigDict
 
 from src.api.schemas.category import Category
