@@ -23,7 +23,7 @@ router = APIRouter(tags=["Categories"], prefix="/stores/{store_id}/categories")
 # --- ROTAS PARA CATEGORIAS ---
 
 # ✨ 1. Alterado para async def e emitter adicionado
-@router.post("/stores/{store_id}/categories", response_model=Category, status_code=201)
+@router.post("", response_model=Category, status_code=201)
 async def create_category_route(store_id: int, category_data: CategoryCreate,     db: GetDBDep,):
     # Primeiro, criamos a categoria no banco
     db_category = crud.crud_category.create_category(db=db, category_data=category_data, store_id=store_id)
@@ -35,12 +35,12 @@ async def create_category_route(store_id: int, category_data: CategoryCreate,   
     return db_category
 
 
-@router.get("/stores/{store_id}/categories", response_model=list[Category])
+@router.get("", response_model=list[Category])
 def get_categories_route(store_id: int,     db: GetDBDep,):
     return crud.crud_category.get_all_categories(db, store_id=store_id)
 
 
-@router.get("/stores/{store_id}/categories/{category_id}", response_model=Category)
+@router.get("/{category_id}", response_model=Category)
 def get_category_route(category_id: int, store_id: int,     db: GetDBDep,):
     db_category = crud.crud_category.get_category(db, category_id=category_id, store_id=store_id)
     if not db_category:
@@ -51,7 +51,7 @@ def get_category_route(category_id: int, store_id: int,     db: GetDBDep,):
 # --- ROTAS PARA GRUPOS DE OPÇÕES ---
 
 # ✨ 2. Alterado para async def e emitter adicionado
-@router.post("/categories/{category_id}/option-groups", response_model=OptionGroup, status_code=201)
+@router.post("/{category_id}/option-groups", response_model=OptionGroup, status_code=201)
 async def create_option_group_route(category_id: int, group_data: OptionGroupCreate,     db: GetDBDep,):
     # Precisamos saber o store_id para emitir o evento. Buscamos a categoria pai.
     category = crud.crud_category.get_category(db, category_id=category_id)
