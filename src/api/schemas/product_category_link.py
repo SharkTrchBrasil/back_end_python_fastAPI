@@ -20,9 +20,7 @@ class ProductCategoryLinkBase(BaseModel):
     pos_code: str | None = None
 
 
-   # ✅ --- CONFIGURAÇÃO FALTANTE ADICIONADA AQUI --- ✅
-    # Esta linha dá permissão ao Pydantic para ler os dados
-    # a partir de um objeto do SQLAlchemy (ex: models.ProductCategoryLink)
+
     model_config = ConfigDict(from_attributes=True)
 
 # --- Schema para Criação (Wizard) ---
@@ -48,6 +46,6 @@ class ProductCategoryLinkOut(ProductCategoryLinkBase):
 
     # ✨ AGORA USA O SCHEMA MÍNIMO PARA EVITAR O LOOP DE IMPORTAÇÃO
     product: ProductMinimal
-    category: Category
+
 
     model_config = ConfigDict(from_attributes=True)

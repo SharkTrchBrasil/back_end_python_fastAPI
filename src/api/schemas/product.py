@@ -102,8 +102,8 @@ class ProductOut(Product):
     id: int
     variant_links: List[ProductVariantLinkOut] = []
 
+    category_links: List[ProductCategoryLinkOut] = []
 
-    category_links: List[ProductCategoryLinkOut] = Field(...)
 
     components: List[KitComponentOut] = []
     rating: Optional[RatingsSummaryOut] = None
