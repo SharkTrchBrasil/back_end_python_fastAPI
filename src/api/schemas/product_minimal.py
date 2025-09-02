@@ -1,4 +1,5 @@
-# ARQUIVO: src/api/schemas/shared.py
+from __future__ import annotations
+
 from pydantic import computed_field
 
 from src.api.schemas.base_schema import AppBaseModel

@@ -201,3 +201,17 @@ class ProductRatingOut(ProductRatingBase):
     id: int
     product_id: int
     customer_id: int
+
+
+
+# ✨ ADICIONE ESTE BLOCO NO FINAL DO ARQUIVO ✨
+# ----------------------------------------------------
+# Importamos os outros schemas DEPOIS que tudo foi definido
+from . import category
+from . import product_category_link
+
+# Força a resolução das dependências circulares
+ProductOut.model_rebuild()
+category.Category.model_rebuild()
+product_category_link.ProductCategoryLinkOut.model_rebuild()
+# ----------------------------------------------------
