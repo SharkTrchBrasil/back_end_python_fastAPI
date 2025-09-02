@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from src.api.schemas.category import CategoryOut
+from src.api.schemas.category import Category
 
 
 # --- Schema Base ---
@@ -46,6 +46,6 @@ class ProductCategoryLinkOut(ProductCategoryLinkBase):
     product_id: int
 
 
-    category: CategoryOut
+    category: Category
 
     model_config = ConfigDict(from_attributes=True)

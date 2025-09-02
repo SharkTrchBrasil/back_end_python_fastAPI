@@ -2,10 +2,11 @@ from typing import Optional, List
 from pydantic import BaseModel, Field, ConfigDict, computed_field
 from pydantic_core.core_schema import FieldValidationInfo
 
+from .category import Category
 # ✅ CORRIGIDO: Importações diretas, sem dependência circular
 from .product_category_link import ProductCategoryLinkCreate, ProductCategoryLinkOut
 
-from .category import CategoryOut
+
 from .bulk_actions import KitComponentOut
 from .product_variant_link import ProductVariantLinkOut, ProductVariantLinkCreate
 from .rating import RatingsSummaryOut
@@ -99,7 +100,7 @@ class ProductDefaultOptionOut(AppBaseModel):
 
 class ProductOut(Product):
     id: int
-    category: Optional[CategoryOut] = None
+    category: Optional[Category] = None
     variant_links: List[ProductVariantLinkOut] = []
 
     # ✅ --- CORREÇÃO ADICIONADA AQUI --- ✅

@@ -6,13 +6,14 @@ from venv import logger
 
 from sqlalchemy.orm.exc import DetachedInstanceError
 
-from src.api.schemas.category import CategoryOut
+
 from src.api.admin.services.analytics_service import get_peak_hours_for_store
 from src.api.admin.services.holiday_service import HolidayService
 from src.api.admin.services.insights_service import InsightsService
 from src.api.admin.services.payable_service import payable_service
 from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations_simplified
 from src.api.crud import store_crud
+from src.api.schemas.category import Category
 from src.api.schemas.command import CommandOut
 from src.api.schemas.payable_category import PayableCategoryResponse
 from src.api.schemas.peak_hours import PeakHoursAnalytics
@@ -436,7 +437,7 @@ async def admin_emit_products_updated(db, store_id: int):
     # 5. Serializa TODOS os dados
     products_payload = [ProductOut.model_validate(p).model_dump(mode='json') for p in products_from_db]
     variants_payload = [Variant.model_validate(v).model_dump(mode='json') for v in all_variants_from_db]
-    categories_payload = [CategoryOut.model_validate(c).model_dump(mode='json') for c in
+    categories_payload = [Category.model_validate(c).model_dump(mode='json') for c in
                           all_categories_from_db]  # ✅ Serializa as categorias
 
     # 6. Emite o payload completo

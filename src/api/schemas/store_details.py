@@ -1,9 +1,10 @@
 from typing import Optional, List
 from pydantic import Field, ConfigDict
 
+from src.api.schemas.category import Category
 from src.api.schemas.scheduled_pauses import ScheduledPauseOut
 from src.api.schemas.store_subscription import StoreSubscriptionSchema
-from src.api.schemas.category import CategoryOut
+
 
 from src.api.schemas.coupon import CouponOut
 from src.api.schemas.payment_method import PaymentMethodGroupOut
@@ -29,7 +30,7 @@ class StoreDetails(StoreSchema):
     ratingsSummary: Optional[RatingsSummaryOut] = Field(None, alias="ratingsSummary")
     subscription: Optional[StoreSubscriptionSchema] = None
     is_setup_complete: bool
-    categories: List[CategoryOut] = []
+    categories: List[Category] = []
     products: List[ProductOut] = []
     variants: List[Variant] = []
     coupons: List[CouponOut] = []
