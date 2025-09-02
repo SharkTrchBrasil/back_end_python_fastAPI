@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, computed_field
 
-from src.api.schemas.product_category_link import ProductCategoryLinkOut
+from src.api.schemas.products.product_category_link import ProductCategoryLinkOut
 from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.models import CategoryType, CashbackType
 from decimal import Decimal

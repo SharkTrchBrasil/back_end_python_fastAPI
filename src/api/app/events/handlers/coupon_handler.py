@@ -1,7 +1,6 @@
 # Em: app/events/handlers/coupon_handler.py
 
-from datetime import datetime, timezone
-from operator import or_
+from datetime import datetime
 from pydantic import ValidationError
 from sqlalchemy.orm import selectinload
 
@@ -10,8 +9,8 @@ from src.api.admin.utils.coupon_validator import CouponValidator
 from src.core import models
 from src.core.database import get_db_manager
 from src.socketio_instance import sio
-from src.api.schemas.cart import ApplyCouponInput  # Schema de entrada que já criamos
-from src.api.schemas.coupon import CouponOut
+from src.api.schemas.orders.cart import ApplyCouponInput  # Schema de entrada que já criamos
+from src.api.schemas.financial.coupon import CouponOut
 
 # ✅ 1. REUTILIZAÇÃO DE CÓDIGO: Importamos as funções auxiliares do cart_handler.
 #    Isso evita código duplicado e mantém a lógica centralizada.

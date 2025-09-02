@@ -1,4 +1,3 @@
-import asyncio
 from typing import List
 
 
@@ -7,19 +6,16 @@ import json
 from pydantic import ValidationError
 from starlette import status
 
-from src.api.admin.socketio.emitters import admin_emit_products_updated, admin_emit_store_updated
 from src.api.admin.utils.emit_updates import emit_updates_products
-from src.api.app.socketio.socketio_emitters import emit_products_updated
-from src.api.schemas.bulk_actions import ProductCategoryUpdatePayload, BulkDeletePayload, BulkCategoryUpdatePayload, \
+from src.api.schemas.products.bulk_actions import BulkDeletePayload, BulkCategoryUpdatePayload, \
     BulkStatusUpdatePayload
-from src.api.schemas.product import ProductWizardCreate, ProductOut, ProductUpdate
-from src.api.schemas.product_category_link import ProductCategoryLinkOut, ProductCategoryLinkUpdate
+from src.api.schemas.products.product import ProductWizardCreate, ProductOut, ProductUpdate
+from src.api.schemas.products.product_category_link import ProductCategoryLinkOut, ProductCategoryLinkUpdate
 
 from src.core import models
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep, GetProductDep
-from src.core.utils.enums import CashbackType
 
 router = APIRouter(prefix="/stores/{store_id}/products", tags=["Products"])
 

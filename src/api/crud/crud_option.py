@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from src.api.schemas.category import OptionGroupCreate, OptionItemCreate
+from src.api.schemas.products.category import OptionGroupCreate, OptionItemCreate
 from src.core import models
 
 # --- CRUD para Grupos de Opções ---

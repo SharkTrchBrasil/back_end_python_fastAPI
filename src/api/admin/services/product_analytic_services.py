@@ -7,7 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session  # ✅ Usamos a Session síncrona
 
 # Importe seus schemas
-from src.api.schemas.analytic_produc_schema import (
+from src.api.schemas.analytics.analytic_produc_schema import (
     ProductAnalyticsResponse, TopProductItem, LowTurnoverItem,
     LowStockItem, AbcAnalysis, AbcItem
 )

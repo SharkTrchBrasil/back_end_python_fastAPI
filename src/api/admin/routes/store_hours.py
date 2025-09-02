@@ -1,16 +1,13 @@
 # seu_arquivo_de_rota.py
 
 from fastapi import APIRouter, HTTPException, Response, Body
-import asyncio
 import logging  # Use o logging para depuração
 
-from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.admin.utils.emit_updates import emit_store_updates
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 from src.core.models import StoreHours as StoreHoursModel
-from src.api.schemas.store_hours import StoreHoursCreate
-from src.api.app.socketio.socketio_emitters import emit_store_updated
+from src.api.schemas.store.store_hours import StoreHoursCreate
 
 # Configuração básica de logging
 logging.basicConfig(level=logging.INFO)

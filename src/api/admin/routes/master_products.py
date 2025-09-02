@@ -1,13 +1,13 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Query, HTTPException, Depends
+from fastapi import APIRouter, Query, HTTPException
 from sqlalchemy import or_
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import selectinload
 
 # Importe seus modelos e schemas
 from src.core import models
-from src.core.database import get_db, GetDBDep  # Sua função para obter a sessão do DB
-from src.api.schemas.master_product import MasterProductOut, MasterCategoryOut
+from src.core.database import GetDBDep  # Sua função para obter a sessão do DB
+from src.api.schemas.products.master_product import MasterProductOut, MasterCategoryOut
 
 router = APIRouter(prefix="/master-products", tags=["Master Products (Catalog)"])
 

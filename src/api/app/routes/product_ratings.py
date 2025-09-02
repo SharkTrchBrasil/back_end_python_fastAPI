@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from src.api.schemas.rating import ProductRatingCreate, RatingOut
+from src.api.schemas.products.rating import ProductRatingCreate, RatingOut
 from src.core.database import GetDBDep
 from src.core.models import ProductRating
 

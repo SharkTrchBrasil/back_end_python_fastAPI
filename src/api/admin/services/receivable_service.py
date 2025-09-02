@@ -2,8 +2,8 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 # Adapte os imports para os caminhos corretos do seu projeto
-from src.core.models import Store, Customer, StoreReceivable, ReceivableCategory
-from src.api.schemas.receivable import (
+from src.core.models import Store, StoreReceivable, ReceivableCategory
+from src.api.schemas.financial.receivable import (
     ReceivableCreate,
     ReceivableUpdate,
     ReceivableCategoryCreate,

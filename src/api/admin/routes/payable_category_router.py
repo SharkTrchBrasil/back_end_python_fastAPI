@@ -5,7 +5,7 @@ from src.api.admin.socketio.emitters import admin_emit_financials_updated
 from src.api.admin.services.payable_category_service import payable_category_service
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
-from src.api.schemas.payable_category import (
+from src.api.schemas.financial.payable_category import (
     PayableCategoryCreate,
     PayableCategoryUpdate,
     PayableCategoryResponse,

@@ -3,8 +3,8 @@
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
-from src.api.schemas.plans_addon import SubscribedAddonSchema
-from src.api.schemas.plans import PlanSchema
+from src.api.schemas.subscriptions.plans_addon import SubscribedAddonSchema
+from src.api.schemas.subscriptions.plans import PlanSchema
 
 
 class StoreSubscriptionSchema(BaseModel):

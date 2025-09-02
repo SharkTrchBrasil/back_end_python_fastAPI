@@ -1,15 +1,14 @@
 # Em seu arquivo de serviços/emissores do app
 
-from sqlalchemy.orm import selectinload, joinedload
-
+from sqlalchemy.orm import selectinload
 
 from src.api.crud import store_crud
 from src.core import models
 from src.socketio_instance import sio
-from src.api.schemas.product import ProductOut
-from src.api.schemas.store_details import StoreDetails
-from src.api.schemas.store_theme import StoreThemeOut
-from src.api.app.services.rating import get_product_ratings_summary, get_store_ratings_summary
+from src.api.schemas.products.product import ProductOut
+from src.api.schemas.store.store_details import StoreDetails
+from src.api.schemas.store.store_theme import StoreThemeOut
+from src.api.app.services.rating import get_store_ratings_summary
 
 
 async def emit_store_updated(db, store_id: int):

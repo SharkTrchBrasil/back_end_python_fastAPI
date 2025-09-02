@@ -4,7 +4,7 @@ from sqlalchemy.orm import selectinload # Use selectinload para coleções
 from src import templates
 from src.core import models
 from src.core.database import GetDBDep
-from src.api.schemas.product import ProductOut
+from src.api.schemas.products.product import ProductOut
 
 router = APIRouter(prefix="/products", tags=["Products"])
 

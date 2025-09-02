@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 # ✅ Importe os schemas necessários
-from src.api.schemas.order_partial_payment import PartialPaymentCreateSchema, PartialPaymentResponseSchema
+from src.api.schemas.orders.order_partial_payment import PartialPaymentCreateSchema, PartialPaymentResponseSchema
 from src.core import models
 
 

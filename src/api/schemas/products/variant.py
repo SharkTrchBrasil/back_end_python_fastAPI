@@ -2,8 +2,8 @@
 from typing import Annotated, List
 from pydantic import Field
 
-from .base_schema import AppBaseModel, VariantType
-from .variant_option import VariantOption, VariantOptionCreate, WizardVariantOptionCreate  # ✅ IMPORTAÇÃO DIRETA
+from src.api.schemas.shared.base import AppBaseModel, VariantType
+from .variant_option import VariantOption, WizardVariantOptionCreate  # ✅ IMPORTAÇÃO DIRETA
 
 class VariantBase(AppBaseModel):
     name: Annotated[str, Field(min_length=2, max_length=100, examples=["Adicionais Premium"])]

@@ -1,11 +1,11 @@
 import asyncio
 
 from fastapi import APIRouter, HTTPException
-from sqlalchemy.orm import joinedload, selectinload  # ✅ Adicionado selectinload
+from sqlalchemy.orm import selectinload  # ✅ Adicionado selectinload
 
 from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.app.socketio.socketio_emitters import emit_store_updated
-from src.api.schemas.coupon import CouponCreate, CouponUpdate, CouponOut
+from src.api.schemas.financial.coupon import CouponCreate, CouponUpdate, CouponOut
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep

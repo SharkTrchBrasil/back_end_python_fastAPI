@@ -6,13 +6,13 @@ from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi.security import OAuth2PasswordRequestForm
 from starlette import status
 
-from src.api.schemas.auth import TokenResponse
+from src.api.schemas.auth.auth import TokenResponse
 from src.api.admin.utils.auth import authenticate_user
-from src.api.schemas.auth_totem import TotemAuthorizationResponse, AuthenticateByUrlRequest, TotemCheckTokenResponse
+from src.api.schemas.auth.auth_totem import TotemAuthorizationResponse, AuthenticateByUrlRequest, TotemCheckTokenResponse
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetCurrentUserDep
-from src.api.schemas.user import ChangePasswordData
+from src.api.schemas.auth.user import ChangePasswordData
 from src.core.models import TotemAuthorization
 from src.core.security import create_access_token, create_refresh_token, verify_refresh_token, get_password_hash
 

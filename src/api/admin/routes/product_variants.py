@@ -3,11 +3,11 @@ from sqlalchemy.orm import Session
 
 
 # ✅ Importe os seus schemas Pydantic. Use o "Out" para respostas.
-from src.api.schemas.product_variant_link import ProductVariantLinkOut, ProductVariantLinkCreate, ProductVariantLinkUpdate
+from src.api.schemas.products.product_variant_link import ProductVariantLinkOut, ProductVariantLinkCreate, ProductVariantLinkUpdate
 
 from src.api.admin.socketio.emitters import admin_emit_products_updated
 from src.api.app.socketio.socketio_emitters import emit_products_updated
-from src.core.database import get_db, GetDBDep
+from src.core.database import GetDBDep
 from src.core import models
 from src.core.dependencies import GetProductDep
 from src.core.models import Product

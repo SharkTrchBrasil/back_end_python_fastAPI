@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException, status
 from typing import List
 
-from src.api.schemas.segment import SegmentSchema, SegmentCreate
+from src.api.schemas.store.segment import SegmentSchema, SegmentCreate
 from src.core.database import GetDBDep
 from src.core.models import Segment
 

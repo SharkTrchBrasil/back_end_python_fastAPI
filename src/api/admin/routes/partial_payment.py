@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException, status
 from typing import List
 
-from src.api.schemas.order_partial_payment import PartialPaymentResponseSchema, PartialPaymentCreateSchema
+from src.api.schemas.orders.order_partial_payment import PartialPaymentResponseSchema, PartialPaymentCreateSchema
 from src.api.admin.services import partial_payment_service
 from src.core.database import GetDBDep
 

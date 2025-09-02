@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Annotated, List, Optional
 from pydantic import BaseModel, Field, model_validator
 
-from src.api.schemas.customer_totem import AddressOut
+from src.api.schemas.customer.customer_totem import AddressOut
 
 
 

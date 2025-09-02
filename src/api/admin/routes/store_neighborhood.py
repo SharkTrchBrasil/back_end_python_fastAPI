@@ -7,7 +7,7 @@ from src.core.models import Store
 
 from src.core.database import GetDBDep
 from src.core.models import StoreNeighborhood, StoreCity
-from src.api.schemas.store_neighborhood import StoreNeighborhoodSchema
+from src.api.schemas.store.location.store_neighborhood import StoreNeighborhoodSchema
 
 router = APIRouter(prefix="/cities/{city_id}/neighborhoods", tags=["Neighborhoods"])
 

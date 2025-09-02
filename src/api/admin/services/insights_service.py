@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from src.api.admin.services.product_analytic_services import _process_low_stock, _process_top_products, \
     _process_low_turnover, _fetch_product_data_from_db
-from src.api.schemas.insights_schema import DashboardInsight, LowStockInsightDetails, LowMoverInsightDetails
+from src.api.schemas.analytics.insights_schema import DashboardInsight, LowStockInsightDetails, LowMoverInsightDetails
 
 
 

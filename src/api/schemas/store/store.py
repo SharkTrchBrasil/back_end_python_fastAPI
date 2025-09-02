@@ -2,9 +2,9 @@
 from pydantic import BaseModel, Field, computed_field, ConfigDict
 from typing import List, Optional
 
-from src.api.schemas.store_subscription import StoreSubscriptionSchema
+from src.api.schemas.subscriptions.store_subscription import StoreSubscriptionSchema
 from src.core.utils.enums import StoreVerificationStatus
-from src.core.aws import get_presigned_url, S3_PUBLIC_BASE_URL
+from src.core.aws import S3_PUBLIC_BASE_URL
 
 
 # --- Schemas aninhados para a criação (Estão perfeitos!) ---

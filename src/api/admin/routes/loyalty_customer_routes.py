@@ -3,10 +3,10 @@
 from fastapi import APIRouter, HTTPException
 from starlette import status
 
-from src.api.schemas.coupon import CouponOut
+from src.api.schemas.financial.coupon import CouponOut
 from src.core.database import GetDBDep
 from src.api.admin.services import loyalty_service  # Reutilizamos o mesmo serviço
-from src.api.schemas.loyalty_schema import CustomerLoyaltyDashboardSchema
+from src.api.schemas.customer.loyalty_schema import CustomerLoyaltyDashboardSchema
 # Importe sua dependência para pegar o cliente logado
 # from src.api.customer.dependencies import get_current_customer
 from src.core.dependencies import GetStoreDep

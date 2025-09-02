@@ -1,7 +1,7 @@
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field
 from datetime import date
 
-from src.api.schemas.customer import StoreCustomerOut
+from src.api.schemas.customer.customer import StoreCustomerOut
 
 
 # --- Schemas para Categoria de Recebíveis ---

@@ -1,15 +1,12 @@
 import asyncio
 
-from sqlalchemy import select, delete, func
+from sqlalchemy import delete
 from urllib.parse import parse_qs
-
-from sqlalchemy.orm import selectinload
-
 
 from src.api.admin.services.store_access_service import StoreAccessService
 from src.api.admin.services.store_session_service import SessionService
 from src.api.admin.utils.authorize_admin import authorize_admin_by_jwt
-from src.api.schemas.store_operation_config import StoreOperationConfigBase
+from src.api.schemas.store.store_operation_config import StoreOperationConfigBase
 from src.core import models
 from src.api.admin.socketio.emitters import (
     admin_emit_store_updated, admin_emit_dashboard_data_updated,

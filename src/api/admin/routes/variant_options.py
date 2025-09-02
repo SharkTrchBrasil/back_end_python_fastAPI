@@ -1,9 +1,8 @@
-import json
-from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile, status
+from fastapi import APIRouter, HTTPException, Form, File, UploadFile, status
 from pydantic import ValidationError
 
 from src.api.app.socketio.socketio_emitters import emit_products_updated
-from src.api.schemas.variant_option import VariantOptionCreate, VariantOptionUpdate, VariantOption as VariantOptionOut
+from src.api.schemas.products.variant_option import VariantOptionCreate, VariantOptionUpdate, VariantOption as VariantOptionOut
 from src.core import models
 from src.core.aws import upload_file, delete_file # ✅ Importe as funções de arquivo
 from src.core.database import GetDBDep

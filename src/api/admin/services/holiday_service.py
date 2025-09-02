@@ -1,7 +1,7 @@
 import httpx
 from datetime import datetime, timedelta
 from cachetools import cached, TTLCache
-from src.api.schemas.dashboard import DashboardInsight, HolidayInsightDetails
+from src.api.schemas.analytics.dashboard import DashboardInsight, HolidayInsightDetails
 
 # ✅ Cache para guardar os feriados por 24 horas. Essencial para performance!
 holiday_cache = TTLCache(maxsize=10, ttl=86400)

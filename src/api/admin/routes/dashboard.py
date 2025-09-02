@@ -1,15 +1,14 @@
 # Em: src/api/admin/routes/dashboard.py
 
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from fastapi import APIRouter
 from datetime import date, timedelta
 
 from src.api.admin.services.dashboard_service import get_dashboard_data_for_period
-from src.api.schemas.dashboard import (
+from src.api.schemas.analytics.dashboard import (
     DashboardDataSchema,
 
 )
-from src.core.database import get_db, GetDBDep
+from src.core.database import GetDBDep
 
 router = APIRouter(
     prefix="/admin/stores/{store_id}/dashboard",  # Endpoint um pouco mais limpo

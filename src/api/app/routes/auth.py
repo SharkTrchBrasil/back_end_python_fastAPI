@@ -6,7 +6,7 @@ from fastapi import APIRouter, Body, HTTPException
 
 from starlette import status
 
-from src.api.schemas.auth_totem import TotemAuth, TotemAuthorizationResponse, TotemCheckTokenResponse, \
+from src.api.schemas.auth.auth_totem import TotemAuth, TotemAuthorizationResponse, TotemCheckTokenResponse, \
     AuthenticateByUrlRequest
 from src.core import models
 from src.core.database import GetDBDep

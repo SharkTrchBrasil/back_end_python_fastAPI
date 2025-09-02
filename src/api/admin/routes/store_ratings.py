@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
 
-from src.api.schemas.rating import RatingOut
+from src.api.schemas.products.rating import RatingOut
 from src.core.database import GetDBDep
 from src.core.models import StoreRating, ProductRating
 

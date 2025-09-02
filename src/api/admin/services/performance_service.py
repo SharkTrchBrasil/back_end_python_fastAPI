@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
-from typing import Iterable, Optional, Tuple
+from typing import Optional, Tuple
 
 from sqlalchemy import and_, case, func
 from sqlalchemy.orm import Session
@@ -10,7 +10,7 @@ from sqlalchemy.orm import aliased # ✅ Adicione este import
 
 from src.core import models
 from src.core.utils.enums import OrderStatus
-from src.api.schemas.performance import (
+from src.api.schemas.analytics.performance import (
     ComparativeMetricSchema,
     CouponPerformanceSchema,
     CustomerAnalyticsSchema,

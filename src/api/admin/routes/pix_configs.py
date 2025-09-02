@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, UploadFile, File, HTTPException
 
-from src.api.schemas.pix_config import StorePixConfig
+from src.api.schemas.financial.pix_config import StorePixConfig
 
 
 from src.core import models

@@ -2,9 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from src.api.schemas.category import Category
-from src.api.schemas.product import ProductNestedOut
-from src.api.schemas.product_minimal import ProductMinimal, CategoryMinimal
+from src.api.schemas.shared.minimal import ProductMinimal, CategoryMinimal
 
 
 # --- Schema Base ---

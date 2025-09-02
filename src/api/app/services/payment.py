@@ -4,7 +4,7 @@ import time
 from efipay import EfiPay
 from fastapi import HTTPException
 
-from src.api.schemas.pix_config import StorePixConfig
+from src.api.schemas.financial.pix_config import StorePixConfig
 from src.core.config import config
 
 

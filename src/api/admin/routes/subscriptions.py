@@ -7,7 +7,7 @@ from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStore
 
-from src.api.schemas.store_subscription import CreateStoreSubscription  # Seu schema
+from src.api.schemas.subscriptions.store_subscription import CreateStoreSubscription  # Seu schema
 from src.api.app.services import payment as payment_services
 from src.core.utils.enums import Roles
 

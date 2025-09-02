@@ -7,7 +7,7 @@ from src.api.app.socketio.socketio_emitters import emit_store_updated
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 from src.core.models import StoreCity
-from src.api.schemas.store_city import StoreCitySchema
+from src.api.schemas.store.location.store_city import StoreCitySchema
 
 router = APIRouter(prefix="/stores/{store_id}/cities", tags=["Cities"])
 

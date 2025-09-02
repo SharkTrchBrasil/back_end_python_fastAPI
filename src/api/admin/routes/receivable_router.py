@@ -1,11 +1,10 @@
-from datetime import date
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 
 from src.api.admin.services.receivable_service import receivable_service
 # Adapte os imports para a estrutura do seu projeto
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
-from src.api.schemas.receivable import ReceivableCreate, ReceivableUpdate, ReceivableResponse
+from src.api.schemas.financial.receivable import ReceivableCreate, ReceivableUpdate, ReceivableResponse
 
 from src.api.admin.socketio.emitters import admin_emit_financials_updated
 

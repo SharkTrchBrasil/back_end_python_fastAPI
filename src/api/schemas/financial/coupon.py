@@ -2,8 +2,6 @@ from datetime import datetime
 from pydantic import BaseModel, Field, field_serializer
 from typing import Optional, Any
 
-from src.api.schemas.product import ProductOut
-
 
 # ===================================================================
 # ✅ NOVO: Schema para representar as REGRAS

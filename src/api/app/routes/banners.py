@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 
-from src.api.schemas.banner import BannerOut
+from src.api.schemas.products.banner import BannerOut
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreFromTotemTokenDep

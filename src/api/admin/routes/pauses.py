@@ -1,10 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException
 
-from src.api import schemas
 from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.app.socketio.socketio_emitters import emit_store_updated
-from src.api.schemas.scheduled_pauses import ScheduledPauseOut, ScheduledPauseCreate
+from src.api.schemas.store.scheduled_pauses import ScheduledPauseOut, ScheduledPauseCreate
 from src.core import models
 from src.core.database import GetDBDep
 

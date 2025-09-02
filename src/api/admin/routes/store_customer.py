@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from typing import List
 
-from src.api.schemas.customer import StoreCustomerOut
+from src.api.schemas.customer.customer import StoreCustomerOut
 from src.core.database import GetDBDep
 from src.core.models import StoreCustomer, Customer
 

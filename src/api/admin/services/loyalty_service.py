@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from typing import List
 
 from src.core import models
-from src.api.schemas.loyalty_schema import (
+from src.api.schemas.customer.loyalty_schema import (
     LoyaltyConfigUpdateSchema,
     LoyaltyRewardCreateSchema,
     LoyaltyRewardUpdateSchema, LoyaltyRewardStatusSchema,

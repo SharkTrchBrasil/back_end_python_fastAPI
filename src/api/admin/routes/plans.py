@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from sqlalchemy.orm import joinedload
 
-from src.api.schemas.plans import PlanSchema
+from src.api.schemas.subscriptions.plans import PlanSchema
 from src.core import models
 from src.core.database import GetDBDep
 

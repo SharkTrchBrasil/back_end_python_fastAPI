@@ -4,7 +4,7 @@ from typing import List
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetCurrentUserDep  # Dependência para pegar o usuário logado
-from src.api.schemas.wallet import WalletSummaryOut, CashbackTransactionOut
+from src.api.schemas.customer.wallet import WalletSummaryOut, CashbackTransactionOut
 
 # O prefixo '/wallet' é limpo e semântico
 router = APIRouter(tags=["Wallet"], prefix="/wallet")

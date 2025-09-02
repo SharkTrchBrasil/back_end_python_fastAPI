@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import Annotated
 from pydantic import Field, computed_field
 
-from src.api.schemas.base_schema import AppBaseModel
-from src.api.schemas.product_minimal import ProductMinimal  # Garanta que este import está correto
-from src.core.aws import get_presigned_url, S3_PUBLIC_BASE_URL
+from src.api.schemas.shared.base import AppBaseModel
+from src.api.schemas.shared.minimal import ProductMinimal  # Garanta que este import está correto
+from src.core.aws import S3_PUBLIC_BASE_URL
 
 
 # --- SCHEMA BASE ATUALIZADO ---

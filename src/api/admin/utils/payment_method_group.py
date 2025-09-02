@@ -1,7 +1,6 @@
 # Coloque esta função no seu arquivo de socket, antes do handler
 
-from collections import defaultdict
-from src.api.schemas.payment_method import (
+from src.api.schemas.financial.payment_method import (
     PaymentMethodGroupOut,
     PaymentMethodCategoryOut,
     PlatformPaymentMethodOut,

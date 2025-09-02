@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 
 from src.api.admin.services.payable_service import payable_service
 from src.api.admin.socketio.emitters import admin_emit_dashboard_payables_data_updated, admin_emit_financials_updated
-from src.api.schemas.store_payable import PayableUpdate, PayableResponse, PayableCreate
+from src.api.schemas.store.store_payable import PayableUpdate, PayableResponse, PayableCreate
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 

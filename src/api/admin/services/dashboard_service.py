@@ -1,18 +1,16 @@
 from datetime import date, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import func, case, extract
+from sqlalchemy import func, extract
 
-from src.api.schemas.store_payable import PayableResponse
 from src.core import models
-from src.api.schemas.dashboard import (
+from src.api.schemas.analytics.dashboard import (
     DashboardDataSchema,
     DashboardKpiSchema,
     SalesDataPointSchema,
     TopItemSchema,
-    PaymentMethodSummarySchema, DashboardMetrics, MonthlyDataPoint, OrderTypeSummarySchema,
+    PaymentMethodSummarySchema, MonthlyDataPoint, OrderTypeSummarySchema,
 )
-from src.core.models import StorePayable
-from src.core.utils.enums import OrderStatus, PayableStatus
+from src.core.utils.enums import OrderStatus
 
 
 def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, end_date: date) -> DashboardDataSchema:

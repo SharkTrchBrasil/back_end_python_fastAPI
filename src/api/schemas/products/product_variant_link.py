@@ -2,7 +2,7 @@
 from typing import Annotated, Optional
 from pydantic import Field
 
-from .base_schema import AppBaseModel, UIDisplayMode
+from src.api.schemas.shared.base import AppBaseModel, UIDisplayMode
 # Supondo que você tenha um base.py
 from .variant import Variant, VariantCreate  # ✅ IMPORTAÇÃO DIRETA: Importa o schema Variant
 

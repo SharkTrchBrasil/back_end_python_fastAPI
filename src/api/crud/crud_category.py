@@ -1,6 +1,4 @@
-from sqlalchemy.orm import Session
-
-from src.api.schemas.category import CategoryCreate
+from src.api.schemas.products.category import CategoryCreate
 from src.core import models
 
 # A criação de categoria agora é super simples!

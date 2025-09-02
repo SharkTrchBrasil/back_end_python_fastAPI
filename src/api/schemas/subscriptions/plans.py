@@ -1,7 +1,7 @@
 # schemas/subscription_plan_schema.py
 
 from pydantic import BaseModel, ConfigDict, computed_field
-from src.api.schemas.plans_feature import FeatureSchema
+from src.api.schemas.subscriptions.plans_feature import FeatureSchema
 
 
 # Este schema intermediário nos ajuda a extrair a feature da associação

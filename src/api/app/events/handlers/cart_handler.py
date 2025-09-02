@@ -7,13 +7,13 @@ from sqlalchemy.orm import selectinload, joinedload
 from pydantic import ValidationError
 
 from src.api.app.utils.coupon_logic import apply_coupon
-from src.api.schemas.product import ProductOut
+from src.api.schemas.products.product import ProductOut
 from src.core import models
 from src.core.database import get_db_manager
 from src.socketio_instance import sio
-from src.api.schemas.cart import (CartSchema, CartItemSchema,
-                                  CartItemVariantSchema, CartItemVariantOptionSchema,
-                                  UpdateCartItemInput)
+from src.api.schemas.orders.cart import (CartSchema, CartItemSchema,
+                                         CartItemVariantSchema, CartItemVariantOptionSchema,
+                                         UpdateCartItemInput)
 
 
 

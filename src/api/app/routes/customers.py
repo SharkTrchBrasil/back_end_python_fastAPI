@@ -3,7 +3,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from src.api.schemas.customer_totem import (
+from src.api.schemas.customer.customer_totem import (
     CustomerCreate,
     CustomerOut,
     AddressCreate,

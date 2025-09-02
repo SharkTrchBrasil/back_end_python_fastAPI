@@ -1,7 +1,6 @@
 from decimal import Decimal
 
 from sqlalchemy import select, Boolean, JSON, Integer
-import enum
 from datetime import datetime, date, timezone
 from typing import Optional, List
 
@@ -13,7 +12,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
     CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode, CategoryType
-from src.api.schemas.base_schema import VariantType, UIDisplayMode
+from src.api.schemas.shared.base import VariantType, UIDisplayMode
 
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy import ForeignKey, Enum, Text

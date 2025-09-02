@@ -4,12 +4,12 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, and_
 
-from src.api.schemas.cash_session import (
+from src.api.schemas.financial.cash_session import (
     CashierSessionUpdate,
     CashierSessionOut, CashierSessionCreate,
 
 )
-from src.api.schemas.cash_transaction import CashierTransactionOut
+from src.api.schemas.financial.cash_transaction import CashierTransactionOut
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep, GetCurrentUserDep
 

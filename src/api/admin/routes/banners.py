@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 
 
-from src.api.schemas.banner import BannerOut
+from src.api.schemas.products.banner import BannerOut
 
 from src.core import models
 from src.core.aws import upload_file, delete_file

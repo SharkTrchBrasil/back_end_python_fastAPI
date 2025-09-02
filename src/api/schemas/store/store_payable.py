@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, computed_field
 from datetime import date
 
-from .supplier import SupplierResponse  # Importar o novo schema
+from src.api.schemas.financial.supplier import SupplierResponse  # Importar o novo schema
 
 
 class CategoryResponse(BaseModel):  # Criar um schema para categoria também

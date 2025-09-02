@@ -2,7 +2,6 @@
 
 from urllib.parse import parse_qs
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy.orm import selectinload, joinedload
 
 from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations_simplified
 from src.api.crud import store_crud
@@ -12,8 +11,8 @@ from src.api.app.services.authorize_totem import authorize_totem
 from src.api.app.services.rating import get_store_ratings_summary, get_product_ratings_summary
 from src.api.admin.services.subscription_service import SubscriptionService  # ✅ Reutilizamos o serviço!
 
-from src.api.schemas.rating import RatingsSummaryOut
-from src.api.schemas.store_details import StoreDetails
+from src.api.schemas.products.rating import RatingsSummaryOut
+from src.api.schemas.store.store_details import StoreDetails
 
 
 

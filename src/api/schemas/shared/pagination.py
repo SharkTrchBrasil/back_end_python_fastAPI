@@ -2,7 +2,6 @@
 
 from pydantic import BaseModel
 from typing import List, Generic, TypeVar
-from .order import OrderDetails # Supondo que você já tenha um schema para detalhes do pedido
 
 T = TypeVar('T')
 

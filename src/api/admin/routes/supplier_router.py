@@ -1,11 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 # ✅ 1. ADIÇÃO DOS IMPORTS NECESSÁRIOS
 from src.api.admin.socketio.emitters import admin_emit_financials_updated
 from src.api.admin.services.supplier_service import supplier_service
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
-from src.core.models import Store, Supplier
-from src.api.schemas.supplier import SupplierCreate, SupplierUpdate, SupplierResponse
+from src.api.schemas.financial.supplier import SupplierCreate, SupplierUpdate, SupplierResponse
 
 router = APIRouter(prefix="/stores/{store_id}/suppliers", tags=["Suppliers"])
 

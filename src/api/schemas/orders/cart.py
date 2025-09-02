@@ -2,7 +2,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
-from src.api.schemas.product import ProductOut
+from src.api.schemas.products.product import ProductOut
 
 
 # =====================================================================================

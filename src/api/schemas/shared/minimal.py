@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pydantic import Field, computed_field
-from .base_schema import AppBaseModel
+from src.api.schemas.shared.base import AppBaseModel
 from src.core.aws import S3_PUBLIC_BASE_URL
 
 # O "cartão de visitas" de um Produto

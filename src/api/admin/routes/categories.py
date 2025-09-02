@@ -1,21 +1,16 @@
-import asyncio
-from decimal import Decimal
-
-from fastapi import APIRouter, Form, HTTPException, File, UploadFile
+from fastapi import APIRouter, HTTPException
 
 from src.api import crud
 from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_products_updated
 from src.api.admin.utils.emit_updates import emit_updates_products
-from src.api.app.socketio.socketio_emitters import emit_products_updated, emit_store_updated
 from src.api.crud import crud_category, crud_option
-from src.api.schemas.category import CategoryCreate, Category, OptionGroup, OptionGroupCreate, OptionItemCreate, \
+from src.api.schemas.products.category import CategoryCreate, Category, OptionGroup, OptionGroupCreate, OptionItemCreate, \
     OptionItem, CategoryUpdate
 
 from src.core import models
-from src.core.aws import upload_file, delete_file
+from src.core.aws import delete_file
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
-from src.core.utils.enums import CashbackType, CategoryType
 
 router = APIRouter(tags=["Categories"], prefix="/stores/{store_id}/categories")
 

@@ -3,18 +3,16 @@ import math
 from typing import Optional
 from datetime import date, datetime, time
 
-from fastapi import APIRouter, Depends, Query, HTTPException
-from h11 import Response
+from fastapi import APIRouter, Query, HTTPException
 from sqlalchemy import cast, String
-from sqlalchemy.orm import Session
 
 #from src.api.admin.services.pdf_service import create_performance_pdf
-from src.api.schemas.order import OrderDetails
-from src.api.schemas.pagination import PaginatedResponse
+from src.api.schemas.orders.order import OrderDetails
+from src.api.schemas.shared.pagination import PaginatedResponse
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
-from src.api.schemas.performance import StorePerformanceSchema, TodaySummarySchema
+from src.api.schemas.analytics.performance import StorePerformanceSchema, TodaySummarySchema
 from src.api.admin.services.performance_service import get_store_performance_for_date, get_today_summary
 
 router = APIRouter(

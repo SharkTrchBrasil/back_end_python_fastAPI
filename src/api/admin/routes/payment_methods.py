@@ -7,7 +7,7 @@ from src.api.app.socketio.socketio_emitters import emit_store_updated
 # Importe seus novos modelos e schemas
 from src.core import models
 from src.core.database import GetDBDep
-from src.api.schemas.payment_method import PaymentMethodGroupOut, \
+from src.api.schemas.financial.payment_method import PaymentMethodGroupOut, \
  \
     PaymentMethodCategoryOut, PlatformPaymentMethodOut, StorePaymentMethodActivationOut
 

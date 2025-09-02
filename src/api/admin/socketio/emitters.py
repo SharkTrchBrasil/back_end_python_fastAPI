@@ -13,32 +13,29 @@ from src.api.admin.services.insights_service import InsightsService
 from src.api.admin.services.payable_service import payable_service
 from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations_simplified
 from src.api.crud import store_crud
-from src.api.schemas.category import Category
-from src.api.schemas.command import CommandOut
-from src.api.schemas.payable_category import PayableCategoryResponse
-from src.api.schemas.peak_hours import PeakHoursAnalytics
-from src.api.schemas.receivable import ReceivableResponse, ReceivableCategoryResponse
-from src.api.schemas.store_details import StoreDetails
-from src.api.schemas.store_payable import PayableResponse
-from src.api.schemas.supplier import SupplierResponse
+from src.api.schemas.products.category import Category
+from src.api.schemas.orders.command import CommandOut
+from src.api.schemas.financial.payable_category import PayableCategoryResponse
+from src.api.schemas.analytics.peak_hours import PeakHoursAnalytics
+from src.api.schemas.financial.receivable import ReceivableResponse, ReceivableCategoryResponse
+from src.api.schemas.store.store_details import StoreDetails
+from src.api.schemas.store.store_payable import PayableResponse
+from src.api.schemas.financial.supplier import SupplierResponse
 
-from src.api.schemas.table import TableOut
+from src.api.schemas.store.table import TableOut
 from src.api.admin.services.customer_analytic_service import get_customer_analytics_for_store
 from src.api.admin.services.dashboard_service import get_dashboard_data_for_period
 from src.api.admin.services.product_analytic_services import get_product_analytics_for_store
 from src.api.admin.services.subscription_service import SubscriptionService
 
-from src.api.app.services.rating import get_product_ratings_summary, get_store_ratings_summary, \
-    get_all_ratings_summaries_for_store
-from src.api.schemas.order import OrderDetails
-from src.api.schemas.rating import RatingsSummaryOut
+from src.api.schemas.orders.order import OrderDetails
 from src.socketio_instance import sio
 from src.core import models
 
-from src.api.schemas.product import ProductOut
+from src.api.schemas.products.product import ProductOut
 
 from sqlalchemy.orm import selectinload
-from src.api.schemas.variant import Variant
+from src.api.schemas.products.variant import Variant
 
 
 

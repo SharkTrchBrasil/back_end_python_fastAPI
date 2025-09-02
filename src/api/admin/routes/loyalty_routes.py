@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, status
 from typing import List
 
 # --- Schemas ---
-from src.api.schemas.loyalty_schema import (
+from src.api.schemas.customer.loyalty_schema import (
     LoyaltyConfigUpdateSchema,
     LoyaltyConfigResponseSchema,
     LoyaltyRewardCreateSchema,

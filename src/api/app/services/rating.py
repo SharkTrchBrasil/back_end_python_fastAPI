@@ -1,8 +1,7 @@
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
-from typing import Dict, Any
 
-from src.api.schemas.rating import RatingsSummaryOut
+from src.api.schemas.products.rating import RatingsSummaryOut
 from src.core import models
 from src.core.models import StoreRating, ProductRating
 

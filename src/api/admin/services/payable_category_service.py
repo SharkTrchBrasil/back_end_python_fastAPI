@@ -1,7 +1,7 @@
 # Em: src/api/services/payable_category_service.py
 from sqlalchemy.orm import Session
 from src.core.models import PayableCategory, Store
-from src.api.schemas.payable_category import PayableCategoryCreate, PayableCategoryUpdate
+from src.api.schemas.financial.payable_category import PayableCategoryCreate, PayableCategoryUpdate
 
 class PayableCategoryService:
     def get_by_id(self, db: Session, category_id: int, store_id: int) -> PayableCategory | None:
