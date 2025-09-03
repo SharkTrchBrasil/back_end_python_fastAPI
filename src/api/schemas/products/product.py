@@ -151,40 +151,40 @@ class ProductOut(Product):
 
         return min(possible_kits)
 
-    # ✅ --- NOVOS CAMPOS CALCULADOS PARA PREÇO --- ✅
-
-    @computed_field
-    @property
-    def price(self) -> int:
-        """Retorna o preço da categoria principal."""
-        if self.category_links:
-            return self.category_links[0].price
-        return 0 # Valor padrão caso não haja link (pouco provável)
-
-    @computed_field
-    @property
-    def cost_price(self) -> int | None:
-        """Retorna o preço de custo da categoria principal."""
-        if self.category_links:
-            return self.category_links[0].cost_price
-        return None
-
-    @computed_field
-    @property
-    def is_on_promotion(self) -> bool:
-        """Verifica se há promoção na categoria principal."""
-        if self.category_links:
-            return self.category_links[0].is_on_promotion
-        return False
-
-    @computed_field
-    @property
-    def promotional_price(self) -> int | None:
-        """Retorna o preço promocional da categoria principal."""
-        if self.category_links:
-            return self.category_links[0].promotional_price
-        return None
-
+    # # ✅ --- NOVOS CAMPOS CALCULADOS PARA PREÇO --- ✅
+    #
+    # @computed_field
+    # @property
+    # def price(self) -> int:
+    #     """Retorna o preço da categoria principal."""
+    #     if self.category_links:
+    #         return self.category_links[0].price
+    #     return 0 # Valor padrão caso não haja link (pouco provável)
+    #
+    # @computed_field
+    # @property
+    # def cost_price(self) -> int | None:
+    #     """Retorna o preço de custo da categoria principal."""
+    #     if self.category_links:
+    #         return self.category_links[0].cost_price
+    #     return None
+    #
+    # @computed_field
+    # @property
+    # def is_on_promotion(self) -> bool:
+    #     """Verifica se há promoção na categoria principal."""
+    #     if self.category_links:
+    #         return self.category_links[0].is_on_promotion
+    #     return False
+    #
+    # @computed_field
+    # @property
+    # def promotional_price(self) -> int | None:
+    #     """Retorna o preço promocional da categoria principal."""
+    #     if self.category_links:
+    #         return self.category_links[0].promotional_price
+    #     return None
+    #
 
 # -------------------------------------------------
 # 2. Schemas de Avaliação (ProductRating)
