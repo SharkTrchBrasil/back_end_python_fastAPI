@@ -56,7 +56,8 @@ class CategoryBase(BaseModel):
 
 
 class CategoryCreate(CategoryBase):
-    pass  # Para criar, só precisamos do nome e tipo, o resto vem depois
+
+    option_groups: list[OptionGroupCreate] | None = None
 
 
 class CategoryUpdate(BaseModel):
