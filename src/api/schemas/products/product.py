@@ -1,20 +1,20 @@
 from __future__ import annotations
 from typing import Optional, List
 from pydantic import BaseModel, Field, ConfigDict, computed_field
-from pydantic_core.core_schema import FieldValidationInfo
 
+import logging
 
 from .product_category_link import ProductCategoryLinkCreate, ProductCategoryLinkOut
-
-
 from .bulk_actions import KitComponentOut
 from .product_variant_link import ProductVariantLinkOut, ProductVariantLinkCreate
 from .rating import RatingsSummaryOut
 
 from src.core.aws import get_presigned_url, S3_PUBLIC_BASE_URL
 from src.core.utils.enums import CashbackType, ProductType
-from pydantic import field_validator # ✅ 1. Adicione este import
-from typing import Any # ✅ Adicione este import também
+
+
+# Configurar logging
+logger = logging.getLogger(__name__)
 
 
 # --- Configuração Pydantic Base ---
@@ -27,78 +27,60 @@ class AppBaseModel(BaseModel):
 # -------------------------------------------------
 
 class ProductWizardCreate(AppBaseModel):
-    name: str
-    description: Optional[str] = None
-   # base_price: int
-    #cost_price: Optional[int] = 0
-    ean: Optional[str] = None
-    available: bool = True
-    product_type: ProductType = ProductType.INDIVIDUAL
-    stock_quantity: Optional[int] = 0
-    control_stock: bool = False
-    category_links: List[ProductCategoryLinkCreate] = Field(..., min_length=1)
-
-    # ✅ CORRIGIDO: Sem aspas! A classe foi importada diretamente.
-    variant_links: List[ProductVariantLinkCreate] = []
+    name: str = Field(..., min_length=1, max_length=255, description="Nome do produto")
+    description: Optional[str] = Field(None, max_length=2000, description="Descrição do produto")
+    ean: Optional[str] = Field(None, max_length=13, description="Código EAN do produto")
+    available: bool = Field(True, description="Disponibilidade do produto")
+    product_type: ProductType = Field(ProductType.INDIVIDUAL, description="Tipo do produto")
+    stock_quantity: Optional[int] = Field(0, ge=0, description="Quantidade em estoque")
+    control_stock: bool = Field(False, description="Se controla estoque")
+    category_links: List[ProductCategoryLinkCreate] = Field(..., min_length=1, description="Links para categorias")
+    variant_links: List[ProductVariantLinkCreate] = Field([], description="Links para variantes")
 
 
 class Product(AppBaseModel):
     """Campos essenciais que definem um produto."""
-    name: str
-    description: str
-    #base_price: int
-    product_type: ProductType = ProductType.INDIVIDUAL
-    available: bool
-   # promotion_price: int
-    featured: bool
-   # activate_promotion: bool
-    ean: str
-   # cost_price: int
-    stock_quantity: int
-    control_stock: bool
-    min_stock: int
-    max_stock: int
-    unit: str
-    sold_count: int
-    file_key: str | None = Field(default=None, exclude=True)
-    cashback_type: CashbackType = CashbackType.NONE
-    cashback_value: int = 0
-
-
+    name: str = Field(..., min_length=1, max_length=255)
+    description: str = Field("", max_length=2000)
+    product_type: ProductType = Field(ProductType.INDIVIDUAL)
+    available: bool = Field(True)
+    featured: bool = Field(False)
+    ean: str = Field("")
+    stock_quantity: int = Field(0, ge=0)
+    control_stock: bool = Field(False)
+    min_stock: int = Field(0, ge=0)
+    max_stock: int = Field(0, ge=0)
+    unit: str = Field("un", max_length=10)
+    sold_count: int = Field(0, ge=0)
+    file_key: Optional[str] = Field(default=None, exclude=True)
+    cashback_type: CashbackType = Field(CashbackType.NONE)
+    cashback_value: int = Field(0, ge=0)
 
 
 class ProductUpdate(AppBaseModel):
     """Schema para atualizar um produto. Todos os campos são opcionais."""
-    name: Optional[str] = None
-    description: Optional[str] = None
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = Field(None, max_length=2000)
     featured: Optional[bool] = None
-    ean: Optional[str] = None
-
-    # ✅ --- CAMPOS ADICIONADOS AQUI --- ✅
+    ean: Optional[str] = Field(None, max_length=13)
     available: Optional[bool] = None
-    tag: Optional[str] = None
-
-    # --- Campos de Estoque ---
-    stock_quantity: Optional[int] = None
+    tag: Optional[str] = Field(None, max_length=50)
+    stock_quantity: Optional[int] = Field(None, ge=0)
     control_stock: Optional[bool] = None
-    min_stock: Optional[int] = None
-    max_stock: Optional[int] = None
-    unit: Optional[str] = None
-
-
-
-    # --- Outros Campos ---
+    min_stock: Optional[int] = Field(None, ge=0)
+    max_stock: Optional[int] = Field(None, ge=0)
+    unit: Optional[str] = Field(None, max_length=10)
     file_key: Optional[str] = Field(default=None, exclude=True)
     cashback_type: Optional[CashbackType] = None
-    cashback_value: Optional[int] = None
-
+    cashback_value: Optional[int] = Field(None, ge=0)
 
 
 class ProductDefaultOptionOut(AppBaseModel):
-    variant_option_id: int
+    variant_option_id: int = Field(..., ge=1)
+
 
 class ProductNestedOut(Product):
-    id: int
+    id: int = Field(..., ge=1)
 
     @computed_field
     @property
@@ -106,93 +88,123 @@ class ProductNestedOut(Product):
         return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if self.file_key else None
 
 
-
-
 class ProductOut(Product):
-    id: int
-    variant_links: List[ProductVariantLinkOut] = []
-
-    category_links: List[ProductCategoryLinkOut] = []
-
-
-    components: List[KitComponentOut] = []
-    rating: Optional[RatingsSummaryOut] = None
+    id: int = Field(..., ge=1)
+    variant_links: List[ProductVariantLinkOut] = Field([], description="Variantes do produto")
+    category_links: List[ProductCategoryLinkOut] = Field([], description="Categorias do produto")
+    components: List[KitComponentOut] = Field([], description="Componentes do kit")
+    rating: Optional[RatingsSummaryOut] = Field(None, description="Avaliação do produto")
     default_options: List[ProductDefaultOptionOut] = Field(default=[], exclude=True)
-
 
     @computed_field
     @property
     def image_path(self) -> str | None:
-        # ✅ 2. USE A NOVA LÓGICA DE URL ESTÁTICA E PERMANENTE
         return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if self.file_key else None
 
     @computed_field
     @property
     def default_option_ids(self) -> list[int]:
-        if not hasattr(self, 'default_options') or not self.default_options:
-            return []
-        return [default.variant_option_id for default in self.default_options]
+        return [default.variant_option_id for default in self.default_options] if self.default_options else []
 
     @computed_field
     @property
     def calculated_stock(self) -> int | None:
+        """Calcula o estoque disponível considerando componentes para kits."""
         if self.product_type != ProductType.KIT or not self.components:
             return self.stock_quantity if self.control_stock else None
 
-        possible_kits = []
-        for item in self.components:
-            if not item.component.control_stock:
-                continue
-            stock_for_this_item = item.component.stock_quantity // item.quantity
-            possible_kits.append(stock_for_this_item)
+        try:
+            possible_kits = []
+            for item in self.components:
+                if not item.component.control_stock:
+                    continue
+                stock_for_this_item = item.component.stock_quantity // item.quantity
+                possible_kits.append(stock_for_this_item)
 
-        if not possible_kits:
+            return min(possible_kits) if possible_kits else None
+        except Exception as e:
+            logger.error(f"Error calculating stock for product {self.id}: {e}")
             return None
 
-        return min(possible_kits)
+    # --- CAMPOS CALCULADOS OTIMIZADOS PARA PREÇO ---
 
-    # # ✅ --- NOVOS CAMPOS CALCULADOS PARA PREÇO --- ✅
-    #
-    # @computed_field
-    # @property
-    # def price(self) -> int:
-    #     """Retorna o preço da categoria principal."""
-    #     if self.category_links:
-    #         return self.category_links[0].price
-    #     return 0 # Valor padrão caso não haja link (pouco provável)
-    #
-    # @computed_field
-    # @property
-    # def cost_price(self) -> int | None:
-    #     """Retorna o preço de custo da categoria principal."""
-    #     if self.category_links:
-    #         return self.category_links[0].cost_price
-    #     return None
-    #
-    # @computed_field
-    # @property
-    # def is_on_promotion(self) -> bool:
-    #     """Verifica se há promoção na categoria principal."""
-    #     if self.category_links:
-    #         return self.category_links[0].is_on_promotion
-    #     return False
-    #
-    # @computed_field
-    # @property
-    # def promotional_price(self) -> int | None:
-    #     """Retorna o preço promocional da categoria principal."""
-    #     if self.category_links:
-    #         return self.category_links[0].promotional_price
-    #     return None
-    #
+    @computed_field
+    @property
+    def price(self) -> int:
+        """Retorna o menor preço entre todas as categorias."""
+        if not self.category_links:
+            logger.warning(f"Product {self.id if hasattr(self, 'id') else 'unknown'} has no category links")
+            return 0
+
+        try:
+            return min(link.price for link in self.category_links)
+        except ValueError as e:
+            logger.error(f"Error calculating price for product {self.id}: {e}")
+            return 0
+
+    @computed_field
+    @property
+    def cost_price(self) -> int | None:
+        """Retorna o menor preço de custo entre as categorias (apenas se todas tiverem)."""
+        if not self.category_links:
+            return None
+
+        try:
+            # Filtra apenas categorias com cost_price definido
+            cost_prices = [link.cost_price for link in self.category_links if link.cost_price is not None]
+            return min(cost_prices) if cost_prices else None
+        except ValueError as e:
+            logger.error(f"Error calculating cost price for product {self.id}: {e}")
+            return None
+
+    @computed_field
+    @property
+    def is_on_promotion(self) -> bool:
+        """Verifica se há promoção em qualquer categoria."""
+        return any(link.is_on_promotion for link in self.category_links) if self.category_links else False
+
+    @computed_field
+    @property
+    def promotional_price(self) -> int | None:
+        """Retorna o menor preço promocional ativo."""
+        if not self.category_links:
+            return None
+
+        try:
+            # Filtra apenas promoções ativas com preço definido
+            active_promotions = [
+                link.promotional_price for link in self.category_links
+                if link.is_on_promotion and link.promotional_price is not None
+            ]
+            return min(active_promotions) if active_promotions else None
+        except ValueError as e:
+            logger.error(f"Error calculating promotional price for product {self.id}: {e}")
+            return None
+
+    @computed_field
+    @property
+    def primary_category_id(self) -> int | None:
+        """Retorna o ID da primeira categoria (útil para referência)."""
+        return self.category_links[0].category_id if self.category_links else None
+
+    @computed_field
+    @property
+    def has_multiple_prices(self) -> bool:
+        """Indica se o produto tem preços diferentes em categorias diferentes."""
+        if len(self.category_links) <= 1:
+            return False
+
+        first_price = self.category_links[0].price
+        return any(link.price != first_price for link in self.category_links[1:])
+
 
 # -------------------------------------------------
 # 2. Schemas de Avaliação (ProductRating)
 # -------------------------------------------------
 
 class ProductRatingBase(AppBaseModel):
-    rating: int = Field(..., ge=1, le=5)
-    comment: Optional[str] = None
+    rating: int = Field(..., ge=1, le=5, description="Avaliação de 1 a 5 estrelas")
+    comment: Optional[str] = Field(None, max_length=1000, description="Comentário opcional")
 
 
 class ProductRatingCreate(ProductRatingBase):
@@ -200,8 +212,6 @@ class ProductRatingCreate(ProductRatingBase):
 
 
 class ProductRatingOut(ProductRatingBase):
-    id: int
-    product_id: int
-    customer_id: int
-
-
+    id: int = Field(..., ge=1, description="ID da avaliação")
+    product_id: int = Field(..., ge=1, description="ID do produto avaliado")
+    customer_id: int = Field(..., ge=1, description="ID do cliente que avaliou")
