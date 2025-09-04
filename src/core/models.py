@@ -11,16 +11,29 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
-    CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode, CategoryType
+    CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode, CategoryType, FoodTagEnum
 from src.api.schemas.shared.base import VariantType, UIDisplayMode
 
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy import ForeignKey, Enum, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 import uuid
+from sqlalchemy import Table, Column, Integer, ForeignKey, String, Enum, Numeric, Boolean
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+
+
+
+
+
+
 
 class Base(DeclarativeBase):
     pass
+
+
+
+
 
 
 class TimestampMixin:
@@ -265,6 +278,7 @@ class StoreAccess(Base, TimestampMixin):
     __table_args__ = (Index("ix_store_user", "store_id", "user_id"),)
 
 
+
 # --- MODELO PRINCIPAL DE CATEGORIA (ATUALIZADO) ---
 class Category(Base, TimestampMixin):
     __tablename__ = "categories"
@@ -323,6 +337,12 @@ class OptionItem(Base, TimestampMixin):
 
     option_group_id: Mapped[int] = mapped_column(ForeignKey("option_groups.id"))
     group: Mapped["OptionGroup"] = relationship(back_populates="items")
+
+    tags: Mapped[List[FoodTagEnum]] = mapped_column(
+        ARRAY(Enum(FoodTagEnum, name="food_tag_enum", create_type=False)),
+        nullable=False,
+        server_default="{}"  # Garante que o valor padrão no banco é um array vazio
+    )
 
 
 class Product(Base, TimestampMixin):

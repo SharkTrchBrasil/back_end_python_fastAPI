@@ -4,13 +4,13 @@ from src.api.schemas.products.category import CategoryCreate
 from src.core import models
 
 
-# ✅ --- FUNÇÃO CREATE_CATEGORY CORRIGIDA E COMPLETA --- ✅
+# ✅ --- FUNÇÃO create_category ATUALIZADA PARA LIDAR COM DADOS ANINHADOS --- ✅
 def create_category(db, category_data: CategoryCreate, store_id: int):
-    # 1. Separe os dados aninhados (option_groups) dos dados principais da categoria.
-    option_groups_data = category_data.option_groups
+    # 1. Separa os dados dos grupos de opções dos dados principais da categoria.
+    option_groups_data = category_data.option_groups or []
     category_dict = category_data.model_dump(exclude={'option_groups'})
 
-    # 2. Crie a Categoria principal no banco.
+    # 2. Cria a Categoria principal.
     current_category_count = db.query(models.Category).filter(models.Category.store_id == store_id).count()
     db_category = models.Category(
         **category_dict,
@@ -19,38 +19,29 @@ def create_category(db, category_data: CategoryCreate, store_id: int):
     )
     db.add(db_category)
 
-    # 3. Use db.flush() para obter o ID da nova categoria ANTES de fazer o commit final.
-    #    Isso é essencial para podermos associar os grupos de opções a ela.
+    # 3. Usa db.flush() para obter o ID da nova categoria antes do commit final.
     db.flush()
 
-    # 4. Se houver grupos de opções no payload, itere sobre eles.
-    if option_groups_data:
-        for group_data in option_groups_data:
-            # Separa os itens do grupo
-            options_data = group_data.options
-            group_dict = group_data.model_dump(exclude={'options'})
+    # 4. Se foram enviados grupos de opções, itera sobre eles.
+    for group_data in option_groups_data:
+        items_data = group_data.items or []
+        group_dict = group_data.model_dump(exclude={'items'})
 
-            # 5. Crie cada OptionGroup, associando ao ID da categoria que acabamos de obter.
-            db_group = models.OptionGroup(
-                **group_dict,
-                category_id=db_category.id
-            )
-            db.add(db_group)
-            db.flush()  # Flush novamente para obter o ID do novo grupo
+        # 5. Cria cada OptionGroup, associando ao ID da categoria.
+        db_group = models.OptionGroup(**group_dict, category_id=db_category.id)
+        db.add(db_group)
+        db.flush()  # Flush para obter o ID do novo grupo
 
-            # 6. (IMPORTANTE) Se o grupo tiver itens (options), itere sobre eles e crie-os.
-            if options_data:
-                for item_data in options_data:
-                    db_item = models.OptionItem(
-                        **item_data.model_dump(),
-                        option_group_id=db_group.id  # Associa ao ID do grupo
-                    )
-                    db.add(db_item)
+        # 6. Se o grupo tiver itens, itera sobre eles e cria-os.
+        for item_data in items_data:
+            db_item = models.OptionItem(**item_data.model_dump(), option_group_id=db_group.id)
+            db.add(db_item)
 
-    # 7. Commit final: Salva a categoria, os grupos e os itens de uma só vez no banco.
+    # 7. Commit final: Salva a categoria, os grupos e os itens de uma só vez.
     db.commit()
     db.refresh(db_category)
     return db_category
+
 
 def get_category(db, category_id: int, store_id: int):
     return db.query(models.Category).options(

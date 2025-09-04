@@ -16,19 +16,19 @@ def create_option_group(db: Session, group_data: OptionGroupCreate, category_id:
     db.refresh(db_group)
     return db_group
 
-# --- CRUD para Itens de Opção ---
+
+
+
+
 def create_option_item(db: Session, item_data: OptionItemCreate, group_id: int):
-    current_item_count = db.query(models.OptionItem).filter(models.OptionItem.option_group_id == group_id).count()
-    db_item = models.OptionItem(
-        **item_data.model_dump(),
-        option_group_id=group_id,
-        priority=current_item_count
-    )
+    # A conversão das tags para o Enum já foi feita pelo Pydantic.
+    # Podemos passar os dados diretamente para o modelo SQLAlchemy.
+    db_item = models.OptionItem(**item_data.model_dump(), option_group_id=group_id)
+
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
     return db_item
-
 
 def get_option_group(db: Session, group_id: int):
     return db.query(models.OptionGroup).filter(models.OptionGroup.id == group_id).first()

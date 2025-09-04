@@ -92,7 +92,17 @@ class ThemeMode(enum.Enum):
 # Usamos um Enum para garantir que o tipo seja sempre um dos valores esperados
 class CategoryType(str, enum.Enum):
     GENERAL = "GENERAL"
-    PIZZA = "PIZZA"
+    CUSTOMIZABLE = "CUSTOMIZABLE"
+
+
+
+# ✅ 1. CRIE UM ENUM PYTHON PARA AS TAGS
+class FoodTagEnum(str, enum.Enum):
+    VEGETARIAN = "Vegetariano"
+    VEGAN = "Vegano"
+    ORGANIC = "Orgânico"
+    SUGAR_FREE = "Sem açúcar"
+    LAC_FREE = "Zero lactose"
 
 
 

@@ -8,26 +8,29 @@ from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.models import CategoryType, CashbackType
 from decimal import Decimal
 
+from src.core.utils.enums import FoodTagEnum
+
 
 # --- Schemas para Itens e Grupos de Opções ---
 
+# ✅ ATUALIZE OS SCHEMAS DE OptionItem
 class OptionItemBase(BaseModel):
     name: str
     description: str | None = None
     price: float = 0.0
     is_active: bool = True
 
-
 class OptionItemCreate(OptionItemBase):
-    pass
-
+    # ✨ Agora espera uma lista do nosso Enum
+    tags: list[FoodTagEnum] | None = None
 
 class OptionItem(OptionItemBase):
     id: int
     priority: int
+    # ✨ E retorna uma lista do nosso Enum
+    tags: list[FoodTagEnum] = []
 
     class Config: from_attributes = True
-
 
 class OptionGroupBase(BaseModel):
     name: str
@@ -35,8 +38,10 @@ class OptionGroupBase(BaseModel):
     max_selection: int = 1
 
 
+
 class OptionGroupCreate(OptionGroupBase):
-    pass
+    # ✨ ADICIONADO: Permite receber a lista de itens DENTRO do grupo na criação
+    items: list[OptionItemCreate] | None = None
 
 
 class OptionGroup(OptionGroupBase):
@@ -47,7 +52,6 @@ class OptionGroup(OptionGroupBase):
     class Config: from_attributes = True
 
 
-# --- Schemas principais de Categoria (Atualizados) ---
 
 class CategoryBase(BaseModel):
     name: str
@@ -99,4 +103,12 @@ class Category(CategoryBase):  # O schema de resposta
 
 
 
+# ✅ 1. CRIE O SCHEMA DE SAÍDA PARA A TAG
+class FoodTagOut(BaseModel):
+    id: int
+    name: str
+    description: str | None = None
+    icon_key: str | None = None
 
+    class Config:
+        from_attributes = True
