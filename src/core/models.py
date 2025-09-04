@@ -337,13 +337,16 @@ class OptionItem(Base, TimestampMixin):
 
     option_group_id: Mapped[int] = mapped_column(ForeignKey("option_groups.id"))
     group: Mapped["OptionGroup"] = relationship(back_populates="items")
+    # ✅ Adicione esta relação de volta para a nova tabela de preços
+    flavor_prices: Mapped[List["FlavorPrice"]] = relationship(back_populates="size_option")
 
     tags: Mapped[List[FoodTagEnum]] = mapped_column(
         ARRAY(Enum(FoodTagEnum, name="food_tag_enum", create_type=False)),
         nullable=False,
         server_default="{}"  # Garante que o valor padrão no banco é um array vazio
     )
-# ✅ CRIE ESTE NOVO MODELO
+
+# ✅ CRIE ESTE NOVO MODELO PARA OS PREÇOS DOS SABORES
 class FlavorPrice(Base, TimestampMixin):
     __tablename__ = "flavor_prices"
 
@@ -356,9 +359,6 @@ class FlavorPrice(Base, TimestampMixin):
     # Liga o preço a um "tamanho", que é um OptionItem
     size_option_id: Mapped[int] = mapped_column(ForeignKey("option_items.id"))
     size_option: Mapped["OptionItem"] = relationship(back_populates="flavor_prices")
-
-    # ✅ Adicione esta relação de volta para a nova tabela de preços
-    flavor_prices: Mapped[List["FlavorPrice"]] = relationship(back_populates="size_option")
 
     # Garante que um sabor não tenha dois preços para o mesmo tamanho
     __table_args__ = (UniqueConstraint('product_id', 'size_option_id', name='_product_size_price_uc'),)
@@ -440,7 +440,6 @@ class Product(Base, TimestampMixin):
     master_product: Mapped[Optional["MasterProduct"]] = relationship()
     # ✅ Adicione a relação com a nova tabela de preços
     prices: Mapped[List["FlavorPrice"]] = relationship(back_populates="product", cascade="all, delete-orphan")
-
 
     @hybrid_property
     def image_path(self):

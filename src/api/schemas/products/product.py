@@ -86,7 +86,7 @@ class FlavorWizardCreate(AppBaseModel):
     # --- Vínculos e Preços (Específicos deste wizard) ---
     parent_category_id: int
     prices: List[FlavorPriceCreate]
-
+  
 
 class Product(AppBaseModel):
     """Campos essenciais que definem um produto."""
