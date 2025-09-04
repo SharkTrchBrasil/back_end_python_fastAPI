@@ -343,6 +343,25 @@ class OptionItem(Base, TimestampMixin):
         nullable=False,
         server_default="{}"  # Garante que o valor padrão no banco é um array vazio
     )
+# ✅ CRIE ESTE NOVO MODELO
+class FlavorPrice(Base, TimestampMixin):
+    __tablename__ = "flavor_prices"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    price: Mapped[int] = mapped_column(nullable=False) # Preço em centavos
+
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    product: Mapped["Product"] = relationship(back_populates="prices")
+
+    # Liga o preço a um "tamanho", que é um OptionItem
+    size_option_id: Mapped[int] = mapped_column(ForeignKey("option_items.id"))
+    size_option: Mapped["OptionItem"] = relationship(back_populates="flavor_prices")
+
+    # ✅ Adicione esta relação de volta para a nova tabela de preços
+    flavor_prices: Mapped[List["FlavorPrice"]] = relationship(back_populates="size_option")
+
+    # Garante que um sabor não tenha dois preços para o mesmo tamanho
+    __table_args__ = (UniqueConstraint('product_id', 'size_option_id', name='_product_size_price_uc'),)
 
 
 class Product(Base, TimestampMixin):
@@ -419,7 +438,8 @@ class Product(Base, TimestampMixin):
     # ✅ SUGESTÃO: Adicione este campo para vincular ao catálogo
     master_product_id: Mapped[int | None] = mapped_column(ForeignKey("master_products.id"), nullable=True)
     master_product: Mapped[Optional["MasterProduct"]] = relationship()
-
+    # ✅ Adicione a relação com a nova tabela de preços
+    prices: Mapped[List["FlavorPrice"]] = relationship(back_populates="product", cascade="all, delete-orphan")
 
 
     @hybrid_property
