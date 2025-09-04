@@ -10,8 +10,7 @@ from .product_variant_link import ProductVariantLinkOut, ProductVariantLinkCreat
 from .rating import RatingsSummaryOut
 
 from src.core.aws import get_presigned_url, S3_PUBLIC_BASE_URL
-from src.core.utils.enums import CashbackType, ProductType
-
+from src.core.utils.enums import CashbackType, ProductType, FoodTagEnum
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -36,7 +35,7 @@ class ProductWizardCreate(AppBaseModel):
     control_stock: bool = Field(False, description="Se controla estoque")
     category_links: List[ProductCategoryLinkCreate] = Field(..., min_length=1, description="Links para categorias")
     variant_links: List[ProductVariantLinkCreate] = Field([], description="Links para variantes")
-
+    tags: list[FoodTagEnum] | None = None
 
 class Product(AppBaseModel):
     """Campos essenciais que definem um produto."""

@@ -409,6 +409,13 @@ class Product(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
 
+    # ✅ ADICIONE ESTE CAMPO
+    tags: Mapped[List[FoodTagEnum]] = mapped_column(
+        ARRAY(Enum(FoodTagEnum, name="food_tag_enum", create_type=False)),
+        nullable=False,
+        server_default="{}"
+    )
+
     # ✅ SUGESTÃO: Adicione este campo para vincular ao catálogo
     master_product_id: Mapped[int | None] = mapped_column(ForeignKey("master_products.id"), nullable=True)
     master_product: Mapped[Optional["MasterProduct"]] = relationship()
