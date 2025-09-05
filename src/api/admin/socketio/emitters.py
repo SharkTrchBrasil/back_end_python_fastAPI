@@ -369,89 +369,53 @@ async def admin_emit_new_print_jobs(store_id: int, order_id: int, jobs: list):
 
 
 
+
+
 async def admin_emit_products_updated(db, store_id: int):
     """
-    Busca a lista COMPLETA de produtos E a lista COMPLETA de complementos (variants)
+    Busca os dados COMPLETOS do cardápio (produtos, categorias, complementos)
     e emite para a sala do admin em um único evento otimizado.
     """
     print(f"📢 [ADMIN] Preparando emissão 'products_updated' para a loja {store_id}...")
-    # ✅ --- PASSO 1: A "IMPRESSÃO DIGITAL" ---
-    # Este print nos dirá se o servidor está executando esta versão do código.
-    print("\n--- [DEBUG] EXECUTANDO VERSÃO NOVA DO EMITTER (COM SELECTINLOAD E PRINTS) ---\n")
 
-    print(f"📢 [ADMIN] Preparando emissão 'products_updated' para a loja {store_id}...")
-
-    # 1. Busca os produtos com todos os relacionamentos aninhados.
-    # Sua consulta está perfeita e é a forma mais eficiente.
+    # 1. Busca os produtos com TODOS os relacionamentos necessários para o admin
     products_from_db = db.query(models.Product).options(
-        # 🔄 ajustado para carregar categorias
         selectinload(models.Product.category_links).selectinload(models.ProductCategoryLink.category),
-
         selectinload(models.Product.default_options),
         selectinload(models.Product.variant_links)
             .selectinload(models.ProductVariantLink.variant)
             .selectinload(models.Variant.options)
-            .selectinload(models.VariantOption.linked_product)
+            .selectinload(models.VariantOption.linked_product),
+        selectinload(models.Product.prices).selectinload(models.FlavorPrice.size_option),
+        # selectinload(models.Product.tags) # Descomente se 'tags' for uma relação
     ).filter(models.Product.store_id == store_id).order_by(models.Product.priority).all()
 
-    # 2. Busca TODOS os complementos da loja, também com seus relacionamentos.
+    # 2. Busca TODOS os complementos (variants) da loja
     all_variants_from_db = db.query(models.Variant).options(
         selectinload(models.Variant.options)
             .selectinload(models.VariantOption.linked_product)
     ).filter(models.Variant.store_id == store_id).order_by(models.Variant.name).all()
 
-    # ✅ NOVO: 3. Busca TODAS as categorias da loja
-    all_categories_from_db = db.query(models.Category) \
-        .options(
-            selectinload(models.Category.product_links) # Carrega os links
-            .selectinload(models.ProductCategoryLink.product) # E os produtos dentro dos links
-        ) \
-        .filter(models.Category.store_id == store_id) \
-        .order_by(models.Category.priority).all()
+    # 3. Busca TODAS as categorias da loja e sua estrutura interna
+    all_categories_from_db = db.query(models.Category).options(
+        selectinload(models.Category.option_groups).selectinload(models.OptionGroup.items),
+        selectinload(models.Category.schedules).selectinload(models.CategorySchedule.time_shifts),
+        selectinload(models.Category.product_links).selectinload(models.ProductCategoryLink.product)
+    ).filter(models.Category.store_id == store_id).order_by(models.Category.priority).all()
 
-    # ✅ --- PASSO 2: INSPECIONANDO OS DADOS ANTES DA "QUEBRA" ---
-    print("\n--- [DEBUG] Verificando produtos antes de serializar ---\n")
-    for p in products_from_db:
-        print(f"  - Verificando Produto ID: {p.id}, Nome: {p.name}")
-        try:
-            # Tentamos acessar as relações que o Pydantic precisa
-            if p.category_links:
-                print(f"    -> Link de Categoria 0: {p.category_links[0]}")
-                print(f"    -> Categoria do Link 0: {p.category_links[0].category.name}")  # Teste crucial
-            else:
-                print("    -> SEM LINKS DE CATEGORIA!")
-
-            if p.variant_links:
-                print(f"    -> Link de Variante 0: {p.variant_links[0]}")
-                print(f"    -> ID do Link de Variante 0: {p.variant_links[0].id}")  # Teste crucial
-            else:
-                print("    -> SEM LINKS DE VARIANTE!")
-
-        except DetachedInstanceError:
-            print(
-                "    -> 🔥 ERRO: DetachedInstanceError! Prova de que a relação não foi carregada (lazy loading falhou).")
-        except Exception as e:
-            print(f"    -> 🔥 ERRO ao acessar relação: {e}")
-        print("-" * 20)
-    print("\n--- [DEBUG] Fim da verificação. Tentando serializar agora... ---\n")
-
-    # 5. Serializa TODOS os dados
+    # 4. Serializa todos os dados
     products_payload = [ProductOut.model_validate(p).model_dump(mode='json') for p in products_from_db]
     variants_payload = [Variant.model_validate(v).model_dump(mode='json') for v in all_variants_from_db]
-    categories_payload = [Category.model_validate(c).model_dump(mode='json') for c in
-                          all_categories_from_db]  # ✅ Serializa as categorias
+    categories_payload = [Category.model_validate(c).model_dump(mode='json') for c in all_categories_from_db]
 
-    # 6. Emite o payload completo
+    # 5. Emite o payload completo para o admin
     payload = {
         'store_id': store_id,
         'products': products_payload,
         'variants': variants_payload,
-        'categories': categories_payload,  # ✅ Envia a lista COMPLETA de categorias
+        'categories': categories_payload,
     }
     room_name = f'admin_store_{store_id}'
     await sio.emit('products_updated', payload, to=room_name, namespace='/admin')
 
     print(f"✅ [ADMIN] Emissão 'products_updated' (com variants e categories) para a sala: {room_name} concluída.")
-
-
-

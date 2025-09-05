@@ -1,7 +1,14 @@
 import asyncio
 
+from sqlalchemy.orm import selectinload
+
 from src.api.admin.socketio.emitters import admin_emit_products_updated, admin_emit_store_updated
+from src.api.app.services.rating import get_store_ratings_summary
 from src.api.app.socketio.socketio_emitters import emit_products_updated, emit_store_updated
+from src.api.schemas.products.product import ProductOut
+from src.core import models
+from src.core.models import Category, Variant
+from src.socketio_instance import sio
 
 
 async def emit_updates_products(db, store_id: int):
@@ -24,7 +31,7 @@ async def emit_updates_products(db, store_id: int):
 
     except Exception as e:
         # ✅ 3. TRATAMENTO DE ERROS
-        #    Se algo der errado com o Socket.IO, apenas registramos o erro
+        #    Se algo der errado com o  Socket.IO, apenas registramos o erro
         #    e não quebramos a requisição principal da API.
         print(f"❌ Erro ao emitir eventos para a loja {store_id}: {e}")
 
@@ -53,3 +60,6 @@ async def emit_store_updates(db, store_id: int):
     except Exception as e:
         # Se algo der errado, apenas registramos o erro
         print(f"❌ Erro ao emitir eventos da loja {store_id}: {e}")
+
+
+
