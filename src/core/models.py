@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy import select, Boolean, JSON, Integer
+from sqlalchemy import select, Boolean, JSON, Integer, Time
 from datetime import datetime, date, timezone
 from typing import Optional, List
 
@@ -11,7 +11,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
-    CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode, CategoryType, FoodTagEnum
+    CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode, CategoryType, FoodTagEnum, AvailabilityTypeEnum
 from src.api.schemas.shared.base import VariantType, UIDisplayMode
 
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -307,7 +307,42 @@ class Category(Base, TimestampMixin):
     printer_destination: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
 
-# --- NOVOS MODELOS GENÉRICOS ---
+
+    availability_type: Mapped[AvailabilityTypeEnum] = mapped_column(
+        Enum(AvailabilityTypeEnum, name="availability_type_enum"),
+        default=AvailabilityTypeEnum.ALWAYS,
+        server_default="ALWAYS"
+    )
+
+    schedules: Mapped[List["CategorySchedule"]] = relationship(back_populates="category", cascade="all, delete-orphan", lazy="selectin")
+
+
+
+
+class CategorySchedule(Base, TimestampMixin):
+    __tablename__ = "category_schedules"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # Armazena os dias da semana (ex: [0, 1, 4] para Dom, Seg, Qui)
+    days_of_week: Mapped[List[int]] = mapped_column(ARRAY(Integer), nullable=False)
+
+    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
+    category: Mapped["Category"] = relationship(back_populates="schedules")
+
+    time_shifts: Mapped[List["TimeShift"]] = relationship(back_populates="schedule", cascade="all, delete-orphan",
+                                                          lazy="selectin")
+
+
+class TimeShift(Base, TimestampMixin):
+    __tablename__ = "time_shifts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    start_time: Mapped[Time] = mapped_column(Time, nullable=False)  # Ex: 18:00
+    end_time: Mapped[Time] = mapped_column(Time, nullable=False)  # Ex: 23:00
+
+    schedule_id: Mapped[int] = mapped_column(ForeignKey("category_schedules.id"))
+    schedule: Mapped["CategorySchedule"] = relationship(back_populates="time_shifts")
+
 
 class OptionGroup(Base, TimestampMixin):
     __tablename__ = "option_groups"
@@ -325,28 +360,35 @@ class OptionGroup(Base, TimestampMixin):
                                                      lazy="selectin")
 
 
+# Em seus modelos SQLAlchemy
 class OptionItem(Base, TimestampMixin):
     __tablename__ = "option_items"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100))  # Ex: "Média", "Calabresa", "Frango com Catupiry"
+    name: Mapped[str] = mapped_column(String(100))
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.00'))
     is_active: Mapped[bool] = mapped_column(default=True)
     priority: Mapped[int] = mapped_column(default=0)
 
+    # --- CAMPOS ADICIONADOS PARA O PENTE FINO ---
+    external_code: Mapped[str | None] = mapped_column(String(50), nullable=True)  # ✅ Para o Cód. PDV
+    slices: Mapped[int | None] = mapped_column(nullable=True)  # ✅ Para a Qtd. Pedaços
+    max_flavors: Mapped[int | None] = mapped_column(nullable=True)  # ✅ Para a Qtd. Sabores
+
     option_group_id: Mapped[int] = mapped_column(ForeignKey("option_groups.id"))
     group: Mapped["OptionGroup"] = relationship(back_populates="items")
-    # ✅ Adicione esta relação de volta para a nova tabela de preços
+
     flavor_prices: Mapped[List["FlavorPrice"]] = relationship(back_populates="size_option")
 
     tags: Mapped[List[FoodTagEnum]] = mapped_column(
         ARRAY(Enum(FoodTagEnum, name="food_tag_enum", create_type=False)),
         nullable=False,
-        server_default="{}"  # Garante que o valor padrão no banco é um array vazio
+        server_default="{}"
     )
 
-# ✅ CRIE ESTE NOVO MODELO PARA OS PREÇOS DOS SABORES
+
+
 class FlavorPrice(Base, TimestampMixin):
     __tablename__ = "flavor_prices"
 
@@ -362,6 +404,7 @@ class FlavorPrice(Base, TimestampMixin):
 
     # Garante que um sabor não tenha dois preços para o mesmo tamanho
     __table_args__ = (UniqueConstraint('product_id', 'size_option_id', name='_product_size_price_uc'),)
+
 
 
 class Product(Base, TimestampMixin):
@@ -617,7 +660,6 @@ class ProductVariantLink(Base, TimestampMixin):
 
 class ProductDefaultOption(Base, TimestampMixin):
     __tablename__ = "product_default_options"
-    __table_args__ = (UniqueConstraint('product_id', 'variant_option_id', name='uix_product_default_option'),)
 
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), primary_key=True)
     variant_option_id: Mapped[int] = mapped_column(ForeignKey("variant_options.id", ondelete="CASCADE"), primary_key=True)

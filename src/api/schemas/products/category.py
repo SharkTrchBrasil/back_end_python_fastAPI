@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import time
 
 from pydantic import BaseModel, Field, computed_field
 
@@ -8,17 +9,53 @@ from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.models import CategoryType, CashbackType
 from decimal import Decimal
 
-from src.core.utils.enums import FoodTagEnum
+from src.core.utils.enums import FoodTagEnum, AvailabilityTypeEnum
 
 
-# --- Schemas para Itens e Grupos de Opções ---
+# --- SCHEMAS DE DISPONIBILIDADE ---
+class TimeShiftBase(BaseModel):
+    start_time: time
+    end_time: time
 
-# ✅ ATUALIZE OS SCHEMAS DE OptionItem
+class TimeShiftCreate(TimeShiftBase):
+    pass
+
+class TimeShift(TimeShiftBase):
+    id: int
+    class Config: from_attributes = True
+
+class CategoryScheduleBase(BaseModel):
+    days_of_week: list[int] = Field(..., min_items=1, max_items=7) # Validação básica
+
+class CategoryScheduleCreate(CategoryScheduleBase):
+    time_shifts: list[TimeShiftCreate] = []
+
+class CategorySchedule(CategoryScheduleBase):
+    id: int
+    time_shifts: list[TimeShift] = []
+    class Config: from_attributes = True
+
+
+class CategoryScheduleUpdate(BaseModel):
+    id: int | None = None
+    days_of_week: list[int]
+    time_shifts: list[TimeShiftCreate] # Pode sempre recriar os horários
+
+# --- SCHEMA OptionItem ATUALIZADO ---
+
+
+
+
+
 class OptionItemBase(BaseModel):
     name: str
     description: str | None = None
     price: float = 0.0
     is_active: bool = True
+    # --- CAMPOS ADICIONADOS ---
+    external_code: str | None = None
+    slices: int | None = None
+    max_flavors: int | None = None
 
 class OptionItemCreate(OptionItemBase):
     # ✨ Agora espera uma lista do nosso Enum
@@ -32,6 +69,22 @@ class OptionItem(OptionItemBase):
 
     class Config: from_attributes = True
 
+
+class OptionItemUpdate(BaseModel):
+    id: int | None = None # Se o id for nulo, é um novo item. Se tiver id, é um item existente.
+    name: str
+    description: str | None = None
+    price: float = 0.0
+    is_active: bool = True
+    external_code: str | None = None
+    slices: int | None = None
+    max_flavors: int | None = None
+    tags: list[FoodTagEnum] | None = []
+
+
+
+
+
 class OptionGroupBase(BaseModel):
     name: str
     min_selection: int = 1
@@ -44,12 +97,23 @@ class OptionGroupCreate(OptionGroupBase):
     items: list[OptionItemCreate] | None = None
 
 
+
+
+
+
 class OptionGroup(OptionGroupBase):
     id: int
     priority: int
     items: list[OptionItem] = []
 
     class Config: from_attributes = True
+
+class OptionGroupUpdate(BaseModel):
+    id: int | None = None
+    name: str
+    min_selection: int = 1
+    max_selection: int = 1
+    items: list[OptionItemUpdate] = []
 
 
 
@@ -62,23 +126,44 @@ class CategoryBase(BaseModel):
 class CategoryCreate(CategoryBase):
 
     option_groups: list[OptionGroupCreate] | None = None
+    availability_type: AvailabilityTypeEnum = AvailabilityTypeEnum.ALWAYS
+    schedules: list[CategoryScheduleCreate] | None = None
 
 
 class CategoryUpdate(BaseModel):
     name: str | None = None
     is_active: bool | None = None
     priority: int | None = None
-    # Adicione aqui outros campos que podem ser atualizados
     cashback_type: CashbackType | None = None
     cashback_value: Decimal | None = None
+
+    # ✅ CAMPOS ADICIONADOS PARA PERMITIR A ATUALIZAÇÃO COMPLETA
+    availability_type: AvailabilityTypeEnum | None = None
+    schedules: list[CategoryScheduleUpdate] | None = None
+    option_groups: list[OptionGroupUpdate] | None = None
+
 
 
 class Category(CategoryBase):  # O schema de resposta
     id: int
     priority: int
+    availability_type: AvailabilityTypeEnum
+    schedules: list[CategorySchedule] = []
 
     # ✨ CORREÇÃO 1: Adicionar a URL da imagem para o frontend
     file_key: str | None = Field(None, exclude=True)  # Exclui do JSON final
+
+
+
+
+    cashback_type: CashbackType
+    cashback_value: Decimal
+    product_links: list[ProductCategoryLinkOut] = []
+
+    option_groups: list[OptionGroup] = []
+
+
+
 
     @computed_field
     @property
@@ -88,12 +173,7 @@ class Category(CategoryBase):  # O schema de resposta
             return f"{S3_PUBLIC_BASE_URL}/{self.file_key}"
         return None
 
-    # ✨ CORREÇÃO 2: Cashback não é opcional, pois sempre terá um valor padrão
-    cashback_type: CashbackType
-    cashback_value: Decimal
-    product_links: list[ProductCategoryLinkOut] = []
 
-    option_groups: list[OptionGroup] = []
 
     class Config:
         from_attributes = True

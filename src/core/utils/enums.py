@@ -105,4 +105,7 @@ class FoodTagEnum(str, enum.Enum):
     LAC_FREE = "Zero lactose"
 
 
+class AvailabilityTypeEnum(str, enum.Enum):
+    ALWAYS = "ALWAYS"
+    SCHEDULED = "SCHEDULED"
 
