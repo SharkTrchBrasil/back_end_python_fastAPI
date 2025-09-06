@@ -105,6 +105,7 @@ class Product(AppBaseModel):
     file_key: Optional[str] = Field(default=None, exclude=True)
     cashback_type: CashbackType = Field(CashbackType.NONE)
     cashback_value: int = Field(0, ge=0)
+    master_product_id: int | None = None  # ✅ CAMPO ADICIONADO AQUI
 
 
 class ProductUpdate(AppBaseModel):

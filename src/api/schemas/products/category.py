@@ -121,7 +121,7 @@ class CategoryBase(BaseModel):
     name: str
     is_active: bool = True
     type: CategoryType
-   # ✅ ADICIONADOS AQUI AO SCHEMA BASE
+
     cashback_type: CashbackType = CashbackType.NONE
     cashback_value: Decimal = Decimal('0.00')
     printer_destination: str | None = None # ✅ ADICIONADO AQUI
