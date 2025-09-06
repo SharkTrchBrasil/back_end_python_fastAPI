@@ -269,41 +269,68 @@ async def delete_product(store: GetStoreDep, db: GetDBDep, db_product: GetProduc
     await emit_updates_products(db, store.id)
     return
 
-# --- ROTA PARA ATUALIZAR PREÇO/PROMOÇÃO EM UMA CATEGORIA --
+
+# Em seu arquivo de rotas de produtos (ex: src/api/admin/endpoints/product.py)
 
 @router.post("/bulk-delete", status_code=204)
 async def bulk_delete_products(
-    store: GetStoreDep,
-    db: GetDBDep,
-    payload: BulkDeletePayload,
+        store: GetStoreDep,
+        db: GetDBDep,
+        payload: BulkDeletePayload,
 ):
     """
-    Remove uma lista de produtos de uma vez.
+    Remove uma lista de produtos de uma vez, tratando todas as dependências
+    para evitar erros de integridade do banco de dados.
     """
     if not payload.product_ids:
+        # Se a lista de IDs estiver vazia, não faz nada.
         return
 
-    # IMPORTANTE: Antes de deletar, pegue os file_keys para apagar da AWS/S3
-    products_to_delete = db.query(models.Product)\
-                           .filter(models.Product.id.in_(payload.product_ids)).all()
+    product_ids = payload.product_ids
 
-    for product in products_to_delete:
-        if product.file_key:
-            delete_file(product.file_key) # Função que apaga o arquivo da S3
+    # --- INÍCIO DA LÓGICA ROBUSTA ---
 
-    # Agora, delete os registros do banco
-    db.query(models.Product)\
-      .filter(
-          models.Product.store_id == store.id,
-          models.Product.id.in_(payload.product_ids)
-      )\
-      .delete(synchronize_session=False)
+    # Passo 1: Busca os produtos para pegar informações (como file_key) ANTES de deletar.
+    products_to_delete = db.query(models.Product) \
+        .filter(
+        models.Product.store_id == store.id,
+        models.Product.id.in_(product_ids)
+    ).all()
 
+    # Extrai os IDs novamente para garantir que estamos deletando apenas produtos da loja correta
+    valid_product_ids = [p.id for p in products_to_delete]
+    if not valid_product_ids:
+        return
+
+    # Passo 2: Deleta todos os registros em outras tabelas que dependem dos produtos.
+    # A ordem aqui não importa, desde que seja antes de deletar o produto.
+    db.query(models.FlavorPrice).filter(models.FlavorPrice.product_id.in_(valid_product_ids)).delete(
+        synchronize_session=False)
+    db.query(models.ProductCategoryLink).filter(models.ProductCategoryLink.product_id.in_(valid_product_ids)).delete(
+        synchronize_session=False)
+    db.query(models.ProductVariantLink).filter(models.ProductVariantLink.product_id.in_(valid_product_ids)).delete(
+        synchronize_session=False)
+    # Adicione aqui outras dependências se houver (ex: ProductRating, KitComponent, etc.)
+
+    # Passo 3: Agora que as dependências foram removidas, deleta os produtos.
+    db.query(models.Product) \
+        .filter(models.Product.id.in_(valid_product_ids)) \
+        .delete(synchronize_session=False)
+
+    # Passo 4: Salva todas as exclusões no banco de dados.
     db.commit()
 
+    # Passo 5: Apaga os arquivos de imagem do armazenamento (ex: S3).
+    for product in products_to_delete:
+        if product.file_key:
+            delete_file(product.file_key)
+
+    # Passo 6: Notifica a UI sobre a mudança.
     await emit_updates_products(db, store.id)
     return
 
+
+# Em seu arquivo de rotas de produtos
 
 @router.post("/bulk-update-category", status_code=204)
 async def bulk_update_product_category(
@@ -312,47 +339,57 @@ async def bulk_update_product_category(
         payload: BulkCategoryUpdatePayload,
 ):
     """
-    Define a categoria de uma lista de produtos para uma nova categoria.
-    Esta operação REMOVE os produtos de todas as categorias antigas
-    e os vincula APENAS à nova categoria de destino.
+    Move uma lista de produtos para uma nova categoria, removendo os vínculos
+    antigos e criando novos com um preço padrão.
     """
     if not payload.product_ids:
         raise HTTPException(status_code=400, detail="Nenhum ID de produto foi fornecido.")
 
-    # 1. Verifica se a categoria de destino existe e pertence à loja
+    product_ids = payload.product_ids
+
+    # 1. Verifica se a categoria de destino existe e pertence à loja.
     target_category = db.query(models.Category).filter(
         models.Category.id == payload.target_category_id,
         models.Category.store_id == store.id
     ).first()
-
     if not target_category:
         raise HTTPException(status_code=404, detail="Categoria de destino não encontrada.")
 
+    # ✅ OTIMIZAÇÃO: Busca todos os produtos de uma vez para pegar seus preços atuais
+    products_to_move = db.query(models.Product).filter(
+        models.Product.id.in_(product_ids),
+        models.Product.store_id == store.id
+    ).all()
+
+    # Cria um mapa para acesso rápido aos produtos e seus preços
+    product_map = {p.id: p for p in products_to_move}
+    valid_product_ids = list(product_map.keys())
+
+    if not valid_product_ids:
+        return  # Nenhum produto válido para mover
+
     # 2. Deleta TODOS os vínculos de categoria existentes para os produtos selecionados.
-    # Isso garante que eles não fiquem em categorias antigas.
     db.query(models.ProductCategoryLink) \
-        .filter(models.ProductCategoryLink.product_id.in_(payload.product_ids)) \
+        .filter(models.ProductCategoryLink.product_id.in_(valid_product_ids)) \
         .delete(synchronize_session=False)
 
     # 3. Cria os novos vínculos para cada produto com a categoria de destino.
     new_links = []
-    for product_id in payload.product_ids:
-        # Verifica se o produto realmente pertence à loja para segurança
-        product = db.query(models.Product.id).filter(
-            models.Product.id == product_id,
-            models.Product.store_id == store.id
-        ).first()
+    for product_id in valid_product_ids:
+        product = product_map[product_id]
 
-        if product:
-            new_links.append(
-                models.ProductCategoryLink(
-                    product_id=product_id,
-                    category_id=payload.target_category_id
-                    # A lógica de prioridade foi removida, pois agora um produto
-                    # não tem uma "prioridade dentro de uma categoria".
-                    # A ordem dos produtos é gerenciada na própria categoria.
-                )
+        # ✅ LÓGICA DE PREÇO CORRIGIDA:
+        #    Usa o preço do primeiro link de categoria antigo do produto como base.
+        #    Se não tiver, usa 0 (essencial para sabores de pizza).
+        base_price = product.category_links[0].price if product.category_links else 0
+
+        new_links.append(
+            models.ProductCategoryLink(
+                product_id=product_id,
+                category_id=payload.target_category_id,
+                price=base_price  # Fornece o preço para satisfazer a restrição NOT NULL
             )
+        )
 
     if new_links:
         db.add_all(new_links)
@@ -361,10 +398,7 @@ async def bulk_update_product_category(
     db.commit()
 
     # 5. Emite o evento para que as telas sejam atualizadas.
-    # (Supondo que você tenha essas funções)
-
     await emit_updates_products(db, store.id)
-
     return
 
 @router.post("/bulk-update-status", status_code=204)
