@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 from starlette import status
 
 from src.api.admin.utils.emit_updates import emit_updates_products
+from src.api.crud.crud_product import update_product_availability
 from src.api.schemas.products.bulk_actions import BulkCategoryUpdatePayload, BulkDeletePayload, BulkStatusUpdatePayload
 from src.api.schemas.products.product import (
     ProductOut,
@@ -26,6 +27,8 @@ router = APIRouter(prefix="/stores/{store_id}/products", tags=["Products"])
 # ===================================================================
 # ROTA 1: CRIAR PRODUTO SIMPLES (Ex: Bebidas, Lanches)
 # ===================================================================
+# Em seu arquivo de rotas de produtos
+
 @router.post("/simple-product", response_model=ProductOut, status_code=201)
 async def create_simple_product(
         store: GetStoreDep,
@@ -40,20 +43,36 @@ async def create_simple_product(
         raise HTTPException(status_code=422, detail=f"JSON inválido: {e}")
 
     file_key = upload_file(image) if image else None
+
+    # Pega os dados principais do produto, excluindo as listas aninhadas
     product_data = payload.model_dump(exclude={'category_links', 'variant_links', 'tags'})
 
-    new_product = models.Product(**product_data, store_id=store.id, file_key=file_key, tags=payload.tags or [])
+    # Cria a instância do produto no banco
+    new_product = models.Product(
+        **product_data,
+        store_id=store.id,
+        file_key=file_key,
+        tags=payload.tags or []
+    )
     db.add(new_product)
-    db.flush()
+    db.flush()  # Para obter o new_product.id
 
+    # Itera e salva os links com as categorias e seus preços
     for link_data in payload.category_links:
         db.add(models.ProductCategoryLink(product_id=new_product.id, **link_data.model_dump()))
 
+    # ✅ ADICIONADO: Loop para salvar os links de variantes (complementos)
+    for link_data in payload.variant_links:
+        db.add(models.ProductVariantLink(product_id=new_product.id, **link_data.model_dump()))
+
+    # Salva tudo no banco de uma vez
     db.commit()
     db.refresh(new_product)
-    await emit_updates_products(db, store.id)
-    return new_product
 
+    # Notifica os clientes sobre a mudança
+    await emit_updates_products(db, store.id)
+
+    return new_product
 
 # ===================================================================
 # ROTA 2: CRIAR "SABOR" (PRODUTO CUSTOMIZÁVEL)
@@ -114,7 +133,7 @@ async def update_product(
     update_dict = update_data.model_dump(exclude_unset=True)
 
     if 'available' in update_dict:
-        crud_product.update_product_availability(db=db, db_product=db_product, is_available=update_data.available)
+        update_product_availability(db=db, db_product=db_product, is_available=update_data.available)
         update_dict.pop('available')
 
     for field, value in update_dict.items():

@@ -53,7 +53,8 @@ class SimpleProductWizardCreate(AppBaseModel):
     product_type: ProductType = Field(ProductType.INDIVIDUAL, description="Tipo do produto")
     stock_quantity: Optional[int] = Field(0, ge=0, description="Quantidade em estoque")
     control_stock: bool = Field(False, description="Se controla estoque")
-
+    # ✅ CAMPO ADICIONADO AQUI
+    master_product_id: int | None = None
     category_links: List[ProductCategoryLinkCreate] = Field(..., min_length=1, description="Links para categorias")
 
     variant_links: List[ProductVariantLinkCreate] = Field([], description="Links para variantes")
