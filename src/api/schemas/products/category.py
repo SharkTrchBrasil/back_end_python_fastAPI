@@ -121,7 +121,10 @@ class CategoryBase(BaseModel):
     name: str
     is_active: bool = True
     type: CategoryType
-
+   # ✅ ADICIONADOS AQUI AO SCHEMA BASE
+    cashback_type: CashbackType = CashbackType.NONE
+    cashback_value: Decimal = Decimal('0.00')
+    printer_destination: str | None = None # ✅ ADICIONADO AQUI
 
 class CategoryCreate(CategoryBase):
 
@@ -141,6 +144,7 @@ class CategoryUpdate(BaseModel):
     availability_type: AvailabilityTypeEnum | None = None
     schedules: list[CategoryScheduleUpdate] | None = None
     option_groups: list[OptionGroupUpdate] | None = None
+    printer_destination: str | None = None  # ✅ ADICIONADO AQUI
 
 
 
