@@ -5,8 +5,7 @@ from src.api.crud import crud_product
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 
-# ✅ 1. NOVO ROTEADOR DEDICADO
-#    Note que ele não tem prefixo. O prefixo será dado por quem o incluir.
+
 router = APIRouter(tags=["Product-Category Links"])
 
 # ✅ 2. A SUA ROTA DE DELETE AGORA VIVE AQUI

@@ -10,7 +10,7 @@ from .product_variant_link import ProductVariantLinkOut, ProductVariantLinkCreat
 from .rating import RatingsSummaryOut
 
 from src.core.aws import get_presigned_url, S3_PUBLIC_BASE_URL
-from src.core.utils.enums import CashbackType, ProductType, FoodTagEnum
+from src.core.utils.enums import CashbackType, ProductType, FoodTagEnum, BeverageTagEnum
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -59,6 +59,10 @@ class SimpleProductWizardCreate(AppBaseModel):
 
     variant_links: List[ProductVariantLinkCreate] = Field([], description="Links para variantes")
     tags: list[FoodTagEnum] | None = None
+    unit: str | None = 'un'
+    weight: int | None = None
+    serves_up_to: int | None = None
+
 
 
 # ===================================================================
@@ -82,7 +86,8 @@ class FlavorWizardCreate(AppBaseModel):
     control_stock: bool = False
 
     # --- Classificação ---
-    tags: List[FoodTagEnum] = []
+    dietary_tags: list[FoodTagEnum] | None = None
+    beverage_tags: list[BeverageTagEnum] | None = None
 
     # --- Vínculos e Preços (Específicos deste wizard) ---
     parent_category_id: int
@@ -116,12 +121,19 @@ class ProductUpdate(AppBaseModel):
     featured: Optional[bool] = None
     ean: Optional[str] = Field(None, max_length=13)
     available: Optional[bool] = None
-    tag: Optional[str] = Field(None, max_length=50)
+    unit: Optional[str] = Field(None)
+
+    weight: int | None = None
+    serves_up_to: int | None = None
+    dietary_tags: list[FoodTagEnum] | None = None
+    beverage_tags: list[BeverageTagEnum] | None = None
+
+
     stock_quantity: Optional[int] = Field(None, ge=0)
     control_stock: Optional[bool] = None
     min_stock: Optional[int] = Field(None, ge=0)
     max_stock: Optional[int] = Field(None, ge=0)
-    unit: Optional[str] = Field(None, max_length=10)
+
     file_key: Optional[str] = Field(default=None, exclude=True)
     cashback_type: Optional[CashbackType] = None
     cashback_value: Optional[int] = Field(None, ge=0)
@@ -165,6 +177,10 @@ class ProductOut(Product):
     components: List[KitComponentOut] = Field([], description="Componentes do kit")
     rating: Optional[RatingsSummaryOut] = Field(None, description="Avaliação do produto")
     default_options: List[ProductDefaultOptionOut] = Field(default=[], exclude=True)
+
+
+    dietary_tags: List[FoodTagEnum] = []
+    beverage_tags: List[BeverageTagEnum] = []
 
     @computed_field
     @property

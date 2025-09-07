@@ -105,6 +105,12 @@ class FoodTagEnum(str, enum.Enum):
     LAC_FREE = "Zero lactose"
 
 
+
+class BeverageTagEnum(str, enum.Enum):
+    COLD_DRINK = "Bebida gelada"
+    ALCOHOLIC = "Bebida alcoólica"
+    NATURAL = "Natural"
+
 class AvailabilityTypeEnum(str, enum.Enum):
     ALWAYS = "ALWAYS"
     SCHEDULED = "SCHEDULED"

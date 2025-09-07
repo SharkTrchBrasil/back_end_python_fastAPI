@@ -369,11 +369,6 @@ async def bulk_update_product_status(
     return
 
 
-# Em sua rota de produtos
-
-# ...
-
-# ✅ NOVA ROTA PARA REMOVER UM PRODUTO DE UMA CATEGORIA ESPECÍFICA
 @router.delete(
     "/{product_id}/categories/{category_id}",
     status_code=204,

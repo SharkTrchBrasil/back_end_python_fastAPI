@@ -12,7 +12,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
-    CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode, CategoryType, FoodTagEnum, AvailabilityTypeEnum
+    CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode, CategoryType, FoodTagEnum, AvailabilityTypeEnum, \
+    BeverageTagEnum
 from src.api.schemas.shared.base import VariantType, UIDisplayMode
 
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -416,24 +417,22 @@ class Product(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(80))
     # ✅ Torne a descrição opcional também, é uma boa prática
     description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
-   # base_price: Mapped[int] = mapped_column()
-   # cost_price: Mapped[int] = mapped_column(default=0)
+
 
     # ✅ Adicione os padrões aqui
     available: Mapped[bool] = mapped_column(default=True)
     priority: Mapped[int] = mapped_column(default=0)
-   # promotion_price: Mapped[int] = mapped_column(default=0)
+
     featured: Mapped[bool] = mapped_column(default=False)
-   # activate_promotion: Mapped[bool] = mapped_column(default=False)
+
 
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-    # ✅ ADICIONE ESTA LINHA PARA O RELACIONAMENTO REVERSO
+
     store: Mapped["Store"] = relationship(back_populates="products")
 
-    # ✅ ADICIONE ESTA LINHA PARA O RELACIONAMENTO MUITOS-PARA-MUITOS:
+
     category_links: Mapped[List["ProductCategoryLink"]] = relationship(back_populates="product", cascade="all, delete-orphan")
 
-    # ✅ CORREÇÃO PRINCIPAL: Permite que a file_key seja nula
     file_key: Mapped[str | None] = mapped_column(nullable=True)
 
     ean: Mapped[str | None] = mapped_column(nullable=True)
@@ -443,7 +442,10 @@ class Product(Base, TimestampMixin):
     min_stock: Mapped[int] = mapped_column(default=0)
     max_stock: Mapped[int] = mapped_column(default=0)
     unit: Mapped[str] = mapped_column(default="Unidade")
-    tag: Mapped[str] = mapped_column(default="")
+
+
+    serves_up_to: Mapped[int | None] = mapped_column(nullable=True, doc="Indica quantas pessoas o item serve")
+    weight: Mapped[int | None] = mapped_column(nullable=True, doc="Peso do item em gramas ou ml")
 
     product_ratings: Mapped[List["ProductRating"]] = relationship(back_populates="product")
     sold_count: Mapped[int] = mapped_column(nullable=False, default=0)
@@ -473,9 +475,15 @@ class Product(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
 
-    # ✅ ADICIONE ESTE CAMPO
-    tags: Mapped[List[FoodTagEnum]] = mapped_column(
+    # ✅ 3. ADICIONE DUAS NOVAS COLUNAS 'ARRAY', UMA PARA CADA TIPO DE TAG
+    dietary_tags: Mapped[List[FoodTagEnum]] = mapped_column(
         ARRAY(Enum(FoodTagEnum, name="food_tag_enum", create_type=False)),
+        nullable=False,
+        server_default="{}"
+    )
+
+    beverage_tags: Mapped[List[BeverageTagEnum]] = mapped_column(
+        ARRAY(Enum(BeverageTagEnum, name="beverage_tag_enum")),  # 'create_type=True' é o padrão
         nullable=False,
         server_default="{}"
     )
