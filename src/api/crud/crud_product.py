@@ -1,5 +1,7 @@
+from fastapi import HTTPException
+
 from src.api import schemas
-from src.api.schemas.products.product import ProductPriceInfo
+from src.api.schemas.products.product import ProductPriceInfo, BulkCategoryUpdatePayload
 from src.core import models
 from src.core.models import Product
 
@@ -70,3 +72,50 @@ def update_product_availability(db, db_product: Product, is_available: bool):
     db.commit()
     db.refresh(db_product)
     return db_product
+
+
+
+# ✅ ATUALIZE A FUNÇÃO INTEIRA
+def bulk_update_product_category(
+        db,
+        *,
+        store_id: int,
+        payload: BulkCategoryUpdatePayload
+):
+    """
+    MOVE uma lista de produtos para uma nova categoria, apagando TODOS os vínculos
+    antigos e criando novos com os preços e códigos PDV fornecidos.
+    """
+    product_ids = [p.product_id for p in payload.products]
+
+    # 1. Validações (essenciais para segurança)
+    target_category = db.query(models.Category).filter(
+        models.Category.id == payload.target_category_id,
+        models.Category.store_id == store_id
+    ).first()
+    if not target_category:
+        raise HTTPException(status_code=404, detail="Categoria de destino não encontrada.")
+
+    # 2. APAGA TODOS os vínculos de categoria existentes para os produtos selecionados.
+    db.query(models.ProductCategoryLink) \
+        .filter(models.ProductCategoryLink.product_id.in_(product_ids)) \
+        .delete(synchronize_session=False)
+
+    # 3. CRIA os novos vínculos para cada produto com os novos dados.
+    new_links = []
+    for product_data in payload.products:
+        new_links.append(
+            models.ProductCategoryLink(
+                product_id=product_data.product_id,
+                category_id=payload.target_category_id,
+                price=product_data.price,
+                pos_code=product_data.pos_code
+            )
+        )
+
+    if new_links:
+        db.bulk_save_objects(new_links)  # Mais performático para múltiplas inserções
+
+    # 4. Salva tudo no banco de dados.
+    db.commit()
+    return {"message": "Produtos movidos e reprecificados com sucesso."}

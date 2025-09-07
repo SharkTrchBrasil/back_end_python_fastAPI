@@ -140,18 +140,17 @@ class ProductNestedOut(Product):
         return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if self.file_key else None
 
 
+
 class ProductPriceInfo(BaseModel):
     product_id: int
-    price: int = Field(..., ge=0) # Preço em centavos
+    price: int = Field(..., ge=0)
     pos_code: str | None = None
 
-
-class BulkAddToCategoryPayload(BaseModel):
+# ✅ ATUALIZE ESTE SCHEMA
+class BulkCategoryUpdatePayload(BaseModel):
     target_category_id: int
+    # Agora ele espera a lista completa de produtos com seus novos preços
     products: list[ProductPriceInfo] = Field(..., min_items=1)
-
-
-
 
 
 class ProductOut(Product):

@@ -14,7 +14,7 @@ from src.api.schemas.products.product import (
     ProductUpdate,
     FlavorWizardCreate,
     SimpleProductWizardCreate,
-    FlavorPriceUpdate, BulkAddToCategoryPayload  # Precisaremos de um novo schema para o update de preço
+    FlavorPriceUpdate  # Precisaremos de um novo schema para o update de preço
 )
 from src.api.schemas.products.product_category_link import ProductCategoryLinkUpdate, ProductCategoryLinkOut
 from src.core import models
@@ -316,29 +316,32 @@ async def bulk_delete_products(
     return
 
 
-@router.post("/bulk-add-to-category", status_code=200)
-async def bulk_add_products_to_category(
+@router.post("/bulk-update-category", response_model=dict, status_code=200)
+async def bulk_update_product_category(
         store: GetStoreDep,
         db: GetDBDep,
-        payload: BulkAddToCategoryPayload,
+        payload: BulkCategoryUpdatePayload,  # <-- Usa o schema que espera a lista de produtos com preços
 ):
     """
-    Adiciona uma lista de produtos a uma categoria existente, definindo ou
-    atualizando o preço e o código PDV de cada um dentro dessa categoria.
+    MOVE uma lista de produtos para uma nova categoria, apagando TODOS
+    os vínculos antigos e criando novos com os preços e códigos PDV fornecidos pelo frontend.
     """
-    # (Adicione aqui validações se quiser, ex: verificar se a categoria pertence à loja)
 
-    crud_product.bulk_add_or_update_links(
+    # 1. Chama a nova e poderosa função do CRUD que faz o trabalho pesado
+    #    de apagar os vínculos antigos e criar os novos com os dados do payload.
+    crud_product.bulk_update_product_category(
         db=db,
         store_id=store.id,
-        target_category_id=payload.target_category_id,
-        products_data=payload.products
+        payload=payload
     )
 
-    # Emite o evento para atualizar a UI de todos os clientes
+    # 2. Após o sucesso da operação no banco, emite o evento para que
+    #    as telas do admin e do totem sejam atualizadas em tempo real.
     await emit_updates_products(db, store.id)
 
-    return {"message": "Produtos processados com sucesso"}
+    # 3. Retorna uma mensagem de sucesso para o app.
+    return {"message": "Produtos movidos e reprecificados com sucesso"}
+
 
 @router.post("/bulk-update-status", status_code=204)
 async def bulk_update_product_status(
