@@ -141,15 +141,16 @@ class ProductNestedOut(Product):
 
 
 
+
 class ProductPriceInfo(BaseModel):
     product_id: int
     price: int = Field(..., ge=0)
     pos_code: str | None = None
 
-# ✅ ATUALIZE ESTE SCHEMA
+# ✅ ESTE É O SCHEMA CORRIGIDO QUE VOCÊ PRECISA USAR
 class BulkCategoryUpdatePayload(BaseModel):
     target_category_id: int
-    # Agora ele espera a lista completa de produtos com seus novos preços
+
     products: list[ProductPriceInfo] = Field(..., min_items=1)
 
 

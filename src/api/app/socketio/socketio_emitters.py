@@ -54,7 +54,7 @@ async def emit_products_updated(db, store_id: int):
         .selectinload(models.Variant.options)
         .selectinload(models.VariantOption.linked_product),
         selectinload(models.Product.prices).selectinload(models.FlavorPrice.size_option),  # ✅ Adicionado
-        selectinload(models.Product.tags)  # ✅ Adicionado (se 'tags' for uma relação)
+      #  selectinload(models.Product.tags)  # ✅ Adicionado (se 'tags' for uma relação)
     ).filter(
         models.Product.store_id == store_id,
         models.Product.available == True
