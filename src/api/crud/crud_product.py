@@ -1,4 +1,5 @@
 from fastapi import HTTPException
+from sqlalchemy import delete
 
 from src.api import schemas
 from src.api.schemas.products.product import ProductPriceInfo, BulkCategoryUpdatePayload
@@ -72,6 +73,39 @@ def update_product_availability(db, db_product: Product, is_available: bool):
     db.commit()
     db.refresh(db_product)
     return db_product
+
+
+
+def remove_product_from_category(
+        db,
+        *,
+        store_id: int,
+        product_id: int,
+        category_id: int
+) -> int:
+    """
+    Remove o vínculo entre um produto específico e uma categoria específica.
+    Retorna o número de vínculos removidos (0 ou 1).
+    """
+    # Cria a query para deletar o registro específico na tabela de vínculos
+    stmt = (
+        delete(models.ProductCategoryLink)
+        .where(
+            models.ProductCategoryLink.product_id == product_id,
+            models.ProductCategoryLink.category_id == category_id,
+            # Adiciona uma checagem de segurança extra para garantir que o produto pertence à loja
+            models.ProductCategoryLink.product.has(store_id=store_id)
+        )
+    )
+
+    result = db.execute(stmt)
+    db.commit()
+
+    # .rowcount retorna quantas linhas foram afetadas (deletadas)
+    return result.rowcount
+
+
+
 
 
 
