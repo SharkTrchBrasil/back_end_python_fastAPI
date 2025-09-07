@@ -140,6 +140,20 @@ class ProductNestedOut(Product):
         return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if self.file_key else None
 
 
+class ProductPriceInfo(BaseModel):
+    product_id: int
+    price: int = Field(..., ge=0) # Preço em centavos
+    pos_code: str | None = None
+
+
+class BulkAddToCategoryPayload(BaseModel):
+    target_category_id: int
+    products: list[ProductPriceInfo] = Field(..., min_items=1)
+
+
+
+
+
 class ProductOut(Product):
     id: int = Field(..., ge=1)
     variant_links: List[ProductVariantLinkOut] = Field([], description="Variantes do produto")

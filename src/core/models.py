@@ -1,3 +1,4 @@
+from __future__ import annotations
 from decimal import Decimal
 
 from sqlalchemy import select, Boolean, JSON, Integer, Time
@@ -395,7 +396,8 @@ class FlavorPrice(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     price: Mapped[int] = mapped_column(nullable=False) # Preço em centavos
 
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    # ✅ CORREÇÃO APLICADA AQUI
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"))
     product: Mapped["Product"] = relationship(back_populates="prices")
 
     # Liga o preço a um "tamanho", que é um OptionItem
@@ -559,10 +561,9 @@ class VariantOption(Base, TimestampMixin):
     variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id", ondelete="CASCADE"))
     variant: Mapped["Variant"] = relationship(back_populates="options")
 
-    linked_product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=True,
-                                                   doc="Se não nulo, esta opção representa outro produto (Cross-Sell)")
-    linked_product: Mapped["Product"] = relationship()
 
+    linked_product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"), nullable=True, doc="...")
+    linked_product: Mapped[Optional["Product"]] = relationship()
     name_override: Mapped[str] = mapped_column(nullable=True,
                                                doc="Nome customizado. Se nulo, usa o nome do produto linkado (se houver).")
     price_override: Mapped[int] = mapped_column(nullable=True,
@@ -625,10 +626,11 @@ class ProductVariantLink(Base, TimestampMixin):
     # ✅ 1. ADICIONE UMA COLUNA DE ID PRIMÁRIO SIMPLES
     id: Mapped[int] = mapped_column(primary_key=True)
 
-
-    # ✅ 2. REMOVA O `primary_key=True` DOS CAMPOS ABAIXO
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    # ✅ CORREÇÃO APLICADA AQUI
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"))
     variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id"))
+
+
 
     # --- REGRAS DE COMPORTAMENTO E INTERFACE ---
 
@@ -652,6 +654,7 @@ class ProductVariantLink(Base, TimestampMixin):
     product: Mapped["Product"] = relationship(back_populates="variant_links")
     variant: Mapped["Variant"] = relationship(back_populates="product_links")
 
+
    # ✅ 4. GARANTA A UNICIDADE COM UMA `UniqueConstraint`
     # Isso impede que o mesmo produto seja ligado ao mesmo grupo mais de uma vez.
     __table_args__ = (
@@ -671,8 +674,9 @@ class ProductDefaultOption(Base, TimestampMixin):
 class KitComponent(Base, TimestampMixin):
     __tablename__ = "kit_components"
 
-    kit_product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
-    component_product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
+    # ✅ CORREÇÃO APLICADA AQUI
+    kit_product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), primary_key=True)
+    component_product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), primary_key=True)
 
     quantity: Mapped[int] = mapped_column(default=1)  # Qtd do componente dentro do kit
 
@@ -1367,8 +1371,9 @@ class Banner(Base, TimestampMixin):
     link_url: Mapped[str] = mapped_column(nullable=True)
     file_key: Mapped[str] = mapped_column(nullable=False)
 
-    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), nullable=True)
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True)
+
 
     start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -1763,7 +1768,9 @@ class ProductRating(Base, TimestampMixin):
 
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), nullable=False)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), nullable=False)
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False)
+
+    # ✅ CORREÇÃO APLICADA AQUI
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
 
     is_active: Mapped[bool] = mapped_column(default=True)
     owner_reply: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -1980,7 +1987,8 @@ class LoyaltyReward(Base, TimestampMixin):
     points_threshold: Mapped[int] = mapped_column()
 
     # O PRÊMIO: Link para o produto que será dado como recompensa.
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    # ✅ CORREÇÃO APLICADA AQUI
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"))
     product: Mapped["Product"] = relationship()
 
 

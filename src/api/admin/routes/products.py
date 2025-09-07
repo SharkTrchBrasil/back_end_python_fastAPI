@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 from starlette import status
 
 from src.api.admin.utils.emit_updates import emit_updates_products
+from src.api.crud import crud_product
 from src.api.crud.crud_product import update_product_availability
 from src.api.schemas.products.bulk_actions import BulkCategoryUpdatePayload, BulkDeletePayload, BulkStatusUpdatePayload
 from src.api.schemas.products.product import (
@@ -13,7 +14,7 @@ from src.api.schemas.products.product import (
     ProductUpdate,
     FlavorWizardCreate,
     SimpleProductWizardCreate,
-    FlavorPriceUpdate  # Precisaremos de um novo schema para o update de preço
+    FlavorPriceUpdate, BulkAddToCategoryPayload  # Precisaremos de um novo schema para o update de preço
 )
 from src.api.schemas.products.product_category_link import ProductCategoryLinkUpdate, ProductCategoryLinkOut
 from src.core import models
@@ -270,136 +271,74 @@ async def delete_product(store: GetStoreDep, db: GetDBDep, db_product: GetProduc
     return
 
 
-# Em seu arquivo de rotas de produtos (ex: src/api/admin/endpoints/product.py)
+# Em seu arquivo de rotas de produtos
 
 @router.post("/bulk-delete", status_code=204)
 async def bulk_delete_products(
-        store: GetStoreDep,
-        db: GetDBDep,
-        payload: BulkDeletePayload,
+    store: GetStoreDep,
+    db: GetDBDep,
+    payload: BulkDeletePayload,
 ):
     """
-    Remove uma lista de produtos de uma vez, tratando todas as dependências
-    para evitar erros de integridade do banco de dados.
+    Remove uma lista de produtos. A exclusão em cascata é gerenciada
+    pelo banco de dados através da configuração ON DELETE CASCADE.
     """
     if not payload.product_ids:
-        # Se a lista de IDs estiver vazia, não faz nada.
         return
 
-    product_ids = payload.product_ids
-
-    # --- INÍCIO DA LÓGICA ROBUSTA ---
-
-    # Passo 1: Busca os produtos para pegar informações (como file_key) ANTES de deletar.
-    products_to_delete = db.query(models.Product) \
-        .filter(
+    # 1. Busca os produtos para pegar os file_keys antes de deletar.
+    products_to_delete = db.query(models.Product).filter(
         models.Product.store_id == store.id,
-        models.Product.id.in_(product_ids)
+        models.Product.id.in_(payload.product_ids)
     ).all()
 
-    # Extrai os IDs novamente para garantir que estamos deletando apenas produtos da loja correta
-    valid_product_ids = [p.id for p in products_to_delete]
-    if not valid_product_ids:
+    if not products_to_delete:
         return
 
-    # Passo 2: Deleta todos os registros em outras tabelas que dependem dos produtos.
-    # A ordem aqui não importa, desde que seja antes de deletar o produto.
-    db.query(models.FlavorPrice).filter(models.FlavorPrice.product_id.in_(valid_product_ids)).delete(
-        synchronize_session=False)
-    db.query(models.ProductCategoryLink).filter(models.ProductCategoryLink.product_id.in_(valid_product_ids)).delete(
-        synchronize_session=False)
-    db.query(models.ProductVariantLink).filter(models.ProductVariantLink.product_id.in_(valid_product_ids)).delete(
-        synchronize_session=False)
-    # Adicione aqui outras dependências se houver (ex: ProductRating, KitComponent, etc.)
+    file_keys_to_delete = [p.file_key for p in products_to_delete if p.file_key]
+    valid_product_ids = [p.id for p in products_to_delete]
 
-    # Passo 3: Agora que as dependências foram removidas, deleta os produtos.
-    db.query(models.Product) \
-        .filter(models.Product.id.in_(valid_product_ids)) \
-        .delete(synchronize_session=False)
+    # 2. Executa UM ÚNICO comando de exclusão em massa. O banco cuida do resto.
+    db.query(models.Product).filter(models.Product.id.in_(valid_product_ids)).delete(synchronize_session=False)
 
-    # Passo 4: Salva todas as exclusões no banco de dados.
+    # 3. Commita a transação.
     db.commit()
 
-    # Passo 5: Apaga os arquivos de imagem do armazenamento (ex: S3).
-    for product in products_to_delete:
-        if product.file_key:
-            delete_file(product.file_key)
+    # 4. Apaga os arquivos do S3.
+    for key in file_keys_to_delete:
+        try:
+            delete_file(key)
+        except Exception as e:
+            print(f"Alerta: Falha ao deletar o arquivo {key} do S3. Erro: {e}")
 
-    # Passo 6: Notifica a UI sobre a mudança.
+    # 5. Notifica a UI.
     await emit_updates_products(db, store.id)
     return
 
 
-# Em seu arquivo de rotas de produtos
-
-@router.post("/bulk-update-category", status_code=204)
-async def bulk_update_product_category(
+@router.post("/bulk-add-to-category", status_code=200)
+async def bulk_add_products_to_category(
         store: GetStoreDep,
         db: GetDBDep,
-        payload: BulkCategoryUpdatePayload,
+        payload: BulkAddToCategoryPayload,
 ):
     """
-    Move uma lista de produtos para uma nova categoria, removendo os vínculos
-    antigos e criando novos com um preço padrão.
+    Adiciona uma lista de produtos a uma categoria existente, definindo ou
+    atualizando o preço e o código PDV de cada um dentro dessa categoria.
     """
-    if not payload.product_ids:
-        raise HTTPException(status_code=400, detail="Nenhum ID de produto foi fornecido.")
+    # (Adicione aqui validações se quiser, ex: verificar se a categoria pertence à loja)
 
-    product_ids = payload.product_ids
+    crud_product.bulk_add_or_update_links(
+        db=db,
+        store_id=store.id,
+        target_category_id=payload.target_category_id,
+        products_data=payload.products
+    )
 
-    # 1. Verifica se a categoria de destino existe e pertence à loja.
-    target_category = db.query(models.Category).filter(
-        models.Category.id == payload.target_category_id,
-        models.Category.store_id == store.id
-    ).first()
-    if not target_category:
-        raise HTTPException(status_code=404, detail="Categoria de destino não encontrada.")
-
-    # ✅ OTIMIZAÇÃO: Busca todos os produtos de uma vez para pegar seus preços atuais
-    products_to_move = db.query(models.Product).filter(
-        models.Product.id.in_(product_ids),
-        models.Product.store_id == store.id
-    ).all()
-
-    # Cria um mapa para acesso rápido aos produtos e seus preços
-    product_map = {p.id: p for p in products_to_move}
-    valid_product_ids = list(product_map.keys())
-
-    if not valid_product_ids:
-        return  # Nenhum produto válido para mover
-
-    # 2. Deleta TODOS os vínculos de categoria existentes para os produtos selecionados.
-    db.query(models.ProductCategoryLink) \
-        .filter(models.ProductCategoryLink.product_id.in_(valid_product_ids)) \
-        .delete(synchronize_session=False)
-
-    # 3. Cria os novos vínculos para cada produto com a categoria de destino.
-    new_links = []
-    for product_id in valid_product_ids:
-        product = product_map[product_id]
-
-        # ✅ LÓGICA DE PREÇO CORRIGIDA:
-        #    Usa o preço do primeiro link de categoria antigo do produto como base.
-        #    Se não tiver, usa 0 (essencial para sabores de pizza).
-        base_price = product.category_links[0].price if product.category_links else 0
-
-        new_links.append(
-            models.ProductCategoryLink(
-                product_id=product_id,
-                category_id=payload.target_category_id,
-                price=base_price  # Fornece o preço para satisfazer a restrição NOT NULL
-            )
-        )
-
-    if new_links:
-        db.add_all(new_links)
-
-    # 4. Salva todas as alterações no banco de dados.
-    db.commit()
-
-    # 5. Emite o evento para que as telas sejam atualizadas.
+    # Emite o evento para atualizar a UI de todos os clientes
     await emit_updates_products(db, store.id)
-    return
+
+    return {"message": "Produtos processados com sucesso"}
 
 @router.post("/bulk-update-status", status_code=204)
 async def bulk_update_product_status(
