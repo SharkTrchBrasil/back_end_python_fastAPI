@@ -2,12 +2,71 @@ from fastapi import HTTPException
 from sqlalchemy import delete
 
 from src.api import schemas
-from src.api.schemas.products.product import ProductPriceInfo, BulkCategoryUpdatePayload
+from src.api.schemas.products.product import ProductPriceInfo, BulkCategoryUpdatePayload, ProductUpdate
 from src.core import models
 from src.core.models import Product
 
 
 # Em seu CRUD de produto
+# Em seu CRUD de produto
+
+def update_product(
+        db,
+        *,
+        db_product: models.Product,
+        update_data: ProductUpdate  # Usa o schema que acabamos de definir
+) -> models.Product:
+    """
+    Atualiza um produto de forma completa, incluindo a sincronização
+    de seus vínculos com categorias e complementos.
+    """
+    # 1. Pega os dados do payload, excluindo as listas de vínculos por enquanto
+    update_dict = update_data.model_dump(
+        exclude_unset=True,
+        exclude={'category_links', 'variant_links'}
+    )
+
+    # 2. Atualiza os campos simples do produto (nome, estoque, etc.)
+    for field, value in update_dict.items():
+        setattr(db_product, field, value)
+
+    db.add(db_product)
+
+    # 3. ✅ SINCRONIZAÇÃO DOS VÍNCULOS DE CATEGORIA
+    if update_data.category_links is not None:
+        # Apaga todos os links de categoria antigos para este produto
+        db.query(models.ProductCategoryLink).filter(
+            models.ProductCategoryLink.product_id == db_product.id
+        ).delete(synchronize_session=False)
+
+        # Cria os novos links com base no que veio do frontend
+        for link_data in update_data.category_links:
+            new_link = models.ProductCategoryLink(
+                product_id=db_product.id,
+                **link_data.model_dump()
+            )
+            db.add(new_link)
+
+    # 4. ✅ SINCRONIZAÇÃO DOS VÍNCULOS DE COMPLEMENTOS (A PEÇA QUE FALTAVA)
+    if update_data.variant_links is not None:
+        # Apaga todos os links de complementos antigos para este produto
+        db.query(models.ProductVariantLink).filter(
+            models.ProductVariantLink.product_id == db_product.id
+        ).delete(synchronize_session=False)
+
+        # Cria os novos links de complementos
+        for link_data in update_data.variant_links:
+            new_link = models.ProductVariantLink(
+                product_id=db_product.id,
+                **link_data.model_dump()
+            )
+            db.add(new_link)
+
+    # 5. Salva todas as alterações no banco
+    db.commit()
+    db.refresh(db_product)
+    return db_product
+
 
 def bulk_add_or_update_links(
         db,

@@ -63,6 +63,8 @@ class SimpleProductWizardCreate(AppBaseModel):
     weight: int | None = None
     serves_up_to: int | None = None
 
+    dietary_tags: list[FoodTagEnum] | None = None
+    beverage_tags: list[BeverageTagEnum] | None = None
 
 
 # ===================================================================
@@ -137,6 +139,8 @@ class ProductUpdate(AppBaseModel):
     file_key: Optional[str] = Field(default=None, exclude=True)
     cashback_type: Optional[CashbackType] = None
     cashback_value: Optional[int] = Field(None, ge=0)
+    category_links: list[ProductCategoryLinkCreate] | None = None
+    variant_links: List[ProductVariantLinkCreate] = Field([], description="Links para variantes")
 
 
 class ProductDefaultOptionOut(AppBaseModel):
@@ -178,6 +182,10 @@ class ProductOut(Product):
     rating: Optional[RatingsSummaryOut] = Field(None, description="Avaliação do produto")
     default_options: List[ProductDefaultOptionOut] = Field(default=[], exclude=True)
 
+    unit: Optional[str] = Field(None)
+
+    weight: int | None = None
+    serves_up_to: int | None = None
 
     dietary_tags: List[FoodTagEnum] = []
     beverage_tags: List[BeverageTagEnum] = []

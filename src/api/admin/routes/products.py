@@ -117,40 +117,40 @@ async def create_flavor_product(
 # ===================================================================
 # ROTA 3: ATUALIZAÇÃO UNIFICADA DE DADOS BÁSICOS (PATCH)
 # ===================================================================
+
+
 @router.patch("/{product_id}", response_model=ProductOut)
 async def update_product(
-        store: GetStoreDep,
-        db: GetDBDep,
-        db_product: GetProductDep,
-        payload_str: str = Form(..., alias="payload"),
-        image: UploadFile | None = File(None),
+    store: GetStoreDep,
+    db: GetDBDep,
+    db_product: GetProductDep, # Sua dependência que já busca o produto
+    payload_str: str = Form(..., alias="payload"),
+    image: UploadFile | None = File(None),
 ):
-    """Atualiza os dados básicos de QUALQUER tipo de produto."""
+    """
+    Atualiza os dados de um produto, incluindo imagem e vínculos de categoria.
+    """
     try:
         update_data = ProductUpdate.model_validate_json(payload_str)
     except ValidationError as e:
         raise HTTPException(status_code=422, detail=f"JSON inválido: {e}")
 
-    update_dict = update_data.model_dump(exclude_unset=True)
-
-    if 'available' in update_dict:
-        update_product_availability(db=db, db_product=db_product, is_available=update_data.available)
-        update_dict.pop('available')
-
-    for field, value in update_dict.items():
-        setattr(db_product, field, value)
-
+    # Lida com a atualização da imagem
     if image:
         if db_product.file_key:
             delete_file(db_product.file_key)
         db_product.file_key = upload_file(image)
 
-    db.commit()
-    db.refresh(db_product)
+    # Chama a nova e poderosa função do CRUD para fazer todo o resto
+    updated_product = crud_product.update_product(
+        db=db,
+        db_product=db_product,
+        update_data=update_data,
+
+    )
+
     await emit_updates_products(db, store.id)
-    return db_product
-
-
+    return updated_product
 # ===================================================================
 # ROTAS PARA ATUALIZAÇÃO DE PREÇOS
 # ===================================================================
