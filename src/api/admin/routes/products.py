@@ -147,6 +147,7 @@ async def update_product(
         db=db,
         db_product=db_product,
         update_data=update_data,
+        store_id=store.id
 
     )
 
