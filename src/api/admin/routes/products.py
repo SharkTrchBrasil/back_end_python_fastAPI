@@ -5,6 +5,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import selectinload
 from starlette import status
 
+from src.api.admin.routes import product_category_link
 from src.api.admin.utils.emit_updates import emit_updates_products
 from src.api.crud import crud_product
 from src.api.crud.crud_product import update_product_availability
@@ -399,3 +400,12 @@ async def remove_product_from_category_route(
     # Sempre notifica a UI para refletir a mudança
     await emit_updates_products(db, store.id)
     return
+
+
+
+
+
+router.include_router(
+    product_category_link.router,
+    prefix="/{product_id}/categories"
+)
