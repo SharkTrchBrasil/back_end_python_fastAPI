@@ -141,7 +141,7 @@ class ProductUpdate(AppBaseModel):
     cashback_value: Optional[int] = Field(None, ge=0)
     category_links: list[ProductCategoryLinkCreate] | None = None
     variant_links: List[ProductVariantLinkCreate] = Field([], description="Links para variantes")
-
+    prices: list[FlavorPriceCreate] | None = None
 
 class ProductDefaultOptionOut(AppBaseModel):
     variant_option_id: int = Field(..., ge=1)
