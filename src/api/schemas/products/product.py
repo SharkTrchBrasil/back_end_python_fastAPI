@@ -63,7 +63,7 @@ class SimpleProductWizardCreate(AppBaseModel):
     category_links: List[ProductCategoryLinkCreate] = Field(..., min_length=1, description="Links para categorias")
 
     variant_links: List[ProductVariantLinkCreate] = Field([], description="Links para variantes")
-    tags: list[FoodTagEnum] | None = None
+
     unit: str | None = 'un'
     weight: int | None = None
     serves_up_to: int | None = None

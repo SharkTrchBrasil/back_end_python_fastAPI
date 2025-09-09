@@ -3,11 +3,45 @@ from sqlalchemy import delete
 
 from src.api import schemas
 from src.api.schemas.products.product import ProductPriceInfo, BulkCategoryUpdatePayload, ProductUpdate
+from src.api.schemas.products.product_category_link import ProductCategoryLinkUpdate
 from src.core import models
 from src.core.models import Product
 
 
+# Em seu CRUD de produto
 
+def update_product_category_link(
+        db,
+        *,
+        store_id: int,
+        product_id: int,
+        category_id: int,
+        payload: ProductCategoryLinkUpdate   # Usa o novo schema
+) -> models.ProductCategoryLink | None:
+    """
+    Atualiza um único vínculo entre produto e categoria. Ideal para pausar/ativar
+    um produto em uma categoria específica.
+    """
+    # Encontra o link específico no banco, garantindo que o produto pertence à loja
+    db_link = db.query(models.ProductCategoryLink).join(models.Product).filter(
+        models.ProductCategoryLink.product_id == product_id,
+        models.ProductCategoryLink.category_id == category_id,
+        models.Product.store_id == store_id
+    ).first()
+
+    if not db_link:
+        return None
+
+    # Pega os dados do payload e atualiza o objeto do banco
+    # exclude_unset=True garante que só atualizaremos os campos que vieram na requisição
+    update_data = payload.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_link, key, value)
+
+    db.add(db_link)
+    db.commit()
+    db.refresh(db_link)
+    return db_link
 
 def update_product(
         db,
