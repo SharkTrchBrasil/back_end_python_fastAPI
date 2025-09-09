@@ -20,17 +20,22 @@ logger = logging.getLogger(__name__)
 class AppBaseModel(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
+
 # ✅ CRIE OS SCHEMAS PARA A NOVA ESTRUTURA DE PREÇO
 class FlavorPriceBase(BaseModel):
     size_option_id: int
     price: int = Field(..., ge=0)
 
+
 class FlavorPriceCreate(FlavorPriceBase):
     pass
 
+
 class FlavorPriceOut(FlavorPriceBase):
     id: int
+
     class Config: from_attributes = True
+
 
 class FlavorPriceUpdate(BaseModel):
     price: int = Field(..., ge=0)
@@ -94,7 +99,7 @@ class FlavorWizardCreate(AppBaseModel):
     # --- Vínculos e Preços (Específicos deste wizard) ---
     parent_category_id: int
     prices: List[FlavorPriceCreate]
-  
+
 
 class Product(AppBaseModel):
     """Campos essenciais que definem um produto."""
@@ -116,32 +121,40 @@ class Product(AppBaseModel):
     master_product_id: int | None = None  # ✅ CAMPO ADICIONADO AQUI
 
 
-class ProductUpdate(AppBaseModel):
-    """Schema para atualizar um produto. Todos os campos são opcionais."""
-    name: Optional[str] = Field(None, min_length=1, max_length=255)
-    description: Optional[str] = Field(None, max_length=2000)
-    featured: Optional[bool] = None
-    ean: Optional[str] = Field(None, max_length=13)
-    available: Optional[bool] = None
-    unit: Optional[str] = Field(None)
+class ProductUpdate(BaseModel):
+    """ Schema para a atualização COMPLETA de um produto. """
+    # --- Campos básicos (opcionais) ---
+    name: str | None = None
+    description: str | None = None
+    ean: str | None = None
+    available: bool | None = None
+    featured: bool | None = None
 
+    # ✅ 'priority' ADICIONADO AQUI
+    priority: int | None = None
+
+    # --- Estoque ---
+    control_stock: bool | None = None
+    stock_quantity: int | None = None
+    min_stock: int | None = None
+    max_stock: int | None = None
+
+    # --- Cashback ---
+    cashback_type: CashbackType | None = None
+    cashback_value: int | None = None
+
+    # --- Atributos ---
+    unit: str | None = None
     weight: int | None = None
     serves_up_to: int | None = None
     dietary_tags: list[FoodTagEnum] | None = None
     beverage_tags: list[BeverageTagEnum] | None = None
 
-
-    stock_quantity: Optional[int] = Field(None, ge=0)
-    control_stock: Optional[bool] = None
-    min_stock: Optional[int] = Field(None, ge=0)
-    max_stock: Optional[int] = Field(None, ge=0)
-
-    file_key: Optional[str] = Field(default=None, exclude=True)
-    cashback_type: Optional[CashbackType] = None
-    cashback_value: Optional[int] = Field(None, ge=0)
+    # --- Vínculos (para sincronização completa) ---
     category_links: list[ProductCategoryLinkCreate] | None = None
-    variant_links: List[ProductVariantLinkCreate] = Field([], description="Links para variantes")
+    variant_links: list[ProductVariantLinkCreate] | None = None
     prices: list[FlavorPriceCreate] | None = None
+
 
 class ProductDefaultOptionOut(AppBaseModel):
     variant_option_id: int = Field(..., ge=1)
@@ -156,12 +169,11 @@ class ProductNestedOut(Product):
         return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if self.file_key else None
 
 
-
-
 class ProductPriceInfo(BaseModel):
     product_id: int
     price: int = Field(..., ge=0)
     pos_code: str | None = None
+
 
 # ✅ ESTE É O SCHEMA CORRIGIDO QUE VOCÊ PRECISA USAR
 class BulkCategoryUpdatePayload(BaseModel):
@@ -170,126 +182,36 @@ class BulkCategoryUpdatePayload(BaseModel):
     products: list[ProductPriceInfo] = Field(..., min_items=1)
 
 
-class ProductOut(Product):
-    id: int = Field(..., ge=1)
-    variant_links: List[ProductVariantLinkOut] = Field([], description="Variantes do produto")
+# ✅ SCHEMA DE SAÍDA FINALIZADO
+class ProductOut(AppBaseModel):
+    id: int
+    name: str
+    description: str | None
+    product_type: ProductType
+    available: bool
+    featured: bool
+    ean: str | None
+    stock_quantity: int
+    control_stock: bool
+    min_stock: int
+    max_stock: int
+    unit: str
+    sold_count: int
+    cashback_type: CashbackType
+    cashback_value: int
+    master_product_id: int | None
 
-    category_links: List[ProductCategoryLinkOut] = Field([], description="Categorias do produto")
+    # Atributos
+    serves_up_to: int | None
+    weight: int | None
+    dietary_tags: List[FoodTagEnum]
+    beverage_tags: List[BeverageTagEnum]
 
-    prices: List[FlavorPriceOut] = []  # Retorna a lista de preços por tamanho
-
-    components: List[KitComponentOut] = Field([], description="Componentes do kit")
-    rating: Optional[RatingsSummaryOut] = Field(None, description="Avaliação do produto")
-    default_options: List[ProductDefaultOptionOut] = Field(default=[], exclude=True)
-
-    unit: Optional[str] = Field(None)
-
-    weight: int | None = None
-    serves_up_to: int | None = None
-
-    dietary_tags: List[FoodTagEnum] = []
-    beverage_tags: List[BeverageTagEnum] = []
-
-    @computed_field
-    @property
-    def image_path(self) -> str | None:
-        return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if self.file_key else None
-
-    @computed_field
-    @property
-    def default_option_ids(self) -> list[int]:
-        return [default.variant_option_id for default in self.default_options] if self.default_options else []
-
-    @computed_field
-    @property
-    def calculated_stock(self) -> int | None:
-        """Calcula o estoque disponível considerando componentes para kits."""
-        if self.product_type != ProductType.KIT or not self.components:
-            return self.stock_quantity if self.control_stock else None
-
-        try:
-            possible_kits = []
-            for item in self.components:
-                if not item.component.control_stock:
-                    continue
-                stock_for_this_item = item.component.stock_quantity // item.quantity
-                possible_kits.append(stock_for_this_item)
-
-            return min(possible_kits) if possible_kits else None
-        except Exception as e:
-            logger.error(f"Error calculating stock for product {self.id}: {e}")
-            return None
-
-    # --- CAMPOS CALCULADOS OTIMIZADOS PARA PREÇO ---
-
-    # @computed_field
-    # @property
-    # def price(self) -> int:
-    #     """Retorna o menor preço entre todas as categorias."""
-    #     if not self.category_links:
-    #         logger.warning(f"Product {self.id if hasattr(self, 'id') else 'unknown'} has no category links")
-    #         return 0
-    #
-    #     try:
-    #         return min(link.price for link in self.category_links)
-    #     except ValueError as e:
-    #         logger.error(f"Error calculating price for product {self.id}: {e}")
-    #         return 0
-    #
-    # @computed_field
-    # @property
-    # def cost_price(self) -> int | None:
-    #     """Retorna o menor preço de custo entre as categorias (apenas se todas tiverem)."""
-    #     if not self.category_links:
-    #         return None
-    #
-    #     try:
-    #         # Filtra apenas categorias com cost_price definido
-    #         cost_prices = [link.cost_price for link in self.category_links if link.cost_price is not None]
-    #         return min(cost_prices) if cost_prices else None
-    #     except ValueError as e:
-    #         logger.error(f"Error calculating cost price for product {self.id}: {e}")
-    #         return None
-    #
-    # @computed_field
-    # @property
-    # def is_on_promotion(self) -> bool:
-    #     """Verifica se há promoção em qualquer categoria."""
-    #     return any(link.is_on_promotion for link in self.category_links) if self.category_links else False
-    #
-    # @computed_field
-    # @property
-    # def promotional_price(self) -> int | None:
-    #     """Retorna o menor preço promocional ativo."""
-    #     if not self.category_links:
-    #         return None
-    #
-    #     try:
-    #         # Filtra apenas promoções ativas com preço definido
-    #         active_promotions = [
-    #             link.promotional_price for link in self.category_links
-    #             if link.is_on_promotion and link.promotional_price is not None
-    #         ]
-    #         return min(active_promotions) if active_promotions else None
-    #     except ValueError as e:
-    #         logger.error(f"Error calculating promotional price for product {self.id}: {e}")
-    #         return None
-
-    @computed_field
-    @property
-    def primary_category_id(self) -> int | None:
-        """Retorna o ID da primeira categoria (útil para referência)."""
-        return self.category_links[0].category_id if self.category_links else None
-
-    @computed_field
-    @property
-    def has_multiple_prices(self) -> bool:
-        """Indica se o produto tem preços diferentes em categorias diferentes."""
-        if len(self.category_links) <= 1:
-            return False
-
-        first_price = self.category_links[0].price
-        return any(link.price != first_price for link in self.category_links[1:])
+    # Relacionamentos
+    variant_links: List[ProductVariantLinkOut]
+    category_links: List[ProductCategoryLinkOut]
+    prices: List[FlavorPriceOut]
+    components: List[KitComponentOut]
 
 
 # -------------------------------------------------
