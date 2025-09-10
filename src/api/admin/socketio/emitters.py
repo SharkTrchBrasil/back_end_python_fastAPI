@@ -387,7 +387,7 @@ async def admin_emit_products_updated(db, store_id: int):
             .selectinload(models.Variant.options)
             .selectinload(models.VariantOption.linked_product),
         selectinload(models.Product.prices).selectinload(models.FlavorPrice.size_option),
-        # selectinload(models.Product.tags) # Descomente se 'tags' for uma relação
+
     ).filter(models.Product.store_id == store_id).order_by(models.Product.priority).all()
 
     # 2. Busca TODOS os complementos (variants) da loja

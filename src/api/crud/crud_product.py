@@ -6,6 +6,7 @@ from src.api.schemas.products.product import ProductPriceInfo, BulkCategoryUpdat
 from src.api.schemas.products.product_category_link import ProductCategoryLinkUpdate
 from src.core import models
 from src.core.models import Product
+from src.core.utils.enums import CategoryType
 
 
 # Em seu CRUD de produto
@@ -43,6 +44,7 @@ def update_product_category_link(
     db.refresh(db_link)
     return db_link
 
+
 def update_product(
         db,
         *,
@@ -51,38 +53,41 @@ def update_product(
         store_id: int
 ) -> models.Product:
     """
-    Atualiza um produto de forma completa, incluindo a sincronização
-    de seus vínculos com categorias e preços de sabores.
+    Atualiza um produto de forma completa, aplicando a lógica de sincronização
+    correta baseada no tipo da categoria do produto (GENERAL vs CUSTOMIZABLE).
     """
-    # 1. Pega os dados do payload, excluindo as listas de relacionamentos
+    # 1. Atualiza os campos simples do produto (nome, estoque, etc.)
     update_dict = update_data.model_dump(
         exclude_unset=True,
-        exclude={'category_links', 'variant_links', 'prices'}  # Exclui a nova lista
+        exclude={'category_links', 'variant_links', 'prices'}
     )
-
-    # 2. Atualiza os campos simples do produto (nome, estoque, etc.)
     for field, value in update_dict.items():
         setattr(db_product, field, value)
     db.add(db_product)
 
-    # 3. SINCRONIZAÇÃO DOS VÍNCULOS DE CATEGORIA (para produtos simples)
-    if update_data.category_links is not None:
+    # 2. ✅ LÓGICA INTELIGENTE: Descobre se o produto é um 'Sabor'
+    #    verificando o tipo de sua categoria pai.
+    is_customizable_product = False
+    if db_product.category_links:
+        # Pega o tipo da primeira categoria vinculada como referência
+        parent_category_type = db_product.category_links[0].category.type
+        if parent_category_type == CategoryType.CUSTOMIZABLE:
+            is_customizable_product = True
+
+    # 3. SINCRONIZAÇÃO DE VÍNCULOS DE CATEGORIA (para produtos GERAIS)
+    #    Este bloco agora SÓ executa se o produto for de uma categoria GENERAL.
+    if not is_customizable_product and update_data.category_links is not None:
+        print("Executando sincronização para produto GENERAL")
         db.query(models.ProductCategoryLink).filter(
             models.ProductCategoryLink.product_id == db_product.id
         ).delete(synchronize_session=False)
         for link_data in update_data.category_links:
             db.add(models.ProductCategoryLink(product_id=db_product.id, **link_data.model_dump()))
 
-    # 4. SINCRONIZAÇÃO DOS VÍNCULOS DE COMPLEMENTOS
-    if update_data.variant_links is not None:
-        db.query(models.ProductVariantLink).filter(
-            models.ProductVariantLink.product_id == db_product.id
-        ).delete(synchronize_session=False)
-        for link_data in update_data.variant_links:
-            db.add(models.ProductVariantLink(product_id=db_product.id, **link_data.model_dump()))
-
-    # 5. ✅ NOVA LÓGICA: SINCRONIZAÇÃO DOS PREÇOS DE SABORES
-    if update_data.prices is not None:
+    # 4. SINCRONIZAÇÃO DOS PREÇOS DE SABORES (para produtos CUSTOMIZÁVEIS)
+    #    Este bloco agora SÓ executa se o produto for de uma categoria CUSTOMIZABLE.
+    if is_customizable_product and update_data.prices is not None:
+        print("Executando sincronização de preços para produto CUSTOMIZABLE (Sabor)")
         # Apaga todos os preços de sabores antigos para este produto
         db.query(models.FlavorPrice).filter(
             models.FlavorPrice.product_id == db_product.id
@@ -92,10 +97,21 @@ def update_product(
         for price_data in update_data.prices:
             db.add(models.FlavorPrice(product_id=db_product.id, **price_data.model_dump()))
 
+    # 5. SINCRONIZAÇÃO DOS VÍNCULOS DE COMPLEMENTOS (pode ser comum a ambos)
+    if update_data.variant_links is not None:
+        db.query(models.ProductVariantLink).filter(
+            models.ProductVariantLink.product_id == db_product.id
+        ).delete(synchronize_session=False)
+        for link_data in update_data.variant_links:
+            db.add(models.ProductVariantLink(product_id=db_product.id, **link_data.model_dump()))
+
     # 6. Salva todas as alterações no banco
     db.commit()
     db.refresh(db_product)
     return db_product
+
+
+
 
 
 def bulk_add_or_update_links(
