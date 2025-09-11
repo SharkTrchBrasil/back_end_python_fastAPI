@@ -13,7 +13,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
     CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode, CategoryType, FoodTagEnum, AvailabilityTypeEnum, \
-    BeverageTagEnum
+    BeverageTagEnum, PricingStrategyType
 from src.api.schemas.shared.base import VariantType, UIDisplayMode
 
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -307,7 +307,11 @@ class Category(Base, TimestampMixin):
                                                         default=CashbackType.NONE)
     cashback_value: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.00'))
     printer_destination: Mapped[str | None] = mapped_column(String(50), nullable=True)
-
+    pricing_strategy: Mapped[PricingStrategyType] = mapped_column(
+        Enum(PricingStrategyType, name="pricing_strategy_type_enum"),
+        nullable=False,
+        default=PricingStrategyType.SUM_OF_ITEMS
+    )
 
 
     availability_type: Mapped[AvailabilityTypeEnum] = mapped_column(

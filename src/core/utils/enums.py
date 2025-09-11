@@ -115,3 +115,7 @@ class AvailabilityTypeEnum(str, enum.Enum):
     ALWAYS = "ALWAYS"
     SCHEDULED = "SCHEDULED"
 
+class PricingStrategyType(str, enum.Enum):
+    SUM_OF_ITEMS = "SUM_OF_ITEMS"
+    HIGHEST_PRICE = "HIGHEST_PRICE"
+    LOWEST_PRICE = "LOWEST_PRICE"
