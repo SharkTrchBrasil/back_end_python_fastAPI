@@ -9,7 +9,7 @@ from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.models import CategoryType, CashbackType
 from decimal import Decimal
 
-from src.core.utils.enums import FoodTagEnum, AvailabilityTypeEnum, PricingStrategyType
+from src.core.utils.enums import FoodTagEnum, AvailabilityTypeEnum, PricingStrategyType, CategoryTemplateType
 
 
 # --- SCHEMAS DE DISPONIBILIDADE ---
@@ -132,7 +132,7 @@ class CategoryBase(BaseModel):
     printer_destination: str | None = None # ✅ ADICIONADO AQUI
     pricing_strategy: PricingStrategyType | None = None
     price_varies_by_size: bool | None = False #
-
+    selected_template: CategoryTemplateType | None = None
 
 class CategoryCreate(CategoryBase):
 
@@ -155,7 +155,7 @@ class CategoryUpdate(BaseModel):
     printer_destination: str | None = None  # ✅ ADICIONADO AQUI
     pricing_strategy: PricingStrategyType | None = None #
     price_varies_by_size: bool | None = False #
-
+    selected_template: CategoryTemplateType | None = None # ✅ Adicionado
 
 class Category(CategoryBase):  # O schema de resposta
     id: int
@@ -164,7 +164,7 @@ class Category(CategoryBase):  # O schema de resposta
     schedules: list[CategorySchedule] = []
     pricing_strategy: PricingStrategyType
     price_varies_by_size: bool | None = False  #
-
+    selected_template: CategoryTemplateType  #
 
     # ✨ CORREÇÃO 1: Adicionar a URL da imagem para o frontend
     file_key: str | None = Field(None, exclude=True)  # Exclui do JSON final

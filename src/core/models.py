@@ -13,7 +13,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
     CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode, CategoryType, FoodTagEnum, AvailabilityTypeEnum, \
-    BeverageTagEnum, PricingStrategyType
+    BeverageTagEnum, PricingStrategyType, CategoryTemplateType
 from src.api.schemas.shared.base import VariantType, UIDisplayMode
 
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -325,6 +325,14 @@ class Category(Base, TimestampMixin):
         default=AvailabilityTypeEnum.ALWAYS,
         server_default="ALWAYS"
     )
+
+    # ✅ NOVO CAMPO ADICIONADO AQUI
+    selected_template: Mapped[CategoryTemplateType] = mapped_column(
+        Enum(CategoryTemplateType, name="category_template_type_enum"),
+        nullable=False,
+        server_default=text("'BLANK'")  # Define 'BLANK' ou 'NONE' como padrão
+    )
+
 
     schedules: Mapped[List["CategorySchedule"]] = relationship(back_populates="category", cascade="all, delete-orphan", lazy="selectin")
 
