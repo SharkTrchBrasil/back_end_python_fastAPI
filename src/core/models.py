@@ -367,6 +367,12 @@ class OptionGroup(Base, TimestampMixin):
 
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
     category: Mapped["Category"] = relationship(back_populates="option_groups")
+    # ✅ NOVO CAMPO ADICIONADO AQUI
+    pricing_strategy: Mapped[PricingStrategyType] = mapped_column(
+        Enum(PricingStrategyType, name="pricing_strategy_type_enum"),
+        nullable=False,
+        server_default=text('SUM_OF_ITEMS')
+    )
 
     items: Mapped[List["OptionItem"]] = relationship(back_populates="group", cascade="all, delete-orphan",
                                                      lazy="selectin")

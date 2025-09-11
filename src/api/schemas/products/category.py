@@ -89,7 +89,7 @@ class OptionGroupBase(BaseModel):
     name: str
     min_selection: int = 1
     max_selection: int = 1
-
+    pricing_strategy: PricingStrategyType = PricingStrategyType.SUM_OF_ITEMS  # ✅ Adicionado
 
 
 class OptionGroupCreate(OptionGroupBase):
@@ -105,14 +105,19 @@ class OptionGroup(OptionGroupBase):
     id: int
     priority: int
     items: list[OptionItem] = []
+    pricing_strategy: PricingStrategyType
 
-    class Config: from_attributes = True
+    # Sua configuração from_attributes está implícita no Pydantic V2
+    model_config = ConfigDict(from_attributes=True)
+
+
 
 class OptionGroupUpdate(BaseModel):
     id: int | None = None
     name: str
     min_selection: int = 1
     max_selection: int = 1
+    pricing_strategy: PricingStrategyType | None = None  #
     items: list[OptionItemUpdate] = []
 
 
