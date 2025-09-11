@@ -334,6 +334,8 @@ class Category(Base, TimestampMixin):
     )
 
 
+
+
     schedules: Mapped[List["CategorySchedule"]] = relationship(back_populates="category", cascade="all, delete-orphan", lazy="selectin")
 
 
