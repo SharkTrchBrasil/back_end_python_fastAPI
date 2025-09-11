@@ -1,7 +1,7 @@
 from __future__ import annotations
 from decimal import Decimal
 
-from sqlalchemy import select, Boolean, JSON, Integer, Time
+from sqlalchemy import select, Boolean, JSON, Integer, Time, text
 from datetime import datetime, date, timezone
 from typing import Optional, List
 
@@ -313,6 +313,12 @@ class Category(Base, TimestampMixin):
         default=PricingStrategyType.SUM_OF_ITEMS
     )
 
+
+    price_varies_by_size: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text('false') # Define 'false' como padrão no banco
+    )
 
     availability_type: Mapped[AvailabilityTypeEnum] = mapped_column(
         Enum(AvailabilityTypeEnum, name="availability_type_enum"),

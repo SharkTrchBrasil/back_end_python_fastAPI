@@ -126,6 +126,8 @@ class CategoryBase(BaseModel):
     cashback_value: Decimal = Decimal('0.00')
     printer_destination: str | None = None # ✅ ADICIONADO AQUI
     pricing_strategy: PricingStrategyType | None = None
+    price_varies_by_size: bool | None = False #
+
 
 class CategoryCreate(CategoryBase):
 
@@ -147,7 +149,7 @@ class CategoryUpdate(BaseModel):
     option_groups: list[OptionGroupUpdate] | None = None
     printer_destination: str | None = None  # ✅ ADICIONADO AQUI
     pricing_strategy: PricingStrategyType | None = None #
-
+    price_varies_by_size: bool | None = False #
 
 
 class Category(CategoryBase):  # O schema de resposta
@@ -156,6 +158,9 @@ class Category(CategoryBase):  # O schema de resposta
     availability_type: AvailabilityTypeEnum
     schedules: list[CategorySchedule] = []
     pricing_strategy: PricingStrategyType
+    price_varies_by_size: bool | None = False  #
+
+
     # ✨ CORREÇÃO 1: Adicionar a URL da imagem para o frontend
     file_key: str | None = Field(None, exclude=True)  # Exclui do JSON final
 
