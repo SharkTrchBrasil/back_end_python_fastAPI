@@ -390,24 +390,26 @@ class OptionItem(Base, TimestampMixin):
     )
 
 
-
 class FlavorPrice(Base, TimestampMixin):
     __tablename__ = "flavor_prices"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    price: Mapped[int] = mapped_column(nullable=False) # Preço em centavos
+    price: Mapped[int] = mapped_column(nullable=False)  # Preço em centavos
 
-    # ✅ CORREÇÃO APLICADA AQUI
+    # ✅ NOVO CAMPO: Código PDV
+    pos_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # ✅ NOVO CAMPO: Status de disponibilidade
+    is_available: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    # --- Relacionamentos (continuam iguais) ---
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"))
     product: Mapped["Product"] = relationship(back_populates="prices")
 
-    # Liga o preço a um "tamanho", que é um OptionItem
     size_option_id: Mapped[int] = mapped_column(ForeignKey("option_items.id"))
     size_option: Mapped["OptionItem"] = relationship(back_populates="flavor_prices")
 
-    # Garante que um sabor não tenha dois preços para o mesmo tamanho
     __table_args__ = (UniqueConstraint('product_id', 'size_option_id', name='_product_size_price_uc'),)
-
 
 
 class Product(Base, TimestampMixin):

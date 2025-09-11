@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import time
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, ConfigDict
 
 from src.api.schemas.products.product_category_link import ProductCategoryLinkOut
 from src.core.aws import S3_PUBLIC_BASE_URL
@@ -178,9 +178,7 @@ class Category(CategoryBase):  # O schema de resposta
         return None
 
 
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 
@@ -194,5 +192,4 @@ class FoodTagOut(BaseModel):
     description: str | None = None
     icon_key: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

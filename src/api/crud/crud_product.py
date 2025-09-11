@@ -53,8 +53,8 @@ def update_product(
         store_id: int
 ) -> models.Product:
     """
-    Atualiza um produto de forma completa, aplicando a lógica de sincronização
-    correta baseada no tipo da categoria do produto (GENERAL vs CUSTOMIZABLE).
+    Atualiza um produto de forma completa, incluindo a sincronização
+    de seus vínculos com categorias e preços de sabores.
     """
     # 1. Atualiza os campos simples do produto (nome, estoque, etc.)
     update_dict = update_data.model_dump(
@@ -64,48 +64,55 @@ def update_product(
     for field, value in update_dict.items():
         setattr(db_product, field, value)
     db.add(db_product)
+    db.flush()  # Aplica as mudanças simples imediatamente
 
-    # 2. ✅ LÓGICA INTELIGENTE: Descobre se o produto é um 'Sabor'
-    #    verificando o tipo de sua categoria pai.
-    is_customizable_product = False
-    if db_product.category_links:
-        # Pega o tipo da primeira categoria vinculada como referência
-        parent_category_type = db_product.category_links[0].category.type
-        if parent_category_type == CategoryType.CUSTOMIZABLE:
-            is_customizable_product = True
-
-    # 3. SINCRONIZAÇÃO DE VÍNCULOS DE CATEGORIA (para produtos GERAIS)
-    #    Este bloco agora SÓ executa se o produto for de uma categoria GENERAL.
-    if not is_customizable_product and update_data.category_links is not None:
-        print("Executando sincronização para produto GENERAL")
+    # 2. SINCRONIZAÇÃO DOS VÍNCULOS DE CATEGORIA (SEMPRE ACONTECE)
+    #    Isso é crucial para permitir que produtos sejam movidos entre categorias.
+    if update_data.category_links is not None:
+        # Primeiro, apaga todos os vínculos de categoria antigos para este produto
         db.query(models.ProductCategoryLink).filter(
             models.ProductCategoryLink.product_id == db_product.id
         ).delete(synchronize_session=False)
+        db.flush()  # Garante que a exclusão seja registrada na sessão
+
+        # Depois, cria os novos vínculos com base no que veio do frontend
         for link_data in update_data.category_links:
             db.add(models.ProductCategoryLink(product_id=db_product.id, **link_data.model_dump()))
 
-    # 4. SINCRONIZAÇÃO DOS PREÇOS DE SABORES (para produtos CUSTOMIZÁVEIS)
-    #    Este bloco agora SÓ executa se o produto for de uma categoria CUSTOMIZABLE.
+    # 3. SINCRONIZAÇÃO DOS PREÇOS DE SABORES (AGORA CONDICIONAL E CORRETA)
+    #    Este bloco só executa se a NOVA categoria for do tipo CUSTOMIZABLE.
+    is_customizable_product = False
+    if update_data.category_links:
+        # Pega a primeira categoria do payload como referência.
+        # Numa edição, um sabor só deve estar em uma categoria customizável.
+        target_category_id = update_data.category_links[0].category_id
+        target_category = db.query(models.Category).get(target_category_id)
+
+        if target_category and target_category.type == CategoryType.CUSTOMIZABLE:
+            is_customizable_product = True
+
     if is_customizable_product and update_data.prices is not None:
-        print("Executando sincronização de preços para produto CUSTOMIZABLE (Sabor)")
         # Apaga todos os preços de sabores antigos para este produto
         db.query(models.FlavorPrice).filter(
             models.FlavorPrice.product_id == db_product.id
         ).delete(synchronize_session=False)
+        db.flush()  # Garante que a exclusão seja registrada
 
         # Cria os novos registros de preço com base no que veio do frontend
         for price_data in update_data.prices:
             db.add(models.FlavorPrice(product_id=db_product.id, **price_data.model_dump()))
 
-    # 5. SINCRONIZAÇÃO DOS VÍNCULOS DE COMPLEMENTOS (pode ser comum a ambos)
+    # 4. SINCRONIZAÇÃO DOS VÍNCULOS DE COMPLEMENTOS (pode ser comum a ambos)
     if update_data.variant_links is not None:
         db.query(models.ProductVariantLink).filter(
             models.ProductVariantLink.product_id == db_product.id
         ).delete(synchronize_session=False)
+        db.flush()  # Garante que a exclusão seja registrada
+
         for link_data in update_data.variant_links:
             db.add(models.ProductVariantLink(product_id=db_product.id, **link_data.model_dump()))
 
-    # 6. Salva todas as alterações no banco
+    # 5. Salva todas as alterações no banco
     db.commit()
     db.refresh(db_product)
     return db_product

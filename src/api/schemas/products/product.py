@@ -21,10 +21,12 @@ class AppBaseModel(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
-# ✅ CRIE OS SCHEMAS PARA A NOVA ESTRUTURA DE PREÇO
+# ✅ SCHEMAS DE PREÇO COMPLETOS E CORRIGIDOS
 class FlavorPriceBase(BaseModel):
     size_option_id: int
     price: int = Field(..., ge=0)
+    pos_code: str | None = None       # ✅ Adicionado
+    is_available: bool = True
 
 
 class FlavorPriceCreate(FlavorPriceBase):
@@ -34,13 +36,14 @@ class FlavorPriceCreate(FlavorPriceBase):
 class FlavorPriceOut(FlavorPriceBase):
     id: int
 
-    class Config: from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
+# Este schema é para updates pontuais de um único preço
 class FlavorPriceUpdate(BaseModel):
-    price: int = Field(..., ge=0)
-
-
+    price: int | None = Field(None, ge=0)
+    pos_code: str | None = None       # ✅ Adicionado
+    is_available: bool | None = None   # ✅ Adicionado
 # ===================================================================
 # WIZARD 1: Para Produtos Simples (ex: Coca-Cola, X-Bacon)
 # ===================================================================
