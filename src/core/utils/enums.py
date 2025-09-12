@@ -135,3 +135,15 @@ class CategoryTemplateType(str, enum.Enum):
     BREAKFAST = "BREAKFAST"
     LUNCH_BOXES = "LUNCH_BOXES"
     BLANK = "BLANK"  # For the "Start from Scratch" option
+
+
+class OptionGroupType(str, enum.Enum):
+    """Define o comportamento especial de um grupo de opções."""
+
+    # Um grupo especial para Tamanhos, usado em categorias onde o preço varia por tamanho.
+    # A UI pode usar este tipo para mostrar campos específicos (ex: fatias, sabores máx).
+    SIZE = "SIZE"
+
+    # Um grupo genérico de opções, onde cada item pode ter um preço aditivo.
+    # Usado para a maioria dos casos (ex: Massas, Bordas, Frutas, Caldas).
+    GENERIC = "GENERIC"

@@ -9,7 +9,8 @@ from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.models import CategoryType, CashbackType
 from decimal import Decimal
 
-from src.core.utils.enums import FoodTagEnum, AvailabilityTypeEnum, PricingStrategyType, CategoryTemplateType
+from src.core.utils.enums import FoodTagEnum, AvailabilityTypeEnum, PricingStrategyType, CategoryTemplateType, \
+    OptionGroupType
 
 
 # --- SCHEMAS DE DISPONIBILIDADE ---
@@ -90,7 +91,7 @@ class OptionGroupBase(BaseModel):
     min_selection: int = 1
     max_selection: int = 1
     pricing_strategy: PricingStrategyType = PricingStrategyType.SUM_OF_ITEMS  # ✅ Adicionado
-
+    group_type: OptionGroupType = OptionGroupType.GENERIC # ✅ Adicionado
 
 class OptionGroupCreate(OptionGroupBase):
     # ✨ ADICIONADO: Permite receber a lista de itens DENTRO do grupo na criação
@@ -106,7 +107,7 @@ class OptionGroup(OptionGroupBase):
     priority: int
     items: list[OptionItem] = []
     pricing_strategy: PricingStrategyType
-
+    group_type: OptionGroupType | None = None  # ✅ Adicionado
     # Sua configuração from_attributes está implícita no Pydantic V2
     model_config = ConfigDict(from_attributes=True)
 

@@ -13,7 +13,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
     CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode, CategoryType, FoodTagEnum, AvailabilityTypeEnum, \
-    BeverageTagEnum, PricingStrategyType, CategoryTemplateType
+    BeverageTagEnum, PricingStrategyType, CategoryTemplateType, OptionGroupType
 from src.api.schemas.shared.base import VariantType, UIDisplayMode
 
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -382,6 +382,21 @@ class OptionGroup(Base, TimestampMixin):
         Enum(PricingStrategyType, name="pricing_strategy_type_enum"),
         nullable=False,
         server_default=text('SUM_OF_ITEMS')
+    )
+
+
+    is_configurable: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        # Define 'true' como padrão. Os templates irão definir como 'false' quando necessário.
+        server_default=text('true')
+    )
+
+
+    group_type: Mapped[OptionGroupType] = mapped_column(
+        Enum(OptionGroupType, name="option_group_type_enum"),
+        nullable=False,
+        server_default=text('GENERIC')
     )
 
     items: Mapped[List["OptionItem"]] = relationship(back_populates="group", cascade="all, delete-orphan",
