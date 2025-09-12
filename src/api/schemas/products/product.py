@@ -10,7 +10,7 @@ from .product_variant_link import ProductVariantLinkOut, ProductVariantLinkCreat
 from .rating import RatingsSummaryOut
 
 from src.core.aws import get_presigned_url, S3_PUBLIC_BASE_URL
-from src.core.utils.enums import CashbackType, ProductType, FoodTagEnum, BeverageTagEnum
+from src.core.utils.enums import CashbackType, ProductType, FoodTagEnum, BeverageTagEnum, ProductStatus
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -57,7 +57,10 @@ class SimpleProductWizardCreate(AppBaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="Nome do produto")
     description: Optional[str] = Field(None, max_length=2000, description="Descrição do produto")
     ean: Optional[str] = Field(None, max_length=13, description="Código EAN do produto")
-    available: bool = Field(True, description="Disponibilidade do produto")
+    # ✅ 2. 'available' substituído por 'status'
+    status: ProductStatus = Field(ProductStatus.ACTIVE, description="Status do produto")
+
+
     product_type: ProductType = Field(ProductType.INDIVIDUAL, description="Tipo do produto")
     stock_quantity: Optional[int] = Field(0, ge=0, description="Quantidade em estoque")
     control_stock: bool = Field(False, description="Se controla estoque")
@@ -88,7 +91,7 @@ class FlavorWizardCreate(AppBaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=2000)
     ean: Optional[str] = Field(None, max_length=13)
-    available: bool = True
+    status: ProductStatus = Field(ProductStatus.ACTIVE)
     product_type: ProductType = ProductType.INDIVIDUAL
 
     # --- Estoque (iguais ao SimpleProductWizardCreate) ---
@@ -109,7 +112,7 @@ class Product(AppBaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: str = Field("", max_length=2000)
     product_type: ProductType = Field(ProductType.INDIVIDUAL)
-    available: bool = Field(True)
+    status: ProductStatus | None = None
     featured: bool = Field(False)
     ean: str = Field("")
     stock_quantity: int = Field(0, ge=0)
@@ -130,7 +133,7 @@ class ProductUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     ean: str | None = None
-    available: bool | None = None
+    status: ProductStatus | None = None
     featured: bool | None = None
 
     # ✅ 'priority' ADICIONADO AQUI
@@ -191,7 +194,7 @@ class ProductOut(AppBaseModel):
     name: str
     description: str | None
     product_type: ProductType
-    available: bool
+    status: ProductStatus | None = None
     featured: bool
     ean: str | None
     stock_quantity: int
