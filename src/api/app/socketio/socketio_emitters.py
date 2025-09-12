@@ -5,6 +5,7 @@ from sqlalchemy.orm import selectinload
 from src.api.crud import store_crud
 from src.core import models
 from src.core.models import Category
+from src.core.utils.enums import ProductStatus
 from src.socketio_instance import sio
 from src.api.schemas.products.product import ProductOut
 from src.api.schemas.store.store_details import StoreDetails
@@ -57,7 +58,10 @@ async def emit_products_updated(db, store_id: int):
       #  selectinload(models.Product.tags)  # ✅ Adicionado (se 'tags' for uma relação)
     ).filter(
         models.Product.store_id == store_id,
-        models.Product.available == True
+
+    ).filter(
+        # ✅ 2. ADICIONE ESTE FILTRO PARA ESCONDER OS ARQUIVADOS
+        models.Product.status != ProductStatus.ARCHIVED
     ).order_by(models.Product.priority).all()
 
     # --- 2. BUSCA DAS AVALIAÇÕES (SUA OTIMIZAÇÃO, ESTÁ PERFEITA) ---

@@ -22,6 +22,7 @@ from src.core import models
 from src.core.aws import upload_file, delete_file
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep, GetProductDep
+from src.core.utils.enums import ProductStatus
 
 router = APIRouter(prefix="/stores/{store_id}/products", tags=["Products"])
 
@@ -218,13 +219,18 @@ def get_minimal_products(store_id: int, db: GetDBDep):
     return [{"id": p.id, "name": p.name} for p in products]
 
 
+
 @router.get("", response_model=List[ProductOut])
 def get_products(db: GetDBDep, store: GetStoreDep, skip: int = 0, limit: int = 100):
-    products = db.query(models.Product).filter(models.Product.store_id == store.id).options(
-        selectinload(models.Product.category_links).selectinload(models.ProductCategoryLink.category),
-        selectinload(models.Product.variant_links).selectinload(models.ProductVariantLink.variant).selectinload(models.Variant.options)
-    ).order_by(models.Product.priority).offset(skip).limit(limit).all()
+    # ✅ A FUNÇÃO DO CRUD AGORA TEM O FILTRO EMBUTIDO
+    products = crud_product.get_all_products_for_store(
+        db=db,
+        store_id=store.id,
+        skip=skip,
+        limit=limit
+    )
     return products
+
 
 @router.get("/{product_id}", response_model=ProductOut)
 def get_product_details(product: GetProductDep):
@@ -261,62 +267,104 @@ async def update_product_category_link(
     return db_link
 
 
-@router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_product(store: GetStoreDep, db: GetDBDep, db_product: GetProductDep):
-    old_file_key = db_product.file_key
-    db.delete(db_product)
-    db.commit()
-    # ✅ Adicionada checagem de segurança
-    if old_file_key:
-        delete_file(old_file_key)
-    await emit_updates_products(db, store.id)
-    return
+# @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+# async def delete_product(store: GetStoreDep, db: GetDBDep, db_product: GetProductDep):
+#     old_file_key = db_product.file_key
+#     db.delete(db_product)
+#     db.commit()
+#     # ✅ Adicionada checagem de segurança
+#     if old_file_key:
+#         delete_file(old_file_key)
+#     await emit_updates_products(db, store.id)
+#     return
 
-
-# Em seu arquivo de rotas de produtos
-
-@router.post("/bulk-delete", status_code=204)
-async def bulk_delete_products(
+# ✅ ADICIONE A NOVA ROTA PARA ARQUIVAR
+@router.patch("/{product_id}/archive", status_code=status.HTTP_204_NO_CONTENT)
+async def archive_product(
     store: GetStoreDep,
     db: GetDBDep,
-    payload: BulkDeletePayload,
+    db_product: GetProductDep
 ):
     """
-    Remove uma lista de produtos. A exclusão em cascata é gerenciada
-    pelo banco de dados através da configuração ON DELETE CASCADE.
+    Arquiva um produto (soft delete), mudando seu status para ARCHIVED.
+    O produto não será mais listado nas telas principais.
+    """
+    if db_product.status == ProductStatus.ARCHIVED:
+        # Se já está arquivado, não faz nada.
+        return
+
+    # Chama a função do CRUD para fazer a alteração
+    crud_product.archive_product(db=db, db_product=db_product)
+
+    await emit_updates_products(db, store.id)
+    return
+# Em seu arquivo de rotas de produtos
+
+# @router.post("/bulk-delete", status_code=204)
+# async def bulk_delete_products(
+#     store: GetStoreDep,
+#     db: GetDBDep,
+#     payload: BulkDeletePayload,
+# ):
+#     """
+#     Remove uma lista de produtos. A exclusão em cascata é gerenciada
+#     pelo banco de dados através da configuração ON DELETE CASCADE.
+#     """
+#     if not payload.product_ids:
+#         return
+#
+#     # 1. Busca os produtos para pegar os file_keys antes de deletar.
+#     products_to_delete = db.query(models.Product).filter(
+#         models.Product.store_id == store.id,
+#         models.Product.id.in_(payload.product_ids)
+#     ).all()
+#
+#     if not products_to_delete:
+#         return
+#
+#     file_keys_to_delete = [p.file_key for p in products_to_delete if p.file_key]
+#     valid_product_ids = [p.id for p in products_to_delete]
+#
+#     # 2. Executa UM ÚNICO comando de exclusão em massa. O banco cuida do resto.
+#     db.query(models.Product).filter(models.Product.id.in_(valid_product_ids)).delete(synchronize_session=False)
+#
+#     # 3. Commita a transação.
+#     db.commit()
+#
+#     # 4. Apaga os arquivos do S3.
+#     for key in file_keys_to_delete:
+#         try:
+#             delete_file(key)
+#         except Exception as e:
+#             print(f"Alerta: Falha ao deletar o arquivo {key} do S3. Erro: {e}")
+#
+#     # 5. Notifica a UI.
+#     await emit_updates_products(db, store.id)
+#     return
+
+
+# ✅ ADICIONE A NOVA ROTA PARA ARQUIVAR EM MASSA
+@router.post("/bulk-archive", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_archive_products(
+    store: GetStoreDep,
+    db: GetDBDep,
+    payload: BulkDeletePayload, # Podemos reutilizar o mesmo payload
+):
+    """
+    Arquiva uma lista de produtos de uma vez.
     """
     if not payload.product_ids:
         return
 
-    # 1. Busca os produtos para pegar os file_keys antes de deletar.
-    products_to_delete = db.query(models.Product).filter(
-        models.Product.store_id == store.id,
-        models.Product.id.in_(payload.product_ids)
-    ).all()
+    # Chama a função do CRUD que faz a atualização em massa
+    crud_product.bulk_archive_products(
+        db=db,
+        store_id=store.id,
+        product_ids=payload.product_ids
+    )
 
-    if not products_to_delete:
-        return
-
-    file_keys_to_delete = [p.file_key for p in products_to_delete if p.file_key]
-    valid_product_ids = [p.id for p in products_to_delete]
-
-    # 2. Executa UM ÚNICO comando de exclusão em massa. O banco cuida do resto.
-    db.query(models.Product).filter(models.Product.id.in_(valid_product_ids)).delete(synchronize_session=False)
-
-    # 3. Commita a transação.
-    db.commit()
-
-    # 4. Apaga os arquivos do S3.
-    for key in file_keys_to_delete:
-        try:
-            delete_file(key)
-        except Exception as e:
-            print(f"Alerta: Falha ao deletar o arquivo {key} do S3. Erro: {e}")
-
-    # 5. Notifica a UI.
     await emit_updates_products(db, store.id)
     return
-
 
 @router.post("/bulk-update-category", response_model=dict, status_code=200)
 async def bulk_update_product_category(

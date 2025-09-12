@@ -29,6 +29,7 @@ from src.api.admin.services.product_analytic_services import get_product_analyti
 from src.api.admin.services.subscription_service import SubscriptionService
 
 from src.api.schemas.orders.order import OrderDetails
+from src.core.utils.enums import ProductStatus
 from src.socketio_instance import sio
 from src.core import models
 
@@ -388,7 +389,11 @@ async def admin_emit_products_updated(db, store_id: int):
             .selectinload(models.VariantOption.linked_product),
         selectinload(models.Product.prices).selectinload(models.FlavorPrice.size_option),
 
-    ).filter(models.Product.store_id == store_id).order_by(models.Product.priority).all()
+    ).filter(models.Product.store_id == store_id).filter(
+        # ✅ 2. ADICIONE ESTE FILTRO PARA ESCONDER OS ARQUIVADOS
+        models.Product.status != ProductStatus.ARCHIVED
+    ).order_by(models.Product.priority).all()
+
 
     # 2. Busca TODOS os complementos (variants) da loja
     all_variants_from_db = db.query(models.Variant).options(

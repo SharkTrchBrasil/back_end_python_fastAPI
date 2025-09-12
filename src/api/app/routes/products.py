@@ -5,6 +5,7 @@ from src import templates
 from src.core import models
 from src.core.database import GetDBDep
 from src.api.schemas.products.product import ProductOut
+from src.core.utils.enums import ProductStatus
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -35,7 +36,9 @@ def get_product_by_subdomain(
     ).filter(
         models.Product.id == product_id,
         models.Product.store_id == store.id,
-        #models.Product.available == True
+           ).filter(
+        # ✅ 2. ADICIONE ESTE FILTRO PARA ESCONDER OS ARQUIVADOS
+        models.Product.status != ProductStatus.ARCHIVED
     ).first()
 
     if not product:

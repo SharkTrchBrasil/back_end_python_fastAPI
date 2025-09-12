@@ -13,7 +13,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
     CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode, CategoryType, FoodTagEnum, AvailabilityTypeEnum, \
-    BeverageTagEnum, PricingStrategyType, CategoryTemplateType, OptionGroupType
+    BeverageTagEnum, PricingStrategyType, CategoryTemplateType, OptionGroupType, ProductStatus
 from src.api.schemas.shared.base import VariantType, UIDisplayMode
 
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -463,7 +463,13 @@ class Product(Base, TimestampMixin):
 
 
     # ✅ Adicione os padrões aqui
-    available: Mapped[bool] = mapped_column(default=True)
+    status: Mapped[ProductStatus] = mapped_column(
+        Enum(ProductStatus, name="product_status_enum"),
+        nullable=False,
+        default=ProductStatus.ACTIVE,
+        server_default=text("'ACTIVE'")
+    )
+
     priority: Mapped[int] = mapped_column(default=0)
 
     featured: Mapped[bool] = mapped_column(default=False)

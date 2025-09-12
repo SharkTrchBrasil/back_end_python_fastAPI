@@ -147,3 +147,11 @@ class OptionGroupType(str, enum.Enum):
     # Um grupo genérico de opções, onde cada item pode ter um preço aditivo.
     # Usado para a maioria dos casos (ex: Massas, Bordas, Frutas, Caldas).
     GENERIC = "GENERIC"
+
+
+
+
+class ProductStatus(str, enum.Enum):
+    ACTIVE = "ACTIVE"       # Visível e à venda
+    INACTIVE = "INACTIVE"   # Pausado temporariamente, mas ainda no catálogo principal
+    ARCHIVED = "ARCHIVED"   # "Deletado", oculto de todas as listas principais

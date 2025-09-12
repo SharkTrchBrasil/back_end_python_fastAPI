@@ -1,15 +1,38 @@
 from fastapi import HTTPException
 from sqlalchemy import delete
+from sqlalchemy.orm import selectinload
 
 from src.api import schemas
 from src.api.schemas.products.product import ProductPriceInfo, BulkCategoryUpdatePayload, ProductUpdate
 from src.api.schemas.products.product_category_link import ProductCategoryLinkUpdate
 from src.core import models
 from src.core.models import Product
-from src.core.utils.enums import CategoryType
+from src.core.utils.enums import CategoryType, ProductStatus
 
 
-# Em seu CRUD de produto
+def get_all_products_for_store(db, store_id: int, skip: int = 0, limit: int = 100):
+    """
+    Busca todos os produtos de uma loja que NÃO estão arquivados.
+    Carrega os relacionamentos necessários para a exibição no painel de admin.
+    """
+    return db.query(models.Product).options(
+        selectinload(models.Product.category_links).selectinload(models.ProductCategoryLink.category),
+        selectinload(models.Product.default_options),
+        selectinload(models.Product.variant_links)
+            .selectinload(models.ProductVariantLink.variant)
+            .selectinload(models.Variant.options)
+            .selectinload(models.VariantOption.linked_product),
+        selectinload(models.Product.prices).selectinload(models.FlavorPrice.size_option),
+    ).filter(
+        models.Product.store_id == store_id,
+        # Filtro crucial para esconder os arquivados
+        models.Product.status != ProductStatus.ARCHIVED
+    ).order_by(
+        models.Product.priority
+    ).offset(skip).limit(limit).all()
+
+
+
 
 def update_product_category_link(
         db,
@@ -265,3 +288,25 @@ def bulk_update_product_category(
     # 4. Salva tudo no banco de dados.
     db.commit()
     return {"message": "Produtos movidos e reprecificados com sucesso."}
+
+
+
+def archive_product(db, db_product: models.Product) -> models.Product:
+    """Muda o status de um produto para ARCHIVED."""
+    db_product.status = ProductStatus.ARCHIVED
+    db.commit()
+    db.refresh(db_product)
+    return db_product
+
+# ✅ NOVA FUNÇÃO PARA ARQUIVAR EM MASSA
+def bulk_archive_products(db, store_id: int, product_ids: list[int]):
+    """Muda o status de uma lista de produtos para ARCHIVED."""
+    db.query(models.Product)\
+      .filter(
+          models.Product.store_id == store_id,
+          models.Product.id.in_(product_ids)
+      )\
+      .update({"status": ProductStatus.ARCHIVED}, synchronize_session=False)
+    db.commit()
+    return
+
