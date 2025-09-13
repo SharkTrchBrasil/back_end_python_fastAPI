@@ -10,6 +10,50 @@ from src.core.models import Product
 from src.core.utils.enums import CategoryType, ProductStatus
 
 
+
+def update_link_availability(
+    db,
+    *,
+    store_id: int,
+    product_id: int,
+    category_id: int,
+    is_available: bool
+) -> models.ProductCategoryLink | None:
+    """
+    Atualiza a disponibilidade de um vínculo produto-categoria e, se estiver
+    ativando o vínculo, garante que o status do produto principal também
+    seja ACTIVE.
+    """
+    # 1. Encontra o vínculo específico que queremos alterar
+    db_link = db.query(models.ProductCategoryLink).join(models.Product).filter(
+        models.ProductCategoryLink.product_id == product_id,
+        models.ProductCategoryLink.category_id == category_id,
+        models.Product.store_id == store_id
+    ).first()
+
+    if not db_link:
+        return None
+
+    # 2. Atualiza o status de disponibilidade do VÍNCULO
+    db_link.is_available = is_available
+
+    # 3. LÓGICA INTELIGENTE: Se estamos ATIVANDO o vínculo (is_available=True)...
+    if is_available:
+        # ...e o produto principal estiver INATIVO...
+        if db_link.product.status == ProductStatus.INACTIVE:
+            # ...então ativamos o produto principal também!
+            db_link.product.status = ProductStatus.ACTIVE
+            print(f"Produto '{db_link.product.name}' reativado via cascata.")
+
+    db.add(db_link)
+    db.commit()
+    db.refresh(db_link)
+    return db_link
+
+
+
+
+
 def get_all_products_for_store(db, store_id: int, skip: int = 0, limit: int = 100):
     """
     Busca todos os produtos de uma loja que NÃO estão arquivados.

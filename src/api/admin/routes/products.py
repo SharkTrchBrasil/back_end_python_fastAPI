@@ -264,18 +264,42 @@ async def update_product_category_link(
     return db_link
 
 
-# @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
-# async def delete_product(store: GetStoreDep, db: GetDBDep, db_product: GetProductDep):
-#     old_file_key = db_product.file_key
-#     db.delete(db_product)
-#     db.commit()
-#     # ✅ Adicionada checagem de segurança
-#     if old_file_key:
-#         delete_file(old_file_key)
-#     await emit_updates_products(db, store.id)
-#     return
 
-# ✅ ADICIONE A NOVA ROTA PARA ARQUIVAR
+@router.patch(
+    "/{product_id}/categories/{category_id}/availability",
+    response_model=ProductCategoryLinkOut,
+    summary="Ativa ou pausa um produto em uma categoria específica"
+)
+async def toggle_product_availability_in_category(
+        store: GetStoreDep,
+        product_id: int,
+        category_id: int,
+        payload: ProductCategoryLinkUpdate,  # Reutilizamos o schema, esperando { "is_available": true/false }
+        db: GetDBDep,
+):
+    """
+    Atualiza a disponibilidade de um produto em uma categoria específica.
+    Se o produto estiver sendo ativado no vínculo, também garante que o
+    status geral do produto seja ACTIVE.
+    """
+    # Chama a nova função do CRUD que contém a lógica inteligente
+    db_link = crud_product.update_link_availability(
+        db=db,
+        store_id=store.id,
+        product_id=product_id,
+        category_id=category_id,
+        is_available=payload.is_available
+    )
+    if not db_link:
+        raise HTTPException(status_code=404, detail="Vínculo produto-categoria não encontrado.")
+
+    await emit_updates_products(db, store.id)
+    return db_link
+
+
+
+
+
 @router.patch("/{product_id}/archive", status_code=status.HTTP_204_NO_CONTENT)
 async def archive_product(
     store: GetStoreDep,
