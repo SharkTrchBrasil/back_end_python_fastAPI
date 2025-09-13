@@ -30,7 +30,7 @@ router = APIRouter(prefix="/stores/{store_id}/products", tags=["Products"])
 # ===================================================================
 # ROTA 1: CRIAR PRODUTO SIMPLES (Ex: Bebidas, Lanches)
 # ===================================================================
-# Em seu arquivo de rotas de produtos
+
 
 @router.post("/simple-product", response_model=ProductOut, status_code=201)
 async def create_simple_product(
@@ -47,35 +47,32 @@ async def create_simple_product(
 
     file_key = upload_file(image) if image else None
 
-    # Pega os dados principais do produto, excluindo as listas aninhadas
-    product_data = payload.model_dump(exclude={'category_links', 'variant_links', 'tags'})
+    # ✅ CORREÇÃO: Excluímos os novos campos de tags do product_data
+    product_data = payload.model_dump(exclude={'category_links', 'variant_links', 'dietary_tags', 'beverage_tags'})
 
-    # Cria a instância do produto no banco
+    # ✅ CORREÇÃO: Passamos as listas de tags corretas para o modelo SQLAlchemy
     new_product = models.Product(
         **product_data,
         store_id=store.id,
         file_key=file_key,
-        tags=payload.tags or []
+        dietary_tags=payload.dietary_tags or [],
+        beverage_tags=payload.beverage_tags or []
     )
     db.add(new_product)
-    db.flush()  # Para obter o new_product.id
+    db.flush()
 
-    # Itera e salva os links com as categorias e seus preços
     for link_data in payload.category_links:
         db.add(models.ProductCategoryLink(product_id=new_product.id, **link_data.model_dump()))
 
-    # ✅ ADICIONADO: Loop para salvar os links de variantes (complementos)
     for link_data in payload.variant_links:
         db.add(models.ProductVariantLink(product_id=new_product.id, **link_data.model_dump()))
 
-    # Salva tudo no banco de uma vez
     db.commit()
     db.refresh(new_product)
-
-    # Notifica os clientes sobre a mudança
     await emit_updates_products(db, store.id)
-
     return new_product
+
+
 
 # ===================================================================
 # ROTA 2: CRIAR "SABOR" (PRODUTO CUSTOMIZÁVEL)
@@ -393,6 +390,7 @@ async def bulk_update_product_category(
     return {"message": "Produtos movidos e reprecificados com sucesso"}
 
 
+
 @router.post("/bulk-update-status", status_code=204)
 async def bulk_update_product_status(
     store: GetStoreDep,
@@ -400,21 +398,25 @@ async def bulk_update_product_status(
     payload: BulkStatusUpdatePayload,
 ):
     """
-    Ativa ou desativa uma lista de produtos de uma vez.
+    Ativa ou desativa (muda o status para ACTIVE ou INACTIVE) uma lista de produtos.
     """
     if not payload.product_ids:
-        return # Não faz nada se a lista for vazia
+        return
 
-    # Executa uma única query para atualizar todos os produtos de uma vez
+    # ✅ CORREÇÃO: Determina o novo status com base no booleano recebido
+    new_status = ProductStatus.ACTIVE if payload.is_active else ProductStatus.INACTIVE
+
     db.query(models.Product)\
       .filter(
           models.Product.store_id == store.id,
           models.Product.id.in_(payload.product_ids)
       )\
-      .update({"available": payload.available}, synchronize_session=False)
+      .update(
+          {"status": new_status}, # ✅ Atualiza a coluna 'status'
+          synchronize_session=False
+      )
 
     db.commit()
-
     await emit_updates_products(db, store.id)
     return
 
