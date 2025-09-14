@@ -3,8 +3,9 @@
 from sqlalchemy.orm import selectinload
 
 from src.api.crud import store_crud
+from src.api.schemas.products.category import Category
 from src.core import models
-from src.core.models import Category
+
 from src.core.utils.enums import ProductStatus
 from src.socketio_instance import sio
 from src.api.schemas.products.product import ProductOut
