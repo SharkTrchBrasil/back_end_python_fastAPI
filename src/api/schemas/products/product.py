@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, ConfigDict, computed_field
 import logging
 
 from .product_category_link import ProductCategoryLinkCreate, ProductCategoryLinkOut
-from .bulk_actions import KitComponentOut
+
 from .product_variant_link import ProductVariantLinkOut, ProductVariantLinkCreate
 from .rating import RatingsSummaryOut
 
@@ -47,6 +47,16 @@ class FlavorPriceUpdate(BaseModel):
 # ===================================================================
 # WIZARD 1: Para Produtos Simples (ex: Coca-Cola, X-Bacon)
 # ===================================================================
+
+
+
+
+class KitComponentOut(BaseModel):
+    quantity: int
+    component: "ProductOut"
+
+
+
 
 class SimpleProductWizardCreate(AppBaseModel):
     """
@@ -181,11 +191,6 @@ class ProductPriceInfo(BaseModel):
     pos_code: str | None = None
 
 
-# ✅ ESTE É O SCHEMA CORRIGIDO QUE VOCÊ PRECISA USAR
-class BulkCategoryUpdatePayload(BaseModel):
-    target_category_id: int
-
-    products: list[ProductPriceInfo] = Field(..., min_items=1)
 
 
 # ✅ SCHEMA DE SAÍDA FINALIZADO

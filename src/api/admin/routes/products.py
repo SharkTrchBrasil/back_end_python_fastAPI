@@ -9,7 +9,8 @@ from src.api.admin.routes import product_category_link
 from src.api.admin.utils.emit_updates import emit_updates_products
 from src.api.crud import crud_product
 from src.api.crud.crud_product import update_product_availability
-from src.api.schemas.products.bulk_actions import BulkCategoryUpdatePayload, BulkDeletePayload, BulkStatusUpdatePayload
+from src.api.schemas.products.bulk_actions import BulkDeletePayload, BulkStatusUpdatePayload, BulkCategoryUpdatePayload
+
 from src.api.schemas.products.product import (
     ProductOut,
     ProductUpdate,

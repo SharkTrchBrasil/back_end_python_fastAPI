@@ -1,30 +1,23 @@
 # schemas/product/bulk_actions.py
 from typing import List
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+# ✅ 1. Importa a estrutura de dados necessária do arquivo de produto
+from .product import ProductPriceInfo
 
 
-class ProductCategoryUpdatePayload(BaseModel):
-    category_ids: List[int]
-
-
+# ✅ 2. Schema para atualizar o status de múltiplos produtos
 class BulkStatusUpdatePayload(BaseModel):
     product_ids: List[int]
-    available: bool
+    available: bool # 'is_active' seria um nome mais consistente com o resto do código
 
 
+# ✅ 3. Schema para deletar múltiplos produtos
 class BulkDeletePayload(BaseModel):
     product_ids: List[int]
 
 
+# ✅ 4. Schema CORRETO e ÚNICO para mover e reprecificar produtos
 class BulkCategoryUpdatePayload(BaseModel):
-    product_ids: List[int]
     target_category_id: int
-
-
-
-class KitComponentOut(BaseModel):
-    quantity: int
-    # Inclui os dados do produto componente para o front-end saber o que é
-    component: "ProductOut"
-
-
+    products: list[ProductPriceInfo] = Field(..., min_items=1)
