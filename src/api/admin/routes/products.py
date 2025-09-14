@@ -428,8 +428,9 @@ async def bulk_update_product_status(
     if not payload.product_ids:
         return
 
-    # ✅ CORREÇÃO: Determina o novo status com base no booleano recebido
-    new_status = ProductStatus.ACTIVE if payload.is_active else ProductStatus.INACTIVE
+
+    new_status = ProductStatus.ACTIVE if payload.available else ProductStatus.INACTIVE  # <--- Linha corrigida
+
 
     db.query(models.Product)\
       .filter(
