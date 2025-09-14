@@ -2,7 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy import delete
 from sqlalchemy.orm import selectinload
 
-from src.api import schemas
+from src.api.schemas.products.bulk_actions import BulkCategoryUpdatePayload
 from src.api.schemas.products.product import ProductPriceInfo, ProductUpdate
 from src.api.schemas.products.product_category_link import ProductCategoryLinkUpdate
 from src.core import models

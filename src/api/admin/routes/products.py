@@ -1,14 +1,14 @@
 from typing import List
 from fastapi import APIRouter, Form, UploadFile, File, HTTPException
-import json
+
 from pydantic import ValidationError
-from sqlalchemy.orm import selectinload
+
 from starlette import status
 
 from src.api.admin.routes import product_category_link
 from src.api.admin.utils.emit_updates import emit_updates_products
 from src.api.crud import crud_product
-from src.api.crud.crud_product import update_product_availability
+
 from src.api.schemas.products.bulk_actions import BulkDeletePayload, BulkStatusUpdatePayload, BulkCategoryUpdatePayload
 
 from src.api.schemas.products.product import (
