@@ -530,6 +530,29 @@ async def remove_product_from_category_route(
 
 
 
+@router.post("/bulk-add-update-links", status_code=status.HTTP_200_OK)
+async def bulk_add_products_to_category(
+    *,
+    db: GetDBDep,
+    store: GetStoreDep,
+    # Podemos reutilizar o mesmo Pydantic model que a rota de "mover" usa
+    payload: BulkCategoryUpdatePayload
+):
+    """
+    Adiciona ou atualiza múltiplos produtos em uma categoria,
+    SEM remover seus vínculos com outras categorias.
+    """
+    crud_product.bulk_add_or_update_links(
+        db=db,
+        store_id=store.id,
+        target_category_id=payload.target_category_id,
+        products_data=payload.products
+    )
+
+    # Sempre notifica a UI para refletir a mudança
+    await emit_updates_products(db, store.id)
+    return
+
 
 router.include_router(
     product_category_link.router,
