@@ -196,6 +196,11 @@ async def update_product(
 
     await emit_updates_products(db, store.id)
     return updated_product
+
+
+
+
+
 # ===================================================================
 # ROTAS PARA ATUALIZAÇÃO DE PREÇOS
 # ===================================================================

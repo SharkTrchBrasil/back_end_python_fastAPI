@@ -1,46 +1,59 @@
-# ARQUIVO: src/api/schemas/product_variant_link.py
-from typing import Annotated, Optional
-from pydantic import Field
+# ARQUIVO CORRIGIDO: src/api/schemas/products/product_variant_link.py
 
+from __future__ import annotations
+from typing import Optional, List
+from pydantic import BaseModel, Field
+
+from src.api.schemas.products.variant import Variant
+from src.api.schemas.products.variant_option import VariantOptionCreate
 from src.api.schemas.shared.base import AppBaseModel, UIDisplayMode
-# Supondo que você tenha um base.py
-from .variant import Variant, VariantCreate  # ✅ IMPORTAÇÃO DIRETA: Importa o schema Variant
 
+
+# --- 1. Schemas de Base (Estrutura Comum) ---
 
 class ProductVariantLinkBase(AppBaseModel):
     ui_display_mode: UIDisplayMode
-    min_selected_options: Annotated[int, Field(ge=0, description="0=Opcional, >0=Obrigatório")]
-    max_selected_options: Annotated[int, Field(ge=1)]
-    max_total_quantity: Optional[int] = Field(None, ge=1)
-    display_order: int = 0
+    min_selected_options: int = Field(..., ge=0, description="0=Opcional, >0=Obrigatório")
+    max_selected_options: int = Field(..., ge=1)
     available: bool = True
+    # Campos que parecem ter sido removidos do seu código mais recente, mas que podem ser úteis:
+    # max_total_quantity: Optional[int] = Field(None, ge=1)
+    # display_order: int = 0
 
+
+# --- 2. Schemas de Entrada (Payloads que o Flutter envia para a API) ---
+
+class VariantInLink(BaseModel):
+    """Schema para o objeto 'variant' que vem ANINHADO do Flutter."""
+    id: int | None = None # Pode ser negativo/nulo (novo) ou positivo (existente)
+    name: str
+    type: str # O Enum é convertido para string no Flutter
+    options: List[VariantOptionCreate] = []
 
 class ProductVariantLinkCreate(ProductVariantLinkBase):
     """
-    Schema usado no wizard de criação de produto.
-    Inclui campos para vincular um grupo existente ou criar um novo.
+    Schema para um link de complemento que vem do Flutter.
+    SEMPRE contém o objeto 'variant' completo.
+    A lógica do backend decide se o 'variant' é novo ou existente pelo ID.
     """
-    variant_id: Optional[int] = None  # ID de um grupo existente
-    new_variant_data: Optional[VariantCreate] = None  # Dados para criar um novo grupo
+    # ✅ CORREÇÃO PRINCIPAL: O campo agora se chama 'variant'
+    variant: VariantInLink
 
 
 class ProductVariantLinkUpdate(AppBaseModel):
+    """Schema para atualizar APENAS as regras de um link JÁ EXISTENTE."""
     ui_display_mode: Optional[UIDisplayMode] = None
-    min_selected_options: Optional[Annotated[int, Field(ge=0)]] = None
-    max_selected_options: Optional[Annotated[int, Field(ge=1)]] = None
-    max_total_quantity: Optional[int] = Field(None, ge=1)
-    display_order: Optional[int] = None
+    min_selected_options: Optional[int] = Field(None, ge=0)
+    max_selected_options: Optional[int] = Field(None, ge=1)
     available: Optional[bool] = None
 
 
-# ✅ DEFINIÇÃO CORRETA DO SCHEMA DE SAÍDA (OUT)
+# --- 3. Schemas de Saída (Respostas da API para o Flutter) ---
+
 class ProductVariantLinkOut(ProductVariantLinkBase):
     """
     Schema de resposta da API. Retorna os dados do vínculo
     e o objeto Variant completo aninhado.
     """
-    id: int  # Um schema de saída deve ter o ID do registro no banco
-
-    # ✅ SEM ASPAS: A classe Variant foi importada diretamente.
-    variant: Variant
+    id: int
+    variant: Variant # Usa o schema de saída para Variant

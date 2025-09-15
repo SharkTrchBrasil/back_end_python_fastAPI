@@ -168,7 +168,9 @@ class ProductUpdate(BaseModel):
 
     # --- Vínculos (para sincronização completa) ---
     category_links: list[ProductCategoryLinkCreate] | None = None
+
     variant_links: list[ProductVariantLinkCreate] | None = None
+
     prices: list[FlavorPriceCreate] | None = None
 
 
