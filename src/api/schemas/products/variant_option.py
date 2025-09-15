@@ -93,3 +93,9 @@ class VariantOption(VariantOptionBase):
         if not self.track_inventory:
             return True
         return self.stock_quantity > 0
+
+
+
+class OptionInVariantLink(VariantOptionBase):
+    id: int | None = None
+    variant_id: int | None = None
