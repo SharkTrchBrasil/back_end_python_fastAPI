@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from src.api.schemas.products.variant import Variant
 from src.api.schemas.products.variant_option import VariantOptionCreate
-from src.api.schemas.shared.base import AppBaseModel, UIDisplayMode
+from src.api.schemas.shared.base import AppBaseModel, UIDisplayMode, VariantType
 
 
 # --- 1. Schemas de Base (Estrutura Comum) ---
@@ -27,7 +27,7 @@ class VariantInLink(BaseModel):
     """Schema para o objeto 'variant' que vem ANINHADO do Flutter."""
     id: int | None = None # Pode ser negativo/nulo (novo) ou positivo (existente)
     name: str
-    type: str # O Enum é convertido para string no Flutter
+    type: VariantType
     options: List[VariantOptionCreate] = []
 
 class ProductVariantLinkCreate(ProductVariantLinkBase):
