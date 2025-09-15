@@ -33,6 +33,7 @@ router = APIRouter(prefix="/stores/{store_id}/products", tags=["Products"])
 # ===================================================================
 
 
+
 @router.post("/simple-product", response_model=ProductOut, status_code=201)
 async def create_simple_product(
         store: GetStoreDep,
@@ -58,7 +59,7 @@ async def create_simple_product(
     db.add(new_product)
     db.flush()  # Garante que `new_product.id` seja gerado
 
-    # 2. Cria os vínculos com as categorias (lógica existente - OK)
+    # 2. Cria os vínculos com as categorias
     if payload.category_links:
         for link_data in payload.category_links:
             db.add(models.ProductCategoryLink(product_id=new_product.id, **link_data.model_dump()))
@@ -113,18 +114,6 @@ async def create_simple_product(
     db.refresh(new_product)
     await emit_updates_products(db, store.id)
     return new_product
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
