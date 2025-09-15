@@ -680,7 +680,6 @@ class VariantOption(Base, TimestampMixin):
 class ProductVariantLink(Base, TimestampMixin):
     __tablename__ = "product_variant_links"
 
-    # ✅ 1. ADICIONE UMA COLUNA DE ID PRIMÁRIO SIMPLES
     id: Mapped[int] = mapped_column(primary_key=True)
 
     # ✅ CORREÇÃO APLICADA AQUI
