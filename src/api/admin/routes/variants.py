@@ -2,10 +2,13 @@ from fastapi import APIRouter
 from sqlalchemy.orm import joinedload
 
 from src.api.app.socketio.socketio_emitters import emit_products_updated
+from src.api.crud import crud_variant
 from src.api.schemas.products.variant import VariantCreate, Variant, VariantUpdate
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetVariantDep, GetStoreDep
+
+
 
 router = APIRouter(tags=["Variants"], prefix="/stores/{store_id}/variants")
 
@@ -15,13 +18,25 @@ async def create_product_variant(
         store: GetStoreDep,
         variant: VariantCreate,
 ):
-    db_variant = models.Variant(
-        **variant.model_dump(),
-        store_id=store.id,
-    )
+    # ✅ PASSO 2: Substitua a lógica antiga...
+    # ----------------------------------------------------
+    # LÓGICA ANTIGA (REMOVIDA):
+    # db_variant = models.Variant(
+    #     **variant.model_dump(),
+    #     store_id=store.id,
+    # )
+    # db.add(db_variant)
+    # db.commit()
+    # ----------------------------------------------------
 
-    db.add(db_variant)
-    db.commit()
+    # ... Pela chamada à nova função do CRUD.
+    db_variant = crud_variant.create_variant(
+        db=db,
+        store_id=store.id,
+        variant_data=variant
+    )
+    # ----------------------------------------------------
+
     await emit_products_updated(db, db_variant.store_id)
     return db_variant
 
