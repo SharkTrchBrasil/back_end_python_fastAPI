@@ -40,7 +40,10 @@ async def create_simple_product(
         payload_str: str = Form(..., alias="payload"),
         image: UploadFile | None = File(None),
 ):
-    """Cria um produto do tipo GENERAL com preços definidos por categoria."""
+    """
+    Cria um produto do tipo GENERAL e todos os seus vínculos, incluindo
+    a criação de novos grupos de complementos e suas opções.
+    """
     try:
         payload = SimpleProductWizardCreate.model_validate_json(payload_str)
     except ValidationError as e:
@@ -48,30 +51,82 @@ async def create_simple_product(
 
     file_key = upload_file(image) if image else None
 
-    # ✅ CORREÇÃO: Excluímos os novos campos de tags do product_data
-    product_data = payload.model_dump(exclude={'category_links', 'variant_links', 'dietary_tags', 'beverage_tags'})
+    # 1. Cria o produto principal primeiro, mas sem os relacionamentos
+    product_data = payload.model_dump(exclude={'category_links', 'variant_links'})
 
-    # ✅ CORREÇÃO: Passamos as listas de tags corretas para o modelo SQLAlchemy
-    new_product = models.Product(
-        **product_data,
-        store_id=store.id,
-        file_key=file_key,
-        dietary_tags=payload.dietary_tags or [],
-        beverage_tags=payload.beverage_tags or []
-    )
+    new_product = models.Product(**product_data, store_id=store.id, file_key=file_key)
     db.add(new_product)
-    db.flush()
+    db.flush()  # Garante que `new_product.id` seja gerado
 
-    for link_data in payload.category_links:
-        db.add(models.ProductCategoryLink(product_id=new_product.id, **link_data.model_dump()))
+    # 2. Cria os vínculos com as categorias (lógica existente - OK)
+    if payload.category_links:
+        for link_data in payload.category_links:
+            db.add(models.ProductCategoryLink(product_id=new_product.id, **link_data.model_dump()))
 
-    for link_data in payload.variant_links:
-        db.add(models.ProductVariantLink(product_id=new_product.id, **link_data.model_dump()))
+    # 3. ✅ LÓGICA INTELIGENTE PARA GRUPOS DE COMPLEMENTOS (variant_links)
+    if payload.variant_links:
+        for link_data in payload.variant_links:
+            variant_data = link_data.variant
 
+            # Se o ID da variante for > 0, é um grupo existente. Apenas vincula.
+            if variant_data.id and variant_data.id > 0:
+                db.add(models.ProductVariantLink(
+                    product_id=new_product.id,
+                    variant_id=variant_data.id,
+                    min_selected_options=link_data.min_selected_options,
+                    max_selected_options=link_data.max_selected_options,
+                    ui_display_mode=link_data.ui_display_mode,
+                    available=link_data.available
+                ))
+            else:
+                # Se o ID for negativo/nulo, é um GRUPO NOVO. Precisamos criar tudo.
+
+                # a. Cria o Variant (o grupo)
+                new_variant = models.Variant(
+                    name=variant_data.name,
+                    type=variant_data.type.value,
+                    store_id=store.id
+                )
+                db.add(new_variant)
+                db.flush()  # Para obter o ID do novo variant
+
+                # b. Cria as VariantOptions (os itens do grupo)
+                if variant_data.options:
+                    for option_data in variant_data.options:
+                        db.add(models.VariantOption(
+                            variant_id=new_variant.id,
+                            **option_data.model_dump(exclude={'image'})
+                        ))
+
+                # c. Cria o Vínculo entre o produto e o grupo recém-criado
+                db.add(models.ProductVariantLink(
+                    product_id=new_product.id,
+                    variant_id=new_variant.id,
+                    min_selected_options=link_data.min_selected_options,
+                    max_selected_options=link_data.max_selected_options,
+                    ui_display_mode=link_data.ui_display_mode,
+                    available=link_data.available
+                ))
+
+    # 4. Salva tudo no banco de dados
     db.commit()
     db.refresh(new_product)
     await emit_updates_products(db, store.id)
     return new_product
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
