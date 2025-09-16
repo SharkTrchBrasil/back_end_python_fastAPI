@@ -96,7 +96,7 @@ async def create_simple_product(
                     for option_data in variant_data.options:
                         db.add(models.VariantOption(
                             variant_id=new_variant.id,
-                            **option_data.model_dump(exclude={'image'})
+                            **option_data.model_dump(exclude={'image', 'variant_id'})
                         ))
 
                 # c. Cria o Vínculo entre o produto e o grupo recém-criado

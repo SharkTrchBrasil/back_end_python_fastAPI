@@ -207,7 +207,7 @@ def update_product(
                     for option_data in variant_data.options:
                         new_option = models.VariantOption(
                             variant_id=new_variant.id,  # Associa com o ID do grupo recém-criado
-                            **option_data.model_dump(exclude={'image'})  # Passa os dados da opção
+                            **option_data.model_dump(exclude={'image', 'variant_id'})  # Passa os dados da opção
                         )
                         db.add(new_option)
 
