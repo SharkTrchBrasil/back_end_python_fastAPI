@@ -112,6 +112,7 @@ def update_product_category_link(
     return db_link
 
 
+
 def update_product(
         db,
         *,
@@ -121,9 +122,9 @@ def update_product(
 ) -> models.Product:
     """
     Atualiza um produto de forma completa, incluindo a sincronização
-    de seus vínculos com categorias, preços e A CRIAÇÃO DE NOVOS GRUPOS DE COMPLEMENTOS.
+    de seus vínculos e A ATUALIZAÇÃO de suas opções de complemento.
     """
-    # 1. Atualiza os campos simples do produto (nome, estoque, etc.)
+    # 1. Atualiza os campos simples do produto (nome, estoque, etc.) - OK
     update_dict = update_data.model_dump(
         exclude_unset=True,
         exclude={'category_links', 'variant_links', 'prices'}
@@ -133,7 +134,7 @@ def update_product(
     db.add(db_product)
     db.flush()
 
-    # 2. SINCRONIZAÇÃO DOS VÍNCULOS DE CATEGORIA (Lógica existente - OK)
+    # 2. Sincroniza os Vínculos de Categoria (Lógica existente - OK)
     if update_data.category_links is not None:
         db.query(models.ProductCategoryLink).filter(
             models.ProductCategoryLink.product_id == db_product.id
@@ -142,7 +143,7 @@ def update_product(
         for link_data in update_data.category_links:
             db.add(models.ProductCategoryLink(product_id=db_product.id, **link_data.model_dump()))
 
-    # 3. SINCRONIZAÇÃO DOS PREÇOS DE SABORES (AGORA CONDICIONAL E CORRETA)
+    # 2.5. SINCRONIZAÇÃO DOS PREÇOS DE SABORES (AGORA CONDICIONAL E CORRETA)
     #    Este bloco só executa se a NOVA categoria for do tipo CUSTOMIZABLE.
     is_customizable_product = False
     if update_data.category_links:
@@ -165,67 +166,81 @@ def update_product(
         for price_data in update_data.prices:
             db.add(models.FlavorPrice(product_id=db_product.id, **price_data.model_dump()))
 
-
-    # 4. ✅ NOVA LÓGICA INTELIGENTE PARA SINCRONIZAÇÃO DOS VÍNCULOS DE COMPLEMENTOS
+    # 3. ✅ LÓGICA DE COMPLEMENTOS CORRIGIDA E MELHORADA
     if update_data.variant_links is not None:
-        # Apaga todos os vínculos de complementos antigos para este produto
+        # Apaga os VÍNCULOS antigos para sincronizar
         db.query(models.ProductVariantLink).filter(
             models.ProductVariantLink.product_id == db_product.id
         ).delete(synchronize_session=False)
         db.flush()
 
-        # Itera sobre os novos vínculos que vieram do frontend
         for link_data in update_data.variant_links:
             variant_data = link_data.variant
 
-            # Se o ID da variante for real (>0), apenas criamos o vínculo.
             if variant_data.id and variant_data.id > 0:
-                # É um grupo existente que está sendo vinculado
-                new_link = models.ProductVariantLink(
+                # --- É UM GRUPO EXISTENTE ---
+
+                # a. Recria o vínculo do produto com este grupo existente
+                db.add(models.ProductVariantLink(
                     product_id=db_product.id,
                     variant_id=variant_data.id,
                     min_selected_options=link_data.min_selected_options,
                     max_selected_options=link_data.max_selected_options,
                     ui_display_mode=link_data.ui_display_mode,
                     available=link_data.available
-                )
-                db.add(new_link)
-            else:
-                # É um GRUPO NOVO (ID negativo ou nulo) que precisa ser criado primeiro
+                ))
 
-                # a. Cria o objeto Variant (o "molde" do grupo)
+                # b. ✅ AQUI ESTÁ A CORREÇÃO: ATUALIZA AS OPÇÕES DENTRO DO GRUPO
+                if variant_data.options:
+                    for option_data in variant_data.options:
+                        # Se a opção tem um ID, ela já existe no banco e precisa ser atualizada.
+                        if option_data.id and option_data.id > 0:
+                            db_option = db.query(models.VariantOption).get(option_data.id)
+                            if db_option:
+                                # Pega todos os campos que vieram do app
+                                option_update_dict = option_data.model_dump(exclude_unset=True)
+                                # Atualiza cada campo no objeto do banco
+                                for key, value in option_update_dict.items():
+                                    setattr(db_option, key, value)
+                                db.add(db_option)  # Adiciona à sessão para salvar
+                        else:
+                            # Se não tem ID, é uma OPÇÃO NOVA dentro de um grupo existente.
+                            db.add(models.VariantOption(
+                                variant_id=variant_data.id,  # Associa ao grupo pai
+                                **option_data.model_dump(exclude={'image', 'id'})
+                            ))
+
+            else:
+                # --- É UM GRUPO NOVO --- (Sua lógica aqui já estava correta)
                 new_variant = models.Variant(
                     name=variant_data.name,
-                    type=variant_data.type.value,  # Usa .value para pegar a string do Enum
+                    type=variant_data.type.value,
                     store_id=store_id
                 )
                 db.add(new_variant)
-                db.flush()  # Importante para que o new_variant.id seja gerado pelo banco
+                db.flush()
 
-                # b. Cria as Opções (os itens) dentro deste novo grupo
                 if variant_data.options:
                     for option_data in variant_data.options:
-                        new_option = models.VariantOption(
-                            variant_id=new_variant.id,  # Associa com o ID do grupo recém-criado
-                            **option_data.model_dump(exclude={'image', 'variant_id'})  # Passa os dados da opção
-                        )
-                        db.add(new_option)
+                        db.add(models.VariantOption(
+                            variant_id=new_variant.id,
+                            **option_data.model_dump(exclude={'image', 'id'})
+                        ))
 
-                # c. Finalmente, cria o vínculo entre o produto e o novo grupo
-                new_link = models.ProductVariantLink(
+                db.add(models.ProductVariantLink(
                     product_id=db_product.id,
-                    variant_id=new_variant.id,  # Usa o ID do grupo recém-criado
+                    variant_id=new_variant.id,
                     min_selected_options=link_data.min_selected_options,
                     max_selected_options=link_data.max_selected_options,
                     ui_display_mode=link_data.ui_display_mode,
                     available=link_data.available
-                )
-                db.add(new_link)
+                ))
 
-    # 5. Salva todas as alterações no banco
+    # 4. Salva tudo no banco
     db.commit()
     db.refresh(db_product)
     return db_product
+
 
 
 
