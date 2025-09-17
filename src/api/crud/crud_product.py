@@ -207,7 +207,7 @@ def update_product(
                             # Se não tem ID, é uma OPÇÃO NOVA dentro de um grupo existente.
                             db.add(models.VariantOption(
                                 variant_id=variant_data.id,  # Associa ao grupo pai
-                                **option_data.model_dump(exclude={'image', 'id'})
+                                **option_data.model_dump(exclude={'image', 'id', 'variant_id'})
                             ))
 
             else:
