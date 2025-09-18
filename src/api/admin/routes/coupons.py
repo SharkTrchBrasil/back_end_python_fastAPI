@@ -16,11 +16,13 @@ router = APIRouter(tags=["Coupons"], prefix="/stores/{store_id}/coupons")
 # ===================================================================
 # 1. CRIANDO CUPONS (com regras aninhadas)
 # ===================================================================
+
+
 @router.post("", response_model=CouponOut, status_code=201)
 async def create_coupon(
         db: GetDBDep,
         store: GetStoreDep,
-        coupon_data: CouponCreate,  # Renomeado para clareza
+        coupon_data: CouponCreate,
 ):
     existing_coupon = db.query(models.Coupon).filter(
         models.Coupon.code == coupon_data.code.upper(),
@@ -30,32 +32,41 @@ async def create_coupon(
     if existing_coupon:
         raise HTTPException(status_code=400, detail="Um cupom com este código já existe para esta loja.")
 
-    # ✅ Lógica de criação atualizada
-    # 1. Cria o objeto do cupom com os dados principais (sem as regras)
-    coupon_rules = coupon_data.rules  # Guarda as regras
+    coupon_rules = coupon_data.rules
     db_coupon = models.Coupon(
-        **coupon_data.model_dump(exclude={'rules'}),  # Exclui as regras por enquanto
+        **coupon_data.model_dump(exclude={'rules'}),
         store_id=store.id,
     )
     db.add(db_coupon)
 
-    # 2. Itera sobre as regras recebidas e as cria no banco
     for rule_schema in coupon_rules:
         new_rule = models.CouponRule(
             rule_type=rule_schema.rule_type,
             value=rule_schema.value,
-            coupon=db_coupon  # Associa a regra ao cupom que acabamos de criar
+            coupon=db_coupon
         )
         db.add(new_rule)
 
     db.commit()
-    db.refresh(db_coupon)
+    # ❌ REMOVA ESTA LINHA:
+    # db.refresh(db_coupon)
+
+    # ✅ SUBSTITUA PELA LÓGICA ABAIXO:
+    # Buscamos o cupom recém-criado pelo seu ID, mas desta vez forçando
+    # o carregamento do relacionamento 'rules' com `selectinload`.
+    created_coupon_with_rules = db.query(models.Coupon).options(
+        selectinload(models.Coupon.rules)
+    ).filter(models.Coupon.id == db_coupon.id).first()
+
 
     await asyncio.create_task(emit_store_updated(db, store.id))
     await admin_emit_store_updated(db, store.id)
 
-    # Atualiza o objeto com os dados do banco (incluindo o ID)
-    return db_coupon
+    # ✅ Retorna o objeto completo que acabamos de buscar
+    return created_coupon_with_rules
+
+
+
 
 
 # ===================================================================
