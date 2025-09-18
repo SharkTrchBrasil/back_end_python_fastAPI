@@ -13,6 +13,7 @@ from src.api.admin.services.insights_service import InsightsService
 from src.api.admin.services.payable_service import payable_service
 from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations_simplified
 from src.api.crud import store_crud
+from src.api.schemas.financial.coupon import CouponOut
 from src.api.schemas.products.category import Category
 from src.api.schemas.orders.command import CommandOut
 from src.api.schemas.financial.payable_category import PayableCategoryResponse
