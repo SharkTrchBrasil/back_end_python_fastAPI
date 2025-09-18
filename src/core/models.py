@@ -590,6 +590,7 @@ class Variant(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
 
     name: Mapped[str] = mapped_column(unique=True, doc="Nome único do template. Ex: 'Adicionais', 'Bebidas', 'Molhos'")
+    is_available: Mapped[bool] = mapped_column(default=True)
 
     type: Mapped[VariantType] = mapped_column(
         Enum(
