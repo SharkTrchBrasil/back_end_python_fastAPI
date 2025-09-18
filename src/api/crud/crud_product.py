@@ -219,6 +219,7 @@ def update_product(
                             # ADICIONAR nova opção a um grupo existente
                             db.add(models.VariantOption(
                                 variant_id=variant_data.id,
+                                store_id=store_id,
                                 **option_data.model_dump(exclude={'image', 'id', 'variant_id'})
                             ))
                 # Se `variant_data.options` for uma lista vazia `[]`, o código acima irá
