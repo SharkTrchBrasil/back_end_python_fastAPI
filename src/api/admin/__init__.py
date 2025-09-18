@@ -52,6 +52,7 @@ from src.api.admin.routes.receivable_category_router import router as receivable
 from src.api.admin.routes.performance_router import router as performance_router
 from src.api.admin.routes.master_products import router as master_products_router
 from src.api.admin.routes.product_category_link import router as product_category_link_router
+from src.api.admin.routes.table import router as table_router
 
 router = APIRouter(prefix="/admin")
 router.include_router(stores_router)
@@ -113,3 +114,4 @@ router.include_router(receivable_category_router)
 router.include_router(performance_router)
 router.include_router(master_products_router)
 router.include_router(product_category_link_router)
+router.include_router(table_router)

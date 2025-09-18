@@ -1,30 +1,33 @@
-from datetime import datetime
-from typing import Optional
-
+# em schemas/table.py
 from pydantic import BaseModel
+from typing import List, Optional
 
+# Schema para adicionar um item a uma mesa/comanda
+class AddItemToCommandSchema(BaseModel):
+    product_id: int
+    quantity: int
+    notes: Optional[str] = None
+    # Adicione aqui os campos para variantes, se necessário
+    # variants: List[VariantSchema] 
 
-class TableBase(BaseModel):
-    name: str
+# Para representar um item dentro de uma comanda
+class CommandItemSchema(BaseModel):
+    product_name: str
+    quantity: int
+    price: int
 
-
-class TableCreate(TableBase):
-    store_id: int
-
-
-class TableUpdate(BaseModel):
-    name: Optional[str] = None
-    is_open: Optional[bool] = None
-    closed_at: Optional[datetime] = None
-
-
-class TableOut(TableBase):
+# Para representar uma comanda ativa
+class CommandSchema(BaseModel):
     id: int
-    store_id: int
-    is_open: bool
-    opened_at: datetime
-    closed_at: Optional[datetime]
+    customer_name: Optional[str]
+    items: List[CommandItemSchema]
+
+# O schema completo de uma mesa para ser enviado via WebSocket/API
+class TableDetailsSchema(BaseModel):
+    id: int
+    name: str
+    status: str
+    commands: List[CommandSchema]
 
     class Config:
         orm_mode = True
-
