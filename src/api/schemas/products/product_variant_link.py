@@ -57,3 +57,16 @@ class ProductVariantLinkOut(ProductVariantLinkBase):
     """
     id: int
     variant: Variant # Usa o schema de saída para Variant
+
+    # ... (no final do ficheiro)
+
+class VariantLinkRuleUpdate(BaseModel):
+    """
+    Schema específico para atualizar as regras de um vínculo
+    a partir da tela de edição da Variante.
+    """
+    product_id: int  # Para saber qual produto estamos a alterar
+    min_selected_options: int
+    max_selected_options: int
+    # Adicione aqui outros campos de regras que possam ser editados, como 'available'
+    available: bool

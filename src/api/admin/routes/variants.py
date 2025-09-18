@@ -19,18 +19,7 @@ async def create_product_variant(
         store: GetStoreDep,
         variant: VariantCreate,
 ):
-    # ✅ PASSO 2: Substitua a lógica antiga...
-    # ----------------------------------------------------
-    # LÓGICA ANTIGA (REMOVIDA):
-    # db_variant = models.Variant(
-    #     **variant.model_dump(),
-    #     store_id=store.id,
-    # )
-    # db.add(db_variant)
-    # db.commit()
-    # ----------------------------------------------------
 
-    # ... Pela chamada à nova função do CRUD.
     db_variant = crud_variant.create_variant(
         db=db,
         store_id=store.id,
@@ -48,20 +37,24 @@ def get_product_variant(
 ):
     return variant
 
+
+
 @router.patch("/{variant_id}", response_model=Variant)
 async def patch_product_variant(
-    db: GetDBDep,
-    variant: GetVariantDep,
-    store: GetStoreDep,
-    variant_update: VariantUpdate,
+        db: GetDBDep,
+        variant: GetVariantDep,
+        store: GetStoreDep,
+        variant_update: VariantUpdate,
 ):
-    for field, value in variant_update.model_dump(exclude_unset=True).items():
-        setattr(variant, field, value)
+    # Substitui a lógica antiga por uma chamada à nova função do CRUD
+    updated_variant = crud_variant.update_variant(
+        db=db,
+        variant_obj=variant,
+        variant_data=variant_update
+    )
 
-    db.commit()
-    await emit_products_updated(db, variant.store_id)
-    return variant
-
+    await emit_products_updated(db, updated_variant.store_id)
+    return updated_variant
 
 
 @router.get("", response_model=list[Variant])
@@ -119,8 +112,7 @@ async def bulk_update_links_status( # Nome da função atualizado para clareza
         )
     )
 
-    # ✅ CORREÇÃO: A atualização agora acontece no campo `available` da tabela de VÍNCULO.
-    # Assumindo que seu modelo ProductVariantLink tenha o campo 'available'.
+
     updated_count = query.update(
         {models.ProductVariantLink.available: payload.is_available},
         synchronize_session=False

@@ -3,7 +3,9 @@ from typing import Annotated, List
 from pydantic import Field
 
 from src.api.schemas.shared.base import AppBaseModel, VariantType
-from .variant_option import VariantOption, WizardVariantOptionCreate
+from .product_variant_link import VariantLinkRuleUpdate
+from .variant_option import VariantOption, WizardVariantOptionCreate, OptionForVariantUpdate
+
 
 class VariantBase(AppBaseModel):
     name: Annotated[str, Field(min_length=2, max_length=100, examples=["Adicionais Premium"])]
@@ -21,6 +23,9 @@ class VariantUpdate(AppBaseModel):
     type: VariantType | None = None
     # ✅ CAMPO ADICIONADO AQUI TAMBÉM (opcional)
     is_available: bool | None = None
+    options: list[OptionForVariantUpdate] | None = None
+    linked_products_rules: list[VariantLinkRuleUpdate] | None = None
+
 
 class Variant(VariantBase):
     id: int

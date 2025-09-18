@@ -96,6 +96,18 @@ class VariantOption(VariantOptionBase):
 
 
 
+
+
+
+class OptionForVariantUpdate(VariantOptionBase):
+    """
+    Schema específico para a lista de opções dentro de um VariantUpdate.
+    O ID é opcional, permitindo que o payload contenha tanto opções
+    existentes para atualizar quanto novas opções para criar.
+    """
+    id: int | None = None
+
+
 class OptionInVariantLink(VariantOptionBase):
     id: int | None = None
     variant_id: int | None = None
