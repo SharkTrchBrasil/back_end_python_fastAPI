@@ -46,7 +46,6 @@ async def admin_emit_store_updated(db, store_id: int):
     É leve e pode ser chamado após qualquer alteração no cadastro.
     """
     try:
-        # Usa a nova consulta otimizada
         store = store_crud.get_store_base_details(db=db, store_id=store_id)
         if not store:
             return
@@ -54,19 +53,33 @@ async def admin_emit_store_updated(db, store_id: int):
         subscription_payload, _ = SubscriptionService.get_subscription_details(store)
         store_schema = StoreDetails.model_validate(store)
 
-        # Lógica de grupos de pagamento
         payment_groups_structured = _build_payment_groups_from_activations_simplified(store.payment_activations)
-        store_schema.payment_method_groups = payment_groups_structured
+
+        # Converte o schema base para um dicionário
+        store_payload = store_schema.model_dump(mode='json')
+
+        # Adiciona os grupos de pagamento ao dicionário
+        store_payload['payment_method_groups'] = payment_groups_structured
+
+        # ✅ A CORREÇÃO ESTÁ AQUI:
+        # Adicionamos manualmente a lista de cupons (já carregada pelo get_store_base_details)
+        # ao payload que será enviado.
+        if store.coupons:
+            store_payload['coupons'] = [CouponOut.model_validate(c).model_dump(mode='json') for c in store.coupons]
+        else:
+            store_payload['coupons'] = []  # Garante que a chave sempre exista
 
         payload = {
-            "store": store_schema.model_dump(mode='json'),
+            "store": store_payload,  # 👈 3. Usa o payload enriquecido
             "subscription": subscription_payload,
         }
         await sio.emit('store_details_updated', payload, namespace='/admin', room=f"admin_store_{store_id}")
-        print(f"✅ [Socket] Dados da loja {store_id} atualizados e enviados.")
+        print(f"✅ [Socket] Dados da loja {store_id} (com cupons) atualizados e enviados.")
 
     except Exception as e:
         print(f'❌ Erro ao emitir store_details_updated: {e}')
+
+
 
 
 async def admin_emit_dashboard_data_updated(db, store_id: int, sid: str | None = None):
