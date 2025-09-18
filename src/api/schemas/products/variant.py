@@ -1,9 +1,9 @@
 # ARQUIVO: src/api/schemas/variant.py
 from typing import Annotated, List
-from pydantic import Field
+from pydantic import Field, BaseModel
 
 from src.api.schemas.shared.base import AppBaseModel, VariantType
-from .product_variant_link import VariantLinkRuleUpdate
+
 from .variant_option import VariantOption, WizardVariantOptionCreate, OptionForVariantUpdate
 
 
@@ -17,6 +17,20 @@ class VariantBase(AppBaseModel):
 class VariantCreate(VariantBase):
     # Opcional: permitir criar opções junto com o grupo
     options: List[WizardVariantOptionCreate] = []
+
+
+class VariantLinkRuleUpdate(BaseModel):
+    """
+    Schema específico para atualizar as regras de um vínculo
+    a partir da tela de edição da Variante.
+    """
+    product_id: int  # Para saber qual produto estamos a alterar
+    min_selected_options: int
+    max_selected_options: int
+    # Adicione aqui outros campos de regras que possam ser editados, como 'available'
+    available: bool
+
+
 
 class VariantUpdate(AppBaseModel):
     name: Annotated[str | None, Field(min_length=2, max_length=100)] = None
