@@ -88,34 +88,41 @@ async def delete_product_variant(
     return None  # necessário com status 204
 
 
+
+
+# ... (suas importações e rotas anteriores)
+
 # ===================================================================
-# ROTAS DE AÇÃO EM MASSA
+# ROTAS DE AÇÃO EM MASSA - CORRIGIDAS
 # ===================================================================
 
 @router.post("/bulk-update-status", status_code=200)
-async def bulk_update_variants_status(
+async def bulk_update_links_status( # Nome da função atualizado para clareza
         db: GetDBDep,
         store: GetStoreDep,
         payload: VariantBulkUpdateStatusPayload,
 ):
     """
-    Ativa ou pausa uma lista de grupos de complementos (Variants).
+    Ativa ou pausa TODOS OS VÍNCULOS de uma lista de grupos de complementos.
     """
     if not payload.variant_ids:
-        return {"message": "Nenhum grupo para atualizar."}
+        return {"message": "Nenhum grupo selecionado para atualizar."}
 
-    # Query para encontrar os variants que pertencem à loja e estão na lista de IDs
+    # ✅ CORREÇÃO: A query agora mira em `ProductVariantLink`
     query = (
-        db.query(models.Variant)
+        db.query(models.ProductVariantLink)
+        # Fazemos um JOIN com Variant para garantir que os vínculos pertencem à loja correta
+        .join(models.Variant, models.Variant.id == models.ProductVariantLink.variant_id)
         .filter(
             models.Variant.store_id == store.id,
-            models.Variant.id.in_(payload.variant_ids)
+            models.ProductVariantLink.variant_id.in_(payload.variant_ids)
         )
     )
 
-    # Executa a atualização em massa no banco de dados
+    # ✅ CORREÇÃO: A atualização agora acontece no campo `available` da tabela de VÍNCULO.
+    # Assumindo que seu modelo ProductVariantLink tenha o campo 'available'.
     updated_count = query.update(
-        {models.Variant.is_available: payload.is_available},
+        {models.ProductVariantLink.available: payload.is_available},
         synchronize_session=False
     )
 
@@ -123,34 +130,40 @@ async def bulk_update_variants_status(
     await emit_products_updated(db, store.id)
 
     status_text = "ativados" if payload.is_available else "pausados"
-    return {"message": f"{updated_count} grupos foram {status_text}."}
+    # ✅ CORREÇÃO: Mensagem de resposta reflete a ação correta
+    return {"message": f"{updated_count} vínculos de produtos foram {status_text}."}
 
 
-@router.post("/bulk-delete", status_code=200)
-async def bulk_delete_variants(
+@router.post("/bulk-unlink", status_code=200) # Rota renomeada para clareza
+async def bulk_unlink_variants( # Função renomeada para clareza
         db: GetDBDep,
         store: GetStoreDep,
         payload: VariantSelectionPayload,
 ):
     """
-    Deleta uma lista de grupos de complementos (Variants).
+    Deleta TODOS OS VÍNCULOS de uma lista de grupos de complementos.
+    O grupo (Variant) em si não é deletado.
     """
     if not payload.variant_ids:
-        return {"message": "Nenhum grupo para deletar."}
+        return {"message": "Nenhum grupo selecionado para desvincular."}
 
-    # Query para encontrar os variants que pertencem à loja e estão na lista
+    # ✅ CORREÇÃO: A query agora mira em `ProductVariantLink`
     query = (
-        db.query(models.Variant)
+        db.query(models.ProductVariantLink)
+        # Novamente, JOIN para garantir a segurança a nível de loja
+        .join(models.Variant, models.Variant.id == models.ProductVariantLink.variant_id)
         .filter(
             models.Variant.store_id == store.id,
-            models.Variant.id.in_(payload.variant_ids)
+            models.ProductVariantLink.variant_id.in_(payload.variant_ids)
         )
     )
 
-    # Executa a deleção em massa
+    # ✅ CORREÇÃO: A deleção agora acontece na tabela de VÍNCULOS
     deleted_count = query.delete(synchronize_session=False)
 
     db.commit()
     await emit_products_updated(db, store.id)
 
-    return {"message": f"{deleted_count} grupos foram deletados."}
+    # ✅ CORREÇÃO: Mensagem de resposta reflete a ação correta
+    return {"message": f"{deleted_count} vínculos de produtos foram removidos."}
+

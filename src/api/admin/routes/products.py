@@ -554,6 +554,56 @@ async def bulk_add_products_to_category(
     return
 
 
+
+
+
+@router.delete("/{variant_id}", status_code=204)
+def unlink_variant_from_product(
+    db: GetDBDep,
+    store: GetStoreDep,
+    product: GetProductDep,
+    variant_id: int,
+):
+    """
+    Remove o vínculo entre um produto específico e um grupo de complementos.
+    """
+    # Busca o vínculo específico no banco de dados
+    link_to_delete = db.query(models.ProductVariantLink).filter(
+        models.ProductVariantLink.product_id == product.id,
+        models.ProductVariantLink.variant_id == variant_id
+    ).first()
+
+    # Se o vínculo não existir, retorna um erro 404
+    if not link_to_delete:
+        raise HTTPException(status_code=404, detail="Vínculo entre produto e grupo não encontrado.")
+
+    # Se encontrou, deleta o vínculo e salva as alterações
+    db.delete(link_to_delete)
+    db.commit()
+
+    return None # Retorna 204 No Content em caso de sucesso
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 router.include_router(
     product_category_link.router,
     prefix="/{product_id}/categories"
