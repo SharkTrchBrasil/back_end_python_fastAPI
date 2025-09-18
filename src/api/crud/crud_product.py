@@ -114,17 +114,17 @@ def update_product_category_link(
 
 
 def update_product(
-        db,
-        *,
-        db_product: models.Product,
-        update_data: ProductUpdate,
-        store_id: int
+    db,
+    *,
+    db_product: models.Product,
+    update_data: ProductUpdate,
+    store_id: int
 ) -> models.Product:
     """
     Atualiza um produto de forma completa, incluindo a sincronização
-    de seus vínculos e A ATUALIZAÇÃO de suas opções de complemento.
+    de seus vínculos e a ATUALIZAÇÃO de suas opções de complemento.
     """
-    # 1. Atualiza os campos simples do produto (nome, estoque, etc.) - OK
+    # 1. Atualiza os campos simples do produto (nome, estoque, etc.)
     update_dict = update_data.model_dump(
         exclude_unset=True,
         exclude={'category_links', 'variant_links', 'prices'}
@@ -134,7 +134,7 @@ def update_product(
     db.add(db_product)
     db.flush()
 
-    # 2. Sincroniza os Vínculos de Categoria (Lógica existente - OK)
+    # 2. Sincroniza os Vínculos de Categoria
     if update_data.category_links is not None:
         db.query(models.ProductCategoryLink).filter(
             models.ProductCategoryLink.product_id == db_product.id
@@ -143,26 +143,19 @@ def update_product(
         for link_data in update_data.category_links:
             db.add(models.ProductCategoryLink(product_id=db_product.id, **link_data.model_dump()))
 
-    # 2.5. SINCRONIZAÇÃO DOS PREÇOS DE SABORES (AGORA CONDICIONAL E CORRETA)
-    #    Este bloco só executa se a NOVA categoria for do tipo CUSTOMIZABLE.
+    # 2.5. Sincronização dos Preços de Sabores (Condicional)
     is_customizable_product = False
     if update_data.category_links:
-        # Pega a primeira categoria do payload como referência.
-        # Numa edição, um sabor só deve estar em uma categoria customizável.
         target_category_id = update_data.category_links[0].category_id
         target_category = db.query(models.Category).get(target_category_id)
-
         if target_category and target_category.type == CategoryType.CUSTOMIZABLE:
             is_customizable_product = True
 
     if is_customizable_product and update_data.prices is not None:
-        # Apaga todos os preços de sabores antigos para este produto
         db.query(models.FlavorPrice).filter(
             models.FlavorPrice.product_id == db_product.id
         ).delete(synchronize_session=False)
-        db.flush()  # Garante que a exclusão seja registrada
-
-        # Cria os novos registros de preço com base no que veio do frontend
+        db.flush()
         for price_data in update_data.prices:
             db.add(models.FlavorPrice(product_id=db_product.id, **price_data.model_dump()))
 
@@ -180,7 +173,7 @@ def update_product(
             if variant_data.id and variant_data.id > 0:
                 # --- É UM GRUPO EXISTENTE ---
 
-                # a. Recria o vínculo do produto com este grupo existente
+                # a. Recria o vínculo do produto com este grupo
                 db.add(models.ProductVariantLink(
                     product_id=db_product.id,
                     variant_id=variant_data.id,
@@ -189,26 +182,47 @@ def update_product(
                     ui_display_mode=link_data.ui_display_mode,
                     available=link_data.available
                 ))
+                db.flush()
 
-                # b. ✅ AQUI ESTÁ A CORREÇÃO: ATUALIZA AS OPÇÕES DENTRO DO GRUPO
-                if variant_data.options:
+                # b. ✅ CORREÇÃO: SINCRONIZAÇÃO COMPLETA DAS OPÇÕES (ADIÇÃO, ATUALIZAÇÃO E REMOÇÃO)
+                if variant_data.options is not None:
+                    # IDs das opções que vieram do frontend
+                    incoming_option_ids = {opt.id for opt in variant_data.options if opt.id}
+
+                    # IDs das opções que já existem no banco para este grupo
+                    existing_option_ids = {
+                        opt_id[0] for opt_id in db.query(models.VariantOption.id).filter(
+                            models.VariantOption.variant_id == variant_data.id
+                        ).all()
+                    }
+
+                    # REMOVER: Opções que estão no banco mas não vieram do frontend
+                    options_to_delete_ids = existing_option_ids - incoming_option_ids
+                    if options_to_delete_ids:
+                        db.query(models.VariantOption).filter(
+                            models.VariantOption.id.in_(options_to_delete_ids)
+                        ).delete(synchronize_session=False)
+                        db.flush()
+
+
+                    # ADICIONAR/ATUALIZAR: Itera sobre as opções do frontend
                     for option_data in variant_data.options:
-                        # Se a opção tem um ID, ela já existe no banco e precisa ser atualizada.
                         if option_data.id and option_data.id > 0:
+                            # ATUALIZAR opção existente
                             db_option = db.query(models.VariantOption).get(option_data.id)
                             if db_option:
-                                # Pega todos os campos que vieram do app
                                 option_update_dict = option_data.model_dump(exclude_unset=True)
-                                # Atualiza cada campo no objeto do banco
                                 for key, value in option_update_dict.items():
                                     setattr(db_option, key, value)
-                                db.add(db_option)  # Adiciona à sessão para salvar
+                                db.add(db_option)
                         else:
-                            # Se não tem ID, é uma OPÇÃO NOVA dentro de um grupo existente.
+                            # ADICIONAR nova opção a um grupo existente
                             db.add(models.VariantOption(
-                                variant_id=variant_data.id,  # Associa ao grupo pai
+                                variant_id=variant_data.id,
                                 **option_data.model_dump(exclude={'image', 'id', 'variant_id'})
                             ))
+                # Se `variant_data.options` for uma lista vazia `[]`, o código acima irá
+                # apagar todas as opções existentes, que é o comportamento esperado.
 
             else:
                 # --- É UM GRUPO NOVO --- (Sua lógica aqui já estava correta)
