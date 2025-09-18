@@ -23,7 +23,7 @@ class CommandSchema(BaseModel):
     items: List[CommandItemSchema]
 
 # O schema completo de uma mesa para ser enviado via WebSocket/API
-class TableDetailsSchema(BaseModel):
+class TableOut(BaseModel):
     id: int
     name: str
     status: str
