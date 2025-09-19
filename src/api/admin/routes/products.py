@@ -184,14 +184,12 @@ async def create_flavor_product(
 # ===================================================================
 
 
-
 @router.patch("/{product_id}", response_model=ProductOut)
 async def update_product(
         store: GetStoreDep,
         db: GetDBDep,
         db_product: GetProductDep,
         payload_str: str = Form(..., alias="payload"),
-
         # ✅ RECEBE A LISTA DE NOVAS IMAGENS
         images: List[UploadFile] = File([], alias="images"),
 ):
@@ -200,10 +198,7 @@ async def update_product(
     except ValidationError as e:
         raise HTTPException(status_code=422, detail=f"JSON inválido: {e}")
 
-    # ✅ 2. ADICIONE ESTE PRINT PARA DEPURAR NO BACKEND
-    print(f"🚀 [update_product] Recebidas {len(images)} novas imagens para o produto {db_product.id}.")
-
-
+    # ✅ Processar as novas imagens
     new_gallery_file_keys = []
 
     if images:
@@ -211,21 +206,21 @@ async def update_product(
             file_key = upload_single_file(image_file, folder="products/gallery")
             if file_key:
                 new_gallery_file_keys.append(file_key)
+                print(f"✅ Nova imagem salva no S3: {file_key}")
 
-    # --- 3. Chama a nova função do CRUD, passando as novas chaves ---
+    # --- Chama a função do CRUD, passando as novas chaves ---
     updated_product, file_keys_to_delete = crud_product.update_product(
         db=db,
         db_product=db_product,
         update_data=update_data,
         store_id=store.id,
-        new_gallery_file_keys=new_gallery_file_keys
+        new_gallery_file_keys=new_gallery_file_keys  # ✅ Passa as novas chaves
     )
 
-    # --- 4. Deleta do S3 os arquivos que o CRUD marcou para exclusão ---
+    # --- Deleta do S3 os arquivos marcados para exclusão ---
     if file_keys_to_delete:
         delete_multiple_files(file_keys_to_delete)
 
-    # --- 5. Emite o evento e retorna a resposta ---
     await emit_updates_products(db, store.id)
     return updated_product
 

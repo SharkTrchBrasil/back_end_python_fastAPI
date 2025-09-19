@@ -119,9 +119,9 @@ def update_product(
         db_product: models.Product,
         update_data: ProductUpdate,
         store_id: int,
-        # ✅ 1. NOVO PARÂMETRO: Recebe as chaves das novas imagens já salvas no S3
+        # ✅ NOVO PARÂMETRO: Recebe as chaves das novas imagens
         new_gallery_file_keys: list[str] | None = None
-) -> tuple[models.Product, list[str]]:  # ✅ 2. RETORNO ATUALIZADO
+) -> tuple[models.Product, list[str]]:
     """
     Atualiza um produto de forma completa, incluindo a sincronização da galeria.
 
@@ -168,12 +168,12 @@ def update_product(
             ).update({'display_order': order_info['order']}, synchronize_session=False)
         print(f"Ordem de {len(update_data.gallery_images_order)} imagens atualizada.")
 
-    # c) Adicionar novas imagens
+    # c) Adicionar novas imagens (se houver)
     if new_gallery_file_keys:
-        # Pega a maior ordem de exibição atual para continuar a sequência
+        # Pega a maior ordem de exibição atual
         max_order = db.query(func.max(models.ProductImage.display_order)).filter(
             models.ProductImage.product_id == db_product.id
-        ).scalar() or -1  # Começa em -1 para que a primeira seja 0
+        ).scalar() or -1
 
         for index, file_key in enumerate(new_gallery_file_keys):
             new_image_db = models.ProductImage(
@@ -182,7 +182,8 @@ def update_product(
                 display_order=max_order + 1 + index
             )
             db.add(new_image_db)
-        print(f"Adicionadas {len(new_gallery_file_keys)} novas imagens ao produto {db_product.id}.")
+        print(f"✅ Adicionadas {len(new_gallery_file_keys)} novas imagens ao produto {db_product.id}.")
+
 
     # 2. Sincroniza os Vínculos de Categoria
     if update_data.category_links is not None:
