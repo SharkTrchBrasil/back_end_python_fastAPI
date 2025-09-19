@@ -14,6 +14,7 @@ from src.api.admin.services.payable_service import payable_service
 from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations_simplified
 from src.api.crud import store_crud
 from src.api.schemas.financial.coupon import CouponOut
+from src.api.schemas.financial.payment_method import PaymentMethodGroupOut
 from src.api.schemas.products.category import Category
 from src.api.schemas.orders.command import CommandOut
 from src.api.schemas.financial.payable_category import PayableCategoryResponse
@@ -43,8 +44,7 @@ from src.api.schemas.products.variant import Variant
 
 async def admin_emit_store_updated(db, store_id: int):
     """
-    Envia APENAS os dados de configuração da loja.
-    É leve e pode ser chamado após qualquer alteração no cadastro.
+    Envia os dados de configuração da loja, incluindo grupos de pagamento e cupons.
     """
     try:
         store = store_crud.get_store_base_details(db=db, store_id=store_id)
@@ -54,32 +54,34 @@ async def admin_emit_store_updated(db, store_id: int):
         subscription_payload, _ = SubscriptionService.get_subscription_details(store)
         store_schema = StoreDetails.model_validate(store)
 
-        payment_groups_structured = _build_payment_groups_from_activations_simplified(store.payment_activations)
-
         # Converte o schema base para um dicionário
         store_payload = store_schema.model_dump(mode='json')
 
-        # Adiciona os grupos de pagamento ao dicionário
-        store_payload['payment_method_groups'] = payment_groups_structured
+        # ✅ 1. CORREÇÃO PARA OS GRUPOS DE PAGAMENTO
+        payment_groups_structured = _build_payment_groups_from_activations_simplified(store.payment_activations)
+        # Converte CADA objeto do grupo para um dicionário antes de adicionar ao payload
+        store_payload['payment_method_groups'] = [
+            PaymentMethodGroupOut.model_validate(group).model_dump(mode='json')
+            for group in payment_groups_structured
+        ]
 
-        # ✅ A CORREÇÃO ESTÁ AQUI:
-        # Adicionamos manualmente a lista de cupons (já carregada pelo get_store_base_details)
-        # ao payload que será enviado.
+        # ✅ 2. SUA LÓGICA DE CUPOM (QUE JÁ ESTAVA CORRETA)
         if store.coupons:
             store_payload['coupons'] = [CouponOut.model_validate(c).model_dump(mode='json') for c in store.coupons]
         else:
-            store_payload['coupons'] = []  # Garante que a chave sempre exista
+            store_payload['coupons'] = []
 
+        # Monta o payload final
         payload = {
-            "store": store_payload,  # 👈 3. Usa o payload enriquecido
+            "store": store_payload,
             "subscription": subscription_payload,
         }
+
         await sio.emit('store_details_updated', payload, namespace='/admin', room=f"admin_store_{store_id}")
-        print(f"✅ [Socket] Dados da loja {store_id} (com cupons) atualizados e enviados.")
+        print(f"✅ [Socket] Dados da loja {store_id} (com pagamentos e cupons) atualizados e enviados.")
 
     except Exception as e:
         print(f'❌ Erro ao emitir store_details_updated: {e}')
-
 
 
 
