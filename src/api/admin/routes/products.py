@@ -104,6 +104,7 @@ async def create_simple_product(
                     for option_data in variant_data.options:
                         db.add(models.VariantOption(
                             variant_id=new_variant.id,
+                            store_id=store.id,  # ✅ LINHA ADICIONADA AQUI!
                             **option_data.model_dump(exclude={'image', 'variant_id'})
                         ))
 
@@ -409,6 +410,9 @@ async def archive_product(
 
     await emit_updates_products(db, store.id)
     return
+
+
+
 # Em seu arquivo de rotas de produtos
 
 # @router.post("/bulk-delete", status_code=204)
