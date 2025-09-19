@@ -21,7 +21,9 @@ from src.api.schemas.products.product import (
 )
 from src.api.schemas.products.product_category_link import ProductCategoryLinkUpdate, ProductCategoryLinkOut
 from src.core import models
+# ✅ ADICIONE ESTA LINHA EXATAMENTE AQUI
 from src.core.aws import delete_file, upload_single_file, delete_multiple_files
+
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep, GetProductDep
 from src.core.utils.enums import ProductStatus
