@@ -1,4 +1,4 @@
-# Arquivo: src/core/aws.py (VERSÃO DE TESTE PARA FORÇAR O ERRO)
+# Arquivo: src/core/aws.py (VERSÃO DE TESTE CORRIGIDA)
 
 import boto3
 import uuid
@@ -6,8 +6,8 @@ import os
 from typing import Optional
 from fastapi import UploadFile
 
-# 1. VAMOS VERIFICAR AS VARIÁVEIS NOVAMENTE
-print("--- 🏁 [TESTE RADICAL] Carregando configurações da AWS ---")
+# 1. VERIFICAÇÃO DAS VARIÁVEIS DE AMBIENTE
+print("--- 🏁 [TESTE RADICAL 2.0] Carregando configurações da AWS ---")
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION")
@@ -18,6 +18,9 @@ print(f"AWS_SECRET_ACCESS_KEY: {'CARREGADA' if AWS_SECRET_ACCESS_KEY else 'NÃO 
 print(f"AWS_REGION: {AWS_REGION}")
 print(f"AWS_BUCKET_NAME: {AWS_BUCKET_NAME}")
 
+# ✅ LINHA CORRIGIDA: A variável que faltava agora está aqui!
+S3_PUBLIC_BASE_URL = f"https://{AWS_BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com" if AWS_BUCKET_NAME and AWS_REGION else None
+
 # 2. INICIALIZAÇÃO DO CLIENTE SEM TRY/EXCEPT
 # Se houver um problema com as credenciais, a aplicação vai quebrar AQUI.
 s3_client = boto3.client(
@@ -26,7 +29,7 @@ s3_client = boto3.client(
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
     region_name=AWS_REGION
 )
-print("✅ [TESTE RADICAL] Cliente S3 Boto3 aparentemente inicializado.")
+print("✅ [TESTE RADICAL 2.0] Cliente S3 Boto3 aparentemente inicializado.")
 
 
 def _generate_file_key(folder: str, filename: str) -> str:
@@ -35,7 +38,7 @@ def _generate_file_key(folder: str, filename: str) -> str:
 
 
 def upload_single_file(file: UploadFile, folder: str = 'uploads') -> Optional[str]:
-    if not file or not file.filename:
+    if not file or not file.filename or not AWS_BUCKET_NAME:
         return None
 
     file_key = _generate_file_key(folder, file.filename)
@@ -49,13 +52,12 @@ def upload_single_file(file: UploadFile, folder: str = 'uploads') -> Optional[st
         ExtraArgs={'ACL': 'public-read', 'ContentType': file.content_type}
     )
 
-    print(f"   ✅ [TESTE RADICAL] Sucesso! Arquivo '{file.filename}' enviado para S3 com a chave: {file_key}")
+    print(f"   ✅ [TESTE RADICAL 2.0] Sucesso! Arquivo '{file.filename}' enviado para S3 com a chave: {file_key}")
     return file_key
 
 
 def delete_multiple_files(file_keys: list[str]):
-    # Esta função não é o foco agora, mas a deixamos aqui
-    if not file_keys:
+    if not file_keys or not AWS_BUCKET_NAME:
         return
     objects_to_delete = [{'Key': key} for key in file_keys]
     try:
