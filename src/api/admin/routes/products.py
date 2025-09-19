@@ -193,18 +193,21 @@ async def update_product(
         payload_str: str = Form(..., alias="payload"),
 
         # ✅ RECEBE A LISTA DE NOVAS IMAGENS
-        new_gallery_images: List[UploadFile] = File([], alias="newGalleryImages"),
+        images: List[UploadFile] = File([], alias="images"),
 ):
     try:
         update_data = ProductUpdate.model_validate_json(payload_str)
     except ValidationError as e:
         raise HTTPException(status_code=422, detail=f"JSON inválido: {e}")
 
+    # ✅ 2. ADICIONE ESTE PRINT PARA DEPURAR NO BACKEND
+    print(f"🚀 [update_product] Recebidas {len(images)} novas imagens para o produto {db_product.id}.")
 
 
     new_gallery_file_keys = []
-    if new_gallery_images:
-        for image_file in new_gallery_images:
+
+    if images:
+        for image_file in images:
             file_key = upload_single_file(image_file, folder="products/gallery")
             if file_key:
                 new_gallery_file_keys.append(file_key)
