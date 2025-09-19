@@ -137,6 +137,21 @@ class Product(AppBaseModel):
     master_product_id: int | None = None  # ✅ CAMPO ADICIONADO AQUI
 
 
+
+class ProductImageOut(BaseModel):
+    id: int
+    display_order: int
+
+    # Adiciona a URL completa da imagem para facilitar para o frontend
+    @computed_field
+    @property
+    def image_url(self) -> str | None:
+        # Supõe que o objeto SQLAlchemy tenha o atributo file_key
+        return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if hasattr(self, 'file_key') and self.file_key else None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ProductUpdate(BaseModel):
     """ Schema para a atualização COMPLETA de um produto. """
     # --- Campos básicos (opcionais) ---
@@ -173,6 +188,12 @@ class ProductUpdate(BaseModel):
 
     prices: list[FlavorPriceCreate] | None = None
 
+   # ✅ NOVOS CAMPOS
+    video_url: str | None = None
+    # Esta lista conterá os IDs das imagens que devem ser mantidas e sua ordem
+    gallery_images_order: list[dict[str, int]] | None = None # Ex: [{"id": 1, "order": 0}, {"id": 2, "order": 1}]
+    # Os IDs das imagens a serem deletadas virão em um campo separado
+    gallery_images_to_delete: list[int] | None = None
 
 class ProductDefaultOptionOut(AppBaseModel):
     variant_option_id: int = Field(..., ge=1)
@@ -219,6 +240,10 @@ class ProductOut(AppBaseModel):
     weight: int | None
     dietary_tags: List[FoodTagEnum]
     beverage_tags: List[BeverageTagEnum]
+
+    # ✅ NOVOS CAMPOS
+    video_url: str | None
+    gallery_images: List[ProductImageOut]
 
     # Relacionamentos
     variant_links: List[ProductVariantLinkOut]

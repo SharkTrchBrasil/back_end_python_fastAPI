@@ -3,6 +3,7 @@ from fastapi import APIRouter, Form, UploadFile, File, HTTPException
 
 from pydantic import ValidationError
 
+
 from starlette import status
 
 from src.api.admin.routes import product_category_link
@@ -20,7 +21,7 @@ from src.api.schemas.products.product import (
 )
 from src.api.schemas.products.product_category_link import ProductCategoryLinkUpdate, ProductCategoryLinkOut
 from src.core import models
-from src.core.aws import upload_file, delete_file
+from src.core.aws import delete_file, upload_single_file, delete_multiple_files
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep, GetProductDep
 from src.core.utils.enums import ProductStatus
@@ -32,34 +33,41 @@ router = APIRouter(prefix="/stores/{store_id}/products", tags=["Products"])
 # ROTA 1: CRIAR PRODUTO SIMPLES (Ex: Bebidas, Lanches)
 # ===================================================================
 
-
-
 @router.post("/simple-product", response_model=ProductOut, status_code=201)
 async def create_simple_product(
         store: GetStoreDep,
         db: GetDBDep,
         payload_str: str = Form(..., alias="payload"),
-        image: UploadFile | None = File(None),
+        cover_image: UploadFile | None = File(None, alias="coverImage"),
+        gallery_images: List[UploadFile] = File([], alias="galleryImages"),
 ):
-    """
-    Cria um produto do tipo GENERAL e todos os seus vínculos, incluindo
-    a criação de novos grupos de complementos e suas opções.
-    """
+    """Cria um produto simples com imagem de capa e galeria."""
     try:
         payload = SimpleProductWizardCreate.model_validate_json(payload_str)
     except ValidationError as e:
         raise HTTPException(status_code=422, detail=f"JSON inválido: {e}")
 
-    file_key = upload_file(image) if image else None
+    # 1. Faz o upload da imagem de capa (se houver)
+    cover_file_key = upload_single_file(cover_image, folder="products/cover")
 
-    # 1. Cria o produto principal primeiro, mas sem os relacionamentos
+    # 2. Cria o produto principal com os dados do payload
     product_data = payload.model_dump(exclude={'category_links', 'variant_links'})
-
-    new_product = models.Product(**product_data, store_id=store.id, file_key=file_key)
+    new_product = models.Product(**product_data, store_id=store.id, file_key=cover_file_key)
     db.add(new_product)
-    db.flush()  # Garante que `new_product.id` seja gerado
+    db.flush()
 
-    # 2. Cria os vínculos com as categorias
+    # 3. Faz o upload das imagens da galeria e cria os registros no banco
+    if gallery_images:
+        for index, image_file in enumerate(gallery_images):
+            gallery_file_key = upload_single_file(image_file, folder="products/gallery")
+            if gallery_file_key:
+                db.add(models.ProductImage(
+                    product_id=new_product.id,
+                    file_key=gallery_file_key,
+                    display_order=index
+                ))
+
+    # 4. Cria os vínculos com categorias e complementos (sua lógica original)
     if payload.category_links:
         for link_data in payload.category_links:
             db.add(models.ProductCategoryLink(product_id=new_product.id, **link_data.model_dump()))
@@ -116,9 +124,6 @@ async def create_simple_product(
     return new_product
 
 
-
-
-
 # ===================================================================
 # ROTA 2: CRIAR "SABOR" (PRODUTO CUSTOMIZÁVEL)
 # ===================================================================
@@ -127,9 +132,11 @@ async def create_flavor_product(
         store: GetStoreDep,
         db: GetDBDep,
         payload_str: str = Form(..., alias="payload"),
-        image: UploadFile | None = File(None),
+        # ✅ ALTERAÇÃO: Recebe a imagem de CAPA e a GALERIA, igual à outra rota
+        cover_image: UploadFile | None = File(None, alias="coverImage"),
+        gallery_images: List[UploadFile] = File([], alias="galleryImages"),
 ):
-    """Cria um produto do tipo 'sabor' com preços definidos por tamanho."""
+    """Cria um produto do tipo 'sabor' com imagem de capa e galeria."""
     try:
         payload = FlavorWizardCreate.model_validate_json(payload_str)
     except ValidationError as e:
@@ -140,18 +147,35 @@ async def create_flavor_product(
     if not parent_category:
         raise HTTPException(status_code=404, detail="Categoria pai não encontrada.")
 
-    file_key = upload_file(image) if image else None
+    # ✅ 1. Faz o upload da imagem de capa (se houver)
+    cover_file_key = upload_single_file(cover_image, folder="products/cover")
+
+    # 2. Prepara os dados do produto para criação
     product_data = payload.model_dump(exclude={'prices', 'parent_category_id'})
 
-    new_product = models.Product(**product_data, store_id=store.id, file_key=file_key)
+    # ✅ 3. Cria o novo produto usando a chave da imagem de capa
+    new_product = models.Product(**product_data, store_id=store.id, file_key=cover_file_key)
     db.add(new_product)
     db.flush()
 
+    # ✅ 4. Faz o upload das imagens da galeria e cria os registros no banco
+    if gallery_images:
+        for index, image_file in enumerate(gallery_images):
+            gallery_file_key = upload_single_file(image_file, folder="products/gallery")
+            if gallery_file_key:
+                db.add(models.ProductImage(
+                    product_id=new_product.id,
+                    file_key=gallery_file_key,
+                    display_order=index
+                ))
+
+    # 5. Cria o vínculo com a categoria pai e os preços (sua lógica original)
     db.add(models.ProductCategoryLink(product_id=new_product.id, category_id=payload.parent_category_id, price=0))
 
     for price_data in payload.prices:
         db.add(models.FlavorPrice(product_id=new_product.id, **price_data.model_dump()))
 
+    # 6. Salva tudo no banco
     db.commit()
     db.refresh(new_product)
     await emit_updates_products(db, store.id)
@@ -163,40 +187,55 @@ async def create_flavor_product(
 # ===================================================================
 
 
+
 @router.patch("/{product_id}", response_model=ProductOut)
 async def update_product(
-    store: GetStoreDep,
-    db: GetDBDep,
-    db_product: GetProductDep, # Sua dependência que já busca o produto
-    payload_str: str = Form(..., alias="payload"),
-    image: UploadFile | None = File(None),
+        store: GetStoreDep,
+        db: GetDBDep,
+        db_product: GetProductDep,
+        payload_str: str = Form(..., alias="payload"),
+        cover_image: UploadFile | None = File(None, alias="coverImage"),
+        # ✅ RECEBE A LISTA DE NOVAS IMAGENS
+        new_gallery_images: List[UploadFile] = File([], alias="newGalleryImages"),
 ):
-    """
-    Atualiza os dados de um produto, incluindo imagem e vínculos de categoria.
-    """
     try:
         update_data = ProductUpdate.model_validate_json(payload_str)
     except ValidationError as e:
         raise HTTPException(status_code=422, detail=f"JSON inválido: {e}")
 
-    # Lida com a atualização da imagem
-    if image:
+    # --- 1. Lida com a atualização da imagem de CAPA (S3) ---
+    if cover_image:
         if db_product.file_key:
-            delete_file(db_product.file_key)
-        db_product.file_key = upload_file(image)
+            # A deleção do arquivo antigo do S3 é feita pela função do CRUD agora
+            pass  # O CRUD irá retornar a chave antiga para ser deletada
+        new_cover_file_key = upload_single_file(cover_image, folder="products/cover")
+        # Atualiza a chave no objeto que será salvo
+        db_product.file_key = new_cover_file_key
 
-    # Chama a nova e poderosa função do CRUD para fazer todo o resto
-    updated_product = crud_product.update_product(
+    # --- 2. Faz o upload das NOVAS imagens da galeria para o S3 ---
+    new_gallery_file_keys = []
+    if new_gallery_images:
+        for image_file in new_gallery_images:
+            file_key = upload_single_file(image_file, folder="products/gallery")
+            if file_key:
+                new_gallery_file_keys.append(file_key)
+
+    # --- 3. Chama a nova função do CRUD, passando as novas chaves ---
+    updated_product, file_keys_to_delete = crud_product.update_product(
         db=db,
         db_product=db_product,
         update_data=update_data,
-        store_id=store.id
-
+        store_id=store.id,
+        new_gallery_file_keys=new_gallery_file_keys
     )
 
+    # --- 4. Deleta do S3 os arquivos que o CRUD marcou para exclusão ---
+    if file_keys_to_delete:
+        delete_multiple_files(file_keys_to_delete)
+
+    # --- 5. Emite o evento e retorna a resposta ---
     await emit_updates_products(db, store.id)
     return updated_product
-
 
 
 

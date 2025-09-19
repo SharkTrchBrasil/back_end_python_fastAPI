@@ -508,6 +508,15 @@ class Product(Base, TimestampMixin):
 
     order_items: Mapped[list["OrderProduct"]] = relationship(back_populates="product")
 
+    video_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    gallery_images: Mapped[List["ProductImage"]] = relationship(
+        back_populates="product",
+        cascade="all, delete-orphan",
+        order_by="asc(ProductImage.display_order)",
+        lazy="selectin"  # 'selectin' é ótimo para carregar as galerias
+    )
+
     default_options: Mapped[list["ProductDefaultOption"]] = relationship(
         back_populates="product",
         cascade="all, delete-orphan"
@@ -582,6 +591,14 @@ class ProductCategoryLink(Base):
     product: Mapped["Product"] = relationship(back_populates="category_links")
     category: Mapped["Category"] = relationship(back_populates="product_links")
 
+
+class ProductImage(Base, TimestampMixin):
+    __tablename__ = "product_images"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"))
+    file_key: Mapped[str] = mapped_column(nullable=False)
+    display_order: Mapped[int] = mapped_column(default=0)
+    product: Mapped["Product"] = relationship(back_populates="gallery_images")
 
 
 class Variant(Base, TimestampMixin):

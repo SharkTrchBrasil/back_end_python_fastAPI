@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from sqlalchemy import delete
+from sqlalchemy import delete, func
 from sqlalchemy.orm import selectinload
 
 from src.api.schemas.products.bulk_actions import BulkCategoryUpdatePayload
@@ -60,6 +60,7 @@ def get_all_products_for_store(db, store_id: int, skip: int = 0, limit: int = 10
     Carrega os relacionamentos necessários para a exibição no painel de admin.
     """
     return db.query(models.Product).options(
+        selectinload(models.Product.gallery_images),
         selectinload(models.Product.category_links).selectinload(models.ProductCategoryLink.category),
         selectinload(models.Product.default_options),
         selectinload(models.Product.variant_links)
@@ -112,27 +113,76 @@ def update_product_category_link(
     return db_link
 
 
-
 def update_product(
-    db,
-    *,
-    db_product: models.Product,
-    update_data: ProductUpdate,
-    store_id: int
-) -> models.Product:
+        db,
+        *,
+        db_product: models.Product,
+        update_data: ProductUpdate,
+        store_id: int,
+        # ✅ 1. NOVO PARÂMETRO: Recebe as chaves das novas imagens já salvas no S3
+        new_gallery_file_keys: list[str] | None = None
+) -> tuple[models.Product, list[str]]:  # ✅ 2. RETORNO ATUALIZADO
     """
-    Atualiza um produto de forma completa, incluindo a sincronização
-    de seus vínculos e a ATUALIZAÇÃO de suas opções de complemento.
+    Atualiza um produto de forma completa, incluindo a sincronização da galeria.
+
+    Retorna uma tupla: (produto_atualizado, lista_de_chaves_para_deletar_do_s3)
     """
-    # 1. Atualiza os campos simples do produto (nome, estoque, etc.)
+
+    file_keys_to_delete_from_s3 = []
+
+    # --- ATUALIZAÇÃO DE CAMPOS SIMPLES (incluindo video_url) ---
     update_dict = update_data.model_dump(
         exclude_unset=True,
-        exclude={'category_links', 'variant_links', 'prices'}
+        # Exclui os campos de relacionamento que trataremos separadamente
+        exclude={'category_links', 'variant_links', 'prices', 'gallery_images_order', 'gallery_images_to_delete'}
     )
     for field, value in update_dict.items():
         setattr(db_product, field, value)
     db.add(db_product)
     db.flush()
+
+    # --- ✅ 3. LÓGICA COMPLETA DE SINCRONIZAÇÃO DA GALERIA ---
+
+    # a) Deletar imagens marcadas para exclusão
+    if update_data.gallery_images_to_delete:
+        images_to_delete_query = db.query(models.ProductImage).filter(
+            models.ProductImage.product_id == db_product.id,
+            models.ProductImage.id.in_(update_data.gallery_images_to_delete)
+        )
+        images_to_delete = images_to_delete_query.all()
+
+        # Guarda as chaves para deletar do S3 depois do commit
+        file_keys_to_delete_from_s3.extend([img.file_key for img in images_to_delete])
+
+        # Deleta os registros do banco
+        images_to_delete_query.delete(synchronize_session=False)
+        db.flush()
+        print(f"Deletadas {len(images_to_delete)} imagens do produto {db_product.id} no banco.")
+
+    # b) Reordenar imagens existentes
+    if update_data.gallery_images_order:
+        for order_info in update_data.gallery_images_order:
+            db.query(models.ProductImage).filter(
+                models.ProductImage.id == order_info['id'],
+                models.ProductImage.product_id == db_product.id
+            ).update({'display_order': order_info['order']}, synchronize_session=False)
+        print(f"Ordem de {len(update_data.gallery_images_order)} imagens atualizada.")
+
+    # c) Adicionar novas imagens
+    if new_gallery_file_keys:
+        # Pega a maior ordem de exibição atual para continuar a sequência
+        max_order = db.query(func.max(models.ProductImage.display_order)).filter(
+            models.ProductImage.product_id == db_product.id
+        ).scalar() or -1  # Começa em -1 para que a primeira seja 0
+
+        for index, file_key in enumerate(new_gallery_file_keys):
+            new_image_db = models.ProductImage(
+                product_id=db_product.id,
+                file_key=file_key,
+                display_order=max_order + 1 + index
+            )
+            db.add(new_image_db)
+        print(f"Adicionadas {len(new_gallery_file_keys)} novas imagens ao produto {db_product.id}.")
 
     # 2. Sincroniza os Vínculos de Categoria
     if update_data.category_links is not None:
@@ -254,7 +304,8 @@ def update_product(
     # 4. Salva tudo no banco
     db.commit()
     db.refresh(db_product)
-    return db_product
+
+    return db_product, file_keys_to_delete_from_s3
 
 
 
