@@ -63,14 +63,15 @@ def upload_single_file(file: UploadFile, folder: str = 'uploads') -> Optional[st
             file.file,
             AWS_BUCKET_NAME,
             file_key,
-            ExtraArgs={'ACL': 'public-read', 'ContentType': file.content_type}
+            # ✅ A LINHA 'ExtraArgs' FOI REMOVIDA DAQUI
+            # O content type ainda é útil, então podemos mantê-lo assim:
+            ExtraArgs={'ContentType': file.content_type}
         )
         logger.info(f"✅ Upload para a chave '{file_key}' finalizado com sucesso!")
         return file_key
     except Exception as e:
         logger.error(f"🚨 FALHA no upload para a chave '{file_key}'. Erro: {e}", exc_info=True)
         return None
-
 
 def delete_file(file_key: str):
     if not s3_client:
