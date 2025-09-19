@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from src.api.schemas.products.banner import BannerOut
 
 from src.core import models
-from src.core.aws import upload_file, delete_file
+from src.core.aws import delete_file, upload_single_file
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 
@@ -27,7 +27,7 @@ async def create_banner(
     end_date: Optional[datetime] = Form(None),
 
 ):
-    file_key = upload_file(image)  # usa o mesmo nome do parâmetro
+    file_key = upload_single_file(image)  # usa o mesmo nome do parâmetro
 
     banner = models.Banner(
         store_id=store.id,
@@ -119,7 +119,7 @@ async def update_banner(
         banner.end_date = end_date
     if image:
         old_file_key = banner.file_key
-        banner.file_key = upload_file(image)
+        banner.file_key = upload_single_file(image)
 
     db.commit()
     db.refresh(banner)

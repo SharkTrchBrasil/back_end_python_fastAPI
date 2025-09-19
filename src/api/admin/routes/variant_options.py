@@ -4,7 +4,7 @@ from pydantic import ValidationError
 from src.api.app.socketio.socketio_emitters import emit_products_updated
 from src.api.schemas.products.variant_option import VariantOptionCreate, VariantOptionUpdate, VariantOption as VariantOptionOut
 from src.core import models
-from src.core.aws import upload_file, delete_file # ✅ Importe as funções de arquivo
+from src.core.aws import delete_file, upload_single_file  # ✅ Importe as funções de arquivo
 from src.core.database import GetDBDep
 from src.core.dependencies import GetVariantDep, GetVariantOptionDep
 
@@ -26,7 +26,7 @@ async def create_product_variant_option(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Erro de validação: {e}")
 
     # Faz o upload da imagem, se houver
-    file_key = upload_file(image) if image else None
+    file_key = upload_single_file(image) if image else None
 
     db_option = models.VariantOption(
         **payload.model_dump(),
@@ -63,7 +63,7 @@ async def patch_product_variant_option(
     # Se uma nova imagem foi enviada, atualiza e apaga a antiga
     if image:
         old_file_key = option.file_key
-        option.file_key = upload_file(image)
+        option.file_key = upload_single_file(image)
         if old_file_key:
             delete_file(old_file_key)
 

@@ -19,7 +19,7 @@ from src.api.schemas.store.store import StoreWithRole, Store
 from src.api.schemas.store.store_details import StoreDetails
 from src.core import models
 
-from src.core.aws import upload_file, delete_file
+from src.core.aws import delete_file, upload_single_file
 from src.core.database import GetDBDep
 from src.core.defaults.delivery_methods import default_delivery_settings
 
@@ -116,7 +116,7 @@ def create_store(
             image_data = base64.b64decode(encoded)
 
             # Supondo que você tenha a função 'upload_file_bytes'
-            file_key = upload_file(image_data)
+            file_key = upload_single_file(image_data)
             db_store.signature_file_key = file_key
         except Exception as e:
             print(f"Erro ao processar a assinatura: {e}")
@@ -235,12 +235,12 @@ async def patch_store(
     file_key_to_delete = None
     if image:
         file_key_to_delete = store.file_key
-        store.file_key = upload_file(image)
+        store.file_key = upload_single_file(image)
 
     banner_key_to_delete = None
     if banner:
         banner_key_to_delete = store.banner_file_key
-        store.banner_file_key = upload_file(banner)
+        store.banner_file_key = upload_single_file(banner)
 
     # Dicionário com todos os campos para atualizar
     update_data = {
