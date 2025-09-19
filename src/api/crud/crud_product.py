@@ -119,14 +119,9 @@ def update_product(
         db_product: models.Product,
         update_data: ProductUpdate,
         store_id: int,
-        # ✅ NOVO PARÂMETRO: Recebe as chaves das novas imagens
         new_gallery_file_keys: list[str] | None = None
 ) -> tuple[models.Product, list[str]]:
-    """
-    Atualiza um produto de forma completa, incluindo a sincronização da galeria.
-
-    Retorna uma tupla: (produto_atualizado, lista_de_chaves_para_deletar_do_s3)
-    """
+    print("--- 🛠️  Dentro de crud_product.update_product ---")
 
     file_keys_to_delete_from_s3 = []
 
@@ -141,36 +136,38 @@ def update_product(
 
     db.flush()
 
-    # --- ✅ 3. LÓGICA COMPLETA DE SINCRONIZAÇÃO DA GALERIA ---
 
     # a) Deletar imagens marcadas para exclusão
     if update_data.gallery_images_to_delete:
+        print(f"   -> 🔍 Procurando imagens no DB para deletar com IDs: {update_data.gallery_images_to_delete}")
         images_to_delete_query = db.query(models.ProductImage).filter(
             models.ProductImage.product_id == db_product.id,
             models.ProductImage.id.in_(update_data.gallery_images_to_delete)
         )
         images_to_delete = images_to_delete_query.all()
 
-        # Guarda as chaves para deletar do S3 depois do commit
         file_keys_to_delete_from_s3.extend([img.file_key for img in images_to_delete])
 
-        # Deleta os registros do banco
         images_to_delete_query.delete(synchronize_session=False)
         db.flush()
-        print(f"Deletadas {len(images_to_delete)} imagens do produto {db_product.id} no banco.")
+        print(f"   -> 🔥 Deletadas {len(images_to_delete)} imagens do produto {db_product.id} no banco.")
+    else:
+        print("   -> Nenhuma imagem marcada para exclusão.")
 
     # b) Reordenar imagens existentes
     if update_data.gallery_images_order:
+        print(f"   -> 🔄 Reordenando {len(update_data.gallery_images_order)} imagens existentes...")
         for order_info in update_data.gallery_images_order:
             db.query(models.ProductImage).filter(
                 models.ProductImage.id == order_info['id'],
                 models.ProductImage.product_id == db_product.id
             ).update({'display_order': order_info['order']}, synchronize_session=False)
-        print(f"Ordem de {len(update_data.gallery_images_order)} imagens atualizada.")
+    else:
+        print("   -> Nenhuma instrução de reordenação.")
 
     # c) Adicionar novas imagens (se houver)
     if new_gallery_file_keys:
-        # Pega a maior ordem de exibição atual
+        print(f"   -> ✨ Adicionando {len(new_gallery_file_keys)} novas imagens ao DB...")
         max_order = db.query(func.max(models.ProductImage.display_order)).filter(
             models.ProductImage.product_id == db_product.id
         ).scalar() or -1
@@ -182,10 +179,10 @@ def update_product(
                 display_order=max_order + 1 + index
             )
             db.add(new_image_db)
-        print(f"✅ Adicionadas {len(new_gallery_file_keys)} novas imagens ao produto {db_product.id}.")
+    else:
+        print("   -> Nenhuma imagem nova para adicionar ao DB.")
 
-
-    # 2. Sincroniza os Vínculos de Categoria
+        # 2. Sincroniza os Vínculos de Categoria
     if update_data.category_links is not None:
         db.query(models.ProductCategoryLink).filter(
             models.ProductCategoryLink.product_id == db_product.id
@@ -194,7 +191,7 @@ def update_product(
         for link_data in update_data.category_links:
             db.add(models.ProductCategoryLink(product_id=db_product.id, **link_data.model_dump()))
 
-    # 2.5. Sincronização dos Preços de Sabores (Condicional)
+        # 2.5. Sincronização dos Preços de Sabores (Condicional)
     is_customizable_product = False
     if update_data.category_links:
         target_category_id = update_data.category_links[0].category_id
@@ -255,7 +252,6 @@ def update_product(
                         ).delete(synchronize_session=False)
                         db.flush()
 
-
                     # ADICIONAR/ATUALIZAR: Itera sobre as opções do frontend
                     for option_data in variant_data.options:
                         if option_data.id and option_data.id > 0:
@@ -307,6 +303,7 @@ def update_product(
     db.refresh(db_product)
 
     return db_product, file_keys_to_delete_from_s3
+
 
 
 

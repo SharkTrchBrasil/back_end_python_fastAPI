@@ -2,7 +2,7 @@ from typing import List
 from fastapi import APIRouter, Form, UploadFile, File, HTTPException
 
 from pydantic import ValidationError
-
+from sqlalchemy import func
 
 from starlette import status
 
@@ -183,6 +183,7 @@ async def create_flavor_product(
 # ROTA 3: ATUALIZAÇÃO UNIFICADA DE DADOS BÁSICOS (PATCH)
 # ===================================================================
 
+# ...
 
 @router.patch("/{product_id}", response_model=ProductOut)
 async def update_product(
@@ -190,39 +191,50 @@ async def update_product(
         db: GetDBDep,
         db_product: GetProductDep,
         payload_str: str = Form(..., alias="payload"),
-        # ✅ RECEBE A LISTA DE NOVAS IMAGENS
         images: List[UploadFile] = File([], alias="images"),
 ):
+    print("--- 🚀 ROTA update_product ATINGIDA ---")
     try:
         update_data = ProductUpdate.model_validate_json(payload_str)
+        print(f"✅ Payload JSON recebido e validado com sucesso.")
+        print(f"🖼️ Dados da galeria no payload: order={update_data.gallery_images_order}")
+        print(f"❌ Imagens para deletar no payload: {update_data.gallery_images_to_delete}")
     except ValidationError as e:
+        print(f"🚨 ERRO: JSON do payload é inválido: {e}")
         raise HTTPException(status_code=422, detail=f"JSON inválido: {e}")
 
-    # ✅ Processar as novas imagens
     new_gallery_file_keys = []
-
     if images:
+        print(f"📸 Recebidas {len(images)} novas imagens para upload.")
         for image_file in images:
             file_key = upload_single_file(image_file, folder="products/gallery")
             if file_key:
                 new_gallery_file_keys.append(file_key)
-                print(f"✅ Nova imagem salva no S3: {file_key}")
+                print(f"   -> Nova imagem salva no S3: {file_key}")
+    else:
+        print("📸 Nenhuma imagem nova recebida para upload.")
 
-    # --- Chama a função do CRUD, passando as novas chaves ---
+    print("⏳ Chamando crud_product.update_product...")
+
     updated_product, file_keys_to_delete = crud_product.update_product(
         db=db,
         db_product=db_product,
         update_data=update_data,
         store_id=store.id,
-        new_gallery_file_keys=new_gallery_file_keys  # ✅ Passa as novas chaves
+        new_gallery_file_keys=new_gallery_file_keys
     )
 
-    # --- Deleta do S3 os arquivos marcados para exclusão ---
     if file_keys_to_delete:
+        print(f"🗑️ Deletando {len(file_keys_to_delete)} chaves do S3: {file_keys_to_delete}")
         delete_multiple_files(file_keys_to_delete)
+    else:
+        print("🗑️ Nenhuma chave de arquivo para deletar do S3.")
 
     await emit_updates_products(db, store.id)
+    print("--- ✅ ROTA update_product FINALIZADA COM SUCESSO ---")
     return updated_product
+
+
 
 
 
