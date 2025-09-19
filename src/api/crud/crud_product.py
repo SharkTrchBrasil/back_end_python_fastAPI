@@ -138,7 +138,7 @@ def update_product(
     )
     for field, value in update_dict.items():
         setattr(db_product, field, value)
-    db.add(db_product)
+
     db.flush()
 
     # --- ✅ 3. LÓGICA COMPLETA DE SINCRONIZAÇÃO DA GALERIA ---
@@ -306,7 +306,6 @@ def update_product(
     db.refresh(db_product)
 
     return db_product, file_keys_to_delete_from_s3
-
 
 
 
