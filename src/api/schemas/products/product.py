@@ -141,15 +141,15 @@ class Product(AppBaseModel):
 class ProductImageOut(BaseModel):
     id: int
     display_order: int
+    file_key: str  # ✅ Adicione a file_key aqui para que possamos construir a URL
 
-    # Adiciona a URL completa da imagem para facilitar para o frontend
     @computed_field
     @property
     def image_url(self) -> str | None:
-        # Supõe que o objeto SQLAlchemy tenha o atributo file_key
-        return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if hasattr(self, 'file_key') and self.file_key else None
+        return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if self.file_key else None
 
     model_config = ConfigDict(from_attributes=True)
+
 
 
 class ProductUpdate(BaseModel):
@@ -251,6 +251,17 @@ class ProductOut(AppBaseModel):
     prices: List[FlavorPriceOut]
     components: List[KitComponentOut]
 
+
+
+    @computed_field
+    @property
+    def image_path(self) -> str | None:
+        """
+        Retorna a URL da primeira imagem da galeria, que é a imagem de capa.
+        """
+        if self.gallery_images:
+            return self.gallery_images[0].image_url
+        return None
 
 # -------------------------------------------------
 # 2. Schemas de Avaliação (ProductRating)

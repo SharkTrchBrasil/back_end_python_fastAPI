@@ -482,7 +482,6 @@ class Product(Base, TimestampMixin):
 
     category_links: Mapped[List["ProductCategoryLink"]] = relationship(back_populates="product", cascade="all, delete-orphan")
 
-    file_key: Mapped[str | None] = mapped_column(nullable=True)
 
     ean: Mapped[str | None] = mapped_column(nullable=True)
 
@@ -517,6 +516,9 @@ class Product(Base, TimestampMixin):
         lazy="selectin"  # 'selectin' é ótimo para carregar as galerias
     )
 
+
+
+
     default_options: Mapped[list["ProductDefaultOption"]] = relationship(
         back_populates="product",
         cascade="all, delete-orphan"
@@ -533,7 +535,7 @@ class Product(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
 
-    # ✅ 3. ADICIONE DUAS NOVAS COLUNAS 'ARRAY', UMA PARA CADA TIPO DE TAG
+
     dietary_tags: Mapped[List[FoodTagEnum]] = mapped_column(
         ARRAY(Enum(FoodTagEnum, name="food_tag_enum", create_type=False)),
         nullable=False,
@@ -546,19 +548,23 @@ class Product(Base, TimestampMixin):
         server_default="{}"
     )
 
-    # ✅ SUGESTÃO: Adicione este campo para vincular ao catálogo
+
     master_product_id: Mapped[int | None] = mapped_column(ForeignKey("master_products.id"), nullable=True)
     master_product: Mapped[Optional["MasterProduct"]] = relationship()
-    # ✅ Adicione a relação com a nova tabela de preços
+
     prices: Mapped[List["FlavorPrice"]] = relationship(back_populates="product", cascade="all, delete-orphan")
 
+
+
     @hybrid_property
-    def image_path(self):
-
-        # ✅ 2. USE A NOVA LÓGICA DE URL ESTÁTICA E PERMANENTE
-        return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if self.file_key else None
-
-
+    def cover_image_key(self) -> str | None:
+        """
+        Retorna a chave da primeira imagem da galeria (a capa).
+        A galeria já é ordenada por 'display_order' no relacionamento.
+        """
+        if self.gallery_images:
+            return self.gallery_images[0].file_key
+        return None
 
 
 class ProductCategoryLink(Base):

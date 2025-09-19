@@ -38,8 +38,8 @@ async def create_simple_product(
         store: GetStoreDep,
         db: GetDBDep,
         payload_str: str = Form(..., alias="payload"),
-        cover_image: UploadFile | None = File(None, alias="coverImage"),
-        gallery_images: List[UploadFile] = File([], alias="galleryImages"),
+
+        images: List[UploadFile] = File([], alias="images"),
 ):
     """Cria um produto simples com imagem de capa e galeria."""
     try:
@@ -47,18 +47,16 @@ async def create_simple_product(
     except ValidationError as e:
         raise HTTPException(status_code=422, detail=f"JSON inválido: {e}")
 
-    # 1. Faz o upload da imagem de capa (se houver)
-    cover_file_key = upload_single_file(cover_image, folder="products/cover")
 
     # 2. Cria o produto principal com os dados do payload
     product_data = payload.model_dump(exclude={'category_links', 'variant_links'})
-    new_product = models.Product(**product_data, store_id=store.id, file_key=cover_file_key)
+    new_product = models.Product(**product_data, store_id=store.id)
     db.add(new_product)
     db.flush()
 
-    # 3. Faz o upload das imagens da galeria e cria os registros no banco
-    if gallery_images:
-        for index, image_file in enumerate(gallery_images):
+
+    if images:
+        for index, image_file in enumerate(images):
             gallery_file_key = upload_single_file(image_file, folder="products/gallery")
             if gallery_file_key:
                 db.add(models.ProductImage(
@@ -132,9 +130,8 @@ async def create_flavor_product(
         store: GetStoreDep,
         db: GetDBDep,
         payload_str: str = Form(..., alias="payload"),
-        # ✅ ALTERAÇÃO: Recebe a imagem de CAPA e a GALERIA, igual à outra rota
-        cover_image: UploadFile | None = File(None, alias="coverImage"),
-        gallery_images: List[UploadFile] = File([], alias="galleryImages"),
+
+        images: List[UploadFile] = File([], alias="images"),
 ):
     """Cria um produto do tipo 'sabor' com imagem de capa e galeria."""
     try:
@@ -147,20 +144,20 @@ async def create_flavor_product(
     if not parent_category:
         raise HTTPException(status_code=404, detail="Categoria pai não encontrada.")
 
-    # ✅ 1. Faz o upload da imagem de capa (se houver)
-    cover_file_key = upload_single_file(cover_image, folder="products/cover")
+
 
     # 2. Prepara os dados do produto para criação
     product_data = payload.model_dump(exclude={'prices', 'parent_category_id'})
 
     # ✅ 3. Cria o novo produto usando a chave da imagem de capa
-    new_product = models.Product(**product_data, store_id=store.id, file_key=cover_file_key)
+    new_product = models.Product(**product_data, store_id=store.id)
     db.add(new_product)
     db.flush()
 
-    # ✅ 4. Faz o upload das imagens da galeria e cria os registros no banco
-    if gallery_images:
-        for index, image_file in enumerate(gallery_images):
+    # 2. Faz o upload de TODAS as imagens recebidas e as salva na galeria.
+    #    A ordem em que o frontend envia determinará a 'display_order'.
+    if images:
+        for index, image_file in enumerate(images):
             gallery_file_key = upload_single_file(image_file, folder="products/gallery")
             if gallery_file_key:
                 db.add(models.ProductImage(
@@ -194,7 +191,7 @@ async def update_product(
         db: GetDBDep,
         db_product: GetProductDep,
         payload_str: str = Form(..., alias="payload"),
-        cover_image: UploadFile | None = File(None, alias="coverImage"),
+
         # ✅ RECEBE A LISTA DE NOVAS IMAGENS
         new_gallery_images: List[UploadFile] = File([], alias="newGalleryImages"),
 ):
@@ -203,16 +200,8 @@ async def update_product(
     except ValidationError as e:
         raise HTTPException(status_code=422, detail=f"JSON inválido: {e}")
 
-    # --- 1. Lida com a atualização da imagem de CAPA (S3) ---
-    if cover_image:
-        if db_product.file_key:
-            # A deleção do arquivo antigo do S3 é feita pela função do CRUD agora
-            pass  # O CRUD irá retornar a chave antiga para ser deletada
-        new_cover_file_key = upload_single_file(cover_image, folder="products/cover")
-        # Atualiza a chave no objeto que será salvo
-        db_product.file_key = new_cover_file_key
 
-    # --- 2. Faz o upload das NOVAS imagens da galeria para o S3 ---
+
     new_gallery_file_keys = []
     if new_gallery_images:
         for image_file in new_gallery_images:
