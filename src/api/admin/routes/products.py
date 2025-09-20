@@ -22,7 +22,7 @@ from src.api.schemas.products.product import (
 from src.api.schemas.products.product_category_link import ProductCategoryLinkUpdate, ProductCategoryLinkOut
 from src.core import models
 # ✅ ADICIONE ESTA LINHA EXATAMENTE AQUI
-from src.core.aws import delete_file, upload_single_file, delete_multiple_files
+from src.core.aws import delete_file, upload_single_file, delete_multiple_files, S3_PUBLIC_BASE_URL
 
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep, GetProductDep
@@ -42,6 +42,7 @@ async def create_simple_product(
         payload_str: str = Form(..., alias="payload"),
 
         images: List[UploadFile] = File([], alias="images"),
+        video: UploadFile | None = File(None, alias="video"),
 ):
     """Cria um produto simples com imagem de capa e galeria."""
     try:
@@ -50,12 +51,20 @@ async def create_simple_product(
         raise HTTPException(status_code=422, detail=f"JSON inválido: {e}")
 
 
+    if video:
+        video_key = upload_single_file(video, folder="products/videos")
+        if video_key:
+            # Atribui a URL completa ao campo do payload antes de criar o produto
+            payload.video_url = f"{S3_PUBLIC_BASE_URL}/{video_key}"
+
+
     # 2. Cria o produto principal com os dados do payload
     product_data = payload.model_dump(exclude={'category_links', 'variant_links'})
+
     new_product = models.Product(**product_data, store_id=store.id)
+
     db.add(new_product)
     db.flush()
-
 
     if images:
         for index, image_file in enumerate(images):
@@ -72,7 +81,7 @@ async def create_simple_product(
         for link_data in payload.category_links:
             db.add(models.ProductCategoryLink(product_id=new_product.id, **link_data.model_dump()))
 
-    # 3. ✅ LÓGICA INTELIGENTE PARA GRUPOS DE COMPLEMENTOS (variant_links)
+
     if payload.variant_links:
         for link_data in payload.variant_links:
             variant_data = link_data.variant
@@ -195,20 +204,42 @@ async def update_product(
         db_product: GetProductDep,
         payload_str: str = Form(..., alias="payload"),
         images: List[UploadFile] = File([], alias="images"),
+        video: UploadFile | None = File(None, alias="video"),
 ):
     print("--- 🚀 ROTA update_product ATINGIDA ---")
     try:
         update_data = ProductUpdate.model_validate_json(payload_str)
-        print(f"✅ Payload JSON recebido e validado com sucesso.")
-        print(f"🖼️ Dados da galeria no payload: order={update_data.gallery_images_order}")
-        print(f"❌ Imagens para deletar no payload: {update_data.gallery_images_to_delete}")
+
     except ValidationError as e:
-        print(f"🚨 ERRO: JSON do payload é inválido: {e}")
+
         raise HTTPException(status_code=422, detail=f"JSON inválido: {e}")
 
     new_gallery_file_keys = []
+    file_keys_to_delete_s3 = []
+
+    # CASO 1: Um novo vídeo foi enviado (substituição)
+    if video:
+        # Se já existia um vídeo, guarda a chave antiga para deletar
+        if db_product.video_url:
+            old_video_key = db_product.video_url.split('/')[-1]
+            file_keys_to_delete_s3.append(f"products/videos/{old_video_key}")
+
+        # Faz o upload do novo vídeo
+        video_key = upload_single_file(video, folder="products/videos")
+        if video_key:
+            # Define a nova URL no payload que será salvo no banco
+            update_data.video_url = f"{S3_PUBLIC_BASE_URL}/{video_key}"
+
+    # CASO 2: O frontend mandou a URL como nula (exclusão)
+    elif update_data.video_url is None and db_product.video_url is not None:
+        # Se a URL no banco não está vazia, mas no payload veio nula,
+        # significa que o usuário quer apagar o vídeo.
+        old_video_key = db_product.video_url.split('/')[-1]
+        file_keys_to_delete_s3.append(f"products/videos/{old_video_key}")
+        # O `update_data.video_url` já é None, então o CRUD vai limpar o campo no banco.
+
     if images:
-        print(f"📸 Recebidas {len(images)} novas imagens para upload.")
+
         for image_file in images:
             file_key = upload_single_file(image_file, folder="products/gallery")
             if file_key:
@@ -217,7 +248,7 @@ async def update_product(
     else:
         print("📸 Nenhuma imagem nova recebida para upload.")
 
-    print("⏳ Chamando crud_product.update_product...")
+
 
     updated_product, file_keys_to_delete = crud_product.update_product(
         db=db,
