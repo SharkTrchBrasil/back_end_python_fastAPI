@@ -284,10 +284,14 @@ def update_product(
 
                 if variant_data.options:
                     for option_data in variant_data.options:
+
+
                         db.add(models.VariantOption(
                             variant_id=new_variant.id,
-                            **option_data.model_dump(exclude={'image', 'id'})
+                            store_id=store_id,
+                            **option_data.model_dump(exclude={'image', 'id', 'variant_id'})
                         ))
+
 
                 db.add(models.ProductVariantLink(
                     product_id=db_product.id,

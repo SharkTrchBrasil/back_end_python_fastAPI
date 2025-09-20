@@ -7,12 +7,12 @@ import logging
 from .product_category_link import ProductCategoryLinkCreate, ProductCategoryLinkOut
 
 from .product_variant_link import ProductVariantLinkOut, ProductVariantLinkCreate
-from .rating import RatingsSummaryOut
 
-from src.core.aws import get_presigned_url, S3_PUBLIC_BASE_URL
+
+from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.utils.enums import CashbackType, ProductType, FoodTagEnum, BeverageTagEnum, ProductStatus
 
-# Configurar logging
+
 logger = logging.getLogger(__name__)
 
 
