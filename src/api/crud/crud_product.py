@@ -125,11 +125,16 @@ def update_product(
 
     file_keys_to_delete_from_s3 = []
 
+
+    if 'video_url' in update_data.model_fields_set:
+        db_product.video_url = update_data.video_url
+
+
     # --- ATUALIZAÇÃO DE CAMPOS SIMPLES (incluindo video_url) ---
     update_dict = update_data.model_dump(
         exclude_unset=True,
         # Exclui os campos de relacionamento que trataremos separadamente
-        exclude={'category_links', 'variant_links', 'prices', 'gallery_images_order', 'gallery_images_to_delete'}
+        exclude={'category_links', 'variant_links', 'prices', 'gallery_images_order', 'gallery_images_to_delete', 'video_url'}
     )
     for field, value in update_dict.items():
         setattr(db_product, field, value)
