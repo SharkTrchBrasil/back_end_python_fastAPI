@@ -142,7 +142,7 @@ async def create_flavor_product(
         store: GetStoreDep,
         db: GetDBDep,
         payload_str: str = Form(..., alias="payload"),
-
+        video: UploadFile | None = File(None, alias="video"),
         images: List[UploadFile] = File([], alias="images"),
 ):
     """Cria um produto do tipo 'sabor' com imagem de capa e galeria."""
@@ -156,6 +156,14 @@ async def create_flavor_product(
     if not parent_category:
         raise HTTPException(status_code=404, detail="Categoria pai não encontrada.")
 
+        # ✅ LÓGICA DE UPLOAD DE VÍDEO ADICIONADA
+    if video:
+        video_key = upload_single_file(video, folder="products/videos")
+        if video_key:
+            # O schema FlavorWizardCreate também precisa ter o campo 'video_url'
+            # para que esta linha funcione.
+            # Supondo que você o adicionou:
+            payload.video_url = f"{S3_PUBLIC_BASE_URL}/{video_key}"
 
 
     # 2. Prepara os dados do produto para criação

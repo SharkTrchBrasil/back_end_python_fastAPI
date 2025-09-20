@@ -86,7 +86,7 @@ class SimpleProductWizardCreate(AppBaseModel):
 
     dietary_tags: list[FoodTagEnum] | None = None
     beverage_tags: list[BeverageTagEnum] | None = None
-
+    video_url: str | None = None # ✅ ADICIONE ESTE CAMPO
 
 # ===================================================================
 # WIZARD 2: Para Sabores de Itens Customizáveis (ex: Sabor Calabresa)
@@ -115,7 +115,7 @@ class FlavorWizardCreate(AppBaseModel):
     # --- Vínculos e Preços (Específicos deste wizard) ---
     parent_category_id: int
     prices: List[FlavorPriceCreate]
-
+    video_url: str | None = None # ✅ ADICIONE ESTE CAMPO
 
 class Product(AppBaseModel):
     """Campos essenciais que definem um produto."""
