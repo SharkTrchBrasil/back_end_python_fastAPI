@@ -51,46 +51,68 @@ def get_optional_user(db: GetDBDep, authorization: Annotated[str | None, Header(
 GetCurrentUserDep = Annotated[models.User, Depends(get_current_user)]
 GetOptionalUserDep = Annotated[models.User | None, Depends(get_optional_user)]
 
+
+
+
 class GetStore:
     def __init__(self, roles: list[Roles]):
         self.roles = roles
 
     def __call__(self, db: GetDBDep, user: GetCurrentUserDep, store_id: int):
-        # Carrega tudo em uma única query
-        db_store_access = db.query(models.StoreAccess).options(
-            joinedload(models.StoreAccess.store)
+
+        # --- INÍCIO DA MODIFICAÇÃO ---
+        # 1. VERIFICA SE O USUÁRIO É A CONTA DE SERVIÇO
+        if user.email == "chatbot-service@system.local":
+            # Se for o chatbot, ele é um "Super Admin". Pula a verificação da tabela StoreAccess.
+            # Apenas busca a loja diretamente para poder fazer a verificação de assinatura.
+            store = db.query(models.Store).options(
+                joinedload(models.Store.subscriptions)
+                .joinedload(models.StoreSubscription.plan)
+            ).filter(models.Store.id == store_id).first()
+
+            if not store:
+                # Se a loja não existe, retorna um erro 404
+                raise HTTPException(status_code=404, detail="Store not found for service account")
+
+        else:
+            # 2. SE FOR UM USUÁRIO NORMAL, EXECUTA A LÓGICA ORIGINAL
+            # Carrega tudo em uma única query
+            db_store_access = db.query(models.StoreAccess).options(
+                joinedload(models.StoreAccess.store)
                 .joinedload(models.Store.subscriptions)
                 .joinedload(models.StoreSubscription.plan),
-            joinedload(models.StoreAccess.role)
-        ).filter(
-            models.StoreAccess.user == user,
-            models.StoreAccess.store_id == store_id
-        ).first()
+                joinedload(models.StoreAccess.role)
+            ).filter(
+                models.StoreAccess.user == user,
+                models.StoreAccess.store_id == store_id
+            ).first()
 
-        if not db_store_access:
-            raise HTTPException(
-                status_code=403,
-                detail={
-                    'message': 'User does not have access to this store',
-                    'code': 'NO_ACCESS_STORE'
-                }
-            )
+            if not db_store_access:
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        'message': 'User does not have access to this store',
+                        'code': 'NO_ACCESS_STORE'
+                    }
+                )
 
-        if db_store_access.role.machine_name not in [e.value for e in self.roles]:
-            raise HTTPException(
-                status_code=403,
-                detail={
-                    'message': f'User must be the {[e.value for e in self.roles]} to execute this action',
-                    'code': 'REQUIRES_ANOTHER_ROLE'
-                }
-            )
+            if db_store_access.role.machine_name not in [e.value for e in self.roles]:
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        'message': f'User must be one of {[e.value for e in self.roles]} to execute this action',
+                        'code': 'REQUIRES_ANOTHER_ROLE'
+                    }
+                )
 
-        # Verificação otimizada da assinatura
-        store = db_store_access.store
+            store = db_store_access.store
+        # --- FIM DA MODIFICAÇÃO ---
+
+        # 3. A VERIFICAÇÃO DE ASSINATURA AGORA FICA FORA DO ELSE E VALE PARA AMBOS
         active_sub = next(
             (sub for sub in store.subscriptions
              if sub.status in ['active', 'new_charge'] and
-                sub.current_period_end >= datetime.utcnow()),
+             sub.current_period_end >= datetime.utcnow()),
             None
         )
 
@@ -105,8 +127,22 @@ class GetStore:
 
         return store
 
+
+# A linha abaixo continua igual
 get_store = GetStore([Roles.OWNER, Roles.ADMIN])
 GetStoreDep = Annotated[models.Store, Depends(get_store)]
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
