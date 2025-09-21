@@ -4,6 +4,8 @@ import os
 from typing import List
 from fastapi import APIRouter, HTTPException, Depends
 import httpx
+
+from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.admin.utils.emit_updates import emit_store_updates
 from src.api.schemas.chatbot_config import StoreChatbotMessageSchema, StoreChatbotMessageUpdateSchema
 from src.core import models
@@ -54,7 +56,7 @@ async def update_message_config(message_key: str, config_update: StoreChatbotMes
         setattr(db_config, key, value)
     db.commit()
     db.refresh(db_config)
-    await emit_store_updates(db, store.id)
+    await admin_emit_store_updated(db, store.id)
     return {
         "template_key": db_config.template_key,
         "is_active": db_config.is_active,
@@ -74,7 +76,7 @@ async def conectar_whatsapp(store_id: int, db: GetDBDep, http_client: httpx.Asyn
         config.connection_status = "pending"
         config.last_qr_code = None
     db.commit()
-    await emit_store_updates(db, store_id)
+    await admin_emit_store_updated(db, store_id)
     try:
         headers = {'x-webhook-secret': CHATBOT_WEBHOOK_SECRET}
         response = await http_client.post(iniciar_sessao_url, json={"lojaId": store_id}, headers=headers, timeout=15.0)
@@ -83,7 +85,7 @@ async def conectar_whatsapp(store_id: int, db: GetDBDep, http_client: httpx.Asyn
     except (httpx.RequestError, httpx.HTTPStatusError) as e:
         config.connection_status = "error"
         db.commit()
-        await emit_store_updates(db, store_id)
+        await admin_emit_store_updated(db, store_id)
         raise HTTPException(status_code=503, detail=f"Erro de comunicação com o serviço de chatbot: {e}")
 
 # --- ✅ ROTA DE DISCONNECT (AGORA 100% CORRETA) ---
@@ -110,6 +112,6 @@ async def desconectar_whatsapp(store: GetStoreDep, db: GetDBDep, http_client: ht
         chatbot_config.whatsapp_number = None
         chatbot_config.last_qr_code = None
         db.commit()
-        await emit_store_updates(db, store.id)
+        await admin_emit_store_updated(db, store.id)
 
     return {"message": "Solicitação de desconexão processada com sucesso."}
