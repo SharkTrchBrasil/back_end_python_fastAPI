@@ -1,26 +1,37 @@
-# Em: src/api/routers/chatbot.py
-
+import os
 from typing import List
-from fastapi import APIRouter, HTTPException, Body, Depends
+from fastapi import APIRouter, HTTPException, Body, Depends, Header
 import httpx
 from sqlalchemy.orm import Session
 
 from src.api.admin.utils.emit_updates import emit_store_updates
-from src.api.schemas.chatbot_config import StoreChatbotMessageSchema, StoreChatbotMessageUpdateSchema
+from src.api.schemas.chatbot_config import StoreChatbotMessageSchema, StoreChatbotMessageUpdateSchema, \
+    ChatbotWebhookPayload
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 
 
-
-
-# Adicione esta dependência para criar um cliente httpx assíncrono
 async def get_async_http_client() -> httpx.AsyncClient:
     async with httpx.AsyncClient() as client:
         yield client
 
 
-# Mantemos o prefixo, pois todas as operações são dentro de um chatbot de uma loja
+
+WEBHOOK_SECRET_KEY = os.getenv("CHATBOT_WEBHOOK_SECRET")
+
+# Valida se a variável de ambiente foi configurada
+if not WEBHOOK_SECRET_KEY:
+    raise ValueError("A variável de ambiente CHATBOT_WEBHOOK_SECRET não foi configurada.")
+
+
+def verify_webhook_secret(x_webhook_secret: str = Header(...)):
+    """ Valida se a chave secreta enviada no cabeçalho é a correta. """
+    if x_webhook_secret != WEBHOOK_SECRET_KEY:
+        raise HTTPException(status_code=403, detail="Acesso negado: Chave secreta do webhook inválida.")
+
+
+
 router = APIRouter(tags=["Chatbot Config"], prefix="/stores/{store_id}/chatbot-config")
 
 
@@ -184,3 +195,43 @@ async def desconectar_whatsapp(
 
 
     return {"message": "Solicitação de desconexão processada com sucesso."}
+
+
+
+@router.post(
+    "/webhook/update",
+    summary="Webhook para receber atualizações do serviço de Chatbot",
+    dependencies=[Depends(verify_webhook_secret)], # Segurança primeiro!
+    include_in_schema=False # Esconde da documentação pública do Swagger/OpenAPI
+)
+
+
+async def chatbot_webhook(
+    payload: ChatbotWebhookPayload,
+    db: GetDBDep,
+):
+    """
+    Esta rota é chamada pelo serviço de robô (Node.js) para nos dar
+    o QR Code ou para nos informar que a conexão foi bem-sucedida.
+    """
+    print(f"🤖 Webhook do Chatbot recebido para loja {payload.lojaId}: status {payload.status}")
+
+    # 1. Busca a configuração da loja no banco (igual ao webhook do PIX)
+    config = db.query(models.StoreChatbotConfig).filter_by(store_id=payload.lojaId).first()
+    if not config:
+        # Se não existir, cria na hora. Isso torna o sistema mais robusto.
+        config = models.StoreChatbotConfig(store_id=payload.lojaId)
+        db.add(config)
+
+    # 2. Atualiza os dados no banco com o que recebemos (igual ao webhook do PIX)
+    config.connection_status = payload.status
+    config.last_qr_code = payload.qrCode
+    config.whatsapp_name = payload.whatsappName
+    db.commit()
+
+    # 3. ✨ A MÁGICA EM TEMPO REAL: Notifica o frontend via WebSocket ✨
+    #    (Este é o passo que estava como 'TODO' no seu webhook de PIX)
+    await emit_store_updates(db, payload.lojaId)
+    print(f"✅ Frontend notificado sobre a atualização do chatbot para loja {payload.lojaId}.")
+
+    return {"status": "sucesso", "message": "Webhook processado."}

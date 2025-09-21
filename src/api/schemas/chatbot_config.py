@@ -5,10 +5,19 @@ from pydantic import BaseModel, ConfigDict
 from src.core.utils.enums import ChatbotMessageGroupEnum
 
 
+
+class ChatbotWebhookPayload(BaseModel):
+    """ Define a estrutura de dados que o serviço de robô nos enviará. """
+    lojaId: int
+    status: str  # Ex: 'awaiting_qr', 'connected', 'disconnected'
+    qrCode: str | None = None
+    whatsappName: str | None = None
+
+
 class StoreChatbotConfigSchema(BaseModel):
     whatsapp_name: str | None
     connection_status: str
-
+    last_qr_code: str | None = None  # ✅ CAMPO ADICIONADO AQUI
     model_config = ConfigDict(from_attributes=True)
 
 
