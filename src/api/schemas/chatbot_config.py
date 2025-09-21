@@ -5,6 +5,13 @@ from pydantic import BaseModel, ConfigDict
 from src.core.utils.enums import ChatbotMessageGroupEnum
 
 
+class StoreChatbotConfigSchema(BaseModel):
+    whatsapp_name: str | None
+    connection_status: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # Schema para ler um template de mensagem (para construir a UI)
 class ChatbotMessageTemplateSchema(BaseModel):
     message_key: str

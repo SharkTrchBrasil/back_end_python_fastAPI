@@ -1,7 +1,7 @@
 from typing import Optional, List
 from pydantic import Field, ConfigDict
 
-from src.api.schemas.chatbot_config import StoreChatbotMessageSchema
+from src.api.schemas.chatbot_config import StoreChatbotMessageSchema, StoreChatbotConfigSchema
 from src.api.schemas.products.category import Category
 from src.api.schemas.store.scheduled_pauses import ScheduledPauseOut
 from src.api.schemas.subscriptions.store_subscription import StoreSubscriptionSchema
@@ -40,6 +40,8 @@ class StoreDetails(StoreSchema):
 
     # ✅ 2. ADICIONE O NOVO CAMPO AQUI
     chatbot_messages: list[StoreChatbotMessageSchema] = []
+    # ✅ ADICIONE ESTA LINHA
+    chatbot_config: Optional[StoreChatbotConfigSchema] = None
 
     model_config = ConfigDict(
         from_attributes=True,

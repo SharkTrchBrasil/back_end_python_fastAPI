@@ -221,6 +221,13 @@ class Store(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
 
+    # Dentro da classe Store, junto com os outros relacionamentos
+    chatbot_config: Mapped[Optional["StoreChatbotConfig"]] = relationship(
+        back_populates="store",
+        uselist=False,  # Indica que é uma relação um-para-um
+        cascade="all, delete-orphan"
+    )
+
     receivables: Mapped[list["StoreReceivable"]] = relationship(back_populates="store", cascade="all, delete-orphan")
     receivable_categories: Mapped[list["ReceivableCategory"]] = relationship(back_populates="store",
                                                                              cascade="all, delete-orphan")
@@ -993,7 +1000,6 @@ class PixDevolution(Base, TimestampMixin):
 
 
 
-# Tabela MESTRE com as definições de cada tipo de mensagem
 class ChatbotMessageTemplate(Base, TimestampMixin):
     __tablename__ = "chatbot_message_templates"
 
@@ -1021,7 +1027,6 @@ class ChatbotMessageTemplate(Base, TimestampMixin):
     store_configs: Mapped[list["StoreChatbotMessage"]] = relationship(back_populates="template")
 
 
-# Tabela que guarda a CONFIGURAÇÃO de cada loja para uma mensagem específica
 class StoreChatbotMessage(Base, TimestampMixin):
     __tablename__ = "store_chatbot_messages"
 
@@ -1046,6 +1051,35 @@ class StoreChatbotMessage(Base, TimestampMixin):
         UniqueConstraint('store_id', 'template_key', name='_store_template_uc'),
     )
 
+
+
+class StoreChatbotConfig(Base, TimestampMixin):
+    __tablename__ = "store_chatbot_configs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    # Chave estrangeira para a loja. unique=True garante que cada loja só pode ter uma configuração.
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), unique=True, index=True)
+
+    # Informações do WhatsApp conectado
+    whatsapp_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    whatsapp_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    # Status da conexão: 'disconnected', 'pending', 'awaiting_qr', 'connected', 'error'
+    connection_status: Mapped[str] = mapped_column(String(50), default='disconnected', nullable=False)
+
+    # Último QR Code ou código de conexão gerado
+    last_qr_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_connection_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    # Timestamps
+    last_connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # (Opcional, mas útil) Caminho para o arquivo de sessão persistente
+    session_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # Relacionamento de volta para a classe Store (a última alteração que fizemos)
+    store: Mapped["Store"] = relationship(back_populates="chatbot_config")
 
 
 

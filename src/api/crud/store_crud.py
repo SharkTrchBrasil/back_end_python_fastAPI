@@ -80,6 +80,8 @@ def get_store_base_details(db: Session, store_id: int) -> models.Store | None:
             selectinload(models.Store.coupons).selectinload(models.Coupon.rules),
             selectinload(models.Store.chatbot_messages).joinedload(models.StoreChatbotMessage.template),
 
+            joinedload(models.Store.chatbot_config),
+
             noload(models.Store.products),
             noload(models.Store.categories),
             noload(models.Store.variants),
