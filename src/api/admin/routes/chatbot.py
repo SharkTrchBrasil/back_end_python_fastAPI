@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Body, Depends
 import httpx
 from sqlalchemy.orm import Session
 
+from src.api.admin.utils.emit_updates import emit_store_updates
 from src.api.schemas.chatbot_config import StoreChatbotMessageSchema, StoreChatbotMessageUpdateSchema
 from src.core import models
 from src.core.database import GetDBDep
@@ -57,7 +58,7 @@ def get_all_message_configs(store: GetStoreDep, db: GetDBDep):
 
 # --- ROTA PARA ATUALIZAR UMA MENSAGEM ESPECÍFICA ---
 @router.patch("/{message_key}", response_model=StoreChatbotMessageSchema)
-def update_message_config(
+async def update_message_config(
         message_key: str,
         config_update: StoreChatbotMessageUpdateSchema,
         store: GetStoreDep,
@@ -93,6 +94,13 @@ def update_message_config(
     db.commit()
     db.refresh(db_config)
 
+
+
+
+    await emit_store_updates(db, store.id)
+
+
+
     # Monta a resposta final para devolver ao Flutter
     return {
         "template_key": db_config.template_key,
@@ -123,6 +131,9 @@ async def conectar_whatsapp(
         config.connection_status = "pending"
         config.last_qr_code = None
     db.commit()
+
+
+    await emit_store_updates(db, store_id)
 
     try:
         response = await http_client.post(CHATBOT_SERVICE_URL, json={"lojaId": store_id}, timeout=15.0)
@@ -167,7 +178,9 @@ async def desconectar_whatsapp(
         chatbot_config.last_qr_code = None
         db.commit()
 
-        # Opcional, mas recomendado: Emitir um evento de socket para avisar a UI
-        # await realtime_manager.emit_store_details_update(store.id)
+
+
+        await emit_store_updates(db, store.id)
+
 
     return {"message": "Solicitação de desconexão processada com sucesso."}
