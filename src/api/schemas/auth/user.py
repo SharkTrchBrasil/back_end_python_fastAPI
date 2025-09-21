@@ -5,8 +5,7 @@ from datetime import date
 from pydantic import BaseModel, Field, ConfigDict
 
 
-# --- Schema de Leitura (Saída da API) ---
-# O que a API retorna quando se pede os dados de um usuário
+
 class UserSchema(BaseModel):
     id: int
     email: str
