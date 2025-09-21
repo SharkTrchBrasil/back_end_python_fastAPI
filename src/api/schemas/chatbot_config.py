@@ -1,4 +1,4 @@
-# Em src/api/schemas/chatbot.py
+# Em src/api/schemas/chatbot_webhook.py
 
 from pydantic import BaseModel, ConfigDict
 
