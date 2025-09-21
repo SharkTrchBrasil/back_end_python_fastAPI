@@ -78,8 +78,8 @@ def get_store_base_details(db: Session, store_id: int) -> models.Store | None:
                 .selectinload(models.PaymentMethodCategory.group),
             selectinload(models.Store.subscriptions).joinedload(models.StoreSubscription.plan),
             selectinload(models.Store.coupons).selectinload(models.Coupon.rules),
+            selectinload(models.Store.chatbot_messages).joinedload(models.StoreChatbotMessage.template),
 
-            # ✅ CORREÇÃO: Adicione estas linhas para BARRAR o carregamento das listas pesadas
             noload(models.Store.products),
             noload(models.Store.categories),
             noload(models.Store.variants),

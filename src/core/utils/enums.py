@@ -155,3 +155,14 @@ class ProductStatus(str, enum.Enum):
     ACTIVE = "ACTIVE"       # Visível e à venda
     INACTIVE = "INACTIVE"   # Pausado temporariamente, mas ainda no catálogo principal
     ARCHIVED = "ARCHIVED"   # "Deletado", oculto de todas as listas principais
+
+
+
+# Enum para agrupar os tipos de mensagem, como na UI
+class ChatbotMessageGroupEnum(enum.Enum):
+    SALES_RECOVERY = "Recuperador de Vendas"
+    CUSTOMER_QUESTIONS = "Resolva as perguntas dos seus clientes"
+    GET_REVIEWS = "Obtenha avaliações dos seus clientes"
+    LOYALTY = "Ative seu programa de fidelidade"
+    ORDER_UPDATES = "Envie atualizações automáticas do pedido"
+    COURIER_NOTIFICATIONS = "Notifique seus Entregadores"

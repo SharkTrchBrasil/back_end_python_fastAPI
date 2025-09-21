@@ -1,6 +1,7 @@
 from typing import Optional, List
 from pydantic import Field, ConfigDict
 
+from src.api.schemas.chatbot_config import StoreChatbotMessageSchema
 from src.api.schemas.products.category import Category
 from src.api.schemas.store.scheduled_pauses import ScheduledPauseOut
 from src.api.schemas.subscriptions.store_subscription import StoreSubscriptionSchema
@@ -36,6 +37,9 @@ class StoreDetails(StoreSchema):
     coupons: List[CouponOut] = []
     # ✅ 2. CORRIJA O NOME DO TIPO AQUI
     scheduled_pauses: list[ScheduledPauseOut] = []
+
+    # ✅ 2. ADICIONE O NOVO CAMPO AQUI
+    chatbot_messages: list[StoreChatbotMessageSchema] = []
 
     model_config = ConfigDict(
         from_attributes=True,

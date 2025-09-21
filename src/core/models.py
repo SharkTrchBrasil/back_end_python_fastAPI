@@ -13,7 +13,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
     CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode, CategoryType, FoodTagEnum, AvailabilityTypeEnum, \
-    BeverageTagEnum, PricingStrategyType, CategoryTemplateType, OptionGroupType, ProductStatus
+    BeverageTagEnum, PricingStrategyType, CategoryTemplateType, OptionGroupType, ProductStatus, ChatbotMessageGroupEnum
 from src.api.schemas.shared.base import VariantType, UIDisplayMode
 
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -210,6 +210,13 @@ class Store(Base, TimestampMixin):
 
     # ✅ ADIÇÃO: Relacionamento com Categorias de Contas a Pagar
     payable_categories: Mapped[list["PayableCategory"]] = relationship(
+        back_populates="store",
+        cascade="all, delete-orphan"
+    )
+
+    # Dentro da classe Store, junto com os outros relacionamentos
+
+    chatbot_messages: Mapped[list["StoreChatbotMessage"]] = relationship(
         back_populates="store",
         cascade="all, delete-orphan"
     )
@@ -985,19 +992,62 @@ class PixDevolution(Base, TimestampMixin):
     reason: Mapped[str | None] = mapped_column()
 
 
-class StoreChatbotConfig(Base, TimestampMixin):
-    __tablename__ = "store_chatbot_configs"
+
+# Tabela MESTRE com as definições de cada tipo de mensagem
+class ChatbotMessageTemplate(Base, TimestampMixin):
+    __tablename__ = "chatbot_message_templates"
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
+    # Chave única para uso no código (ex: "welcome_message", "order_accepted")
+    message_key: Mapped[str] = mapped_column(String(100), unique=True, index=True)
 
-    whatsapp_number: Mapped[str] = mapped_column(nullable=True)
-    whatsapp_name: Mapped[str] = mapped_column(nullable=True)
-    connection_status: Mapped[str] = mapped_column()  # exemplo: 'connected', 'disconnected', 'awaiting_qr'
-    last_qr_code: Mapped[str] = mapped_column(nullable=True)  # pode salvar o base64/texto do QR
-    last_connected_at: Mapped[datetime] = mapped_column(nullable=True)
-    session_path: Mapped[str] = mapped_column(nullable=True)  # caminho local ou info da sessão
+    # Nome amigável para a UI (ex: "Mensagem de Boas-vindas")
+    name: Mapped[str] = mapped_column(String(100))
+
+    # Descrição que aparece no painel de admin
+    description: Mapped[str | None] = mapped_column(Text)
+
+    # Grupo ao qual a mensagem pertence (para organizar na UI)
+    message_group: Mapped[ChatbotMessageGroupEnum] = mapped_column(Enum(ChatbotMessageGroupEnum))
+
+    # O conteúdo padrão que toda loja terá ao iniciar
+    default_content: Mapped[str] = mapped_column(Text)
+
+    # (Opcional, mas muito útil) Lista de variáveis disponíveis para esta mensagem
+    available_variables: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+
+    # Relacionamento para ver todas as configurações de lojas que usam este template
+    store_configs: Mapped[list["StoreChatbotMessage"]] = relationship(back_populates="template")
+
+
+# Tabela que guarda a CONFIGURAÇÃO de cada loja para uma mensagem específica
+class StoreChatbotMessage(Base, TimestampMixin):
+    __tablename__ = "store_chatbot_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), index=True)
+
+    # Link para o template mestre
+    template_key: Mapped[str] = mapped_column(ForeignKey("chatbot_message_templates.message_key"), index=True)
+
+    # O conteúdo personalizado pelo lojista. Se for nulo, o sistema usa o default_content do template.
+    custom_content: Mapped[str | None] = mapped_column(Text)
+
+    # O switch de "ligado/desligado" para esta mensagem nesta loja
+    is_active: Mapped[bool] = mapped_column(default=True)
+
+    # Relacionamentos
+    store: Mapped["Store"] = relationship()
+    template: Mapped["ChatbotMessageTemplate"] = relationship(back_populates="store_configs")
+
+    __table_args__ = (
+        UniqueConstraint('store_id', 'template_key', name='_store_template_uc'),
+    )
+
+
+
 
 
 class PaymentMethodGroup(Base):
