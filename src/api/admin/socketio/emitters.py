@@ -13,6 +13,7 @@ from src.api.admin.services.insights_service import InsightsService
 from src.api.admin.services.payable_service import payable_service
 from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations_simplified
 from src.api.crud import store_crud
+from src.api.schemas.chatbot_config import StoreChatbotConfigSchema
 from src.api.schemas.financial.coupon import CouponOut
 from src.api.schemas.financial.payment_method import PaymentMethodGroupOut
 from src.api.schemas.products.category import Category
@@ -440,3 +441,21 @@ async def admin_emit_products_updated(db, store_id: int):
     await sio.emit('products_updated', payload, to=room_name, namespace='/admin')
 
     print(f"✅ [ADMIN] Emissão 'products_updated' (com variants e categories) para a sala: {room_name} concluída.")
+
+
+
+async def emit_chatbot_config_update(db, store_id: int):
+    """ Emite APENAS a configuração do chatbot para a loja. """
+    try:
+        config = db.query(models.StoreChatbotConfig).filter_by(store_id=store_id).first()
+        if not config:
+            return
+
+        # Usa o Pydantic Schema para converter os dados para JSON
+        payload = StoreChatbotConfigSchema.model_validate(config).model_dump(mode='json')
+
+        # Emite em um novo canal chamado 'chatbot_config_updated'
+        await sio.emit('chatbot_config_updated', payload, namespace='/admin', room=f"admin_store_{store_id}")
+        print(f"✅ [Socket] Evento DEDICADO 'chatbot_config_updated' enviado para loja {store_id}.")
+    except Exception as e:
+        print(f"❌ Erro ao emitir chatbot_config_updated: {e}")

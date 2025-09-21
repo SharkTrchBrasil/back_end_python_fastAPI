@@ -3,7 +3,7 @@
 import os
 from fastapi import APIRouter, Depends, Header, HTTPException
 
-
+from src.api.admin.socketio.emitters import emit_chatbot_config_update
 from src.api.admin.utils.emit_updates import emit_store_updates
 from src.api.schemas.chatbot_config import ChatbotWebhookPayload
 from src.core import models
@@ -46,7 +46,8 @@ async def chatbot_webhook(payload: ChatbotWebhookPayload, db: GetDBDep):
     config.whatsapp_name = payload.whatsappName
     db.commit()
 
-    await emit_store_updates(db, payload.lojaId)
+    await emit_chatbot_config_update(db, payload.lojaId)
+
     print(f"✅ Frontend notificado sobre a atualização do chatbot para loja {payload.lojaId}.")
 
     return {"status": "sucesso", "message": "Webhook processado."}
