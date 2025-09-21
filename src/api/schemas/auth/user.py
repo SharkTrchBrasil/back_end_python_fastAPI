@@ -15,15 +15,12 @@ class UserSchema(BaseModel):
     cpf: str | None = None
     birth_date: date | None = None
 
-    # O código de indicação que pertence a este usuário
+    is_superuser: bool
     referral_code: str
-
-    # Permite que o Pydantic leia de um objeto SQLAlchemy
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- Schema de Criação (Entrada da API) ---
-# O que o Flutter envia ao criar um novo usuário
+
 class UserCreate(BaseModel):
     email: str
     name: str = Field(..., min_length=3)

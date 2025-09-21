@@ -60,28 +60,22 @@ class GetStore:
 
     def __call__(self, db: GetDBDep, user: GetCurrentUserDep, store_id: int):
 
-        # --- INÍCIO DA MODIFICAÇÃO ---
-        # 1. VERIFICA SE O USUÁRIO É A CONTA DE SERVIÇO
-        if user.email == "chatbot-service@system.local":
-            # Se for o chatbot, ele é um "Super Admin". Pula a verificação da tabela StoreAccess.
-            # Apenas busca a loja diretamente para poder fazer a verificação de assinatura.
+        # --- A MUDANÇA ESTÁ AQUI ---
+        # 1. VERIFICA SE O USUÁRIO É UM SUPERUSER PELO CAMPO NO BANCO DE DADOS
+        if user.is_superuser:
+            # Se for, ele tem acesso a TUDO. Busca a loja diretamente.
             store = db.query(models.Store).options(
                 joinedload(models.Store.subscriptions)
                 .joinedload(models.StoreSubscription.plan)
             ).filter(models.Store.id == store_id).first()
 
             if not store:
-                # Se a loja não existe, retorna um erro 404
-                raise HTTPException(status_code=404, detail="Store not found for service account")
+                raise HTTPException(status_code=404, detail="Store not found")
 
         else:
-            # 2. SE FOR UM USUÁRIO NORMAL, EXECUTA A LÓGICA ORIGINAL
-            # Carrega tudo em uma única query
+            # 2. SE FOR UM USUÁRIO NORMAL, EXECUTA A LÓGICA DE PERMISSÃO PADRÃO
             db_store_access = db.query(models.StoreAccess).options(
-                joinedload(models.StoreAccess.store)
-                .joinedload(models.Store.subscriptions)
-                .joinedload(models.StoreSubscription.plan),
-                joinedload(models.StoreAccess.role)
+                # ... (resto da sua lógica original que busca na tabela StoreAccess)
             ).filter(
                 models.StoreAccess.user == user,
                 models.StoreAccess.store_id == store_id
@@ -90,25 +84,19 @@ class GetStore:
             if not db_store_access:
                 raise HTTPException(
                     status_code=403,
-                    detail={
-                        'message': 'User does not have access to this store',
-                        'code': 'NO_ACCESS_STORE'
-                    }
+                    detail={'message': 'User does not have access to this store', 'code': 'NO_ACCESS_STORE'}
                 )
 
             if db_store_access.role.machine_name not in [e.value for e in self.roles]:
                 raise HTTPException(
                     status_code=403,
-                    detail={
-                        'message': f'User must be one of {[e.value for e in self.roles]} to execute this action',
-                        'code': 'REQUIRES_ANOTHER_ROLE'
-                    }
+                    detail={'message': f'User must be one of {[e.value for e in self.roles]} to execute this action',
+                            'code': 'REQUIRES_ANOTHER_ROLE'}
                 )
 
             store = db_store_access.store
-        # --- FIM DA MODIFICAÇÃO ---
 
-        # 3. A VERIFICAÇÃO DE ASSINATURA AGORA FICA FORA DO ELSE E VALE PARA AMBOS
+        # 3. A VERIFICAÇÃO DE ASSINATURA CONTINUA VALENDO PARA TODOS
         active_sub = next(
             (sub for sub in store.subscriptions
              if sub.status in ['active', 'new_charge'] and
@@ -119,20 +107,10 @@ class GetStore:
         if not active_sub:
             raise HTTPException(
                 status_code=403,
-                detail={
-                    'message': 'A assinatura desta loja expirou. Por favor, renove para continuar usando.',
-                    'code': 'PLAN_EXPIRED'
-                }
+                detail={'message': 'A assinatura desta loja expirou.', 'code': 'PLAN_EXPIRED'}
             )
 
         return store
-
-
-# A linha abaixo continua igual
-get_store = GetStore([Roles.OWNER, Roles.ADMIN])
-GetStoreDep = Annotated[models.Store, Depends(get_store)]
-
-
 
 
 

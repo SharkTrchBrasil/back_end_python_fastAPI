@@ -250,6 +250,10 @@ class User(Base, TimestampMixin):
     hashed_password: Mapped[str] = mapped_column()
     is_active: Mapped[bool] = mapped_column(default=True)
     is_email_verified: Mapped[bool] = mapped_column(default=False)
+
+
+    is_superuser: Mapped[bool] = mapped_column(default=False, nullable=False)
+
     verification_code: Mapped[Optional[str]] = mapped_column(nullable=True) # ALTERADO
     cpf: Mapped[Optional[str]] = mapped_column(unique=True, index=True, nullable=True) # ALTERADO
     birth_date: Mapped[Optional[date]] = mapped_column(nullable=True) # ALTERADO
