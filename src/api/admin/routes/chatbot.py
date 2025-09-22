@@ -76,7 +76,7 @@ async def conectar_whatsapp(store_id: int, db: GetDBDep, http_client: httpx.Asyn
         config.connection_status = "pending"
         config.last_qr_code = None
     db.commit()
-    await admin_emit_store_updated(db, store_id)
+
     try:
         headers = {'x-webhook-secret': CHATBOT_WEBHOOK_SECRET}
         response = await http_client.post(iniciar_sessao_url, json={"lojaId": store_id}, headers=headers, timeout=15.0)
