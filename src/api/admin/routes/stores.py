@@ -103,6 +103,30 @@ def create_store(
 
 
     # =======================================================================
+    # ✅ NOVO BLOCO: POPULA AS CONFIGURAÇÕES DO CHATBOT PARA A NOVA LOJA
+    # =======================================================================
+    print(f"Populating default chatbot messages for new store ID: {db_store.id}...")
+
+    # 1. Busca todos os templates mestres que acabamos de semear
+    all_templates = db.query(models.ChatbotMessageTemplate).all()
+
+    # 2. Cria uma configuração padrão para cada template, vinculada à nova loja
+    for template in all_templates:
+        # A mensagem de fidelidade começa desativada por padrão
+        is_active_default = template.message_key != 'loyalty_program'
+
+        new_store_message_config = models.StoreChatbotMessage(
+            store_id=db_store.id,
+            template_key=template.message_key,
+            is_active=is_active_default
+            # custom_content fica nulo, então o sistema usará o padrão do template
+        )
+        db.add(new_store_message_config)
+
+    print("✅ Default chatbot messages created.")
+    # =======================================================================
+
+    # =======================================================================
     # PASSO 4: PROCESSA A ASSINATURA (Sua lógica, um pouco ajustada)
     # =======================================================================
     if signature_base64:
