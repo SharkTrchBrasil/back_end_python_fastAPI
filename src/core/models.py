@@ -1052,6 +1052,20 @@ class StoreChatbotMessage(Base, TimestampMixin):
     )
 
 
+    @hybrid_property
+    def final_content(self) -> str:
+        """
+        Retorna o conteúdo personalizado se existir, senão o conteúdo padrão do template.
+        Este é o campo que o Pydantic Schema 'StoreChatbotMessageSchema' espera.
+        """
+        if self.custom_content:
+            return self.custom_content
+        # É crucial que o relacionamento 'template' seja carregado na consulta
+        # (o que sua função `get_store_base_details` já faz corretamente!)
+        if self.template:
+            return self.template.default_content
+        return ""
+
 
 class StoreChatbotConfig(Base, TimestampMixin):
     __tablename__ = "store_chatbot_configs"

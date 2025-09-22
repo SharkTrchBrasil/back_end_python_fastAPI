@@ -78,6 +78,12 @@ def seed_chatbot_templates(db: Session):
          'default_content': '⏰ <b>Aqui está nosso horário de atendimento:</b> \n\n{company.business_hours} \n\nEstamos disponíveis durante esses horários para oferecer o melhor em serviço e delícias culinárias. \n\n🔗 <b>Faça seu pedido aqui:</b>{company.url_products}',
          'available_variables': ['company.business_hours', 'company.url_products']},
 
+
+        {'message_key': 'farewell_message', 'name': 'Mensagem de Despedida/Agradecimento',
+         'message_group': ChatbotMessageGroupEnum.CUSTOMER_QUESTIONS,
+         'default_content': 'De nada, {client.name}! 😊\nSe precisar de mais alguma coisa, é só chamar!',
+         'available_variables': ['client.name']},
+
         # GET_REVIEWS
         {'message_key': 'request_review', 'name': 'Solicitar uma avaliação',
          'message_group': ChatbotMessageGroupEnum.GET_REVIEWS,
