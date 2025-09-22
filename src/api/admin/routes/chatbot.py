@@ -85,7 +85,7 @@ async def conectar_whatsapp(store_id: int, db: GetDBDep, http_client: httpx.Asyn
     except (httpx.RequestError, httpx.HTTPStatusError) as e:
         config.connection_status = "error"
         db.commit()
-        await admin_emit_store_updated(db, store_id)
+
         raise HTTPException(status_code=503, detail=f"Erro de comunicação com o serviço de chatbot: {e}")
 
 # --- ✅ ROTA DE DISCONNECT (AGORA 100% CORRETA) ---
