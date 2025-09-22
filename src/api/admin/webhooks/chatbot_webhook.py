@@ -22,6 +22,8 @@ def verify_webhook_secret(x_webhook_secret: str = Header(...)):
     if x_webhook_secret != WEBHOOK_SECRET_KEY:
         raise HTTPException(status_code=403, detail="Acesso negado: Chave secreta do webhook inválida.")
 
+
+
 # --- A Rota de Webhook no lugar certo ---
 @router.post(
     "/chatbot/update",
@@ -29,12 +31,27 @@ def verify_webhook_secret(x_webhook_secret: str = Header(...)):
     dependencies=[Depends(verify_webhook_secret)],
     include_in_schema=False
 )
+
+
 async def chatbot_webhook(payload: ChatbotWebhookPayload, db: GetDBDep):
     """
     Esta rota é chamada pelo serviço de robô (Node.js) para nos dar
     o QR Code ou para nos informar que a conexão foi bem-sucedida.
     """
+
     print(f"🤖 Webhook do Chatbot recebido para loja {payload.lojaId}: status {payload.status}")
+    store = db.query(models.Store).filter_by(id=payload.lojaId).first()
+    if not store:
+        print(f"❌ Loja {payload.lojaId} não encontrada")
+        return {"status": "erro", "message": "Loja não encontrada"}
+
+
+    # Validar status
+    valid_statuses = ['awaiting_qr', 'connected', 'disconnected', 'error']
+    if payload.status not in valid_statuses:
+        print(f"❌ Status inválido: {payload.status}")
+        return {"status": "erro", "message": "Status inválido"}
+
 
     config = db.query(models.StoreChatbotConfig).filter_by(store_id=payload.lojaId).first()
     if not config:
