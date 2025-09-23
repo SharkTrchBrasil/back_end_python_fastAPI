@@ -59,3 +59,26 @@ class SubscriptionService:
 
         is_operational = dynamic_status != "expired"
         return payload, is_operational
+
+
+
+def downgrade_to_free_plan(db, subscription: models.StoreSubscription):
+    """
+    Realiza o downgrade de uma assinatura para o plano gratuito padrão.
+    """
+    free_plan = db.query(models.Plans).filter_by(price=0, available=True).first()
+
+    if not free_plan:
+        print(f"AVISO CRÍTICO: Plano gratuito não encontrado! Não foi possível fazer o downgrade da loja {subscription.store_id}.")
+        # Aqui você poderia notificar sua equipe de alguma forma (ex: Sentry, Log)
+        return
+
+    print(f"Executando downgrade da loja {subscription.store_id} para o plano gratuito.")
+    subscription.subscription_plan_id = free_plan.id
+    subscription.gateway_subscription_id = None # Remove o vínculo com o gateway
+    subscription.status = 'active' # O plano gratuito está 'ativo'
+    subscription.current_period_start = datetime.utcnow()
+    # Define uma data de término muito longa para o plano gratuito
+    subscription.current_period_end = datetime.utcnow() + timedelta(days=365 * 100)
+
+    db.add(subscription)

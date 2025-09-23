@@ -1515,6 +1515,12 @@ class StoreCustomer(Base, TimestampMixin):
     store = relationship("Store", back_populates="store_customers")
     customer = relationship("Customer", back_populates="store_customers")
 
+ # ✅ NOVO CAMPO ADICIONADO
+    last_reactivation_attempt_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Timestamp da última tentativa de envio de mensagem de reativação."
+    )
 
 
 class Address(Base):
@@ -1680,10 +1686,20 @@ class Order(Base, TimestampMixin):
         cascade="all, delete-orphan"  # Garante que ao apagar um pedido, os pagamentos parciais também sejam apagados.
     )
 
-    # ✅ Um pedido pode ter um (e apenas um) registro de uso de cupom
+
     coupon_usage: Mapped["CouponUsage"] = relationship(back_populates="order")
 
-    # Você ainda pode manter a propriedade para uma checagem rápida
+
+    review_request_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+        doc="Timestamp de quando a solicitação de avaliação foi enviada."
+    )
+
+
+
+
     @hybrid_property
     def is_printed(self) -> bool:
         return len(self.print_logs) > 0

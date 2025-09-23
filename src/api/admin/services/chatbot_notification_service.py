@@ -4,6 +4,7 @@ import os
 import httpx
 from sqlalchemy.orm import Session
 from src.core import models
+from src.core.config import config
 from src.core.utils.enums import OrderStatus
 
 # Mapeamento de status de pedido para a chave do template de mensagem
@@ -65,7 +66,7 @@ def _build_order_summary_message(order: models.Order) -> str:
     message_parts.append("")
 
     # 7. Link de Acompanhamento
-    tracking_link = f"https://{order.store.url_slug}.seusite.com/panel/client/waiting?order={order.public_id}"
+    tracking_link = f"https://{order.store.url_slug}.{config.PLATFORM_DOMAIN}/orders/waiting?order={order.public_id}"
     message_parts.append("Acompanhe seu pedido no link:")
     message_parts.append(tracking_link)
 
@@ -111,7 +112,7 @@ def _format_message(content: str, order: models.Order, store: models.Store) -> s
     customer_phone = order.customer.phone if order.customer else order.customer_phone
 
     # Adapte a base da URL para o seu ambiente (produção/desenvolvimento)
-    base_url = f"https://{store.url_slug}.seusite.com"
+    base_url = f"https://{store.url_slug}.{config.PLATFORM_DOMAIN}"
 
     replacements = {
         "{client.name}": order.customer_name or "Cliente",

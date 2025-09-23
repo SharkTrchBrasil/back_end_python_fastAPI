@@ -180,3 +180,35 @@ def get_store_from_token(
 
 
 GetStoreFromTotemTokenDep = Annotated[models.Store, Depends(get_store_from_token)]
+
+
+
+def get_customer_from_token(token: str, db: Session) -> models.Customer:
+    """
+    Verifica um token de acesso e retorna o Customer correspondente.
+    Assume que o token do cliente também armazena o email.
+    """
+    email = verify_access_token(token)
+    if not email:
+        raise HTTPException(status_code=401, detail="Token de cliente inválido ou expirado")
+
+    # Altera a busca para a tabela Customer
+    customer = db.query(models.Customer).filter(models.Customer.email == email).first()
+
+    if not customer:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+
+    return customer
+
+
+def get_current_customer(
+        db: GetDBDep, token: Annotated[str, Depends(oauth2_scheme)]
+) -> models.Customer:
+    """
+    Dependência FastAPI para obter o cliente autenticado atualmente.
+    """
+    return get_customer_from_token(token, db)
+
+
+# Esta é a dependência que usaremos na nossa rota de review
+get_current_customer_dep = Annotated[models.Customer, Depends(get_current_customer)]

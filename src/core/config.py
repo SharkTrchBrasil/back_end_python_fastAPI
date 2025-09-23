@@ -19,4 +19,10 @@ class Config(BaseSettings):
     MASTER_SANDBOX: bool = False
 
 
+    # Chatbot e Plataforma
+    CHATBOT_SERVICE_URL: str
+    CHATBOT_WEBHOOK_SECRET: str
+    PLATFORM_DOMAIN: str
+
+
 config = Config()

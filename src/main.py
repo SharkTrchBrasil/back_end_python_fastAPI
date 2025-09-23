@@ -9,41 +9,88 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.templating import Jinja2Templates
 from contextlib import asynccontextmanager
 
-# Seus imports existentes
-from src.api.app.events.totem_namespace import TotemNamespace
+# ✅ 1. IMPORTAÇÃO DO AGENDADOR
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+from src.api.jobs.billing import check_and_update_subscriptions
+# Imports do seu projeto
 from src.core.database import engine
-from src.core.db_initialization import initialize_roles, seed_chatbot_templates  # ✅ 1. IMPORTE A NOVA FUNÇÃO
+from src.core.db_initialization import initialize_roles, seed_chatbot_templates, seed_plans_and_features
 from src.api.admin.events.admin_namespace import AdminNamespace
+from src.api.app.events.totem_namespace import TotemNamespace
 from src.socketio_instance import sio
 from src.api.admin import router as admin_router
 from src.api.app import router as app_router
 from src.api.admin.webhooks.chatbot_webhook import router as webhooks_router
 
+# ✅ 2. IMPORTAÇÃO DE TODAS AS FUNÇÕES DE JOB
+from src.api.jobs.cart_recovery import find_and_notify_abandoned_carts
+from src.api.jobs.cleanup import delete_old_inactive_carts
+from src.api.jobs.marketing import reactivate_inactive_customers
+from src.api.jobs.operational import check_for_stuck_orders, request_reviews_for_delivered_orders
+
+# O job 'generate_daily_sales_reports' foi omitido conforme solicitado.
 
 # -------------------------------------------------------------
-# Defina o Lifespan para gerenciar o ciclo de vida da aplicação
+# Definição do Lifespan e Agendador de Tarefas
 # -------------------------------------------------------------
+
+# Cria uma instância única do agendador
+scheduler = AsyncIOScheduler()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Ao iniciar a aplicação (startup)
+    # --- Ações de Startup ---
     print("Iniciando a aplicação...")
     with Session(bind=engine) as db_session:
         print("Verificando roles...")
         initialize_roles(db_session)
         print("Roles verificadas.")
 
-        # ✅ 2. CHAME A FUNÇÃO PARA SEMEAR OS TEMPLATES DO CHATBOT
         print("Semeando templates do chatbot...")
         seed_chatbot_templates(db_session)
         print("Templates do chatbot verificados.")
 
+        # ✅ 2. CHAME A NOVA FUNÇÃO AQUI
+        print("Semeando planos e features...")
+        seed_plans_and_features(db_session)
+        print("Planos e features verificados.")
+
+    # ✅ 3. AGENDAMENTO DE TODOS OS JOBS
+    print("Agendando tarefas automáticas (cron jobs)...")
+
+    # --- Jobs de Alta Frequência (rodam a cada 5 minutos) ---
+    scheduler.add_job(find_and_notify_abandoned_carts, 'interval', minutes=5, id='cart_recovery_job')
+    scheduler.add_job(check_for_stuck_orders, 'interval', minutes=5, id='stuck_orders_job')
+
+    # --- Job de Média Frequência (roda a cada 30 minutos) ---
+    scheduler.add_job(request_reviews_for_delivered_orders, 'interval', minutes=30, id='review_request_job')
+
+    # --- Jobs de Baixa Frequência (rodam de madrugada) ---
+    scheduler.add_job(delete_old_inactive_carts, 'cron', hour=3, minute=0, id='cart_cleanup_job')
+    scheduler.add_job(reactivate_inactive_customers, 'cron', hour=4, minute=0, id='customer_reactivation_job')
+
+    # ✅ ADICIONA O NOVO JOB DE BILLING PARA RODAR TODO DIA ÀS 5:00 DA MANHÃ
+    scheduler.add_job(check_and_update_subscriptions, 'cron', hour=5, minute=0, id='subscription_check_job')
+
+
+
+
+    # Inicia o agendador
+    scheduler.start()
+    print("🚀 Agendador iniciado com todos os jobs.")
+
     print("Aplicação pronta.")
     yield
-    # Ao desligar a aplicação (shutdown)
+
+    # --- Ações de Shutdown ---
     print("Desligando a aplicação...")
+    scheduler.shutdown()
+    print("🛑 Agendador finalizado.")
 
 
-# --- O RESTANTE DO SEU ARQUIVO main.py CONTINUA IGUAL ---
+# --- Configuração do FastAPI e Socket.IO (sem alterações) ---
 
 # Registra namespaces ANTES de criar o ASGIApp
 sio.register_namespace(AdminNamespace('/admin'))

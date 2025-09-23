@@ -2,6 +2,8 @@ from typing import Annotated
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Form, Response, status
+
+from src.api.admin.services.subscription_service import downgrade_to_free_plan
 from src.api.app.services import payment as payment_services
 from src.core import models
 from src.core.database import GetDBDep
@@ -58,17 +60,8 @@ def post_notification(
 
         # 6. Lógica de Downgrade
         if new_status == 'canceled':
-            free_plan = db.query(models.Plans).filter_by(price=0, available=True).first()
 
-            if free_plan:
-                print(f"Realizando downgrade da loja {db_subscription.store_id} para o plano gratuito.")
-                db_subscription.subscription_plan_id = free_plan.id
-                db_subscription.gateway_subscription_id = None
-                db_subscription.status = 'active'
-                db_subscription.current_period_start = datetime.utcnow()
-                db_subscription.current_period_end = datetime.utcnow() + timedelta(days=365 * 100)
-            else:
-                print("AVISO: Plano gratuito não encontrado para realizar o downgrade.")
+           downgrade_to_free_plan(db, db_subscription)
 
         db.commit()
 

@@ -87,6 +87,10 @@ def seed_chatbot_templates(db: Session):
          'default_content': 'De nada, {client.name}! 😊\nSe precisar de mais alguma coisa, é só chamar!',
          'available_variables': ['client.name']},
 
+
+
+
+
         # GET_REVIEWS
         {'message_key': 'request_review', 'name': 'Solicitar uma avaliação',
          'message_group': ChatbotMessageGroupEnum.GET_REVIEWS,
@@ -147,7 +151,17 @@ def seed_chatbot_templates(db: Session):
         {'message_key': 'order_cancelled', 'name': 'Pedido cancelado',
          'message_group': ChatbotMessageGroupEnum.ORDER_UPDATES,
          'default_content': '🚫 Lamentamos informar que seu pedido Nº {order.public_id} foi cancelado. \n\nSe tiver alguma dúvida, não hesite em nos contatar.',
-         'available_variables': ['order.public_id']}
+         'available_variables': ['order.public_id']},
+
+
+        # ✅ NOVO TEMPLATE DE REATIVAÇÃO
+        {
+            'message_key': 'customer_reactivation',
+            'name': 'Reativação de Cliente Inativo',
+            'message_group': ChatbotMessageGroupEnum.LOYALTY,  # Ou SALES_RECOVERY
+            'default_content': 'Olá, {client.name}! 👋 Sentimos sua falta aqui no(a) {store.name}.\n\nPara celebrar seu retorno, preparamos um cupom especial para você: *{coupon_code}*.\n\nVolte e aproveite! Peça agora em: {store.url}',
+            'available_variables': ['client.name', 'store.name', 'coupon_code', 'store.url']
+        }
     ]
 
     for t_data in templates:
@@ -157,3 +171,148 @@ def seed_chatbot_templates(db: Session):
             db.add(template)
 
     db.commit()
+
+
+# src/core/db_initialization.py
+
+# ... (imports e outras funções)
+
+def seed_plans_and_features(db: Session):
+    """
+    Define a estrutura de planos e features da plataforma.
+    Esta função é a fonte da verdade para a monetização.
+    """
+    print("Iniciando a semeadura da nova estrutura de Planos e Features...")
+
+    # 1. Definição de todas as Features (Mantida e completa)
+    features_data = [
+        # Adicionei a 'review_automation' que estava faltando para o job
+        {'feature_key': 'review_automation', 'name': 'Automação de Avaliações',
+         'description': 'Solicita avaliações dos clientes automaticamente após a entrega.', 'is_addon': False},
+
+        {'feature_key': 'auto_printing', 'name': 'Impressão Automática',
+         'description': 'Configure a impressão automática de pedidos assim que são recebidos.', 'is_addon': False},
+
+        # As outras features que você já tinha...
+        {'feature_key': 'basic_reports', 'name': 'Relatórios Básicos',
+         'description': 'Visualize o desempenho de suas vendas com relatórios essenciais.', 'is_addon': False},
+        {'feature_key': 'coupons', 'name': 'Módulo de Promoções',
+         'description': 'Crie cupons de desconto para atrair e fidelizar clientes.', 'is_addon': False},
+        {'feature_key': 'inventory_control', 'name': 'Controle de Estoque',
+         'description': 'Gerencie a quantidade de produtos disponíveis em tempo real.', 'is_addon': False},
+        {'feature_key': 'pdv', 'name': 'Ponto de Venda (PDV)',
+         'description': 'Sistema completo para registrar vendas no balcão.', 'is_addon': False},
+        {'feature_key': 'totem', 'name': 'Módulo de Totem',
+         'description': 'Permita que seus clientes façam pedidos sozinhos através de um totem de autoatendimento.',
+         'is_addon': False},
+        {'feature_key': 'multi_device_access', 'name': 'Acesso em Múltiplos Dispositivos',
+         'description': 'Gerencie sua loja de qualquer lugar, em vários dispositivos simultaneamente.',
+         'is_addon': False},
+        {'feature_key': 'auto_accept_orders', 'name': 'Aceite Automático de Pedidos',
+         'description': 'Configure para que os pedidos sejam aceitos automaticamente.', 'is_addon': False},
+        {'feature_key': 'financial_payables', 'name': 'Financeiro: Contas a Pagar',
+         'description': 'Controle suas despesas e contas a pagar diretamente pelo sistema.', 'is_addon': False},
+        {'feature_key': 'style_guide', 'name': 'Design Personalizável',
+         'description': 'Altere cores, fontes e o layout do seu cardápio digital.', 'is_addon': False},
+        {'feature_key': 'custom_banners', 'name': 'Banners Promocionais',
+         'description': 'Adicione banners visuais no topo do seu cardápio para destacar promoções.', 'is_addon': False},
+        {'feature_key': 'table_management_module', 'name': 'Módulo Mesas e Comandas',
+         'description': 'Gerencie pedidos por mesas e controle as comandas de forma eficiente.', 'is_addon': False},
+        {'feature_key': 'kds_module', 'name': 'Tela da Cozinha (KDS)',
+         'description': 'Envie pedidos diretamente para uma tela na cozinha, agilizando a preparação.',
+         'is_addon': False},
+        {'feature_key': 'delivery_personnel_management', 'name': 'Módulo de Entregadores',
+         'description': 'Cadastre e gerencie seus entregadores e rotas de entrega.', 'is_addon': False},
+        {'feature_key': 'loyalty_program', 'name': 'Programa de Fidelidade',
+         'description': 'Crie um programa de pontos para recompensar clientes fiéis.', 'is_addon': False},
+        {'feature_key': 'marketing_automation', 'name': 'Automação de Marketing',
+         'description': 'Recuperação de carrinho, reativação de clientes, etc.', 'is_addon': False},
+        # Add-ons (permanecem como addons)
+        {'feature_key': 'whatsapp_bot_ia', 'name': 'Módulo Bot (WhatsApp IA)',
+         'description': 'Automatize o atendimento e vendas pelo WhatsApp com um bot inteligente.', 'is_addon': True,
+         'addon_price': 7990},
+        {'feature_key': 'custom_domain', 'name': 'Domínio Personalizado',
+         'description': 'Use seu próprio domínio (ex: www.sualoja.com) para o cardápio.', 'is_addon': True,
+         'addon_price': 4990},
+    ]
+
+    features_map = {}
+    for feature_data in features_data:
+        feature = db.query(models.Feature).filter_by(feature_key=feature_data['feature_key']).first()
+        if not feature:
+            feature = models.Feature(**feature_data)
+            db.add(feature)
+        else:  # Atualiza caso exista
+            feature.name = feature_data['name']
+            feature.description = feature_data['description']
+            feature.is_addon = feature_data['is_addon']
+            feature.addon_price = feature_data.get('addon_price')
+        features_map[feature_data['feature_key']] = feature
+    db.flush()
+
+    # 2. Definição da NOVA ESTRUTURA de Planos
+    plans_data = [
+        {'plan_name': 'Grátis', 'price': 0, 'interval': 12, 'repeats': 1, 'monthly_order_limit': 100,
+         'product_limit': 50, 'user_limit': 1, 'support_type': 'Comunidade'},
+
+        {'plan_name': 'Essencial', 'price': 3990, 'interval': 1, 'monthly_order_limit': 500, 'product_limit': 200,
+         'user_limit': 3, 'support_type': 'Email e Chat'},
+
+        {'plan_name': 'Crescimento', 'price': 6990, 'interval': 1, 'monthly_order_limit': 1500, 'product_limit': None,
+         'user_limit': 10, 'support_type': 'Chat Prioritário'},
+
+        {'plan_name': 'Completo', 'price': 9990, 'interval': 1, 'monthly_order_limit': None, 'product_limit': None,
+         'user_limit': None, 'support_type': 'Telefone e Chat Prioritário'},
+
+
+
+
+    ]
+
+    plans_map = {}
+    for plan_data in plans_data:
+        plan = db.query(models.Plans).filter_by(plan_name=plan_data['plan_name']).first()
+        if not plan:
+            plan = models.Plans(**plan_data)
+            db.add(plan)
+        else:  # Atualiza os dados do plano se ele já existir
+            for key, value in plan_data.items():
+                setattr(plan, key, value)
+        plans_map[plan_data['plan_name']] = plan
+    db.flush()
+
+    # 3. Limpa associações antigas para reconstruir do zero
+    db.query(models.PlansFeature).delete()
+    print("Associações antigas de planos e features foram limpas.")
+
+    # 4. Definição das NOVAS Associações
+    plan_features_associations = {
+        'Grátis': ['pdv', 'basic_reports', 'inventory_control'],
+
+        'Essencial': ['pdv', 'basic_reports', 'inventory_control', 'coupons', 'multi_device_access',
+                      'auto_accept_orders'],
+
+
+        'Crescimento': ['pdv', 'basic_reports', 'inventory_control', 'coupons', 'multi_device_access',
+                        'auto_accept_orders', 'financial_payables', 'style_guide', 'custom_banners', 'loyalty_program',
+                        'marketing_automation', 'review_automation', 'auto_printing'],
+
+
+        'Completo': ['pdv', 'basic_reports', 'inventory_control', 'coupons', 'multi_device_access',
+                     'auto_accept_orders', 'financial_payables', 'style_guide', 'custom_banners', 'loyalty_program',
+                     'marketing_automation', 'review_automation', 'totem', 'kds_module', 'table_management_module',
+                     'delivery_personnel_management', 'auto_printing'],
+
+    }
+
+    for plan_name, feature_keys in plan_features_associations.items():
+        plan_obj = plans_map.get(plan_name)
+        for feature_key in feature_keys:
+            feature_obj = features_map.get(feature_key)
+            if plan_obj and feature_obj:
+                association = models.PlansFeature(plan=plan_obj, feature=feature_obj)
+                db.add(association)
+
+    db.commit()
+    print("Nova estrutura de Planos e Features semeada com sucesso.")
+

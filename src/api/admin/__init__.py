@@ -11,7 +11,7 @@ from src.api.admin.routes.coupons import router as coupons_router
 from src.api.admin.routes.totems import router as totems_router
 from src.api.admin.routes.themes import router as themes_router
 from src.api.admin.routes.pix_configs import router as pix_configs_router
-from src.api.admin.routes.webhook import router as webhook_router
+from src.api.admin.webhooks.pix_webhook import router as webhook_router
 from src.api.admin.routes.store_city import router as city_router
 from src.api.admin.routes.store_neighborhood import router as neighborhood_router
 from src.api.admin.routes.store_payable import router as payables_router
@@ -36,7 +36,7 @@ from src.api.admin.routes.store_customer import router as store_customer_router
 from src.api.admin.routes.plans import router as plans_router
 from src.api.admin.routes.subscriptions import router as subscriptions_router
 from src.api.admin.routes.zipcode import router as zipcode_router
-from src.api.admin.routes.master_webhook import router as master_webhook_router
+from src.api.admin.webhooks.subscription_webhook import router as master_webhook_router
 from src.api.admin.routes.product_variants import router as product_variants_router
 from src.api.admin.routes.segment import router as segments_router
 from src.api.admin.routes.dashboard import router as dashboard_router
