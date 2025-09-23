@@ -37,7 +37,7 @@ async def check_for_stuck_orders():
             stmt = (
                 select(models.Order)
                 .where(
-                    models.Order.order_status == OrderStatus,
+                    models.Order.order_status == OrderStatus.ACCEPTED.value,
                     models.Order.updated_at.between(lower_threshold, upper_threshold)
                 )
             )
