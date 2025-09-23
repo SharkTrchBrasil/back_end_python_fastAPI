@@ -32,6 +32,7 @@ from src.api.admin.services.product_analytic_services import get_product_analyti
 from src.api.admin.services.subscription_service import SubscriptionService
 
 from src.api.schemas.orders.order import OrderDetails
+from src.core.models import Order
 from src.core.utils.enums import ProductStatus
 from src.socketio_instance import sio
 from src.core import models
@@ -459,3 +460,17 @@ async def emit_chatbot_config_update(db, store_id: int):
         print(f"✅ [Socket] Evento DEDICADO 'chatbot_config_updated' enviado para loja {store_id}.")
     except Exception as e:
         print(f"❌ Erro ao emitir chatbot_config_updated: {e}")
+
+async def admin_emit_stuck_order_alert(order: Order):
+    """
+    Emite um alerta específico sobre um pedido parado para o painel do lojista.
+    """
+    room_name = f'store_{order.store_id}'
+    payload = {
+        "order_id": order.id,
+        "public_id": order.public_id,
+        "message": f"Atenção: O pedido #{order.public_id} está aguardando ação há mais de 20 minutos!"
+    }
+
+    await sio.emit('stuck_order_alert', payload, to=room_name)
+    print(f"🚨 Alerta de pedido preso emitido para a loja {order.store_id} (Pedido: {order.public_id})")

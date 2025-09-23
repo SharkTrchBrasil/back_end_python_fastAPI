@@ -43,10 +43,13 @@ def seed_chatbot_templates(db: Session):
     """
     templates = [
         # SALES_RECOVERY
+
         {'message_key': 'abandoned_cart', 'name': 'Carrinho abandonado',
          'message_group': ChatbotMessageGroupEnum.SALES_RECOVERY,
          'default_content': 'Olá 👋 {client.name}\nNotamos que você deixou seu pedido pela metade 🍴🍲\n\nNão perca o que escolheu! Complete sua compra aqui 🛒: {company.url_products}',
          'available_variables': ['client.name', 'company.url_products']},
+
+
         {'message_key': 'new_customer_discount', 'name': 'Desconto para novos clientes',
          'message_group': ChatbotMessageGroupEnum.SALES_RECOVERY,
          'default_content': 'Olá, {client.name}! 🎉\n\nJá se passaram alguns dias desde seu primeiro pedido no {company.name}. Queremos te presentear com um desconto exclusivo.\n\nUse o código PRIMEIRA-COMPRA em {company.url_products} e aproveite o seu desconto.\n\nNão perca essa oportunidade! 🎉💸',
@@ -116,25 +119,31 @@ def seed_chatbot_templates(db: Session):
          'message_group': ChatbotMessageGroupEnum.ORDER_UPDATES,
          'default_content': '✅ Seu pedido foi aceito! \n\nAcompanhe o progresso do seu pedido Nº {order.public_id} no seguinte link: {order.url}\n\n{client.name}\n{client.number}',
          'available_variables': ['order.public_id', 'order.url', 'client.name', 'client.number']},
+
         {'message_key': 'order_ready', 'name': 'Pedido pronto', 'message_group': ChatbotMessageGroupEnum.ORDER_UPDATES,
          'default_content': '🙌 Seu pedido Nº {order.public_id} está pronto.',
          'available_variables': ['order.public_id']},
+
         {'message_key': 'order_on_route', 'name': 'Pedido a caminho',
          'message_group': ChatbotMessageGroupEnum.ORDER_UPDATES,
          'default_content': '🛵 Seu pedido Nº {order.public_id} está a caminho e chegará em breve.',
          'available_variables': ['order.public_id']},
+
         {'message_key': 'order_arrived', 'name': 'Pedido chegou',
          'message_group': ChatbotMessageGroupEnum.ORDER_UPDATES,
          'default_content': '🎉 Seu pedido Nº {order.public_id} chegou ao destino. Aproveite!',
          'available_variables': ['order.public_id']},
+
         {'message_key': 'order_delivered', 'name': 'Pedido entregue',
          'message_group': ChatbotMessageGroupEnum.ORDER_UPDATES,
          'default_content': '👏 Tudo certo! Seu pedido Nº {order.public_id} foi entregue. \n\n<b>Esperamos que aproveite!</b>',
          'available_variables': ['order.public_id']},
+
         {'message_key': 'order_finalized', 'name': 'Pedido finalizado',
          'message_group': ChatbotMessageGroupEnum.ORDER_UPDATES,
          'default_content': '🌟 Obrigado pelo seu pedido Nº {order.public_id}! Tudo saiu perfeito. \n\n<b>Esperamos você em breve em {company.url}!</b>',
          'available_variables': ['order.public_id', 'company.url']},
+
         {'message_key': 'order_cancelled', 'name': 'Pedido cancelado',
          'message_group': ChatbotMessageGroupEnum.ORDER_UPDATES,
          'default_content': '🚫 Lamentamos informar que seu pedido Nº {order.public_id} foi cancelado. \n\nSe tiver alguma dúvida, não hesite em nos contatar.',

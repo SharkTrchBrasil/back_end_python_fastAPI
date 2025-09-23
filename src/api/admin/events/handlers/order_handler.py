@@ -36,10 +36,8 @@ async def handle_update_order_status(self, sid, data):
             if not admin_user or not admin_user.id:
                 return {"error": "Admin não autorizado."}
             all_accessible_store_ids_for_admin = StoreAccessService.get_accessible_store_ids_with_fallback(db,
-                                                                                                           admin_user)
+                                                                                                         admin_user)
 
-            # ✅ A CONSULTA CORRIGIDA E OTIMIZADA ESTÁ AQUI
-            # Carregamos adiantado (eager load) as informações que o serviço de notificação precisa.
             order = db.query(models.Order).options(
                 selectinload(models.Order.store)
                 .selectinload(models.Store.chatbot_config),  # Carrega a config do chatbot
@@ -64,13 +62,19 @@ async def handle_update_order_status(self, sid, data):
 
             order.order_status = OrderStatus(new_status_str)
 
-            if new_status_str == OrderStatus.DELIVERED.value and old_status_value != OrderStatus.DELIVERED.value:
+            # Ação que ocorre na entrega física
+            if new_status_str == OrderStatus.DELIVERED.value:
                 decrease_stock_for_order(order, db)
+                # Apenas a baixa de estoque permanece aqui, pois ela é um evento físico.
+
+            # Ações que ocorrem no fechamento financeiro/lógico do pedido
+            if new_status_str == OrderStatus.FINALIZED.value:
                 calculate_and_apply_cashback_for_order(order, db)
                 loyalty_service.award_points_for_order(db=db, order=order)
                 update_store_customer_stats(db, order)
 
-            if new_status_str == OrderStatus.CANCELED.value and old_status_value != OrderStatus.CANCELED.value:
+            # Ação de cancelamento permanece a mesma
+            if new_status_str == OrderStatus.CANCELED.value:
                 restock_for_canceled_order(order, db)
 
             db.commit()
@@ -92,6 +96,8 @@ async def handle_update_order_status(self, sid, data):
 
 
 
+
+
 async def process_new_order_automations(db, order):
     """
     Processa as automações de auto-accept e auto-print para um novo pedido.
@@ -104,7 +110,8 @@ async def process_new_order_automations(db, order):
 
     # 1. Lógica de Auto-Accept (sem alterações)
     if store_settings.auto_accept_orders and order.order_status == 'pending':
-        order.order_status = 'preparing'
+        order.order_status = 'accepted'
+
         did_status_change = True
         print(f"Pedido {order.id} aceito automaticamente.")
 

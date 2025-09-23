@@ -2233,6 +2233,13 @@ class Cart(Base, TimestampMixin):
     coupon_code: Mapped[str | None] = mapped_column(nullable=True)
     observation: Mapped[str | None] = mapped_column(nullable=True)
 
+    recovery_notified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+        doc="Timestamp de quando a notificação de recuperação foi enviada."
+    )
+
     # Relacionamentos
     customer: Mapped["Customer"] = relationship()
     store: Mapped["Store"] = relationship()

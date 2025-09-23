@@ -68,13 +68,27 @@ class ProductType(enum.Enum):
     KIT = "KIT"
 
 
+
 class OrderStatus(str, enum.Enum):
-    PENDING = 'pending'
-    PREPARING = 'preparing'
-    READY = 'ready'
-    ON_ROUTE = 'on_route'
-    DELIVERED = 'delivered'
-    CANCELED = 'canceled'
+    """
+    Representa o ciclo de vida completo de um pedido.
+    """
+    # Fase Inicial
+    PENDING = 'pending'      # Pedido recém-criado, aguardando confirmação do restaurante.
+    ACCEPTED = 'accepted'    # Restaurante confirmou que irá preparar o pedido.
+
+    # Fase de Preparo
+    PREPARING = 'preparing'  # Pedido está sendo preparado na cozinha.
+    READY = 'ready'          # Pedido pronto para retirada ou para o entregador.
+
+    # Fase de Entrega
+    ON_ROUTE = 'on_route'    # Pedido saiu para entrega com o entregador.
+    DELIVERED = 'delivered'  # Cliente recebeu o pedido.
+
+    # Fase de Conclusão
+    FINALIZED = 'finalized'  # Pedido concluído (pagamento verificado, ciclo encerrado).
+    CANCELED = 'canceled'    # Pedido foi cancelado em alguma etapa.
+
 
 
 class PayableStatus(str, enum.Enum):
