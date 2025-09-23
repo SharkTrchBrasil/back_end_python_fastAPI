@@ -1,3 +1,4 @@
+import asyncio
 import traceback
 from urllib.parse import parse_qs
 
@@ -5,6 +6,7 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from src.api.admin.services import loyalty_service
 from src.api.admin.services.cashback_service import calculate_and_apply_cashback_for_order
+from src.api.admin.services.chatbot_notification_service import send_order_status_update, send_new_order_summary
 from src.api.admin.services.stock_service import decrease_stock_for_order, restock_for_canceled_order
 from src.api.admin.services.store_access_service import StoreAccessService
 from src.api.admin.utils.authorize_admin import authorize_admin_by_jwt
@@ -20,33 +22,28 @@ from src.core.utils.enums import OrderStatus
 async def handle_update_order_status(self, sid, data):
     with get_db_manager() as db:
         try:
+            # --- Sua lógica de validação e autorização (continua perfeita) ---
             if not all(key in data for key in ['order_id', 'new_status']):
                 return {'error': 'Dados incompletos'}
-
             session = db.query(models.StoreSession).filter_by(sid=sid, client_type='admin').first()
             if not session:
                 return {'error': 'Sessão não autorizada'}
-
             query_params = parse_qs(self.environ[sid].get("QUERY_STRING", ""))
             admin_token = query_params.get("admin_token", [None])[0]
             if not admin_token:
                 return {"error": "Token de admin não encontrado na sessão."}
-
             admin_user = await authorize_admin_by_jwt(db, admin_token)
             if not admin_user or not admin_user.id:
                 return {"error": "Admin não autorizado."}
+            all_accessible_store_ids_for_admin = StoreAccessService.get_accessible_store_ids_with_fallback(db,
+                                                                                                           admin_user)
 
-            admin_id = admin_user.id
-
-            all_accessible_store_ids_for_admin = StoreAccessService.get_accessible_store_ids_with_fallback(
-                db, admin_user
-            )
-
+            # ✅ A CONSULTA CORRIGIDA E OTIMIZADA ESTÁ AQUI
+            # Carregamos adiantado (eager load) as informações que o serviço de notificação precisa.
             order = db.query(models.Order).options(
-                selectinload(models.Order.products).options(
-                    joinedload(models.OrderProduct.product).selectinload(models.Product.category)
-                ),
-                joinedload(models.Order.customer)
+                selectinload(models.Order.store)
+                .selectinload(models.Store.chatbot_config),  # Carrega a config do chatbot
+                joinedload(models.Order.customer)  # Carrega os dados do cliente
             ).filter(models.Order.id == data['order_id']).first()
 
             if not order:
@@ -55,14 +52,13 @@ async def handle_update_order_status(self, sid, data):
             if order.store_id not in all_accessible_store_ids_for_admin:
                 return {'error': 'Acesso negado: Pedido não pertence a uma das suas lojas.'}
 
+            # --- Sua lógica de atualização de status (continua perfeita) ---
             valid_statuses = [status.value for status in OrderStatus]
-
             if data['new_status'] not in valid_statuses:
                 return {'error': 'Status inválido'}
 
             old_status_value = order.order_status.value
             new_status_str = data['new_status']
-
             if old_status_value == new_status_str:
                 return {'success': True, 'message': 'O pedido já estava com este status.'}
 
@@ -74,13 +70,14 @@ async def handle_update_order_status(self, sid, data):
                 loyalty_service.award_points_for_order(db=db, order=order)
                 update_store_customer_stats(db, order)
 
-
             if new_status_str == OrderStatus.CANCELED.value and old_status_value != OrderStatus.CANCELED.value:
                 restock_for_canceled_order(order, db)
 
             db.commit()
             db.refresh(order)
 
+            # --- Disparo das notificações (continua perfeito) ---
+            asyncio.create_task(send_order_status_update(db, order))
             await admin_emit_order_updated_from_obj(order)
 
             print(
@@ -94,11 +91,14 @@ async def handle_update_order_status(self, sid, data):
             return {'error': 'Falha interna ao processar a atualização do pedido.'}
 
 
+
 async def process_new_order_automations(db, order):
     """
     Processa as automações de auto-accept e auto-print para um novo pedido.
     """
-    db.refresh(order.store.store_operation_config)
+    # É uma boa prática recarregar as relações para garantir que os dados estão frescos
+    db.refresh(order, attribute_names=["store", "products"])
+
     store_settings = order.store.store_operation_config
     did_status_change = False
 
@@ -143,9 +143,14 @@ async def process_new_order_automations(db, order):
     db.commit()
     db.refresh(order)
 
+
+    asyncio.create_task(send_new_order_summary(db, order))
+
     # 4. Emite os eventos para os clientes (sem alterações)
     if did_status_change:
         await admin_emit_order_updated_from_obj(order)
+
+        asyncio.create_task(send_order_status_update(db, order))
 
     if jobs_to_emit:
         await admin_emit_new_print_jobs(order.store_id, order.id, jobs_to_emit)

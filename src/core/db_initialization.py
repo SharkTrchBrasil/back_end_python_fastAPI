@@ -55,7 +55,7 @@ def seed_chatbot_templates(db: Session):
         # CUSTOMER_QUESTIONS
         {'message_key': 'welcome_message', 'name': 'Mensagem de boas-vindas',
          'message_group': ChatbotMessageGroupEnum.CUSTOMER_QUESTIONS,
-         'default_content': '👋🏼 Olá, {client.name} \nBem-vindo(a) à {company.name}! Estamos aqui para garantir que sua experiência seja deliciosa e sem complicações. \n\n<b>Como podemos te ajudar hoje?</b> \n\n<b>A.</b> Fazer um pedido 🍽️ \n<b>B.</b> Obter mais informações ℹ \n\nSelecione a letra da opção que você deseja consultar e envie como resposta. Estamos aqui para ajudar!',
+         'default_content': '👋🏼 {saudacao}, {client.name} \nBem-vindo(a) à {company.name}! Estamos aqui para garantir que sua experiência seja deliciosa e sem complicações. \n\n<b>Como podemos te ajudar hoje?</b> \n\n<b>A.</b> Fazer um pedido 🍽️ \n<b>B.</b> Obter mais informações ℹ \n\nSelecione a letra da opção que você deseja consultar e envie como resposta. Estamos aqui para ajudar!',
          'available_variables': ['client.name', 'company.name']},
         {'message_key': 'absence_message', 'name': 'Mensagem de ausência',
          'message_group': ChatbotMessageGroupEnum.CUSTOMER_QUESTIONS,
@@ -101,6 +101,17 @@ def seed_chatbot_templates(db: Session):
          'message_group': ChatbotMessageGroupEnum.ORDER_UPDATES,
          'default_content': '👋 Recebemos o seu pedido Nº {order.public_id}. \n\nEstamos revisando-o. Por favor, aguarde um momento.',
          'available_variables': ['order.public_id']},
+
+        # ✅ NOVO TEMPLATE PARA O RESUMO DO PEDIDO
+        {'message_key': 'new_order_summary', 'name': 'Resumo do Novo Pedido',
+         'message_group': ChatbotMessageGroupEnum.ORDER_UPDATES,
+         'description': 'Mensagem detalhada enviada ao cliente assim que um novo pedido é criado.',
+         'default_content': 'Este é um template estruturado. O conteúdo é gerado automaticamente pelo sistema.',
+         'available_variables': ['order.public_id', 'client.name', 'client.phone', 'order.items', 'order.subtotal',
+                                 'order.delivery_fee', 'order.total', 'payment.method', 'delivery.address',
+                                 'order.tracking_link']},
+
+
         {'message_key': 'order_accepted', 'name': 'Pedido aceito',
          'message_group': ChatbotMessageGroupEnum.ORDER_UPDATES,
          'default_content': '✅ Seu pedido foi aceito! \n\nAcompanhe o progresso do seu pedido Nº {order.public_id} no seguinte link: {order.url}\n\n{client.name}\n{client.number}',
