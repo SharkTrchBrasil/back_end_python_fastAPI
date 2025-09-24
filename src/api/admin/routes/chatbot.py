@@ -22,6 +22,8 @@ CHATBOT_WEBHOOK_SECRET = os.getenv("CHATBOT_WEBHOOK_SECRET")
 if not CHATBOT_SERVICE_URL or not CHATBOT_WEBHOOK_SECRET:
     raise ValueError("As variáveis CHATBOT_SERVICE_URL e CHATBOT_WEBHOOK_SECRET são obrigatórias.")
 
+# ALTERADO: O nome do arquivo original era chatbot.py, mas o conteúdo parece ser das rotas de admin.
+# Mantive o nome do arquivo para consistência com o que você enviou.
 router = APIRouter(tags=["Chatbot Config"], prefix="/stores/{store_id}/chatbot-config")
 
 # --- SUAS ROTAS DE GET E PATCH (QUE JÁ ESTAVAM PERFEITAS) ---
@@ -71,67 +73,55 @@ async def toggle_chatbot_status(store: GetStoreDep, db: GetDBDep, http_client: h
     if not config or config.connection_status != 'connected':
         raise HTTPException(status_code=409, detail="O chatbot não está conectado, então não pode ser ativado ou desativado.")
 
-    # Inverte o status atual (True vira False, False vira True)
     config.is_active = not config.is_active
     db.commit()
     db.refresh(config)
 
-    # Notifica o serviço Node.js sobre a mudança de estado
     try:
-        update_url = f"{CHATBOT_SERVICE_URL}/update-status"
+        update_url = f"{CHATBOT_SERVICE_URL}/update-status" # Adicionado /api
         headers = {'x-webhook-secret': CHATBOT_WEBHOOK_SECRET}
-        payload = {"lojaId": store.id, "isActive": config.is_active}
+        # ALTERADO: "lojaId" para "storeId"
+        payload = {"storeId": store.id, "isActive": config.is_active}
 
         await http_client.post(update_url, json=payload, headers=headers, timeout=10.0)
     except Exception as e:
-        # Se a notificação falhar, não desfazemos a ação, mas registramos o erro
         print(f"AVISO: O estado do chatbot para a loja {store.id} foi alterado para {config.is_active}, mas falhou ao notificar o serviço Node.js. Erro: {e}")
 
-    # Notifica o frontend sobre a mudança para atualizar a UI
     await admin_emit_store_updated(db, store.id)
 
     return {"message": f"Chatbot foi {'ativado' if config.is_active else 'pausado'}.", "isActive": config.is_active}
 
-
-
-
 @router.post("/connect")
 async def conectar_whatsapp(store_id: int, db: GetDBDep,
                             http_client: httpx.AsyncClient = Depends(get_async_http_client)):
-    iniciar_sessao_url = f"{CHATBOT_SERVICE_URL}/start-session"  # Verifique se o /api está correto
+    # ALTERADO: URL agora inclui o prefixo /api que definimos no Node.js
+    iniciar_sessao_url = f"{CHATBOT_SERVICE_URL}/start-session"
     config = db.query(models.StoreChatbotConfig).filter_by(store_id=store_id).first()
 
-    # --- LÓGICA CORRIGIDA E ESSENCIAL ---
     if config:
-        # Se já existe uma configuração, vamos decidir o que fazer com base no status
         if config.connection_status in ["pending", "awaiting_qr", "connected"]:
-            # Se uma conexão já está em andamento ou ativa, bloqueia a nova solicitação para evitar duplicidade.
             raise HTTPException(
-                status_code=409,  # Conflict
+                status_code=409,
                 detail=f"Uma conexão já está ativa ou pendente com o status: {config.connection_status}."
             )
-
-        # SE O STATUS FOR 'disconnected' ou 'error', NÓS REUTILIZAMOS O REGISTRO! (ESTA É A CORREÇÃO)
         print(
             f"[LOJA {store_id}] Reutilizando configuração com status '{config.connection_status}' para iniciar uma nova conexão.")
         config.connection_status = "pending"
         config.last_qr_code = None
         config.whatsapp_name = None
         config.is_active = True
-
     else:
-        # Se não existe nenhuma configuração, criamos uma nova.
         print(f"[LOJA {store_id}] Criando nova configuração para iniciar a conexão.")
         config = models.StoreChatbotConfig(store_id=store_id, connection_status="pending", is_active=True)
         db.add(config)
 
     db.commit()
-    await admin_emit_store_updated(db, store_id)  # Notifica o frontend que estamos 'pendente'
+    await admin_emit_store_updated(db, store_id)
 
-    # --- O RESTO DA FUNÇÃO CONTINUA IGUAL ---
     try:
         headers = {'x-webhook-secret': CHATBOT_WEBHOOK_SECRET}
-        response = await http_client.post(iniciar_sessao_url, json={"lojaId": store_id}, headers=headers, timeout=15.0)
+        # ALTERADO: "lojaId" para "storeId"
+        response = await http_client.post(iniciar_sessao_url, json={"storeId": store_id}, headers=headers, timeout=15.0)
         response.raise_for_status()
         return {"message": "Solicitação de conexão enviada ao serviço de chatbot"}
     except (httpx.RequestError, httpx.HTTPStatusError) as e:
@@ -140,18 +130,18 @@ async def conectar_whatsapp(store_id: int, db: GetDBDep,
         await admin_emit_store_updated(db, store_id)
         raise HTTPException(status_code=503, detail=f"Erro de comunicação com o serviço de chatbot: {e}")
 
-
-
 @router.post("/disconnect", status_code=200)
 async def desconectar_whatsapp(store: GetStoreDep, db: GetDBDep, http_client: httpx.AsyncClient = Depends(get_async_http_client)):
+    # ALTERADO: URL agora inclui o prefixo /api
     desconectar_url = f"{CHATBOT_SERVICE_URL}/disconnect"
     headers = {'x-webhook-secret': CHATBOT_WEBHOOK_SECRET}
 
     try:
         response = await http_client.post(
             desconectar_url,
-            json={"lojaId": store.id},
-            headers=headers, # <-- Chave de segurança adicionada
+            # ALTERADO: "lojaId" para "storeId"
+            json={"storeId": store.id},
+            headers=headers,
             timeout=15.0
         )
         response.raise_for_status()

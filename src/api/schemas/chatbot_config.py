@@ -8,7 +8,7 @@ from src.core.utils.enums import ChatbotMessageGroupEnum
 
 class ChatbotWebhookPayload(BaseModel):
     """ Define a estrutura de dados que o serviço de robô nos enviará. """
-    lojaId: int
+    storeId: int
     status: str  # Ex: 'awaiting_qr', 'connected', 'disconnected'
     qrCode: str | None = None
     whatsappName: str | None = None
