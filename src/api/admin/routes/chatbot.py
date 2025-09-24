@@ -69,6 +69,15 @@ async def update_message_config(message_key: str, config_update: StoreChatbotMes
 async def conectar_whatsapp(store_id: int, db: GetDBDep, http_client: httpx.AsyncClient = Depends(get_async_http_client)):
     iniciar_sessao_url = f"{CHATBOT_SERVICE_URL}/iniciar-sessao"
     config = db.query(models.StoreChatbotConfig).filter_by(store_id=store_id).first()
+
+    # --- NOVA SEGURANÇA AQUI ---
+    if config and config.connection_status in ["pending", "awaiting_qr"]:
+        raise HTTPException(
+            status_code=409,  # 409 Conflict é o código ideal para isso
+            detail="Já existe um processo de conexão em andamento para esta loja."
+        )
+    # --- FIM DA SEGURANÇA ---
+
     if not config:
         config = models.StoreChatbotConfig(store_id=store_id, connection_status="pending")
         db.add(config)
