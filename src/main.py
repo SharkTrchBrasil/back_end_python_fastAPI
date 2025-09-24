@@ -72,7 +72,7 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(reactivate_inactive_customers, 'cron', hour=4, minute=0, id='customer_reactivation_job')
 
     # ✅ ADICIONA O NOVO JOB DE BILLING PARA RODAR TODO DIA ÀS 5:00 DA MANHÃ
-    scheduler.add_job(check_and_update_subscriptions, 'cron', hour=5, minute=0, id='subscription_check_job')
+  ##  scheduler.add_job(check_and_update_subscriptions, 'cron', hour=5, minute=0, id='subscription_check_job')
 
 
 

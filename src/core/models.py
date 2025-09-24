@@ -1088,7 +1088,7 @@ class StoreChatbotConfig(Base, TimestampMixin):
 
     # Timestamps
     last_connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
+    is_active = Column(Boolean, default=True, nullable=False)  # <- NOVO CAMPO
     # (Opcional, mas útil) Caminho para o arquivo de sessão persistente
     session_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
 

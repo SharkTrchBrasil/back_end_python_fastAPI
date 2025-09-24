@@ -64,6 +64,34 @@ async def update_message_config(message_key: str, config_update: StoreChatbotMes
         "template": template
     }
 
+
+@router.post("/toggle-status", summary="Ativa ou desativa as respostas do chatbot")
+async def toggle_chatbot_status(store: GetStoreDep, db: GetDBDep, http_client: httpx.AsyncClient = Depends(get_async_http_client)):
+    config = db.query(models.StoreChatbotConfig).filter_by(store_id=store.id).first()
+    if not config or config.connection_status != 'connected':
+        raise HTTPException(status_code=409, detail="O chatbot não está conectado, então não pode ser ativado ou desativado.")
+
+    # Inverte o status atual (True vira False, False vira True)
+    config.is_active = not config.is_active
+    db.commit()
+    db.refresh(config)
+
+    # Notifica o serviço Node.js sobre a mudança de estado
+    try:
+        update_url = f"{CHATBOT_SERVICE_URL}/update-status"
+        headers = {'x-webhook-secret': CHATBOT_WEBHOOK_SECRET}
+        payload = {"lojaId": store.id, "isActive": config.is_active}
+
+        await http_client.post(update_url, json=payload, headers=headers, timeout=10.0)
+    except Exception as e:
+        # Se a notificação falhar, não desfazemos a ação, mas registramos o erro
+        print(f"AVISO: O estado do chatbot para a loja {store.id} foi alterado para {config.is_active}, mas falhou ao notificar o serviço Node.js. Erro: {e}")
+
+    # Notifica o frontend sobre a mudança para atualizar a UI
+    await admin_emit_store_updated(db, store.id)
+
+    return {"message": f"Chatbot foi {'ativado' if config.is_active else 'pausado'}.", "isActive": config.is_active}
+
 # --- ROTA DE CONNECT (QUE JÁ ESTAVA PERFEITA) ---
 @router.post("/connect")
 async def conectar_whatsapp(store_id: int, db: GetDBDep, http_client: httpx.AsyncClient = Depends(get_async_http_client)):
