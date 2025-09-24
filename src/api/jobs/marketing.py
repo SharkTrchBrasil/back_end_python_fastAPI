@@ -94,7 +94,7 @@ async def reactivate_inactive_customers():
                     # Envia a mensagem via chatbot
                     payload = {"lojaId": str(store.id), "number": customer.phone, "message": message_content}
                     headers = {"x-webhook-secret": config.CHATBOT_WEBHOOK_SECRET}
-                    response = await client.post(f"{config.CHATBOT_SERVICE_URL}/api/send-message", json=payload, headers=headers)
+                    response = await client.post(f"{config.CHATBOT_SERVICE_URL}/send-message", json=payload, headers=headers)
 
                     if response.status_code == 200:
                         print(f"  ✅ Mensagem de reativação para o cliente {customer.id} na loja {store.id} enviada.")

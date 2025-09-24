@@ -84,7 +84,7 @@ async def find_and_notify_abandoned_carts():
                     }
 
                     print(f"  -> Enviando notificação para o cliente {customer.id} da loja {cart.store_id}...")
-                    response = await client.post(f"{config.CHATBOT_API_URL}/api/send-message", json=payload, headers=headers)
+                    response = await client.post(f"{config.CHATBOT_API_URL}/send-message", json=payload, headers=headers)
 
                     if response.status_code == 200:
                         print(f"  ✅ Notificação para o carrinho {cart.id} enviada com sucesso.")

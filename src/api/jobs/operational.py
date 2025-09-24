@@ -120,7 +120,7 @@ async def request_reviews_for_delivered_orders():
                     payload = {"lojaId": str(order.store_id), "number": order.customer.phone, "message": message_content}
                     headers = {"x-webhook-secret": config.CHATBOT_WEBHOOK_SECRET}
 
-                    response = await client.post(f"{config.CHATBOT_API_URL}/api/send-message", json=payload, headers=headers)
+                    response = await client.post(f"{config.CHATBOT_API_URL}/send-message", json=payload, headers=headers)
 
                     if response.status_code == 200:
                         print(f"  ✅ Solicitação de avaliação para o pedido {order.public_id} enviada.")

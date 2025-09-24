@@ -98,7 +98,7 @@ async def toggle_chatbot_status(store: GetStoreDep, db: GetDBDep, http_client: h
 @router.post("/connect")
 async def conectar_whatsapp(store_id: int, db: GetDBDep,
                             http_client: httpx.AsyncClient = Depends(get_async_http_client)):
-    iniciar_sessao_url = f"{CHATBOT_SERVICE_URL}/iniciar-sessao"  # Verifique se o /api está correto
+    iniciar_sessao_url = f"{CHATBOT_SERVICE_URL}/start-session"  # Verifique se o /api está correto
     config = db.query(models.StoreChatbotConfig).filter_by(store_id=store_id).first()
 
     # --- LÓGICA CORRIGIDA E ESSENCIAL ---
@@ -144,7 +144,7 @@ async def conectar_whatsapp(store_id: int, db: GetDBDep,
 
 @router.post("/disconnect", status_code=200)
 async def desconectar_whatsapp(store: GetStoreDep, db: GetDBDep, http_client: httpx.AsyncClient = Depends(get_async_http_client)):
-    desconectar_url = f"{CHATBOT_SERVICE_URL}/desconectar"
+    desconectar_url = f"{CHATBOT_SERVICE_URL}/disconnect"
     headers = {'x-webhook-secret': CHATBOT_WEBHOOK_SECRET}
 
     try:
