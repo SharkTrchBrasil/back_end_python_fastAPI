@@ -22,24 +22,21 @@ def verify_webhook_secret(x_webhook_secret: str = Header(...)):
 
 
 @router.post(
-    "/chatbot/update", # O nome da rota é "/chatbot/update", não "/chatbot-status"
+    "/chatbot/update",
     summary="Webhook para receber atualizações do serviço de Chatbot",
     dependencies=[Depends(verify_webhook_secret)],
     include_in_schema=False
 )
 async def chatbot_webhook(payload: ChatbotWebhookPayload, db: GetDBDep):
-    """
-    Esta rota é chamada pelo serviço de robô (Node.js) para nos dar
-    o QR Code ou para nos informar que a conexão foi bem-sucedida.
-    """
-    # ALTERADO: "payload.lojaId" para "payload.storeId" em todo o arquivo
     print(f"🤖 Webhook do Chatbot recebido para loja {payload.storeId}: status {payload.status}")
+
     store = db.query(models.Store).filter_by(id=payload.storeId).first()
     if not store:
         print(f"❌ Loja {payload.storeId} não encontrada")
         return {"status": "erro", "message": "Loja não encontrada"}
 
-    valid_statuses = ['awaiting_qr', 'connected', 'disconnected', 'error']
+    # ✅ EXPANSÃO: Adicionar suporte para pairing code
+    valid_statuses = ['awaiting_qr', 'awaiting_pairing_code', 'connected', 'disconnected', 'error']
     if payload.status not in valid_statuses:
         print(f"❌ Status inválido: {payload.status}")
         return {"status": "erro", "message": "Status inválido"}
@@ -54,16 +51,20 @@ async def chatbot_webhook(payload: ChatbotWebhookPayload, db: GetDBDep):
     if payload.status in ['disconnected', 'error']:
         config.last_qr_code = None
         config.whatsapp_name = None
-        print(f"🧼 Sessão limpa no banco de dados para a loja {payload.storeId}.")
+        config.pairing_code = None
+    elif payload.status == 'awaiting_pairing_code':
+        config.pairing_code = payload.pairingCode
+        config.last_qr_code = None
     else:
         config.last_qr_code = payload.qrCode
         config.whatsapp_name = payload.whatsappName
+        config.pairing_code = None  # Limpar após conexão
 
     db.commit()
 
     await emit_chatbot_config_update(db, payload.storeId)
     await emit_store_updates(db, store.id)
 
-    print(f"✅ Frontend notificado (específico e geral) sobre a atualização para loja {payload.storeId}.")
+    print(f"✅ Frontend notificado sobre atualização para loja {payload.storeId}.")
 
     return {"status": "sucesso", "message": "Webhook processado."}

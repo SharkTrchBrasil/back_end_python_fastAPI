@@ -1,4 +1,5 @@
 # Em src/api/schemas/chatbot_webhook.py
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -11,6 +12,7 @@ class ChatbotWebhookPayload(BaseModel):
     storeId: int
     status: str  # Ex: 'awaiting_qr', 'connected', 'disconnected'
     qrCode: str | None = None
+    pairingCode: Optional[str] = None
     whatsappName: str | None = None
 
 
