@@ -104,32 +104,48 @@ async def toggle_chatbot_status(store: GetStoreDep, db: GetDBDep,
 
 
 @router.post("/connect")
-async def conectar_whatsapp(store: GetStoreDep, db: GetDBDep, http_client: httpx.AsyncClient = Depends(
-    get_async_http_client)):  # CORREÇÃO: Usar store: GetStoreDep
+async def conectar_whatsapp(store: GetStoreDep, db: GetDBDep,
+                            http_client: httpx.AsyncClient = Depends(get_async_http_client)):
     iniciar_sessao_url = f"{CHATBOT_SERVICE_URL}/start-session"
-    config = db.query(models.StoreChatbotConfig).filter_by(store_id=store.id).first()  # CORREÇÃO: usar store.id
 
-    if not config or not config.whatsapp_number:
+    # ✅ CORREÇÃO: Verificar se a loja tem um telefone configurado
+    if not store.phone:
         raise HTTPException(
             status_code=404,
-            detail="O número de telefone do chatbot não foi configurado para esta loja."
+            detail="O número de telefone da loja não foi configurado. Configure o telefone da loja antes de conectar o chatbot."
         )
 
-    # CORREÇÃO: Tratamento correto da formatação do telefone
-    formatted_phone_number = format_phone_number(config.whatsapp_number)
+    # Buscar ou criar a configuração do chatbot
+    config = db.query(models.StoreChatbotConfig).filter_by(store_id=store.id).first()
 
-    if config.connection_status in ["pending", "awaiting_qr", "connected"]:
+    if config and config.connection_status in ["pending", "awaiting_qr", "connected"]:
         raise HTTPException(
             status_code=409,
             detail=f"Uma conexão já está ativa ou pendente com o status: {config.connection_status}."
         )
 
-    print(
-        f"[LOJA {store.id}] Reutilizando configuração com status '{config.connection_status}' para iniciar uma nova conexão.")
-    config.connection_status = "pending"
-    config.last_qr_code = None
-    config.whatsapp_name = None
-    config.is_active = True
+    # ✅ CORREÇÃO: Usar o telefone da LOJA, não da configuração do chatbot
+    try:
+        formatted_phone_number = format_phone_number(store.phone)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Criar ou atualizar a configuração
+    if config:
+        print(f"[LOJA {store.id}] Reutilizando configuração existente para iniciar nova conexão.")
+        config.connection_status = "pending"
+        config.last_qr_code = None
+        config.whatsapp_name = None
+        config.is_active = True
+        # ✅ O whatsapp_number será preenchido quando a conexão for estabelecida
+    else:
+        print(f"[LOJA {store.id}] Criando nova configuração para iniciar a conexão.")
+        config = models.StoreChatbotConfig(
+            store_id=store.id,
+            connection_status="pending",
+            is_active=True
+        )
+        db.add(config)
 
     db.commit()
     await admin_emit_store_updated(db, store.id)
@@ -147,6 +163,7 @@ async def conectar_whatsapp(store: GetStoreDep, db: GetDBDep, http_client: httpx
         db.commit()
         await admin_emit_store_updated(db, store.id)
         raise HTTPException(status_code=503, detail=f"Erro de comunicação com o serviço de chatbot: {e}")
+
 
 
 @router.post("/disconnect", status_code=200)
