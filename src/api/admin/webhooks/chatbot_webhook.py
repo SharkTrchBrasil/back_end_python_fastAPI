@@ -19,15 +19,7 @@ def verify_webhook_secret(x_webhook_secret: str = Header(...)):
     if x_webhook_secret != WEBHOOK_SECRET_KEY:
         raise HTTPException(status_code=403, detail="Acesso negado: Chave secreta do webhook inválida.")
 
-# IMPORTANTE: Você precisa garantir que o seu schema Pydantic `ChatbotWebhookPayload`
-# em `src/api/schemas/chatbot_config.py` esteja esperando `storeId` e não `lojaId`.
-# Exemplo de como o schema deve ser:
-#
-# class (BaseModel):
-#     storeId: int  # <-- Deve ser storeId
-#     status: str
-#     qrCode: Optional[str] = None
-#     whatsappName: Optional[str] = None
+
 
 @router.post(
     "/chatbot/update", # O nome da rota é "/chatbot/update", não "/chatbot-status"

@@ -115,13 +115,25 @@ async def conectar_whatsapp(store_id: int, db: GetDBDep,
         config = models.StoreChatbotConfig(store_id=store_id, connection_status="pending", is_active=True)
         db.add(config)
 
+    # ✅ ALTERADO: Busque o número de telefone do banco de dados
+    if not config or not config.whatsapp_number:
+        raise HTTPException(
+            status_code=404,
+            detail="O número de telefone do chatbot não foi configurado para esta loja."
+        )
+
+
+
     db.commit()
     await admin_emit_store_updated(db, store_id)
 
     try:
         headers = {'x-webhook-secret': CHATBOT_WEBHOOK_SECRET}
-        # ALTERADO: "lojaId" para "storeId"
-        response = await http_client.post(iniciar_sessao_url, json={"storeId": store_id}, headers=headers, timeout=15.0)
+
+        payload = {"storeId": store_id, "phoneNumber": config.whatsapp_number}
+
+        response = await http_client.post(iniciar_sessao_url, json=payload, headers=headers, timeout=15.0)
+
         response.raise_for_status()
         return {"message": "Solicitação de conexão enviada ao serviço de chatbot"}
     except (httpx.RequestError, httpx.HTTPStatusError) as e:
