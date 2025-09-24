@@ -55,6 +55,7 @@ from src.api.admin.routes.product_category_link import router as product_categor
 from src.api.admin.routes.table import router as table_router
 
 
+
 router = APIRouter(prefix="/admin")
 router.include_router(stores_router)
 router.include_router(products_router)

@@ -94,33 +94,35 @@ async def toggle_chatbot_status(store: GetStoreDep, db: GetDBDep, http_client: h
 
 
 
+
 @router.post("/connect")
 async def conectar_whatsapp(store_id: int, db: GetDBDep,
                             http_client: httpx.AsyncClient = Depends(get_async_http_client)):
-    iniciar_sessao_url = f"{CHATBOT_SERVICE_URL}/iniciar-sessao"
+    iniciar_sessao_url = f"{CHATBOT_SERVICE_URL}/api/iniciar-sessao"  # Verifique se o /api está correto
     config = db.query(models.StoreChatbotConfig).filter_by(store_id=store_id).first()
 
-    # --- LÓGICA DE ATUALIZAÇÃO ---
+    # --- LÓGICA CORRIGIDA E ESSENCIAL ---
     if config:
         # Se já existe uma configuração, vamos decidir o que fazer com base no status
         if config.connection_status in ["pending", "awaiting_qr", "connected"]:
-            # Se uma conexão já está em andamento ou ativa, bloqueia a nova solicitação.
+            # Se uma conexão já está em andamento ou ativa, bloqueia a nova solicitação para evitar duplicidade.
             raise HTTPException(
                 status_code=409,  # Conflict
                 detail=f"Uma conexão já está ativa ou pendente com o status: {config.connection_status}."
             )
 
-        # Se o status for 'disconnected', 'error', ou qualquer outro, nós REUTILIZAMOS o registro.
-        print(f"[LOJA {store_id}] Reutilizando configuração existente para iniciar uma nova conexão.")
+        # SE O STATUS FOR 'disconnected' ou 'error', NÓS REUTILIZAMOS O REGISTRO! (ESTA É A CORREÇÃO)
+        print(
+            f"[LOJA {store_id}] Reutilizando configuração com status '{config.connection_status}' para iniciar uma nova conexão.")
         config.connection_status = "pending"
         config.last_qr_code = None
         config.whatsapp_name = None
-        # Adicione aqui outros campos que devam ser limpos
+        config.is_active = True
 
     else:
         # Se não existe nenhuma configuração, criamos uma nova.
         print(f"[LOJA {store_id}] Criando nova configuração para iniciar a conexão.")
-        config = models.StoreChatbotConfig(store_id=store_id, connection_status="pending")
+        config = models.StoreChatbotConfig(store_id=store_id, connection_status="pending", is_active=True)
         db.add(config)
 
     db.commit()
@@ -135,9 +137,8 @@ async def conectar_whatsapp(store_id: int, db: GetDBDep,
     except (httpx.RequestError, httpx.HTTPStatusError) as e:
         config.connection_status = "error"
         db.commit()
-        await admin_emit_store_updated(db, store_id)  # Notifica o frontend sobre o erro
+        await admin_emit_store_updated(db, store_id)
         raise HTTPException(status_code=503, detail=f"Erro de comunicação com o serviço de chatbot: {e}")
-
 
 
 
