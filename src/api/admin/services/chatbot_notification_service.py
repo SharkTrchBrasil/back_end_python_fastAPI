@@ -3,17 +3,22 @@
 import os
 import httpx
 from sqlalchemy.orm import Session
+
+from src.api.admin.utils.format_phone import format_phone_number
+from src.api.admin.utils.track_order_url import _get_tracking_link
 from src.core import models
 from src.core.config import config
 from src.core.utils.enums import OrderStatus
 
-# Mapeamento de status de pedido para a chave do template de mensagem
+
 STATUS_TO_MESSAGE_KEY = {
-    OrderStatus.PREPARING: 'order_accepted',
+    OrderStatus.ACCEPTED: 'order_accepted',      # Dispara quando o pedido é ACEITO
+    OrderStatus.PREPARING: 'order_preparing',    # Dispara quando começa o PREPARO
     OrderStatus.READY: 'order_ready',
     OrderStatus.ON_ROUTE: 'order_on_route',
     OrderStatus.DELIVERED: 'order_delivered',
-    OrderStatus.CANCELED: 'order_cancelled',
+    OrderStatus.CANCELED: 'order_canceled',      # Corrigido para 'canceled' (1 'l')
+    # O status FINALIZED geralmente não envia notificação, mas poderia ter um 'order_finalized'
 }
 
 # Carrega as variáveis de ambiente uma vez
@@ -66,7 +71,7 @@ def _build_order_summary_message(order: models.Order) -> str:
     message_parts.append("")
 
     # 7. Link de Acompanhamento
-    tracking_link = f"https://{order.store.url_slug}.{config.PLATFORM_DOMAIN}/orders/waiting?order={order.public_id}"
+    tracking_link = _get_tracking_link(order)
     message_parts.append("Acompanhe seu pedido no link:")
     message_parts.append(tracking_link)
 
@@ -88,14 +93,22 @@ async def send_new_order_summary(db: Session, order: models.Order):
     if not message_config or not message_config.is_active:
         return print(f"INFO: Mensagem '{message_key}' inativa para a loja {order.store_id}.")
 
-    customer_phone = order.customer.phone if order.customer else order.customer_phone
-    if not customer_phone:
+    raw_phone = order.customer.phone if order.customer else order.customer_phone  # Pega o número "cru"
+    if not raw_phone:
         return print(f"AVISO: Pedido {order.id} não possui telefone de cliente. Resumo não enviado.")
+
+    # ✅ APLICA A FORMATAÇÃO AQUI
+    try:
+        customer_phone = format_phone_number(raw_phone)
+    except ValueError as e:
+        print(f"AVISO: Número de telefone inválido para o cliente do pedido {order.id}: {e}. Resumo não enviado.")
+        return
+
 
     final_message = _build_order_summary_message(order)
 
     send_url = f"{CHATBOT_SERVICE_URL}/send-message"
-    payload = {"lojaId": order.store_id, "number": customer_phone, "message": final_message}
+    payload = {"storeId": order.store_id, "number": customer_phone, "message": final_message}
     headers = {'x-webhook-secret': CHATBOT_WEBHOOK_SECRET}
 
     try:
@@ -154,10 +167,16 @@ async def send_order_status_update(db: Session, order: models.Order):
         print(f"INFO: Mensagem '{message_key}' está inativa ou não configurada para a loja {order.store_id}.")
         return
 
-    # 4. Pega o número de telefone do cliente
-    customer_phone = order.customer.phone if order.customer else order.customer_phone
-    if not customer_phone:
+    raw_phone = order.customer.phone if order.customer else order.customer_phone # Pega o número "cru"
+    if not raw_phone:
         print(f"AVISO: Pedido {order.id} não possui telefone de cliente. Mensagem não enviada.")
+        return
+
+    # ✅ APLICA A FORMATAÇÃO AQUI
+    try:
+        customer_phone = format_phone_number(raw_phone)
+    except ValueError as e:
+        print(f"AVISO: Número de telefone inválido para o cliente do pedido {order.id}: {e}. Mensagem não enviada.")
         return
 
     # 5. Formata a mensagem final
@@ -167,7 +186,7 @@ async def send_order_status_update(db: Session, order: models.Order):
     # 6. Envia a requisição para o serviço Node.js
     send_url = f"{CHATBOT_SERVICE_URL}/send-message"
     payload = {
-        "lojaId": order.store_id,
+        "storeId": order.store_id,
         "number": customer_phone,
         "message": final_message
     }
