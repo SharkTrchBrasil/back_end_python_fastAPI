@@ -18,6 +18,7 @@ from src.api.admin.socketio.emitters import (
 
 )
 from src.core.database import get_db_manager
+from src.core.models import StoreOperationConfig
 
 
 async def handle_set_consolidated_stores(self, sid, data):
@@ -127,20 +128,14 @@ async def handle_update_operation_config(self, sid, data):
                     setattr(config, field, data[field])
 
             db.commit()  # Salva as alterações no banco de dados
+            db.refresh()
 
-            updated_store = get_store_base_details(db, requested_store_id)
-            if not updated_store:
-                return {"error": "Falha ao recarregar os dados da loja após a atualização."}
-
-            await emit_store_updates(updated_store, requested_store_id)
-
-            return StoreDetails.model_validate(updated_store).model_dump(mode='json', by_alias=True)
+            await emit_store_updates(store, requested_store_id)
 
         except Exception as e:
             db.rollback()
             print(f"❌ Erro ao atualizar configuração de operação da loja: {str(e)}")
             return {"error": str(e)}
-
 
 
 
