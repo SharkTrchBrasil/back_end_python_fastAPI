@@ -78,7 +78,7 @@ async def handle_update_order_status(self, sid, data):
                 restock_for_canceled_order(order, db)
 
             db.commit()
-            db.refresh(order)
+            db.refresh(order, attribute_names=['customer'])
 
             # --- Disparo das notificações (continua perfeito) ---
             asyncio.create_task(send_order_status_update(db, order))
