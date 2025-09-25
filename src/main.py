@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from src.api.jobs.billing import check_and_update_subscriptions
+from src.api.scheduler import start_scheduler
 # Imports do seu projeto
 from src.core.database import engine
 from src.core.db_initialization import initialize_roles, seed_chatbot_templates, seed_plans_and_features
@@ -60,25 +61,7 @@ async def lifespan(app: FastAPI):
     # ✅ 3. AGENDAMENTO DE TODOS OS JOBS
     print("Agendando tarefas automáticas (cron jobs)...")
 
-    # --- Jobs de Alta Frequência (rodam a cada 5 minutos) ---
-    scheduler.add_job(find_and_notify_abandoned_carts, 'interval', minutes=5, id='cart_recovery_job')
-    scheduler.add_job(check_for_stuck_orders, 'interval', minutes=5, id='stuck_orders_job')
-
-    # --- Job de Média Frequência (roda a cada 30 minutos) ---
-    scheduler.add_job(request_reviews_for_delivered_orders, 'interval', minutes=30, id='review_request_job')
-
-    # --- Jobs de Baixa Frequência (rodam de madrugada) ---
-    scheduler.add_job(delete_old_inactive_carts, 'cron', hour=3, minute=0, id='cart_cleanup_job')
-    scheduler.add_job(reactivate_inactive_customers, 'cron', hour=4, minute=0, id='customer_reactivation_job')
-
-    # ✅ ADICIONA O NOVO JOB DE BILLING PARA RODAR TODO DIA ÀS 5:00 DA MANHÃ
-  ##  scheduler.add_job(check_and_update_subscriptions, 'cron', hour=5, minute=0, id='subscription_check_job')
-
-
-
-
-    # Inicia o agendador
-    scheduler.start()
+    start_scheduler()  # ✅ Inicia o agendador de jobs
     print("🚀 Agendador iniciado com todos os jobs.")
 
     print("Aplicação pronta.")

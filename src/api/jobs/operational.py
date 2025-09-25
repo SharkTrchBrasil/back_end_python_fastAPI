@@ -10,7 +10,7 @@ from src.core.config import config
 from src.core.database import get_db_manager
 from src.core import models
 from src.core.utils.enums import OrderStatus # Importe seu Enum de status
-from src.api.admin.socketio.emitters import admin_emit_stuck_order_alert
+from src.api.admin.socketio.emitters import admin_emit_stuck_order_alert, admin_emit_order_updated_from_obj
 
 # Define o tempo para considerar um pedido como "preso"
 STUCK_ORDER_MINUTES = 20
@@ -132,4 +132,48 @@ async def request_reviews_for_delivered_orders():
 
         except Exception as e:
             print(f"❌ ERRO CRÍTICO no job de solicitação de avaliação: {e}")
+            db.rollback()
+
+
+async def cancel_old_pending_orders():
+    """
+    Encontra pedidos no status 'pending' com mais de 8 minutos
+    e os cancela automaticamente, notificando o frontend.
+    """
+    print("▶️  Executando job de cancelamento automático de pedidos...")
+
+    # Define o tempo limite. O iFood usa 8, é um bom padrão.
+    time_threshold = datetime.now(timezone.utc) - timedelta(minutes=8)
+
+    with get_db_manager() as db:
+        try:
+            # 1. Busca os pedidos que atendem aos critérios
+            stmt = (
+                select(models.Order)
+                .where(
+                    models.Order.order_status == OrderStatus.PENDING.value,
+                    models.Order.created_at < time_threshold  # Apenas pedidos criados ANTES do tempo limite
+                )
+            )
+            orders_to_cancel = db.execute(stmt).scalars().all()
+
+            if not orders_to_cancel:
+                print("✅ Nenhum pedido pendente para cancelar.")
+                return
+
+            print(f"🔍 Encontrados {len(orders_to_cancel)} pedidos pendentes para cancelar.")
+
+            # 2. Itera sobre os pedidos, atualiza o status e emite a notificação
+            for order in orders_to_cancel:
+                print(f"  - Cancelando pedido ID {order.id} ({order.public_id}) por falta de aceite.")
+                order.order_status = OrderStatus.CANCELED.value
+
+                # Esta é a parte crucial: notificar o frontend em tempo real
+                await admin_emit_order_updated_from_obj(order)
+
+            db.commit()
+            print(f"✅ Processamento de cancelamento concluído.")
+
+        except Exception as e:
+            print(f"❌ ERRO CRÍTICO no job de cancelamento de pedidos: {e}")
             db.rollback()
