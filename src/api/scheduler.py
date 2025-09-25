@@ -6,7 +6,7 @@ from src.api.jobs.cart_recovery import find_and_notify_abandoned_carts
 from src.api.jobs.cleanup import delete_old_inactive_carts
 from src.api.jobs.marketing import reactivate_inactive_customers
 from src.api.jobs.operational import cancel_old_pending_orders, check_for_stuck_orders, \
-    request_reviews_for_delivered_orders
+    request_reviews_for_delivered_orders, finalize_old_delivered_orders
 
 # Cria uma instância do agendador
 scheduler = AsyncIOScheduler(timezone="UTC")
@@ -24,6 +24,8 @@ def start_scheduler():
     scheduler.add_job(request_reviews_for_delivered_orders, 'interval', minutes=15, id='request_reviews_job')
     scheduler.add_job(reactivate_inactive_customers, 'interval', hours=24, id='reactivation_job')
     scheduler.add_job(delete_old_inactive_carts, 'interval', hours=24, id='cleanup_job')
+    # ✅ 2. Adicione o novo job para rodar, por exemplo, a cada hora.
+    scheduler.add_job(finalize_old_delivered_orders, 'interval', hours=1, id='finalize_orders_job')
 
     # Inicia o agendador
     scheduler.start()

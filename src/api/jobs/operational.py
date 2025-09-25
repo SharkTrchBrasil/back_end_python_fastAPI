@@ -177,3 +177,50 @@ async def cancel_old_pending_orders():
         except Exception as e:
             print(f"❌ ERRO CRÍTICO no job de cancelamento de pedidos: {e}")
             db.rollback()
+
+
+# ✅ ADICIONE A NOVA FUNÇÃO ABAIXO
+async def finalize_old_delivered_orders():
+    """
+    Encontra pedidos no status 'delivered' por mais de 4 horas
+    e os move para 'finalized' automaticamente.
+    """
+    print("▶️  Executando job de finalização de pedidos antigos...")
+
+    # Define o tempo limite (ex: 4 horas atrás)
+    # Isso dá tempo para o lojista resolver qualquer pendência antes da finalização.
+    time_threshold = datetime.now(timezone.utc) - timedelta(hours=4)
+
+    with get_db_manager() as db:
+        try:
+            # 1. Monta a query para encontrar os pedidos entregues e "esquecidos"
+            stmt = (
+                select(models.Order)
+                .where(
+                    models.Order.order_status == OrderStatus.DELIVERED.value,
+                    models.Order.updated_at < time_threshold  # A última atualização foi antes do nosso limite
+                )
+            )
+
+            orders_to_finalize = db.execute(stmt).scalars().all()
+
+            if not orders_to_finalize:
+                print("✅ Nenhum pedido entregue para finalizar.")
+                return
+
+            print(f"🔍 Encontrados {len(orders_to_finalize)} pedidos para finalizar.")
+
+            # 2. Itera sobre os pedidos, atualiza o status e notifica o frontend
+            for order in orders_to_finalize:
+                print(f"  - Finalizando pedido ID {order.id} ({order.public_id}).")
+                order.order_status = OrderStatus.FINALIZED.value
+
+                # Notifica a UI para que o pedido suma da lista de ativos
+                await admin_emit_order_updated_from_obj(order)
+
+            db.commit()
+            print(f"✅ Processamento de finalização concluído.")
+
+        except Exception as e:
+            print(f"❌ ERRO CRÍTICO no job de finalização de pedidos: {e}")
+            db.rollback()
