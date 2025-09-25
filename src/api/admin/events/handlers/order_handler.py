@@ -79,7 +79,7 @@ async def handle_update_order_status(self, sid, data):
 
             db.commit()
 
-            db.refresh(order, attribute_names=['customer', 'store.chatbot_config'])
+            db.refresh(order, attribute_names=['customer', 'store'])
 
             # --- Disparo das notificações (continua perfeito) ---
             asyncio.create_task(send_order_status_update(db, order))
@@ -103,15 +103,12 @@ async def process_new_order_automations(db, order):
     """
     Processa as automações de auto-accept e auto-print para um novo pedido.
     """
-    # É uma boa prática recarregar as relações para garantir que os dados estão frescos
-    db.refresh(order, attribute_names=["store", "products"])
-
     store_settings = order.store.store_operation_config
     did_status_change = False
 
     # 1. Lógica de Auto-Accept (sem alterações)
     if store_settings.auto_accept_orders and order.order_status == 'pending':
-        order.order_status = 'accepted'
+        order.order_status = 'preparing'
 
         did_status_change = True
         print(f"Pedido {order.id} aceito automaticamente.")
@@ -149,7 +146,8 @@ async def process_new_order_automations(db, order):
 
     # 3. Salva as mudanças no banco (sem alterações)
     db.commit()
-    db.refresh(order, attribute_names=['customer', 'store'])
+    # Adicionamos 'products' pois essa função também os utiliza
+    db.refresh(order, attribute_names=['customer', 'store', 'products'])
 
 
     asyncio.create_task(send_new_order_summary(db, order))
