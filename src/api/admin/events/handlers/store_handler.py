@@ -6,6 +6,7 @@ from urllib.parse import parse_qs
 from src.api.admin.services.store_access_service import StoreAccessService
 from src.api.admin.services.store_session_service import SessionService
 from src.api.admin.utils.authorize_admin import authorize_admin_by_jwt
+from src.api.admin.utils.emit_updates import emit_store_updates
 from src.api.schemas.store.store_operation_config import StoreOperationConfigBase
 from src.core import models
 from src.api.admin.socketio.emitters import (
@@ -127,9 +128,13 @@ async def handle_update_operation_config(self, sid, data):
             db.refresh(config)
             db.refresh(store)
 
-            await admin_emit_store_updated(db, store.id)
+            await emit_store_updates(db, store.id)
 
-            return StoreOperationConfigBase.model_validate(config).model_dump(mode='json')
+            return_data = StoreOperationConfigBase.model_validate(config).model_dump(mode='json')
+            print(f"✅ [Socket ACK] Retornando dados para o cliente: {return_data}")
+
+            return return_data
+
 
         except Exception as e:
             db.rollback()
