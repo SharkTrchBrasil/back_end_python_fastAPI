@@ -148,7 +148,7 @@ async def process_new_order_automations(db, order):
 
     # 3. Salva as mudanças no banco (sem alterações)
     db.commit()
-    db.refresh(order)
+    db.refresh(order, attribute_names=['customer', 'store'])
 
 
     asyncio.create_task(send_new_order_summary(db, order))
