@@ -7,6 +7,7 @@ from src.api.admin.services.store_access_service import StoreAccessService
 from src.api.admin.services.store_session_service import SessionService
 from src.api.admin.utils.authorize_admin import authorize_admin_by_jwt
 from src.api.admin.utils.emit_updates import emit_store_updates
+from src.api.crud.store_crud import get_store_base_details
 from src.api.schemas.store.store_details import StoreDetails
 from src.api.schemas.store.store_operation_config import StoreOperationConfigBase
 from src.core import models
@@ -125,18 +126,23 @@ async def handle_update_operation_config(self, sid, data):
                 if field in data:
                     setattr(config, field, data[field])
 
-            db.commit()
-            db.refresh(config)
-            db.refresh(store)
+            db.commit()  # Salva as alterações no banco de dados
 
-            await emit_store_updates(db, store.id)
+            updated_store = get_store_base_details(db, requested_store_id)
+            if not updated_store:
+                return {"error": "Falha ao recarregar os dados da loja após a atualização."}
 
-            return StoreDetails.model_validate(store).model_dump(mode='json')
+            await emit_store_updates(updated_store, requested_store_id)
+
+            return StoreDetails.model_validate(updated_store).model_dump(mode='json', by_alias=True)
 
         except Exception as e:
             db.rollback()
             print(f"❌ Erro ao atualizar configuração de operação da loja: {str(e)}")
             return {"error": str(e)}
+
+
+
 
 
 async def handle_join_store_room(self, sid, data):
