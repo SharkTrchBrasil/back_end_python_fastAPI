@@ -75,7 +75,7 @@ class OrderStatus(str, enum.Enum):
     """
     # Fase Inicial
     PENDING = 'pending'      # Pedido recém-criado, aguardando confirmação do restaurante.
-    ACCEPTED = 'accepted'    # Restaurante confirmou que irá preparar o pedido.
+   # ACCEPTED = 'accepted'    # Restaurante confirmou que irá preparar o pedido.
 
     # Fase de Preparo
     PREPARING = 'preparing'  # Pedido está sendo preparado na cozinha.

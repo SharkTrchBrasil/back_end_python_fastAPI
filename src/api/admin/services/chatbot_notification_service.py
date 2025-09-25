@@ -12,13 +12,12 @@ from src.core.utils.enums import OrderStatus
 
 
 STATUS_TO_MESSAGE_KEY = {
-    OrderStatus.ACCEPTED: 'order_accepted',      # Dispara quando o pedido é ACEITO
-    OrderStatus.PREPARING: 'order_preparing',    # Dispara quando começa o PREPARO
+    # ✅ Agora, o status PREPARING dispara a mensagem 'order_accepted'
+    OrderStatus.PREPARING: 'order_accepted',
     OrderStatus.READY: 'order_ready',
     OrderStatus.ON_ROUTE: 'order_on_route',
     OrderStatus.DELIVERED: 'order_delivered',
-    OrderStatus.CANCELED: 'order_canceled',      # Corrigido para 'canceled' (1 'l')
-    # O status FINALIZED geralmente não envia notificação, mas poderia ter um 'order_finalized'
+    OrderStatus.CANCELED: 'order_canceled',
 }
 
 # Carrega as variáveis de ambiente uma vez
