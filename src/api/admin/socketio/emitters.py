@@ -11,6 +11,7 @@ from src.api.admin.services.payable_service import payable_service
 from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations_simplified
 from src.api.crud import store_crud
 from src.api.schemas.chatbot.chatbot_config import StoreChatbotConfigSchema
+from src.api.schemas.chatbot.chatbot_conversation import ChatbotConversationSchema
 from src.api.schemas.chatbot.chatbot_message import ChatbotMessageSchema
 from src.api.schemas.financial.coupon import CouponOut
 from src.api.schemas.financial.payment_method import PaymentMethodGroupOut
@@ -497,3 +498,35 @@ async def emit_new_chat_message(db, message: models.ChatbotMessage):
 
     except Exception as e:
         print(f"❌ Erro ao emitir o evento '{event_name}': {e}")
+
+
+
+# ✅ 2. ADICIONE ESTA NOVA FUNÇÃO NO FINAL DO ARQUIVO
+async def admin_emit_conversations_initial(db, store_id: int, sid: str | None = None):
+    """
+    Busca a lista de resumos de todas as conversas de uma loja e a envia
+    para o painel de admin. Ideal para a carga inicial.
+    """
+    print(f"🚀 [Socket] Enviando carga inicial de conversas para loja {store_id}...")
+    try:
+        # Busca todos os metadados das conversas, ordenando pelas mais recentes
+        conversations = db.query(models.ChatbotConversationMetadata) \
+            .filter_by(store_id=store_id) \
+            .order_by(models.ChatbotConversationMetadata.last_message_timestamp.desc()) \
+            .all()
+
+        # Converte os dados para o formato JSON usando o schema
+        payload = [ChatbotConversationSchema.model_validate(c).model_dump(mode='json') for c in conversations]
+
+        event_name = "conversations_initial"
+        target_room = f"admin_store_{store_id}"
+
+        if sid:
+            await sio.emit(event_name, payload, namespace='/admin', to=sid)
+        else:
+            await sio.emit(event_name, payload, namespace='/admin', room=target_room)
+
+        print(f"✅ [Socket] Carga inicial de {len(conversations)} conversas enviada para a loja {store_id}.")
+
+    except Exception as e:
+        print(f'❌ Erro ao emitir conversations_initial: {e}')
