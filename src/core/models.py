@@ -2467,3 +2467,22 @@ class ChatbotMessage(Base, TimestampMixin):
 
     # Relacionamento (opcional, mas bom)
     store: Mapped["Store"] = relationship()
+
+
+
+
+class ChatbotConversationMetadata(Base, TimestampMixin):
+    __tablename__ = "chatbot_conversation_metadata"
+
+    # Chave primária composta para garantir uma entrada por chat/loja
+    chat_id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), primary_key=True)
+
+    customer_name: Mapped[str | None] = mapped_column(String(100))
+    last_message_preview: Mapped[str | None] = mapped_column(Text)
+    last_message_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+    # O campo mágico para o nosso controle
+    unread_count: Mapped[int] = mapped_column(default=0)
+
+    store: Mapped["Store"] = relationship()

@@ -5,6 +5,7 @@ from sqlalchemy import desc
 from typing import List
 
 from src.api.admin.services.chatbot.chatbot_sender_service import send_whatsapp_message
+from src.api.schemas.chatbot.chatbot_conversation import ChatbotConversationSchema
 from src.api.schemas.chatbot.chatbot_message import ChatPanelInitialStateSchema
 # ✅ 1. IMPORTAR OS NOVOS SCHEMAS E UTILITÁRIOS
 
@@ -74,3 +75,27 @@ async def send_message_from_panel(
         raise HTTPException(status_code=503, detail="Não foi possível enviar a mensagem pelo serviço de chatbot.")
 
     return {"status": "sucesso", "message": "Mensagem enviada para a fila de envio."}
+
+
+# ✅ NOVO ENDPOINT PARA LISTAR AS CONVERSAS
+@router.get("/conversations", response_model=List[ChatbotConversationSchema])
+def get_conversations(store: GetStoreDep, db: GetDBDep):
+    conversations = db.query(models.ChatbotConversationMetadata) \
+        .filter_by(store_id=store.id) \
+        .order_by(desc(models.ChatbotConversationMetadata.last_message_timestamp)) \
+        .all()
+    return conversations
+
+
+# ✅ NOVO ENDPOINT PARA MARCAR UMA CONVERSA COMO LIDA
+@router.post("/conversations/{chat_id}/mark-as-read", status_code=204)
+def mark_conversation_as_read(chat_id: str, store: GetStoreDep, db: GetDBDep):
+    conversation = db.query(models.ChatbotConversationMetadata) \
+        .filter_by(store_id=store.id, chat_id=chat_id) \
+        .first()
+
+    if conversation and conversation.unread_count > 0:
+        conversation.unread_count = 0
+        db.commit()
+
+    return
