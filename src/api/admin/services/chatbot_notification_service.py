@@ -93,15 +93,40 @@ async def send_new_order_summary(db: Session, order: models.Order):
         return print(f"INFO: Mensagem '{message_key}' inativa para a loja {order.store_id}.")
 
     raw_phone = order.customer.phone if order.customer else order.customer_phone  # Pega o número "cru"
+
     if not raw_phone:
         return print(f"AVISO: Pedido {order.id} não possui telefone de cliente. Resumo não enviado.")
 
-    # ✅ APLICA A FORMATAÇÃO AQUI
+        # ✅ NOVA FORMATAÇÃO ROBUSTA PARA NÚMEROS BRASILEIROS
     try:
-        customer_phone = format_phone_number(raw_phone)
+        # 1. Remove tudo que não for dígito
+        clean_phone = "".join(filter(str.isdigit, raw_phone))
+
+        # 2. Remove o '55' do início, se houver, para trabalhar apenas com o número local
+        if clean_phone.startswith('55'):
+            clean_phone = clean_phone[2:]
+
+        # 3. Verifica se precisa adicionar o nono dígito
+        # Um número local (DDD + Telefone) deve ter 11 dígitos. Se tiver 10, falta o '9'.
+        if len(clean_phone) == 10:
+            ddd = clean_phone[:2]
+            numero = clean_phone[2:]
+            clean_phone = f"{ddd}9{numero}"
+            print(f"DEBUG: Nono dígito adicionado. Número agora: {clean_phone}")
+
+        # 4. Garante que o número final tenha o código do país '55' e tenha 13 dígitos
+        if len(clean_phone) == 11:
+            customer_phone = f"55{clean_phone}"
+            print(f"DEBUG: Número final formatado para API: {customer_phone}")
+        else:
+            # Se o número não tem 10 ou 11 dígitos, é inválido.
+            raise ValueError(f"Número local '{clean_phone}' tem um tamanho inválido.")
+
     except ValueError as e:
-        print(f"AVISO: Número de telefone inválido para o cliente do pedido {order.id}: {e}. Resumo não enviado.")
+        print(f"AVISO: Número de telefone inválido para o cliente do pedido {order.id}: {e}. Mensagem não enviada.")
         return
+
+
 
 
     final_message = _build_order_summary_message(order)
@@ -171,6 +196,7 @@ async def send_order_status_update(db: Session, order: models.Order):
     # --- INÍCIO DO BLOCO DE DEBUG DO TELEFONE ---
     print(f"\n--- DEBUG (send_order_status_update): BUSCANDO TELEFONE PARA O PEDIDO {order.id} ---")
     raw_phone = None
+
     try:
         # Tentativa 1: Via relação order.customer
         if order.customer and order.customer.phone:
@@ -198,10 +224,36 @@ async def send_order_status_update(db: Session, order: models.Order):
         print(f"AVISO FINAL: Pedido {order.id} não possui telefone de cliente. Mensagem não enviada.")
         return
 
-    # ✅ APLICA A FORMATAÇÃO AQUI
     try:
-        customer_phone = format_phone_number(raw_phone)
-        print(f"DEBUG: Telefone formatado com sucesso para: {customer_phone}")
+        # 1. Remove tudo que não for dígito
+        clean_phone = "".join(filter(str.isdigit, raw_phone))
+
+        # 2. Remove o '55' do início, se houver, para trabalhar apenas com o número local
+        if clean_phone.startswith('55'):
+            clean_phone = clean_phone[2:]
+
+        # 3. Verifica se precisa adicionar o nono dígito
+        # Um número local (DDD + Telefone) deve ter 11 dígitos. Se tiver 10, falta o '9'.
+        if len(clean_phone) == 10:
+            ddd = clean_phone[:2]
+            numero = clean_phone[2:]
+            clean_phone = f"{ddd}9{numero}"
+            print(f"DEBUG: Nono dígito adicionado. Número agora: {clean_phone}")
+
+        # 4. Garante que o número final tenha o código do país '55' e tenha 13 dígitos
+        if len(clean_phone) == 11:
+            customer_phone = f"55{clean_phone}"
+            print(f"DEBUG: Número final formatado para API: {customer_phone}")
+        else:
+            # Se o número não tem 10 ou 11 dígitos, é inválido.
+            raise ValueError(f"Número local '{clean_phone}' tem um tamanho inválido.")
+
+    except ValueError as e:
+        print(f"AVISO: Número de telefone inválido para o cliente do pedido {order.id}: {e}. Mensagem não enviada.")
+        return
+
+
+
     except ValueError as e:
         print(f"AVISO: Número de telefone inválido para o cliente do pedido {order.id}: {e}. Mensagem não enviada.")
         return
