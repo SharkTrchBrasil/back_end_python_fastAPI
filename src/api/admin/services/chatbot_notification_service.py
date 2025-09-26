@@ -97,37 +97,29 @@ async def send_new_order_summary(db: Session, order: models.Order):
     if not raw_phone:
         return print(f"AVISO: Pedido {order.id} não possui telefone de cliente. Resumo não enviado.")
 
-        # ✅ NOVA FORMATAÇÃO ROBUSTA PARA NÚMEROS BRASILEIROS
+    # ✅ VERSÃO FINAL: Apenas limpa o número e garante o código do país.
     try:
-        # 1. Remove tudo que não for dígito
+        # 1. Pega apenas os dígitos do número
         clean_phone = "".join(filter(str.isdigit, raw_phone))
 
-        # 2. Remove o '55' do início, se houver, para trabalhar apenas com o número local
+        # 2. Se o número já tiver o 55 no início (seja com 8 ou 9 dígitos), ele já está pronto.
         if clean_phone.startswith('55'):
-            clean_phone = clean_phone[2:]
-
-        # 3. Verifica se precisa adicionar o nono dígito
-        # Um número local (DDD + Telefone) deve ter 11 dígitos. Se tiver 10, falta o '9'.
-        if len(clean_phone) == 10:
-            ddd = clean_phone[:2]
-            numero = clean_phone[2:]
-            clean_phone = f"{ddd}9{numero}"
-            print(f"DEBUG: Nono dígito adicionado. Número agora: {clean_phone}")
-
-        # 4. Garante que o número final tenha o código do país '55' e tenha 13 dígitos
-        if len(clean_phone) == 11:
-            customer_phone = f"55{clean_phone}"
-            print(f"DEBUG: Número final formatado para API: {customer_phone}")
+            # Verifica se o tamanho é válido (12 = 55+DDD+8dígitos, 13 = 55+DDD+9dígitos)
+            if len(clean_phone) not in [12, 13]:
+                raise ValueError(f"Número '{raw_phone}' com 55 tem tamanho inválido.")
+            customer_phone = clean_phone
+        # 3. Se for um número local (sem 55), apenas adicionamos o código do país.
         else:
-            # Se o número não tem 10 ou 11 dígitos, é inválido.
-            raise ValueError(f"Número local '{clean_phone}' tem um tamanho inválido.")
+            # Verifica se o tamanho é válido (10 = DDD+8dígitos, 11 = DDD+9dígitos)
+            if len(clean_phone) not in [10, 11]:
+                raise ValueError(f"Número '{raw_phone}' sem 55 tem tamanho inválido.")
+            customer_phone = f"55{clean_phone}"
+
+        print(f"DEBUG: Número final e limpo enviado para a API: {customer_phone}")
 
     except ValueError as e:
         print(f"AVISO: Número de telefone inválido para o cliente do pedido {order.id}: {e}. Mensagem não enviada.")
         return
-
-
-
 
     final_message = _build_order_summary_message(order)
 
@@ -224,35 +216,29 @@ async def send_order_status_update(db: Session, order: models.Order):
         print(f"AVISO FINAL: Pedido {order.id} não possui telefone de cliente. Mensagem não enviada.")
         return
 
+    # ✅ VERSÃO FINAL: Apenas limpa o número e garante o código do país.
     try:
-        # 1. Remove tudo que não for dígito
+        # 1. Pega apenas os dígitos do número
         clean_phone = "".join(filter(str.isdigit, raw_phone))
 
-        # 2. Remove o '55' do início, se houver, para trabalhar apenas com o número local
+        # 2. Se o número já tiver o 55 no início (seja com 8 ou 9 dígitos), ele já está pronto.
         if clean_phone.startswith('55'):
-            clean_phone = clean_phone[2:]
-
-        # 3. Verifica se precisa adicionar o nono dígito
-        # Um número local (DDD + Telefone) deve ter 11 dígitos. Se tiver 10, falta o '9'.
-        if len(clean_phone) == 10:
-            ddd = clean_phone[:2]
-            numero = clean_phone[2:]
-            clean_phone = f"{ddd}9{numero}"
-            print(f"DEBUG: Nono dígito adicionado. Número agora: {clean_phone}")
-
-        # 4. Garante que o número final tenha o código do país '55' e tenha 13 dígitos
-        if len(clean_phone) == 11:
-            customer_phone = f"55{clean_phone}"
-            print(f"DEBUG: Número final formatado para API: {customer_phone}")
+            # Verifica se o tamanho é válido (12 = 55+DDD+8dígitos, 13 = 55+DDD+9dígitos)
+            if len(clean_phone) not in [12, 13]:
+                raise ValueError(f"Número '{raw_phone}' com 55 tem tamanho inválido.")
+            customer_phone = clean_phone
+        # 3. Se for um número local (sem 55), apenas adicionamos o código do país.
         else:
-            # Se o número não tem 10 ou 11 dígitos, é inválido.
-            raise ValueError(f"Número local '{clean_phone}' tem um tamanho inválido.")
+            # Verifica se o tamanho é válido (10 = DDD+8dígitos, 11 = DDD+9dígitos)
+            if len(clean_phone) not in [10, 11]:
+                 raise ValueError(f"Número '{raw_phone}' sem 55 tem tamanho inválido.")
+            customer_phone = f"55{clean_phone}"
+
+        print(f"DEBUG: Número final e limpo enviado para a API: {customer_phone}")
 
     except ValueError as e:
         print(f"AVISO: Número de telefone inválido para o cliente do pedido {order.id}: {e}. Mensagem não enviada.")
         return
-
-
 
     except ValueError as e:
         print(f"AVISO: Número de telefone inválido para o cliente do pedido {order.id}: {e}. Mensagem não enviada.")
