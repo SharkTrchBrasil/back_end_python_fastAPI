@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload, noload
 from src.core import models
 
 
-def get_store_for_customer_view(db: Session, store_id: int) -> models.Store | None:
+def get_store_for_customer_view(db, store_id: int) -> models.Store | None:
     """
     Optimized Query for Customer View (Menu/Totem) com nova estrutura de categorias.
     """
@@ -56,7 +56,7 @@ def get_store_for_customer_view(db: Session, store_id: int) -> models.Store | No
     return store
 
 
-def get_store_base_details(db: Session, store_id: int) -> models.Store | None:
+def get_store_base_details(db, store_id: int) -> models.Store | None:
     """
     Consulta Otimizada: Carrega apenas os dados de configuração da loja.
     (Exclui listas pesadas como produtos, categorias, clientes, etc.)

@@ -91,8 +91,7 @@ async def handle_update_operation_config(self, sid, data):
             return {"error": "Admin não autorizado."}
 
         # A fonte de verdade para as lojas acessíveis.
-        all_accessible_store_ids_for_admin = StoreAccessService.get_accessible_store_ids_with_fallback(db,
-                                                                                                       admin_user)
+        all_accessible_store_ids_for_admin = StoreAccessService.get_accessible_store_ids_with_fallback(db, admin_user)
 
         if requested_store_id not in all_accessible_store_ids_for_admin:
             return {'error': 'Acesso negado: Você não tem permissão para gerenciar esta loja.'}
@@ -127,16 +126,31 @@ async def handle_update_operation_config(self, sid, data):
                 if field in data:
                     setattr(config, field, data[field])
 
-            db.commit()  # Salva as alterações no banco de dados
-            db.refresh()
+            db.commit()  # Salva as alterações. Esta parte já funcionava.
 
-            await emit_store_updates(store, requested_store_id)
+            # ✅ 2. CORREÇÃO DA ATUALIZAÇÃO DOS OBJETOS
+            # Atualiza o objeto 'config' para refletir o que foi salvo no banco.
+            db.refresh(config)
+
+            # ✅ 3. CORREÇÃO DA CHAMADA DO EMISSOR
+            # Chama a função de broadcast com os argumentos corretos (db, store_id)
+            # para notificar outros clientes conectados.
+            await emit_store_updates(db, requested_store_id)
+
+            # ✅ 4. RETORNO PARA O CLIENTE (ACK)
+            # Busca e prepara o payload completo da loja para retornar ao cliente
+            # que fez a requisição, atualizando a UI dele instantaneamente.
+            updated_store_payload = get_store_base_details(db, requested_store_id)
+            if not updated_store_payload:
+                return {"error": "Falha ao recarregar dados da loja após a atualização."}
+
+            print(f"✅ Configurações da loja {requested_store_id} atualizadas. Enviando payload para o cliente.")
+            return updated_store_payload
 
         except Exception as e:
             db.rollback()
-            print(f"❌ Erro ao atualizar configuração de operação da loja: {str(e)}")
+            print(f"❌ Erro CRÍTICO ao atualizar configuração da loja: {str(e)}")
             return {"error": str(e)}
-
 
 
 
