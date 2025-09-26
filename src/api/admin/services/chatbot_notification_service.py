@@ -141,6 +141,8 @@ def _format_message(content: str, order: models.Order, store: models.Store) -> s
     return content
 
 
+
+
 async def send_order_status_update(db: Session, order: models.Order):
     """
     Função principal que orquestra o envio da notificação de status de pedido.
@@ -166,20 +168,46 @@ async def send_order_status_update(db: Session, order: models.Order):
         print(f"INFO: Mensagem '{message_key}' está inativa ou não configurada para a loja {order.store_id}.")
         return
 
-    raw_phone = order.customer.phone if order.customer else order.customer_phone # Pega o número "cru"
+    # --- INÍCIO DO BLOCO DE DEBUG DO TELEFONE ---
+    print(f"\n--- DEBUG (send_order_status_update): BUSCANDO TELEFONE PARA O PEDIDO {order.id} ---")
+    raw_phone = None
+    try:
+        # Tentativa 1: Via relação order.customer
+        if order.customer and order.customer.phone:
+            print(f"DEBUG: Encontrado telefone via 'order.customer.phone': {order.customer.phone}")
+            raw_phone = order.customer.phone
+        else:
+            print("DEBUG: 'order.customer' ou 'order.customer.phone' está vazio. Tentando fallback.")
+
+        # Tentativa 2: Via campo direto order.customer_phone (fallback)
+        if not raw_phone and order.customer_phone:
+            print(f"DEBUG: Encontrado telefone via campo direto 'order.customer_phone': {order.customer_phone}")
+            raw_phone = order.customer_phone
+
+        print(f"DEBUG: Valor final de 'raw_phone' antes da verificação: {raw_phone} (Tipo: {type(raw_phone)})")
+
+    except Exception as e:
+        print(f"❌ ERRO CRÍTICO ao tentar acessar o telefone do cliente: {e}")
+        # Importante para ver erros como 'DetachedInstanceError' do SQLAlchemy
+        import traceback
+        traceback.print_exc()
+        return
+    # --- FIM DO BLOCO DE DEBUG DO TELEFONE ---
+
     if not raw_phone:
-        print(f"AVISO: Pedido {order.id} não possui telefone de cliente. Mensagem não enviada.")
+        print(f"AVISO FINAL: Pedido {order.id} não possui telefone de cliente. Mensagem não enviada.")
         return
 
     # ✅ APLICA A FORMATAÇÃO AQUI
     try:
         customer_phone = format_phone_number(raw_phone)
+        print(f"DEBUG: Telefone formatado com sucesso para: {customer_phone}")
     except ValueError as e:
         print(f"AVISO: Número de telefone inválido para o cliente do pedido {order.id}: {e}. Mensagem não enviada.")
         return
 
     # 5. Formata a mensagem final
-    content_to_send = message_config.final_content  # Usa a hybrid_property que criamos!
+    content_to_send = message_config.final_content
     final_message = _format_message(content_to_send, order, order.store)
 
     # 6. Envia a requisição para o serviço Node.js

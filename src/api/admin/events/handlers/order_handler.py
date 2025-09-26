@@ -81,6 +81,39 @@ async def handle_update_order_status(self, sid, data):
 
             db.refresh(order, attribute_names=['customer', 'store'])
 
+
+
+            # --- DEBUG: VERIFICANDO DADOS ANTES DE NOTIFICAR ---
+            print("\n--- DEBUG: VERIFICANDO DADOS ANTES DE NOTIFICAR ---")
+            print(f"ID do Pedido: {order.id}")
+            if order.customer:
+                print(f"Cliente encontrado: ID {order.customer.id}, Nome: {order.customer.name}")
+                print(f"Telefone via 'order.customer.phone': {order.customer.phone}")
+            else:
+                print("Cliente (relação order.customer) NÃO encontrado.")
+            print(f"Telefone via 'order.customer_phone' (campo direto): {order.customer_phone}")
+            print("---------------------------------------------------\n")
+            # --- FIM DEBUG ---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             # --- Disparo das notificações (continua perfeito) ---
             asyncio.create_task(send_order_status_update(db, order))
             await admin_emit_order_updated_from_obj(order)
