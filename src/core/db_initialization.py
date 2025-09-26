@@ -58,8 +58,16 @@ def seed_chatbot_templates(db: Session):
         # CUSTOMER_QUESTIONS
         {'message_key': 'welcome_message', 'name': 'Mensagem de boas-vindas',
          'message_group': ChatbotMessageGroupEnum.CUSTOMER_QUESTIONS,
-         'default_content': '👋🏼 {saudacao}, {client.name} \nBem-vindo(a) à {company.name}! Estamos aqui para garantir que sua experiência seja deliciosa e sem complicações. \n\n<b>Como podemos te ajudar hoje?</b> \n\n<b>A.</b> Fazer um pedido 🍽️ \n<b>B.</b> Obter mais informações ℹ \n\nSelecione a letra da opção que você deseja consultar e envie como resposta. Estamos aqui para ajudar!',
-         'available_variables': ['client.name', 'company.name']},
+         # ✅ TEMPLATE ATUALIZADO PARA O MODELO DE MENU
+         'default_content': '{greeting}, {client.name}! 👋 Eu sou o assistente virtual da {company.name}. Como posso te ajudar hoje?\n\n'
+                            'Digite o NÚMERO da opção desejada:\n'
+                            '*1️⃣ - Ver Cardápio e Promoções*\n'
+                            '*2️⃣ - Horário de Funcionamento*\n'
+                            '*3️⃣ - Nosso Endereço*\n'
+                            '*4️⃣ - Falar com um Atendente*',
+         'available_variables': ['greeting', 'client.name', 'company.name']},
+
+
         {'message_key': 'absence_message', 'name': 'Mensagem de ausência',
          'message_group': ChatbotMessageGroupEnum.CUSTOMER_QUESTIONS,
          'default_content': '👋🏼 Olá, {client.name} \n\nAtualmente estamos fora do nosso horário de atendimento. 🕑 \n\n🕑 <b>Nosso horário de atendimento é:</b> {company.business_hours} \n\nConvidamos você a conferir nosso menu e preparar seu próximo pedido: {company.url_products} \n\nEsperamos vê-lo em breve! 🙌🏼',
@@ -75,7 +83,7 @@ def seed_chatbot_templates(db: Session):
         {'message_key': 'info_message', 'name': 'Mensagem de informação',
          'message_group': ChatbotMessageGroupEnum.CUSTOMER_QUESTIONS,
          'default_content': 'Claro! \nEncontre todas as informações sobre o nosso restaurante, incluindo horário, serviços de entrega, endereço, custos e mais, no seguinte link: {info.url} 📲',
-         'available_variables': ['info.url']},
+         'available_variables': ['info.url', 'company.address']},
         {'message_key': 'business_hours_message', 'name': 'Mensagem de horário de funcionamento',
          'message_group': ChatbotMessageGroupEnum.CUSTOMER_QUESTIONS,
          'default_content': '⏰ <b>Aqui está nosso horário de atendimento:</b> \n\n{company.business_hours} \n\nEstamos disponíveis durante esses horários para oferecer o melhor em serviço e delícias culinárias. \n\n🔗 <b>Faça seu pedido aqui:</b>{company.url_products}',
@@ -87,8 +95,16 @@ def seed_chatbot_templates(db: Session):
          'default_content': 'De nada, {client.name}! 😊\nSe precisar de mais alguma coisa, é só chamar!',
          'available_variables': ['client.name']},
 
+        # ✅ NOVOS TEMPLATES PARA ATENDIMENTO HUMANO
+        {'message_key': 'human_support_message', 'name': 'Mensagem de Transferência para Atendente',
+         'message_group': ChatbotMessageGroupEnum.CUSTOMER_QUESTIONS,
+         'default_content': 'Ok, estou transferindo seu atendimento. Por favor, aguarde, um de nossos atendentes irá te responder em breve por aqui mesmo.  atendimento.',
+         'available_variables': []},
 
-
+        {'message_key': 'human_support_active', 'name': 'Lembrete de Atendimento Ativo',
+         'message_group': ChatbotMessageGroupEnum.CUSTOMER_QUESTIONS,
+         'default_content': 'Você já está em atendimento com um de nossos atendentes. Por favor, aguarde o retorno dele(a).',
+         'available_variables': []},
 
 
         # GET_REVIEWS
@@ -153,6 +169,11 @@ def seed_chatbot_templates(db: Session):
          'default_content': '🚫 Lamentamos informar que seu pedido Nº {order.public_id} foi cancelado. \n\nSe tiver alguma dúvida, não hesite em nos contatar.',
          'available_variables': ['order.public_id']},
 
+        {'message_key': 'order_not_found', 'name': 'Pedido Não Encontrado',
+         'message_group': ChatbotMessageGroupEnum.CUSTOMER_QUESTIONS,
+         # ✅ CONTEÚDO ATUALIZADO
+         'default_content': 'Olá, {client.name}. Não encontrei nenhum pedido feito hoje com o seu número de WhatsApp. Se você pediu usando outro número, por favor, me informe qual é.',
+         'available_variables': ['client.name']},
 
         # ✅ NOVO TEMPLATE DE REATIVAÇÃO
         {
@@ -173,9 +194,6 @@ def seed_chatbot_templates(db: Session):
     db.commit()
 
 
-# src/core/db_initialization.py
-
-# ... (imports e outras funções)
 
 def seed_plans_and_features(db: Session):
     """
