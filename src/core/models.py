@@ -1698,7 +1698,13 @@ class Order(Base, TimestampMixin):
         doc="Timestamp de quando a solicitação de avaliação foi enviada."
     )
 
-
+    # ✅ ADICIONE ESTE NOVO CAMPO
+    stuck_alert_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+        doc="Timestamp de quando o alerta de pedido preso foi enviado."
+    )
 
 
     @hybrid_property

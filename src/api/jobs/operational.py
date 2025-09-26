@@ -19,42 +19,52 @@ STUCK_ORDER_MINUTES = 20
 
 async def check_for_stuck_orders():
     """
-    Encontra pedidos no status 'preparing' (em preparo) por muito tempo
-    e notifica o painel do lojista.
+    Encontra pedidos no status 'preparing' há mais de 20 minutos
+    E para os quais um alerta ainda não foi enviado.
     """
-    print("▶️  Executando job de verificação de pedidos presos...")
+    print("▶️  Executando job de verificação de pedidos presos (Lógica Corrigida)...")
 
     now = datetime.now(timezone.utc)
-    upper_threshold = now - timedelta(minutes=STUCK_ORDER_MINUTES)
-    # A janela de busca (5 min) continua a mesma para evitar alertas repetidos
-    lower_threshold = upper_threshold - timedelta(minutes=5)
+    # ✅ LÓGICA SIMPLIFICADA: O limite agora é simples, "mais de 20 minutos atrás"
+    time_threshold = now - timedelta(minutes=STUCK_ORDER_MINUTES)
 
     with get_db_manager() as db:
         try:
-            # ✅ AQUI ESTÁ A CORREÇÃO PRINCIPAL
-            # Trocamos o status de PENDING para PREPARING
+            # ✅ QUERY CORRIGIDA E ROBUSTA
             stmt = (
                 select(models.Order)
                 .where(
                     models.Order.order_status == OrderStatus.PREPARING.value,
-                    models.Order.updated_at.between(lower_threshold, upper_threshold)
+                    models.Order.updated_at < time_threshold,  # 1. O pedido está parado há mais de 20 min?
+                    models.Order.stuck_alert_sent_at == None  # 2. O alerta para ele ainda não foi enviado?
                 )
             )
-
             stuck_orders = db.execute(stmt).scalars().all()
 
             if not stuck_orders:
-                print("✅ Nenhum pedido preso em preparo encontrado.")
+                print("✅ Nenhum pedido preso novo para alertar.")
                 return
 
             print(f"🔍 Encontrados {len(stuck_orders)} pedidos presos para alertar.")
 
             for order in stuck_orders:
-                # O alerta (efeito de brilho vermelho no app) continua o mesmo
+                print(f"  - Enviando alerta para o pedido ID {order.id} ({order.public_id})")
+
+                # 1. Envia o alerta
                 await admin_emit_stuck_order_alert(order)
+
+                # 2. ✅ MARCA O PEDIDO COMO "JÁ ALERTADO"
+                # Isso impede que ele seja pego novamente na próxima execução do job.
+                order.stuck_alert_sent_at = now
+
+            db.commit()  # Salva a atualização do 'stuck_alert_sent_at'
+            print("✅ Alertas de pedidos presos enviados com sucesso.")
 
         except Exception as e:
             print(f"❌ ERRO CRÍTICO no job de verificação de pedidos presos: {e}")
+
+
+
 
 
 async def request_reviews_for_delivered_orders():
