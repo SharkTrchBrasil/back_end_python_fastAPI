@@ -6,9 +6,8 @@ from fastapi import APIRouter, HTTPException, Depends
 import httpx
 
 from src.api.admin.socketio.emitters import admin_emit_store_updated
-from src.api.admin.utils.emit_updates import emit_store_updates
 from src.api.admin.utils.format_phone import format_phone_number
-from src.api.schemas.chatbot_config import StoreChatbotMessageSchema, StoreChatbotMessageUpdateSchema
+from src.api.schemas.chatbot.chatbot_config import StoreChatbotMessageSchema, StoreChatbotMessageUpdateSchema
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep

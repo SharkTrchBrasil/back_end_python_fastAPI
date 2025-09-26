@@ -2440,3 +2440,30 @@ class MasterCategory(Base):
 
     # Relacionamento reverso
     master_products: Mapped[List["MasterProduct"]] = relationship(back_populates="category")
+
+
+
+
+class ChatbotMessage(Base, TimestampMixin):
+    __tablename__ = "chatbot_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), index=True)
+
+    # Identificadores da mensagem
+    message_uid: Mapped[str] = mapped_column(String(255), unique=True, index=True, doc="ID único da mensagem do WhatsApp para evitar duplicatas")
+    chat_id: Mapped[str] = mapped_column(String(100), index=True, doc="ID do chat (ex: 5531..._@_s.whatsapp.net)")
+    sender_id: Mapped[str] = mapped_column(String(100), doc="Quem enviou (pode ser o cliente ou o número da loja)")
+
+    # Conteúdo da mensagem
+    content_type: Mapped[str] = mapped_column(String(20), default="text") # 'text', 'image', 'audio'
+    text_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    media_url: Mapped[str | None] = mapped_column(String(1024), nullable=True, doc="URL do arquivo de mídia no S3")
+    media_mime_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # Metadados
+    is_from_me: Mapped[bool] = mapped_column(Boolean, doc="True se foi a loja/bot que enviou, False se foi o cliente")
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, doc="Timestamp original da mensagem do WhatsApp")
+
+    # Relacionamento (opcional, mas bom)
+    store: Mapped["Store"] = relationship()

@@ -1,6 +1,5 @@
 # src/main.py
 
-import logging
 from sqlalchemy.orm import Session
 import socketio
 import uvicorn
@@ -12,7 +11,6 @@ from contextlib import asynccontextmanager
 # ✅ 1. IMPORTAÇÃO DO AGENDADOR
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from src.api.jobs.billing import check_and_update_subscriptions
 from src.api.scheduler import start_scheduler
 # Imports do seu projeto
 from src.core.database import engine
@@ -22,13 +20,9 @@ from src.api.app.events.totem_namespace import TotemNamespace
 from src.socketio_instance import sio
 from src.api.admin import router as admin_router
 from src.api.app import router as app_router
-from src.api.admin.webhooks.chatbot_webhook import router as webhooks_router
+from src.api.admin.webhooks.chatbot.chatbot_webhook import router as webhooks_router
 
 # ✅ 2. IMPORTAÇÃO DE TODAS AS FUNÇÕES DE JOB
-from src.api.jobs.cart_recovery import find_and_notify_abandoned_carts
-from src.api.jobs.cleanup import delete_old_inactive_carts
-from src.api.jobs.marketing import reactivate_inactive_customers
-from src.api.jobs.operational import check_for_stuck_orders, request_reviews_for_delivered_orders
 
 # O job 'generate_daily_sales_reports' foi omitido conforme solicitado.
 

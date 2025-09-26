@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 
 from src.api.admin.socketio.emitters import emit_chatbot_config_update
 from src.api.admin.utils.emit_updates import emit_store_updates
-from src.api.schemas.chatbot_config import ChatbotWebhookPayload
+from src.api.schemas.chatbot.chatbot_config import ChatbotWebhookPayload
 from src.core import models
 from src.core.database import GetDBDep
 

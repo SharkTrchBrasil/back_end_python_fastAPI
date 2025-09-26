@@ -6,7 +6,7 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from src.api.admin.services import loyalty_service
 from src.api.admin.services.cashback_service import calculate_and_apply_cashback_for_order
-from src.api.admin.services.chatbot_notification_service import send_order_status_update, send_new_order_summary
+from src.api.admin.services.chatbot.chatbot_notification_service import send_order_status_update, send_new_order_summary
 from src.api.admin.services.stock_service import decrease_stock_for_order, restock_for_canceled_order
 from src.api.admin.services.store_access_service import StoreAccessService
 from src.api.admin.utils.authorize_admin import authorize_admin_by_jwt

@@ -4,16 +4,14 @@ from datetime import timedelta, date
 from typing import Optional
 from venv import logger
 
-from sqlalchemy.orm.exc import DetachedInstanceError
-
-
 from src.api.admin.services.analytics_service import get_peak_hours_for_store
 from src.api.admin.services.holiday_service import HolidayService
 from src.api.admin.services.insights_service import InsightsService
 from src.api.admin.services.payable_service import payable_service
 from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations_simplified
 from src.api.crud import store_crud
-from src.api.schemas.chatbot_config import StoreChatbotConfigSchema
+from src.api.schemas.chatbot.chatbot_config import StoreChatbotConfigSchema
+from src.api.schemas.chatbot.chatbot_message import ChatbotMessageSchema
 from src.api.schemas.financial.coupon import CouponOut
 from src.api.schemas.financial.payment_method import PaymentMethodGroupOut
 from src.api.schemas.products.category import Category
@@ -474,3 +472,28 @@ async def admin_emit_stuck_order_alert(order: Order):
 
     await sio.emit('stuck_order_alert', payload, to=room_name)
     print(f"🚨 Alerta de pedido preso emitido para a loja {order.store_id} (Pedido: {order.public_id})")
+
+
+
+# ✅ NOVA FUNÇÃO PARA NOTIFICAR SOBRE MENSAGENS DE CHAT EM TEMPO REAL
+async def emit_new_chat_message(db, message: models.ChatbotMessage):
+    """
+    Emite um evento em tempo real para o painel de admin quando uma nova mensagem de chat
+    (do cliente ou da loja) é registrada.
+    """
+    print(f"🚀 [Socket] Emitindo nova mensagem de chat para loja {message.store_id}...")
+    try:
+        # 1. Converte o objeto da mensagem do banco para o formato JSON usando o Pydantic Schema
+        payload = ChatbotMessageSchema.model_validate(message).model_dump(mode='json')
+
+        # 2. Define o nome do evento e a sala de destino (específica da loja)
+        event_name = "new_chat_message"
+        room_name = f"admin_store_{message.store_id}"
+
+        # 3. Emite o evento para todos os clientes do painel de admin conectados àquela loja
+        await sio.emit(event_name, payload, namespace='/admin', room=room_name)
+
+        print(f"✅ [Socket] Evento '{event_name}' enviado para a sala {room_name}.")
+
+    except Exception as e:
+        print(f"❌ Erro ao emitir o evento '{event_name}': {e}")
