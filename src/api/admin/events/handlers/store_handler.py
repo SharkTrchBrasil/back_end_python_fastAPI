@@ -137,16 +137,6 @@ async def handle_update_operation_config(self, sid, data):
             # para notificar outros clientes conectados.
             await emit_store_updates(db, requested_store_id)
 
-            # ✅ 4. RETORNO PARA O CLIENTE (ACK)
-            # Busca e prepara o payload completo da loja para retornar ao cliente
-            # que fez a requisição, atualizando a UI dele instantaneamente.
-            updated_store_payload = get_store_base_details(db, requested_store_id)
-            if not updated_store_payload:
-                return {"error": "Falha ao recarregar dados da loja após a atualização."}
-
-            print(f"✅ Configurações da loja {requested_store_id} atualizadas. Enviando payload para o cliente.")
-            return updated_store_payload
-
         except Exception as e:
             db.rollback()
             print(f"❌ Erro CRÍTICO ao atualizar configuração da loja: {str(e)}")
