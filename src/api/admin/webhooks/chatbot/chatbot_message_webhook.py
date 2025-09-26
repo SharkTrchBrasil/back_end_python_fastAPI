@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 # Importe e verifique o secret como no outro webhook
 from .chatbot_webhook import verify_webhook_secret
 # ✅ CORREÇÃO: Ajustei o caminho do import para o padrão dos seus outros arquivos
+from sqlalchemy import table, column
 
 from src.api.admin.socketio.emitters import emit_new_chat_message
 
@@ -57,22 +58,38 @@ async def new_chatbot_message_webhook(
         )
         media_mime_type = media_file.content_type
 
-    # ATUALIZA OS METADADOS DA CONVERSA (lógica correta)
-    stmt = pg_insert(models.ChatbotConversationMetadata).values(
-        chat_id=chat_id,
-        store_id=store_id,
-        customer_name=customer_name,  # Agora usa a variável do formulário
-        last_message_preview=text_content or f"({content_type.capitalize()})",
-        last_message_timestamp=datetime.fromtimestamp(timestamp, tz=timezone.utc),
-        unread_count=models.ChatbotConversationMetadata.unread_count + (0 if is_from_me else 1)
-    ).on_conflict_do_update(
+    metadata_table = table('chatbot_conversation_metadata',
+                           column('chat_id'),
+                           column('store_id'),
+                           column('unread_count'),
+                           # Adicione outras colunas que você atualiza
+                           column('customer_name'),
+                           column('last_message_preview'),
+                           column('last_message_timestamp')
+                           )
+
+    values_to_insert = {
+        'chat_id': chat_id,
+        'store_id': store_id,
+        'customer_name': customer_name,
+        'last_message_preview': text_content or f"({content_type.capitalize()})",
+        'last_message_timestamp': datetime.fromtimestamp(timestamp, tz=timezone.utc),
+        'unread_count': 1 if not is_from_me else 0  # Valor inicial se for uma nova conversa
+    }
+
+    stmt = pg_insert(models.ChatbotConversationMetadata).values(values_to_insert)
+
+    stmt = stmt.on_conflict_do_update(
         index_elements=['chat_id', 'store_id'],
-        set_=dict(
-            customer_name=customer_name,
-            last_message_preview=text_content or f"({content_type.capitalize()})",
-            last_message_timestamp=datetime.fromtimestamp(timestamp, tz=timezone.utc),
-            unread_count=models.ChatbotConversationMetadata.unread_count + (0 if is_from_me else 1)
-        )
+        set_={
+            'customer_name': stmt.excluded.customer_name,
+            'last_message_preview': stmt.excluded.last_message_preview,
+            'last_message_timestamp': stmt.excluded.last_message_timestamp,
+            # A mágica está aqui:
+            # Pega o valor atual da coluna 'unread_count' na tabela
+            # e soma 1 (ou 0 se a mensagem for da loja).
+            'unread_count': metadata_table.c.unread_count + (1 if not is_from_me else 0)
+        }
     )
     db.execute(stmt)
 
