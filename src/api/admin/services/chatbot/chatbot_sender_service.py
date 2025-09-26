@@ -52,3 +52,38 @@ async def send_whatsapp_message(store_id: int, chat_id: str, text_content: str) 
     except (httpx.RequestError, httpx.HTTPStatusError) as e:
         print(f"❌ ERRO: Falha ao comunicar com o serviço de chatbot para enviar mensagem para {number}. Detalhes: {e}")
         return False
+
+
+
+
+# ✅ NOVA FUNÇÃO PARA PAUSAR O CHATBOT PARA UMA CONVERSA
+async def pause_chatbot_for_chat(store_id: int, chat_id: str) -> bool:
+    """
+    Envia um comando para o serviço Node.js para pausar o bot
+    em uma conversa específica (iniciando o atendimento humano).
+    """
+    if not CHATBOT_SERVICE_URL or not CHATBOT_WEBHOOK_SECRET:
+        print("ERRO CRÍTICO: CHATBOT_SERVICE_URL ou CHATBOT_WEBHOOK_SECRET não configurado.")
+        return False
+
+    # 1. Prepara a requisição para o novo endpoint
+    pause_url = f"{CHATBOT_SERVICE_URL}/pause-chat"
+
+    payload = {
+        "storeId": store_id,
+        "chatId": chat_id,
+    }
+    headers = {
+        "x-webhook-secret": CHATBOT_WEBHOOK_SECRET
+    }
+
+    # 2. Envia a requisição
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(pause_url, json=payload, headers=headers, timeout=10.0)
+            response.raise_for_status()
+            print(f"✅ Comando de pausa para o chat {chat_id} enviado com sucesso.")
+            return True
+    except (httpx.RequestError, httpx.HTTPStatusError) as e:
+        print(f"❌ ERRO: Falha ao enviar comando de pausa para o chat {chat_id}. Detalhes: {e}")
+        return False

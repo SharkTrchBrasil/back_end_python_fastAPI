@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import desc
 from typing import List
 
-from src.api.admin.services.chatbot.chatbot_sender_service import send_whatsapp_message
+from src.api.admin.services.chatbot.chatbot_sender_service import send_whatsapp_message, pause_chatbot_for_chat
 from src.api.schemas.chatbot.chatbot_conversation import ChatbotConversationSchema
 from src.api.schemas.chatbot.chatbot_message import ChatPanelInitialStateSchema
-# ✅ 1. IMPORTAR OS NOVOS SCHEMAS E UTILITÁRIOS
+
 
 from src.core.utils.enums import OrderStatus # Para filtrar pelos status de pedido
 
@@ -18,7 +18,7 @@ from src.core.dependencies import GetStoreDep
 
 router = APIRouter(tags=["Chatbot API"], prefix="/stores/{store_id}/chatbot")
 
-# ✅ 2. ATUALIZAR A FUNÇÃO PARA USAR O NOVO RESPONSE_MODEL E ADICIONAR A LÓGICA
+
 @router.get("/conversations/{chat_id}", response_model=ChatPanelInitialStateSchema)
 def get_conversation_history(
     chat_id: str,
@@ -73,6 +73,9 @@ async def send_message_from_panel(
 
     if not success:
         raise HTTPException(status_code=503, detail="Não foi possível enviar a mensagem pelo serviço de chatbot.")
+
+    # ✅ NOVO: Após enviar a primeira mensagem, pausa o bot para este chat
+    await pause_chatbot_for_chat(store.id, chat_id)
 
     return {"status": "sucesso", "message": "Mensagem enviada para a fila de envio."}
 
