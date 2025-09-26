@@ -1511,7 +1511,7 @@ class StoreCustomer(Base, TimestampMixin):
 
     total_orders: Mapped[int] = mapped_column(default=1)
     total_spent: Mapped[int] = mapped_column(default=0)
-    last_order_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_order_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),   index=True,nullable=True)
     store = relationship("Store", back_populates="store_customers")
     customer = relationship("Customer", back_populates="store_customers")
 
@@ -1519,6 +1519,7 @@ class StoreCustomer(Base, TimestampMixin):
     last_reactivation_attempt_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
+        index=True,
         doc="Timestamp da última tentativa de envio de mensagem de reativação."
     )
 
@@ -2034,9 +2035,9 @@ class StoreSubscription(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     subscription_plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
     store: Mapped["Store"] = relationship(back_populates="subscriptions")
-    status: Mapped[str] = mapped_column()  # ex: "active", "past_due", "canceled"
+    status: Mapped[str] = mapped_column(index=True)  # ex: "active", "past_due", "canceled"
     current_period_start: Mapped[datetime] = mapped_column()
-    current_period_end: Mapped[datetime] = mapped_column()
+    current_period_end: Mapped[datetime] = mapped_column(index=True)
     gateway_subscription_id: Mapped[str | None] = mapped_column(nullable=True) # Preço do plano em CENTAVOS
     # Relacionamento com o plano principal assinado
     plan: Mapped["Plans"] = relationship(back_populates="subscriptions")
@@ -2242,7 +2243,7 @@ class Cart(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), index=True)
 
     # Status do ciclo de vida do carrinho
-    status: Mapped[CartStatus] = mapped_column(Enum(CartStatus, native_enum=False), default=CartStatus.ACTIVE)
+    status: Mapped[CartStatus] = mapped_column(Enum(CartStatus, native_enum=False), index=True, default=CartStatus.ACTIVE)
 
     # Campos que podem ser definidos antes do checkout
     coupon_id: Mapped[int | None] = mapped_column(ForeignKey("coupons.id"), nullable=True)

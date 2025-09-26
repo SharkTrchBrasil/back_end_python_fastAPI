@@ -9,7 +9,13 @@ from src.core.config import config
 
 DATABASE_URL = config.DATABASE_URL
 
-engine = create_engine(DATABASE_URL)
+# ✅ CORREÇÃO APLICADA AQUI
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={
+        "options": "-c timezone=America/Sao_Paulo"
+    }
+)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
