@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 # ✅ 1. IMPORTAÇÃO DO AGENDADOR
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+from src.api.admin.routes import chatbot_api
 from src.api.admin.webhooks.chatbot import chatbot_message_webhook
 from src.api.scheduler import start_scheduler
 # Imports do seu projeto
@@ -93,6 +94,7 @@ fast_app.include_router(admin_router)
 fast_app.include_router(app_router)
 fast_app.include_router(webhooks_router)
 fast_app.include_router(chatbot_message_webhook.router)
+
 
 app = socketio.ASGIApp(sio, fast_app)
 
