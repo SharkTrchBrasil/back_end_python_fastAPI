@@ -6,16 +6,20 @@ import uuid
 import io
 
 
-# ✅ 1. NOVO HELPER PARA MAPEAR O TIPO DE CONTEÚDO PARA UMA EXTENSÃO DE ARQUIVO
+# DEPOIS (Versão Corrigida):
 def _get_extension_from_mimetype(content_type: Optional[str]) -> str:
-    """ Mapeia um MIME type para uma extensão de arquivo comum. """
+    """ Mapeia um MIME type para uma extensão de arquivo comum,
+        limpando informações extras como codecs. """
     if not content_type:
         return 'bin'
 
-        # SUGESTÃO: Garanta que o mapa esteja completo
+    # ✅ A MUDANÇA CRÍTICA ESTÁ AQUI:
+    # Pega a parte principal do content-type antes de qualquer ';'
+    clean_content_type = content_type.split(';')[0].strip().lower()
+
     mime_map = {
         'image/jpeg': 'jpg',
-        'image/jpg': 'jpg',  # Adicionar variações
+        'image/jpg': 'jpg',
         'image/png': 'png',
         'image/gif': 'gif',
         'image/webp': 'webp',
@@ -26,8 +30,10 @@ def _get_extension_from_mimetype(content_type: Optional[str]) -> str:
         'video/mp4': 'mp4',
         'video/quicktime': 'mov'
     }
-    # Retorna a extensão correspondente ou '.bin' se não for encontrada
-    return mime_map.get(content_type.lower(), 'bin')
+
+    # Agora a busca será feita com o tipo limpo (ex: 'audio/ogg')
+    return mime_map.get(clean_content_type, 'bin')
+
 
 
 # ✅ 2. FUNÇÃO ATUALIZADA PARA USAR O NOVO HELPER
