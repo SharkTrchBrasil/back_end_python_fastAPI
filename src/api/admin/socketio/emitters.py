@@ -476,7 +476,8 @@ async def admin_emit_stuck_order_alert(order: Order):
 
 
 
-# ✅ NOVA FUNÇÃO PARA NOTIFICAR SOBRE MENSAGENS DE CHAT EM TEMPO REAL
+
+# ✅ FUNÇÃO ATUALIZADA
 async def emit_new_chat_message(db, message: models.ChatbotMessage):
     """
     Emite um evento em tempo real para o painel de admin quando uma nova mensagem de chat
@@ -484,22 +485,29 @@ async def emit_new_chat_message(db, message: models.ChatbotMessage):
     """
     print(f"🚀 [Socket] Emitindo nova mensagem de chat para loja {message.store_id}...")
     try:
-        # 1. Converte o objeto da mensagem do banco para o formato JSON usando o Pydantic Schema
+        # 1. Converte a mensagem para o formato JSON (como já fazia)
         payload = ChatbotMessageSchema.model_validate(message).model_dump(mode='json')
 
-        # 2. Define o nome do evento e a sala de destino (específica da loja)
+        # ✅ 2. CORREÇÃO: Busca os metadados da conversa para pegar o nome do cliente
+        metadata = db.query(models.ChatbotConversationMetadata).filter_by(
+            chat_id=message.chat_id,
+            store_id=message.store_id
+        ).first()
+
+        # Adiciona o nome do cliente ao payload que será enviado
+        payload['customer_name'] = metadata.customer_name if metadata else 'Cliente'
+
+        # 3. Define o evento e a sala de destino (como já fazia)
         event_name = "new_chat_message"
         room_name = f"admin_store_{message.store_id}"
 
-        # 3. Emite o evento para todos os clientes do painel de admin conectados àquela loja
+        # 4. Emite o evento com o payload enriquecido
         await sio.emit(event_name, payload, namespace='/admin', room=room_name)
 
-        print(f"✅ [Socket] Evento '{event_name}' enviado para a sala {room_name}.")
+        print(f"✅ [Socket] Evento '{event_name}' (com nome do cliente) enviado para a sala {room_name}.")
 
     except Exception as e:
         print(f"❌ Erro ao emitir o evento '{event_name}': {e}")
-
-
 
 # ✅ 2. ADICIONE ESTA NOVA FUNÇÃO NO FINAL DO ARQUIVO
 async def admin_emit_conversations_initial(db, store_id: int, sid: str | None = None):
