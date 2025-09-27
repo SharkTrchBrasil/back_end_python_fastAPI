@@ -2481,6 +2481,7 @@ class ChatbotConversationMetadata(Base, TimestampMixin):
     customer_name: Mapped[str | None] = mapped_column(String(100))
     last_message_preview: Mapped[str | None] = mapped_column(Text)
     last_message_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    customer_profile_pic_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
 
     # O campo mágico para o nosso controle
     unread_count: Mapped[int] = mapped_column(default=0)
