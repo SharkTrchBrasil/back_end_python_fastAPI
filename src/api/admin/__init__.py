@@ -23,7 +23,7 @@ from src.api.admin.routes.store_customer import router as customers_router
 from src.api.admin.routes.payment_methods import router as payment_methods_router
 from src.api.admin.routes.store_hours import router as store_hours_router
 from src.api.admin.routes.verify_email import router as verify_email_router
-from src.api.admin.routes.chatbot import router as chatbot_router
+
 from src.api.admin.routes.store_operation_config import router as delivery_options_router
 
 from src.api.admin.routes.cashier_session_routes import router as cashier_session_routes
@@ -54,7 +54,7 @@ from src.api.admin.routes.master_products import router as master_products_route
 from src.api.admin.routes.product_category_link import router as product_category_link_router
 from src.api.admin.routes.table import router as table_router
 from src.api.admin.routes.chatbot_api import router as chatbot_api_router
-
+from src.api.admin.routes.chatbot_config import router as chatbot_config_router
 
 router = APIRouter(prefix="/admin")
 router.include_router(stores_router)
@@ -80,7 +80,7 @@ router.include_router(store_hours_router)
 
 router.include_router(verify_email_router)
 
-router.include_router(chatbot_router)
+
 
 router.include_router(delivery_options_router)
 
@@ -118,3 +118,4 @@ router.include_router(master_products_router)
 router.include_router(product_category_link_router)
 router.include_router(table_router)
 router.include_router(chatbot_api_router)
+router.include_router(chatbot_config_router)
