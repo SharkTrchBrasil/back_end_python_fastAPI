@@ -57,6 +57,11 @@ async def new_chatbot_message_webhook(
 
     # Lida com a mídia
     if media_file:
+        # ✅ PRINT PARA DEPURAR
+        print(f"--- DEBUG PYTHON (WEBHOOK) ---")
+        print(f"Recebido media_file.filename: {media_file.filename}")
+        print(f"Recebido media_file.content_type: {media_file.content_type}")  # <--- AQUI
+
         file_bytes = await media_file.read()
         media_url = upload_media_from_buffer(
             store_id=store_id,
@@ -78,15 +83,23 @@ async def new_chatbot_message_webhook(
         'unread_count': 1 if not is_from_me else 0
     }
     stmt = pg_insert(models.ChatbotConversationMetadata).values(values_to_insert)
+
+
+    update_dict = {
+        'last_message_preview': stmt.excluded.last_message_preview,
+        'last_message_timestamp': stmt.excluded.last_message_timestamp,
+        'unread_count': metadata_table.c.unread_count + (1 if not is_from_me else 0)
+    }
+    if not is_from_me:
+        # Só atualiza o nome do cliente se a mensagem veio dele
+        update_dict['customer_name'] = stmt.excluded.customer_name
+
     stmt = stmt.on_conflict_do_update(
         index_elements=['chat_id', 'store_id'],
-        set_={
-            'customer_name': stmt.excluded.customer_name,
-            'last_message_preview': stmt.excluded.last_message_preview,
-            'last_message_timestamp': stmt.excluded.last_message_timestamp,
-            'unread_count': metadata_table.c.unread_count + (1 if not is_from_me else 0)
-        }
+        set_=update_dict
     )
+
+
     db.execute(stmt)
 
     # Cria a nova mensagem

@@ -12,6 +12,9 @@ def _get_extension_from_mimetype(content_type: Optional[str]) -> str:
         limpando informações extras como codecs. """
     if not content_type:
         return 'bin'
+        # ✅ PRINT PARA DEPURAR
+    print(f"--- DEBUG PYTHON (MEDIA SERVICE) ---")
+    print(f"Recebido content_type: '{content_type}'")
 
     # ✅ A MUDANÇA CRÍTICA ESTÁ AQUI:
     # Pega a parte principal do content-type antes de qualquer ';'
@@ -32,9 +35,11 @@ def _get_extension_from_mimetype(content_type: Optional[str]) -> str:
     }
 
     # Agora a busca será feita com o tipo limpo (ex: 'audio/ogg')
-    return mime_map.get(clean_content_type, 'bin')
+    ext = mime_map.get(clean_content_type, 'bin')
 
-
+    # ✅ PRINT PARA DEPURAR
+    print(f"Extensão retornada: '{ext}'")
+    return ext
 
 # ✅ 2. FUNÇÃO ATUALIZADA PARA USAR O NOVO HELPER
 def _generate_media_key(store_id: int, content_type: str) -> str:
