@@ -1,9 +1,10 @@
 # src/api/admin/routers/chatbot_api.py
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy import desc
 from typing import List
 
+from src.api.admin.services.chatbot.chatbot_media_service import upload_media_from_buffer
 from src.api.admin.services.chatbot.chatbot_sender_service import send_whatsapp_message, pause_chatbot_for_chat
 from src.api.schemas.chatbot.chatbot_conversation import ChatbotConversationSchema
 from src.api.schemas.chatbot.chatbot_message import ChatPanelInitialStateSchema
@@ -117,3 +118,23 @@ def mark_conversation_as_read(chat_id: str, store: GetStoreDep, db: GetDBDep):
         db.commit()
 
     return
+
+
+# ✅ ADICIONE ESTE NOVO ENDPOINT
+@router.post("/upload-media", summary="Faz o upload de um arquivo de mídia para o S3")
+async def upload_media(store: GetStoreDep, media_file: UploadFile = File(...)):
+    if not media_file:
+        raise HTTPException(status_code=400, detail="Nenhum arquivo enviado.")
+
+    file_bytes = await media_file.read()
+    media_url = upload_media_from_buffer(
+        store_id=store.id,
+        file_buffer=file_bytes,
+        filename=media_file.filename,
+        content_type=media_file.content_type
+    )
+
+    if not media_url:
+        raise HTTPException(status_code=500, detail="Falha no upload da mídia para o S3.")
+
+    return {"media_url": media_url}
