@@ -43,6 +43,15 @@ async def new_chatbot_message_webhook(
     if exists:
         return {"status": "sucesso", "message": "Mensagem duplicada, ignorada."}
 
+
+    # ✅ --- INÍCIO DA ALTERAÇÃO ---
+    # 1. Primeiro, verificamos se a conversa é nova ANTES de inserir/atualizar.
+    existing_metadata = db.query(models.ChatbotConversationMetadata).filter_by(
+        chat_id=chat_id, store_id=store_id
+    ).first()
+    is_new_conversation = existing_metadata is None
+    # ✅ --- FIM DA ALTERAÇÃO ---
+
     media_url = None
     media_mime_type = None
 
@@ -98,8 +107,14 @@ async def new_chatbot_message_webhook(
     db.commit()
     db.refresh(new_message)
 
-    # Busca a foto de perfil (se for uma nova conversa)
-    await fetch_and_update_profile(db=db, store_id=store_id, chat_id=chat_id)
+
+    # ✅ --- INÍCIO DA ALTERAÇÃO ---
+    # 2. Agora, só chamamos a função se a conversa for realmente nova.
+    if is_new_conversation:
+        print(f"INFO: Nova conversa detectada para {chat_id}. Tentando buscar foto de perfil.")
+        await fetch_and_update_profile(db=db, store_id=store_id, chat_id=chat_id)
+    # ✅ --- FIM DA ALTERAÇÃO ---
+
 
     # Notifica o frontend
     await emit_new_chat_message(db, new_message)
