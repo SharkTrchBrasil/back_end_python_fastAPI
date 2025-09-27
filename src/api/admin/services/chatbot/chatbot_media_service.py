@@ -12,14 +12,19 @@ def _get_extension_from_mimetype(content_type: Optional[str]) -> str:
     if not content_type:
         return 'bin'
 
+        # SUGESTÃO: Garanta que o mapa esteja completo
     mime_map = {
         'image/jpeg': 'jpg',
+        'image/jpg': 'jpg',  # Adicionar variações
         'image/png': 'png',
         'image/gif': 'gif',
+        'image/webp': 'webp',
         'audio/ogg': 'ogg',
         'audio/mp4': 'm4a',
         'audio/mpeg': 'mp3',
         'application/pdf': 'pdf',
+        'video/mp4': 'mp4',
+        'video/quicktime': 'mov'
     }
     # Retorna a extensão correspondente ou '.bin' se não for encontrada
     return mime_map.get(content_type.lower(), 'bin')

@@ -41,7 +41,7 @@ async def send_whatsapp_message(
     payload = {
         "storeId": store_id,
         "number": number,
-        "message": text_content,
+        "message": text_content or "",
         "mediaUrl": media_url,
         "mediaType": media_type,
         "mediaFilename": media_filename,
