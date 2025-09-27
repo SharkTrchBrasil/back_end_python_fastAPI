@@ -1,6 +1,8 @@
 # src/services/chatbot_sender_service.py
 
 import os
+from typing import Optional
+
 import httpx
 
 # Carrega as variáveis de ambiente necessárias para a comunicação
@@ -8,7 +10,13 @@ CHATBOT_SERVICE_URL = os.getenv("CHATBOT_SERVICE_URL")
 CHATBOT_WEBHOOK_SECRET = os.getenv("CHATBOT_WEBHOOK_SECRET")
 
 
-async def send_whatsapp_message(store_id: int, chat_id: str, text_content: str) -> bool:
+async def send_whatsapp_message(
+        store_id: int,
+        chat_id: str,
+        text_content: str,
+        media_url: Optional[str] = None,
+        media_type: Optional[str] = None,
+        media_filename: Optional[str] = None) -> bool:
     """
     Envia uma mensagem de texto para um chat específico através do serviço Node.js.
 
@@ -33,7 +41,10 @@ async def send_whatsapp_message(store_id: int, chat_id: str, text_content: str) 
     payload = {
         "storeId": store_id,
         "number": number,
-        "message": text_content
+        "message": text_content,
+        "mediaUrl": media_url,
+        "mediaType": media_type,
+        "mediaFilename": media_filename,
     }
     headers = {
         "x-webhook-secret": CHATBOT_WEBHOOK_SECRET

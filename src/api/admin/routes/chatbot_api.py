@@ -56,29 +56,44 @@ def get_conversation_history(
     )
 
 
+
+
 @router.post("/conversations/send-message")
 async def send_message_from_panel(
     payload: dict,
     store: GetStoreDep,
     db: GetDBDep
 ):
-    # (Esta função permanece exatamente como está)
+    # Extrai todos os dados possíveis do payload
     chat_id = payload.get("chat_id")
     text_content = payload.get("text_content")
+    media_url = payload.get("media_url")
+    media_type = payload.get("media_type")
+    media_filename = payload.get("media_filename")
 
-    if not all([chat_id, text_content]):
-        raise HTTPException(status_code=400, detail="Dados incompletos. 'chat_id' e 'text_content' são obrigatórios.")
+    # ✅ CORREÇÃO: A validação agora permite mídia sem texto.
+    if not chat_id or (not text_content and not media_url):
+        raise HTTPException(
+            status_code=400,
+            detail="Dados incompletos. 'chat_id' e pelo menos um 'text_content' ou 'media_url' são obrigatórios."
+        )
 
-    success = await send_whatsapp_message(store.id, chat_id, text_content)
+    # O resto da função continua perfeito.
+    success = await send_whatsapp_message(
+        store_id=store.id,
+        chat_id=chat_id,
+        text_content=text_content,
+        media_url=media_url,
+        media_type=media_type,
+        media_filename=media_filename
+    )
 
     if not success:
         raise HTTPException(status_code=503, detail="Não foi possível enviar a mensagem pelo serviço de chatbot.")
 
-    # ✅ NOVO: Após enviar a primeira mensagem, pausa o bot para este chat
     await pause_chatbot_for_chat(store.id, chat_id)
 
-    return {"status": "sucesso", "message": "Mensagem enviada para a fila de envio."}
-
+    return {"status": "sucesso", "message": "Mensagem enviada e bot pausado para esta conversa."}
 
 # ✅ NOVO ENDPOINT PARA LISTAR AS CONVERSAS
 @router.get("/conversations", response_model=List[ChatbotConversationSchema])
