@@ -130,6 +130,8 @@ class Store(Base, TimestampMixin):
     orders: Mapped[List["Order"]] = relationship("Order", back_populates="store", cascade="all, delete-orphan")
     efi_customer_id: Mapped[str | None] = mapped_column(nullable=True)
     efi_payment_token: Mapped[str | None] = mapped_column(nullable=True)  # IMPORTANTE: Criptografe este campo!
+    # ✅ ADIÇÃO
+    monthly_charges: Mapped[list["MonthlyCharge"]] = relationship(back_populates="store")
 
 
     products = relationship(
@@ -1667,7 +1669,10 @@ class Order(Base, TimestampMixin):
 
     # Mesas/comandas
     table_id: Mapped[int | None] = mapped_column(ForeignKey("tables.id", ondelete="SET NULL"), nullable=True)
-    table: Mapped[Optional["Table"]] = relationship(back_populates="orders")
+    # ✅ CORREÇÃO APLICADA AQUI
+    table: Mapped[Optional["Tables"]] = relationship(back_populates="orders")
+
+
     command_id: Mapped[int | None] = mapped_column(ForeignKey("commands.id", ondelete="SET NULL"), nullable=True)
     command: Mapped[Optional["Command"]] = relationship(back_populates="orders")
 
@@ -1848,9 +1853,9 @@ class Tables(Base, TimestampMixin):
     deleted_at: Mapped[datetime | None] = mapped_column(nullable=True)
     location_description: Mapped[str | None] = mapped_column(String(100), nullable=True)  # Ex: "Perto da janela"
 
-    orders: Mapped[list["Order"]] = relationship(back_populates="table")
-    commands: Mapped[list["Command"]] = relationship(back_populates="table")
-    history: Mapped[list["TableHistory"]] = relationship(back_populates="table")
+    orders: Mapped[list["Order"]] = relationship(back_populates="tables")
+    commands: Mapped[list["Command"]] = relationship(back_populates="tables")
+    history: Mapped[list["TableHistory"]] = relationship(back_populates="tables")
 
 
 
@@ -1873,7 +1878,10 @@ class Command(Base, TimestampMixin):
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)  # Observações especiais
 
     store: Mapped["Store"] = relationship(back_populates="commands")
-    table: Mapped["Table | None"] = relationship(back_populates="commands")
+
+    # ✅ CORREÇÃO APLICADA AQUI
+    table: Mapped["Tables | None"] = relationship(back_populates="commands")
+
     orders: Mapped[list["Order"]] = relationship(back_populates="command")
     attendant: Mapped["User | None"] = relationship()
 
@@ -1916,7 +1924,8 @@ class TableHistory(Base):
     changed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
-    table: Mapped["Table"] = relationship(back_populates="history")
+    # ✅ CORREÇÃO APLICADA AQUI
+    table: Mapped["Tables"] = relationship(back_populates="history")
     user: Mapped["User | None"] = relationship()
 
 
@@ -2050,7 +2059,8 @@ class StoreSubscription(Base, TimestampMixin):
     gateway_subscription_id: Mapped[str | None] = mapped_column(nullable=True) # Preço do plano em CENTAVOS
     # Relacionamento com o plano principal assinado
     plan: Mapped["Plans"] = relationship(back_populates="subscriptions")
-
+    # ✅ ADIÇÃO
+    monthly_charges: Mapped[list["MonthlyCharge"]] = relationship(back_populates="subscription")
     # NOVO: Relacionamento para ver todos os add-ons contratados nesta assinatura
     subscribed_addons: Mapped[list["PlansAddon"]] = relationship(
         back_populates="store_subscription",
@@ -2078,10 +2088,9 @@ class Plans(Base, TimestampMixin):
     second_month_discount: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=Decimal('0.50'))  # 50%
     third_month_discount: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=Decimal('0.75'))  # 25%
 
-    included_features: Mapped[List["PlansFeature"]] = relationship()
-    subscriptions: Mapped[List["StoreSubscription"]] = relationship()
-
-
+    # ✅ CORREÇÃO APLICADA AQUI
+    included_features: Mapped[List["PlansFeature"]] = relationship(back_populates="plan")
+    subscriptions: Mapped[List["StoreSubscription"]] = relationship(back_populates="plan")
 
 
 class PlansAddon(Base, TimestampMixin):
@@ -2493,5 +2502,6 @@ class MonthlyCharge(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(default="pending", index=True, doc="Status: pending, paid, failed.")
     gateway_transaction_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
-    store: Mapped["Store"] = relationship()
-    subscription: Mapped["StoreSubscription"] = relationship()
+    # ✅ CORREÇÃO APLICADA AQUI
+    store: Mapped["Store"] = relationship(back_populates="monthly_charges")
+    subscription: Mapped["StoreSubscription"] = relationship(back_populates="monthly_charges")

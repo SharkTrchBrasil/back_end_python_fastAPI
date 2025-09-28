@@ -6,7 +6,6 @@ from src.core import models
 from datetime import datetime, timezone
 from src.core.utils.enums import ChatbotMessageGroupEnum
 
-
 def initialize_roles(db: Session):
     """
     Verifica a existência de roles padrão e as cria se não existirem.
@@ -35,7 +34,6 @@ def initialize_roles(db: Session):
         print("Roles padrão criadas/verificadas com sucesso.")
     else:
         print("Todas as roles padrão já existem.")
-
 
 def seed_plans_and_features(db: Session):
     """
@@ -111,9 +109,6 @@ def seed_plans_and_features(db: Session):
     print("✅ Estrutura de valor único definida com sucesso!")
 
 
-
-
-# ✅ NOVA FUNÇÃO PARA SEMEAR OS TEMPLATES
 def seed_chatbot_templates(db: Session):
     """
     Verifica e insere os templates de mensagem do chatbot se eles não existirem.

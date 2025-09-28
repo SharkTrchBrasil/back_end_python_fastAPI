@@ -24,15 +24,7 @@ from src.api.admin import router as admin_router
 from src.api.app import router as app_router
 from src.api.admin.webhooks.chatbot.chatbot_webhook import router as webhooks_router
 
-# ✅ 2. IMPORTAÇÃO DE TODAS AS FUNÇÕES DE JOB
 
-# O job 'generate_daily_sales_reports' foi omitido conforme solicitado.
-
-# -------------------------------------------------------------
-# Definição do Lifespan e Agendador de Tarefas
-# -------------------------------------------------------------
-
-# Cria uma instância única do agendador
 scheduler = AsyncIOScheduler()
 
 
