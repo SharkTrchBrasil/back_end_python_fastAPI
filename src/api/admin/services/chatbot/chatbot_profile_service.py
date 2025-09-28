@@ -25,7 +25,7 @@ async def fetch_and_update_profile(db: GetDBDep, store_id: int, chat_id: str):
     if not CHATBOT_SERVICE_URL:
         return
 
-    url = f"{CHATBOT_SERVICE_URL}/api/profile-picture/{store_id}/{chat_id}"
+    url = f"{CHATBOT_SERVICE_URL}/profile-picture/{store_id}/{chat_id}"
     headers = {"x-webhook-secret": CHATBOT_WEBHOOK_SECRET}
 
     # 3. Faz a chamada e atualiza o banco se encontrar a URL
@@ -49,7 +49,7 @@ async def fetch_contact_name(store_id: int, chat_id: str) -> Optional[str]:
     if not CHATBOT_SERVICE_URL:
         return None
 
-    url = f"{CHATBOT_SERVICE_URL}/api/contact-name/{store_id}/{chat_id}"
+    url = f"{CHATBOT_SERVICE_URL}/contact-name/{store_id}/{chat_id}"
     headers = {"x-webhook-secret": CHATBOT_WEBHOOK_SECRET}
 
     try:
