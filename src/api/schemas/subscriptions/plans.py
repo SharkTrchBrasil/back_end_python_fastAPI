@@ -1,30 +1,38 @@
 # schemas/subscription_plan_schema.py
 
 from pydantic import BaseModel, ConfigDict, computed_field
+from decimal import Decimal
 from src.api.schemas.subscriptions.plans_feature import FeatureSchema
 
 
-# Este schema intermediário nos ajuda a extrair a feature da associação
 class PlanFeatureAssociationSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     feature: FeatureSchema
 
 
 class PlanSchema(BaseModel):
-    """Schema para um plano de assinatura, mostrando as features e limites inclusos."""
+    """Schema para um plano de assinatura com pricing diferenciado."""
     model_config = ConfigDict(from_attributes=True)
 
     # --- Campos Básicos do Plano ---
     id: int
     plan_name: str
-    price: int
-    interval: int
-    repeats: int | None
     available: bool
+    support_type: str | None
 
-    # --- NOVOS CAMPOS: Limites e Benefícios ---
-    # Adicionamos todos os novos campos que estão na tabela do banco de dados.
-    # O tipo 'int | None' permite que o valor seja um número ou nulo (ilimitado).
+    # --- NOVA ESTRUTURA DE PREÇOS ---
+    minimum_fee: int  # Em centavos
+    revenue_percentage: Decimal  # Ex: 0.029 para 2.9%
+    revenue_cap_fee: int | None  # Em centavos
+    percentage_tier_start: int | None  # Em centavos
+    percentage_tier_end: int | None  # Em centavos
+
+    # --- BENEFÍCIOS PROMOCIONAIS ---
+    first_month_free: bool
+    second_month_discount: Decimal  # Ex: 0.50 para 50%
+    third_month_discount: Decimal  # Ex: 0.75 para 25%
+
+    # --- LIMITES DO PLANO ---
     product_limit: int | None
     category_limit: int | None
     user_limit: int | None
@@ -32,16 +40,12 @@ class PlanSchema(BaseModel):
     location_limit: int | None
     banner_limit: int | None
     max_active_devices: int | None
-    support_type: str | None
 
     # --- Campos de Relacionamento (Features) ---
-
-    # Campo "real" que vem do SQLAlchemy
     included_features: list[PlanFeatureAssociationSchema]
 
-    # ✨ Campo "virtual" que criamos para deixar a API mais limpa
     @computed_field
     @property
     def features(self) -> list[FeatureSchema]:
-        """Extrai e achata la lista de features para uma saída mais limpa."""
+        """Extrai e achata a lista de features para uma saída mais limpa."""
         return [association.feature for association in self.included_features]

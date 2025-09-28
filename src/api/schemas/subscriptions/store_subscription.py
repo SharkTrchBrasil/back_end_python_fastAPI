@@ -1,8 +1,7 @@
-# schemas/store_subscription_schema.py
+# schemas/store_subscription_schema.py (ATUALIZADO)
 
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
-
 from src.api.schemas.subscriptions.plans_addon import SubscribedAddonSchema
 from src.api.schemas.subscriptions.plans import PlanSchema
 
@@ -15,13 +14,13 @@ class StoreSubscriptionSchema(BaseModel):
     status: str
     current_period_start: datetime
     current_period_end: datetime
+    gateway_subscription_id: str | None
 
     # Aninha o schema do plano para mostrar seus detalhes
     plan: PlanSchema
 
     # Aninha uma lista com os schemas dos add-ons contratados
     subscribed_addons: list[SubscribedAddonSchema]
-
 
 
 class Address(BaseModel):
