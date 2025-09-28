@@ -2083,22 +2083,11 @@ class Plans(Base, TimestampMixin):
     percentage_tier_start: Mapped[int | None] = mapped_column(nullable=True)
     percentage_tier_end: Mapped[int | None] = mapped_column(nullable=True)
 
-    # --- ❌ CAMPOS DE LIMITE REMOVIDOS ---
-    # Remova ou comente as seguintes colunas do seu modelo:
-    # price: Mapped[int] = mapped_column()
-    # interval: Mapped[int] = mapped_column()
-    # repeats: Mapped[int | None] = mapped_column(nullable=True)
-    # product_limit: Mapped[int | None] = mapped_column(nullable=True)
-    # category_limit: Mapped[int | None] = mapped_column(nullable=True)
-    # user_limit: Mapped[int | None] = mapped_column(nullable=True)
-    # monthly_order_limit: Mapped[int | None] = mapped_column(nullable=True)
-    # location_limit: Mapped[int | None] = mapped_column(nullable=True)
-    # banner_limit: Mapped[int | None] = mapped_column(nullable=True)
-    # max_active_devices: Mapped[int | None] = mapped_column(nullable=True)
+
 
     # --- Relacionamentos (continuam importantes) ---
-    included_features: Mapped[List["PlansFeature"]] = relationship(...)
-    subscriptions: Mapped[List["StoreSubscription"]] = relationship(...)
+    included_features: Mapped[List["PlansFeature"]] = relationship()
+    subscriptions: Mapped[List["StoreSubscription"]] = relationship()
 
 
 

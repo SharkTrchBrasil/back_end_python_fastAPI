@@ -7,6 +7,7 @@ from src.api.jobs.cleanup import delete_old_inactive_carts
 from src.api.jobs.marketing import reactivate_inactive_customers
 from src.api.jobs.operational import cancel_old_pending_orders, check_for_stuck_orders, \
     request_reviews_for_delivered_orders, finalize_old_delivered_orders
+from src.api.jobs.trial_management import check_and_process_expired_trials
 
 # Cria uma instância do agendador. O fuso horário UTC é recomendado para servidores.
 scheduler = AsyncIOScheduler(timezone="UTC")
@@ -27,9 +28,9 @@ def start_scheduler():
     scheduler.add_job(reactivate_inactive_customers, 'interval', hours=24, id='reactivation_job')
     scheduler.add_job(delete_old_inactive_carts, 'interval', hours=24, id='cleanup_job')
 
-    # --- ✅ JOB DE FATURAMENTO MENSAL (execução mensal) ---
-    # Alterado de 'interval' para 'cron' para rodar todo dia 1º do mês às 3h da manhã (UTC).
     scheduler.add_job(generate_monthly_charges, 'cron', day='1', hour='3', id='monthly_billing_job')
+
+    scheduler.add_job(check_and_process_expired_trials, 'cron', hour='2', id='expired_trials_job')
 
     # Inicia o agendador
     scheduler.start()

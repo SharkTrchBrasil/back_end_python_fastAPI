@@ -68,6 +68,8 @@ def generate_monthly_charges():
         active_subscriptions = db.execute(
             select(models.StoreSubscription)
             .options(selectinload(models.StoreSubscription.plan), selectinload(models.StoreSubscription.store))
+            # ✅ GARANTE QUE APENAS ASSINATURAS 'active' SEJAM COBRADAS
+            # Lojas com status 'trialing', 'canceled', etc., serão ignoradas.
             .where(models.StoreSubscription.status == 'active')
         ).scalars().all()
 

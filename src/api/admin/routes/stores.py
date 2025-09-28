@@ -176,21 +176,38 @@ def create_store(
     db_store_access = models.StoreAccess(user=user, role=db_role, store=db_store)
     db.add(db_store_access)
 
-    free_plan = db.query(models.Plans).filter_by(price=0, available=True).first()
-    if not free_plan:
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Configuração do sistema: Nenhum plano gratuito encontrado.")
+    # =======================================================================
+    # ✅ PASSO CRÍTICO: CRIAÇÃO DA ASSINATURA COM TRIAL DE 30 DIAS
+    # =======================================================================
 
+    # 1. Busca o plano principal da sua plataforma (Ex: "Plano Pro")
+    # Em vez de procurar um plano com preço 0, buscamos o plano que será usado.
+    main_plan = db.query(models.Plans).filter(models.Plans.plan_name == "Plano Pro").first()
+
+    if not main_plan:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Configuração do sistema: Nenhum plano principal foi encontrado."
+        )
+
+    # 2. Define as datas de início e fim do trial
     start_date = datetime.now(timezone.utc)
-    end_date = start_date + timedelta(days=365)
+    # O trial termina exatamente 30 dias a partir de agora
+    end_date = start_date + timedelta(days=30)
+
+    # 3. Cria a assinatura com o status 'trialing'
     store_subscription = models.StoreSubscription(
-        store=db_store, plan=free_plan, status="active",
-        current_period_start=start_date, current_period_end=end_date,
+        store=db_store,
+        plan=main_plan,
+        status="trialing",  # <-- MUDANÇA IMPORTANTE: O status inicial é 'trialing'
+        current_period_start=start_date,
+        current_period_end=end_date,  # <-- Fim do período de teste
     )
     db.add(store_subscription)
 
     # =======================================================================
-    # PASSO 6: COMMIT E RETORNO
+    # PASSO FINAL: COMMIT E RETORNO (sem alterações)
     # =======================================================================
     db.commit()
     db.refresh(db_store_access)
