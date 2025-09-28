@@ -34,7 +34,10 @@ async def new_chatbot_message_webhook(
         timestamp: int = Form(...),
         text_content: str = Form(None),
         media_file: UploadFile = File(None),
-        customer_name: str = Form("Cliente")
+        customer_name: str = Form("Cliente"),
+        # ✅ 1. RECEBE OS NOVOS CAMPOS ENVIADOS PELO NODE.JS
+        media_filename_override: str = Form(None),
+        media_mimetype_override: str = Form(None)
 ):
     # O resto da sua lógica, que já estava correta, permanece igual.
 
@@ -57,19 +60,23 @@ async def new_chatbot_message_webhook(
 
     # Lida com a mídia
     if media_file:
-        # ✅ PRINT PARA DEPURAR
-        print(f"--- DEBUG PYTHON (WEBHOOK) ---")
-        print(f"Recebido media_file.filename: {media_file.filename}")
-        print(f"Recebido media_file.content_type: {media_file.content_type}")  # <--- AQUI
+        # ✅ 2. USA OS NOVOS CAMPOS COMO FONTE DA VERDADE
+        final_filename = media_filename_override or media_file.filename
+        final_mimetype = media_mimetype_override or media_file.content_type
+
+        print(f"--- DEBUG PYTHON FINAL ---")
+        print(f"Filename a ser usado: {final_filename}")
+        print(f"Mimetype a ser usado: {final_mimetype}")
 
         file_bytes = await media_file.read()
         media_url = upload_media_from_buffer(
             store_id=store_id,
             file_buffer=file_bytes,
-            filename=media_file.filename,
-            content_type=media_file.content_type
+            filename=final_filename,
+            content_type=final_mimetype # Passa o mimetype correto para o serviço de upload
         )
-        media_mime_type = media_file.content_type
+        media_mime_type = final_mimetype # Guarda o mimetype correto no banco
+
 
     # Atualiza metadados da conversa
     metadata_table = table('chatbot_conversation_metadata',
