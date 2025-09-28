@@ -5,6 +5,7 @@ from efipay import EfiPay
 from fastapi import HTTPException
 
 from src.api.schemas.financial.pix_config import StorePixConfig
+from src.api.schemas.subscriptions.store_subscription import Address, Customer
 from src.core.config import config
 
 
@@ -214,12 +215,57 @@ def cancel_subscription(subscription_id):
     return efi.cancel_subscription(params=params)
 
 
-def get_notification(token):
+
+# --- ✅ NOVAS FUNÇÕES PARA O MODELO DINÂMICO ---
+
+def create_one_time_charge(payment_token: str, amount_in_cents: int, customer: Customer, address: Address,
+                           description: str) -> dict:
+    """
+    Cria uma COBRANÇA ÚNICA no cartão de crédito do cliente.
+    Esta função substitui a criação de assinaturas.
+    """
     efi = get_master_efi_pay()
 
-    params = {
-        'token': token
+    body = {
+        'items': [{
+            'name': description,
+            'value': amount_in_cents,
+            'amount': 1
+        }],
+        'payment': {
+            'credit_card': {
+                'payment_token': payment_token,
+                'billing_address': address.dict(),
+                'customer': customer.dict()
+            }
+        }
     }
 
+    print(f"SERVIÇO: Criando cobrança única de {amount_in_cents} centavos na Efí...")
+    result = efi.create_one_step_charge(body=body)
+
+    if 'error' in result or result.get('code', 200) >= 400:
+        error_description = result.get('error_description', 'Ocorreu um erro com o gateway.')
+        raise HTTPException(status_code=400, detail=f"Falha na cobrança: {error_description}")
+
+    if 'data' not in result:
+        raise HTTPException(status_code=500, detail="Resposta inesperada do gateway de pagamento.")
+
+    # Retorna o ID da cobrança (charge_id) para salvarmos no nosso banco
+    return {
+        "charge_id": result['data']['charge_id'],
+        "status": result['data']['status'],
+    }
+
+
+# --- FUNÇÃO DE WEBHOOK (Mantida e Adaptada) ---
+
+def get_notification(token):
+    """
+    Busca os detalhes de uma notificação de webhook.
+    Será usada pelo novo webhook para entender o que aconteceu com uma cobrança.
+    """
+    efi = get_master_efi_pay()
+    params = {'token': token}
     result = efi.get_notification(params=params)
     return result['data']

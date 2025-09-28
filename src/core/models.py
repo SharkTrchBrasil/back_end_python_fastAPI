@@ -128,6 +128,9 @@ class Store(Base, TimestampMixin):
     banners: Mapped[List["Banner"]] = relationship(back_populates="store", cascade="all, delete-orphan")
 
     orders: Mapped[List["Order"]] = relationship("Order", back_populates="store", cascade="all, delete-orphan")
+    efi_customer_id: Mapped[str | None] = mapped_column(nullable=True)
+    efi_payment_token: Mapped[str | None] = mapped_column(nullable=True)  # IMPORTANTE: Criptografe este campo!
+
 
     products = relationship(
         "Product",
@@ -2055,49 +2058,50 @@ class StoreSubscription(Base, TimestampMixin):
     )
 
 
+# src/core/models.py
+
 class Plans(Base, TimestampMixin):
     __tablename__ = "plans"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     plan_name: Mapped[str] = mapped_column()
-    price: Mapped[int] = mapped_column()  # Preço do plano em CENTAVOS
-    interval: Mapped[int] = mapped_column()  # Intervalo em meses
     available: Mapped[bool] = mapped_column(default=True)
-    repeats: Mapped[int | None] = mapped_column(nullable=True)
-
-    product_limit: Mapped[int | None] = mapped_column(nullable=True)
-    # Limite de produtos que a loja pode cadastrar no cardápio.
-
-    category_limit: Mapped[int | None] = mapped_column(nullable=True)
-    # Limite de categorias de produtos.
-
-    user_limit: Mapped[int | None] = mapped_column(nullable=True)
-    # Limite de usuários (funcionários) que podem ser cadastrados para gerenciar a loja.
-
-    monthly_order_limit: Mapped[int | None] = mapped_column(nullable=True)
-    # Limite de pedidos que a loja pode receber por mês. Essencial para planos gratuitos.
-
-    location_limit: Mapped[int | None] = mapped_column(nullable=True, default=1)
-    # Limite de lojas/endereços que podem ser gerenciados na mesma conta.
-
-    banner_limit: Mapped[int | None] = mapped_column(nullable=True)
-    # Limite de banners promocionais que podem ser exibidos no cardápio digital.
-
-    max_active_devices: Mapped[int | None] = mapped_column(nullable=True)
-    # Limite de sessões/dispositivos ativos simultaneamente.
-
     support_type: Mapped[str | None] = mapped_column(nullable=True)
 
-    # --- RELACIONAMENTOS (sem alteração) ---
+    # --- ✅ CAMPOS REFORMULADOS PARA COBRANÇA DINÂMICA ---
 
-    included_features: Mapped[List["PlansFeature"]] = relationship(
-        back_populates="plan",
-        cascade="all, delete-orphan"
-    )
+    # O 'price' antigo agora vira a taxa mínima (piso), em centavos.
+    minimum_fee: Mapped[int] = mapped_column(doc="Taxa mínima mensal em centavos. Ex: 3990")
 
-    subscriptions: Mapped[List["StoreSubscription"]] = relationship(
-        back_populates="plan"
-    )
+    # A porcentagem cobrada sobre o faturamento.
+    revenue_percentage: Mapped[Decimal] = mapped_column(Numeric(5, 4), doc="Porcentagem como decimal. Ex: 3.6% = 0.0360")
+
+    # O valor máximo que será cobrado (teto), em centavos.
+    revenue_cap_fee: Mapped[int | None] = mapped_column(nullable=True, doc="Valor máximo da mensalidade em centavos. Ex: 25000")
+
+    # Limites de faturamento para a faixa de porcentagem, em centavos.
+    percentage_tier_start: Mapped[int | None] = mapped_column(nullable=True)
+    percentage_tier_end: Mapped[int | None] = mapped_column(nullable=True)
+
+    # --- ❌ CAMPOS DE LIMITE REMOVIDOS ---
+    # Remova ou comente as seguintes colunas do seu modelo:
+    # price: Mapped[int] = mapped_column()
+    # interval: Mapped[int] = mapped_column()
+    # repeats: Mapped[int | None] = mapped_column(nullable=True)
+    # product_limit: Mapped[int | None] = mapped_column(nullable=True)
+    # category_limit: Mapped[int | None] = mapped_column(nullable=True)
+    # user_limit: Mapped[int | None] = mapped_column(nullable=True)
+    # monthly_order_limit: Mapped[int | None] = mapped_column(nullable=True)
+    # location_limit: Mapped[int | None] = mapped_column(nullable=True)
+    # banner_limit: Mapped[int | None] = mapped_column(nullable=True)
+    # max_active_devices: Mapped[int | None] = mapped_column(nullable=True)
+
+    # --- Relacionamentos (continuam importantes) ---
+    included_features: Mapped[List["PlansFeature"]] = relationship(...)
+    subscriptions: Mapped[List["StoreSubscription"]] = relationship(...)
+
+
+
 
 class PlansAddon(Base, TimestampMixin):
     __tablename__ = "plans_addons"
@@ -2487,3 +2491,26 @@ class ChatbotConversationMetadata(Base, TimestampMixin):
     unread_count: Mapped[int] = mapped_column(default=0)
 
     store: Mapped["Store"] = relationship()
+
+
+
+# 2. Adicione esta NOVA classe no final do arquivo
+class MonthlyCharge(Base, TimestampMixin):
+    __tablename__ = "monthly_charges"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), index=True)
+    subscription_id: Mapped[int] = mapped_column(ForeignKey("store_subscriptions.id"))
+
+    charge_date: Mapped[date] = mapped_column(Date, doc="Data em que a cobrança foi gerada.")
+    billing_period_start: Mapped[date] = mapped_column(Date, doc="Início do período de faturamento.")
+    billing_period_end: Mapped[date] = mapped_column(Date, doc="Fim do período de faturamento.")
+
+    total_revenue: Mapped[Decimal] = mapped_column(Numeric(12, 2), doc="Faturamento da loja no período.")
+    calculated_fee: Mapped[Decimal] = mapped_column(Numeric(10, 2), doc="Valor da mensalidade calculado.")
+
+    status: Mapped[str] = mapped_column(default="pending", index=True, doc="Status: pending, paid, failed.")
+    gateway_transaction_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    store: Mapped["Store"] = relationship()
+    subscription: Mapped["StoreSubscription"] = relationship()

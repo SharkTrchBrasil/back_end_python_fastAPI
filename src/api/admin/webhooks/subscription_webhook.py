@@ -1,75 +1,55 @@
+# Versão Final: src/api/routers/webhooks/subscription_webhook.py
+
+from fastapi import APIRouter, Response, status, Form
 from typing import Annotated
-from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Form, Response, status
-
-from src.api.admin.services.subscription_service import downgrade_to_free_plan
-from src.api.app.services import payment as payment_services
+from src.api.admin.services.payment import get_notification
 from src.core import models
 from src.core.database import GetDBDep
 
-router = APIRouter(tags=["Subscriptions"], prefix="/webhook")
+
+router = APIRouter(tags=["Webhook"], prefix="/webhook")
 
 
-# ✅ CORREÇÃO APLICADA AQUI:
-# A rota agora é "/subscriptions", resultando na URL final "/webhook/subscriptions"
-@router.post("/subscriptions")
-def post_notification(
-        db: GetDBDep,
-        notification: Annotated[str, Form()]
-):
+@router.post("/subscriptions")  # Mantenha a rota ou mude para /billing
+def post_billing_notification(db: GetDBDep, notification: Annotated[str, Form()]):
     """
-    Recebe, processa e atualiza o status de uma assinatura com base em
-    notificações do gateway de pagamento.
+    Recebe e processa notificações da Efí sobre o status das cobranças.
     """
     try:
-        # 1. Processa a notificação para obter a lista de eventos
-        events = payment_services.get_notification(notification)
+        events = get_notification(notification)
 
-        # 2. Encontra o evento de assinatura mais recente na notificação
-        last_subscription_event = max(
-            (event for event in events if event.get('type') == 'subscription'),
+        # A notificação pode conter vários eventos, pegamos o último de cobrança
+        last_charge_event = max(
+            (event for event in events if event.get('type') == 'charge'),
             key=lambda e: e.get('id', 0),
             default=None
         )
 
-        if not last_subscription_event:
-            print("Webhook recebido, mas sem evento de assinatura relevante.")
+        if not last_charge_event:
             return Response(status_code=status.HTTP_200_OK)
 
-        # 3. Extrai os dados importantes do evento
-        gateway_subscription_id = last_subscription_event.get('identifiers', {}).get('subscription_id')
-        new_status = last_subscription_event.get('status', {}).get('current')
+        charge_id = last_charge_event.get('identifiers', {}).get('charge_id')
+        new_status = last_charge_event.get('status', {}).get('current')
 
-        if not gateway_subscription_id or not new_status:
-            print(f"Webhook com dados incompletos: {last_subscription_event}")
-            return Response(status_code=status.HTTP_200_OK)
-
-        # 4. Busca a assinatura no seu banco usando a coluna correta
-        db_subscription = db.query(models.StoreSubscription).filter_by(
-            gateway_subscription_id=str(gateway_subscription_id) # Garante que o tipo é string
+        db_charge = db.query(models.MonthlyCharge).filter_by(
+            gateway_transaction_id=str(charge_id)
         ).first()
 
-        if not db_subscription:
-            print(f"Assinatura com ID de gateway {gateway_subscription_id} não encontrada no banco.")
+        if not db_charge:
             return Response(status_code=status.HTTP_200_OK)
 
-        # 5. Atualiza o status da assinatura
-        db_subscription.status = new_status
-        print(f"Assinatura {db_subscription.id} atualizada para o status: {new_status}")
-
-        # 6. Lógica de Downgrade
-        if new_status == 'canceled':
-
-           downgrade_to_free_plan(db, db_subscription)
+        if new_status == 'paid':
+            db_charge.status = "paid"
+            print(f"✅ Cobrança ID {db_charge.id} (Loja {db_charge.store_id}) marcada como paga.")
+        elif new_status in ['canceled', 'failed']:
+            db_charge.status = "failed"
+            print(f"❌ Cobrança ID {db_charge.id} (Loja {db_charge.store_id}) marcada como falha.")
 
         db.commit()
 
     except Exception as e:
         db.rollback()
-        print(f"❌ Erro crítico ao processar webhook: {e}")
-        # Retorna 500 para indicar um erro interno, mas o gateway pode tentar reenviar.
-        # Em produção, você pode querer manter 200 para evitar reenvios em loop.
         return Response(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     return Response(status_code=status.HTTP_200_OK)

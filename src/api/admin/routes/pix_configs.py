@@ -11,7 +11,7 @@ from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStore, GetStoreDep
 from src.core.models import Store
-from src.api.app.services import payment as payment_services
+from src.api.admin.services import payment as payment_services
 from dateutil import parser
 
 from src.core.utils.enums import Roles

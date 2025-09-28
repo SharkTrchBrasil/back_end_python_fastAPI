@@ -1,4 +1,6 @@
 # src/core/db_initialization.py
+from decimal import Decimal
+
 from sqlalchemy.orm import Session
 from src.core import models
 from datetime import datetime, timezone # Importe datetime e timezone para timestamps
@@ -268,23 +270,18 @@ def seed_plans_and_features(db: Session):
         features_map[feature_data['feature_key']] = feature
     db.flush()
 
-    # 2. Definição da NOVA ESTRUTURA de Planos
+    # ✅ A DEFINIÇÃO DE PLANOS FICA MUITO MAIS SIMPLES
     plans_data = [
-        {'plan_name': 'Grátis', 'price': 0, 'interval': 12, 'repeats': 1, 'monthly_order_limit': 100,
-         'product_limit': 50, 'user_limit': 1, 'support_type': 'Comunidade'},
-
-        {'plan_name': 'Essencial', 'price': 3990, 'interval': 1, 'monthly_order_limit': 500, 'product_limit': 200,
-         'user_limit': 3, 'support_type': 'Email e Chat'},
-
-        {'plan_name': 'Crescimento', 'price': 6990, 'interval': 1, 'monthly_order_limit': 1500, 'product_limit': None,
-         'user_limit': 10, 'support_type': 'Chat Prioritário'},
-
-        {'plan_name': 'Completo', 'price': 9990, 'interval': 1, 'monthly_order_limit': None, 'product_limit': None,
-         'user_limit': None, 'support_type': 'Telefone e Chat Prioritário'},
-
-
-
-
+        {
+            'plan_name': 'Plano Pro',
+            'available': True,
+            'minimum_fee': 3990,
+            'revenue_percentage': Decimal('0.036'),
+            'revenue_cap_fee': 25000,
+            'percentage_tier_start': 110000,
+            'percentage_tier_end': 700000,
+            'support_type': 'Suporte Total via Chat e Telefone',
+        }
     ]
 
     plans_map = {}
@@ -303,24 +300,13 @@ def seed_plans_and_features(db: Session):
     db.query(models.PlansFeature).delete()
     print("Associações antigas de planos e features foram limpas.")
 
+
+    # Pega todas as features que não são add-ons
+    all_core_features = [f.feature_key for f in features_map.values() if not f.is_addon]
+
     # 4. Definição das NOVAS Associações
     plan_features_associations = {
-        'Grátis': ['pdv', 'basic_reports', 'inventory_control'],
-
-        'Essencial': ['pdv', 'basic_reports', 'inventory_control', 'coupons', 'multi_device_access',
-                      'auto_accept_orders'],
-
-
-        'Crescimento': ['pdv', 'basic_reports', 'inventory_control', 'coupons', 'multi_device_access',
-                        'auto_accept_orders', 'financial_payables', 'style_guide', 'custom_banners', 'loyalty_program',
-                        'marketing_automation', 'review_automation', 'auto_printing'],
-
-
-        'Completo': ['pdv', 'basic_reports', 'inventory_control', 'coupons', 'multi_device_access',
-                     'auto_accept_orders', 'financial_payables', 'style_guide', 'custom_banners', 'loyalty_program',
-                     'marketing_automation', 'review_automation', 'totem', 'kds_module', 'table_management_module',
-                     'delivery_personnel_management', 'auto_printing'],
-
+        'Plano Pro': all_core_features
     }
 
     for plan_name, feature_keys in plan_features_associations.items():
