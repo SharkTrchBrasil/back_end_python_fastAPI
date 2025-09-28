@@ -1851,14 +1851,20 @@ class Tables(Base, TimestampMixin):
     closed_at: Mapped[datetime | None] = mapped_column(nullable=True)
     is_deleted: Mapped[bool] = mapped_column(default=False)
     deleted_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    location_description: Mapped[str | None] = mapped_column(String(100), nullable=True)  # Ex: "Perto da janela"
+    location_description: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
-    # ✅ CORRECTION APPLIED HERE
-    # Changed back_populates from "tables" to "table" to match the property in the Order model.
+    # Relacionamento com Order (já estava correto)
     orders: Mapped[list["Order"]] = relationship(back_populates="table")
 
-    commands: Mapped[list["Command"]] = relationship(back_populates="tables")
-    history: Mapped[list["TableHistory"]] = relationship(back_populates="tables")
+    # ✅ CORREÇÃO APLICADA AQUI
+    # O back_populates foi alterado de "tables" para "table"
+    commands: Mapped[list["Command"]] = relationship(back_populates="table")
+
+    # ✅ CORREÇÃO APLICADA AQUI
+    # O back_populates foi alterado de "tables" para "table"
+    history: Mapped[list["TableHistory"]] = relationship(back_populates="table")
+
+
 
 
 
