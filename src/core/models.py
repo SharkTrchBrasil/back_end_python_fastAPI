@@ -1,7 +1,7 @@
 from __future__ import annotations
 from decimal import Decimal
 
-from sqlalchemy import select, Boolean, JSON, Integer, Time, text
+from sqlalchemy import select, Boolean, JSON, Integer, Time, text, Date
 from datetime import datetime, date, timezone
 from typing import Optional, List
 

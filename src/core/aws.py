@@ -10,7 +10,6 @@ from botocore.exceptions import BotoCoreError, ClientError
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-logger.info("--- 🏁 Módulo AWS está sendo carregado ---")
 
 # 2. Carregamento das Variáveis de Ambiente
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
@@ -18,12 +17,8 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION")
 AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
 
-logger.info(f"AWS_ACCESS_KEY_ID: {'...' + AWS_ACCESS_KEY_ID[-4:] if AWS_ACCESS_KEY_ID else 'NÃO CARREGADO'}")
-logger.info(f"AWS_REGION: {AWS_REGION}")
-logger.info(f"AWS_BUCKET_NAME: {AWS_BUCKET_NAME}")
 
 S3_PUBLIC_BASE_URL = f"https://{AWS_BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com" if AWS_BUCKET_NAME and AWS_REGION else None
-logger.info(f"S3_PUBLIC_BASE_URL: {S3_PUBLIC_BASE_URL}")
 
 s3_client = None
 try:
@@ -33,7 +28,9 @@ try:
         aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
         region_name=AWS_REGION
     )
-    logger.info("✅ Cliente S3 Boto3 inicializado com sucesso.")
+
+
+
 except (BotoCoreError, ClientError) as e:
     logger.error(f"🚨🚨🚨 FALHA CRÍTICA ao inicializar o cliente S3 Boto3: {e}", exc_info=True)
 except Exception as e:
