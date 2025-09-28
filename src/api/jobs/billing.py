@@ -5,113 +5,201 @@ from decimal import Decimal
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session, selectinload
 
-# Certifique-se de que este import está correto para o seu serviço de pagamento
+# Ajuste os imports conforme sua estrutura
 from src.api.admin.services.payment import create_one_time_charge
+from src.api.admin.utils.business_days import is_first_business_day
 from src.core import models
 from src.core.database import get_db_manager
 
 
-def calculate_monthly_fee(monthly_revenue: Decimal, plan: models.Plans) -> Decimal:
+def calculate_platform_fee(monthly_revenue: Decimal, plan: models.Plans, months_active: int = 0) -> dict:
     """
-    Calcula a taxa de assinatura mensal com base no faturamento da loja e
-    nas regras do plano dinâmico.
+    Calcula a taxa da plataforma com nossos diferenciais exclusivos.
     """
-    revenue_in_reais = monthly_revenue
-    minimum_fee = Decimal(plan.minimum_fee) / 100
-    percentage_tier_start = Decimal(plan.percentage_tier_start) / 100
-    percentage_tier_end = Decimal(plan.percentage_tier_end) / 100
-    revenue_cap_fee = Decimal(plan.revenue_cap_fee) / 100
+    # ✅ CONVERTE VALORES DO PLANO PARA REAIS
+    minimum_fee_reais = Decimal(plan.minimum_fee) / 100
+    revenue_cap_reais = Decimal(plan.revenue_cap_fee) / 100 if plan.revenue_cap_fee else None
+    tier_start_reais = Decimal(plan.percentage_tier_start) / 100
+    tier_end_reais = Decimal(plan.percentage_tier_end) / 100
 
-    if revenue_in_reais <= percentage_tier_start: return minimum_fee
-    if percentage_tier_start < revenue_in_reais <= percentage_tier_end: return revenue_in_reais * plan.revenue_percentage
-    if revenue_in_reais > percentage_tier_end: return revenue_cap_fee
-    return minimum_fee
+    # ✅ 1. CALCULA TAXA BASE (VALOR JUSTO)
+    if monthly_revenue <= tier_start_reais:
+        base_fee = minimum_fee_reais
+        fee_type = "taxa mínima"
+    elif monthly_revenue <= tier_end_reais:
+        base_fee = monthly_revenue * plan.revenue_percentage
+        base_fee = max(base_fee, minimum_fee_reais)  # Respeita o mínimo
+        fee_type = f"{(plan.revenue_percentage * 100):.1f}% do faturamento"
+    else:
+        base_fee = revenue_cap_reais if revenue_cap_reais else monthly_revenue * plan.revenue_percentage
+        fee_type = "taxa máxima"
+
+    # ✅ 2. APLICA NOSSOS BENEFÍCIOS EXCLUSIVOS
+    if months_active == 0 and plan.first_month_free:
+        final_fee = Decimal('0.00')
+        discount_percentage = Decimal('1.00')
+        benefit_type = "🎁 1º mês por nossa conta!"
+
+    elif months_active == 1:
+        final_fee = base_fee * plan.second_month_discount
+        discount_percentage = Decimal('1.00') - plan.second_month_discount
+        benefit_type = "🔥 2º mês com 50% de desconto!"
+
+    elif months_active == 2:
+        final_fee = base_fee * plan.third_month_discount
+        discount_percentage = Decimal('1.00') - plan.third_month_discount
+        benefit_type = "💫 3º mês com 25% de desconto!"
+
+    else:
+        final_fee = base_fee
+        discount_percentage = Decimal('0.00')
+        benefit_type = "💎 Plano ativo - Valor especial"
+
+    # ✅ 3. CALCULA NOSSO VALOR
+    effective_rate = (final_fee / monthly_revenue * 100) if monthly_revenue > 0 else 0
+
+    # ✅ 4. PREPARA MENSAGEM POSITIVA
+    message = generate_positive_message(benefit_type, final_fee, effective_rate)
+
+    return {
+        'base_fee': base_fee,
+        'final_fee': final_fee,
+        'discount_percentage': float(discount_percentage * 100),
+        'benefit_type': benefit_type,
+        'fee_type': fee_type,
+        'effective_rate': effective_rate,
+        'message': message,
+        'has_benefit': discount_percentage > 0
+    }
+
+
+def generate_positive_message(benefit_type: str, final_fee: Decimal, effective_rate: float) -> str:
+    """Gera mensagem positiva sobre nossos benefícios"""
+    if final_fee == 0:
+        return f"{benefit_type} Aproveite nosso investimento no seu negócio!"
+    elif effective_rate < 3:
+        return f"{benefit_type} Taxa especial de apenas {effective_rate:.1f}%!"
+    else:
+        return f"{benefit_type} Valor justo pelo melhor serviço!"
 
 
 def get_store_revenue_for_period(db: Session, store_id: int, start_date: date, end_date: date) -> Decimal:
     """
     Calcula o faturamento total de uma loja em um determinado período.
-    Confirme se os status 'finalized' e 'delivered' são os corretos para sua regra de negócio.
     """
-    start_datetime = datetime.combine(start_date, datetime.min.time())
-    end_datetime = datetime.combine(end_date, datetime.max.time())
+    try:
+        start_datetime = datetime.combine(start_date, datetime.min.time())
+        end_datetime = datetime.combine(end_date, datetime.max.time())
 
-    # Soma o valor total de pedidos com status 'finalized' ou 'delivered' no período
-    total_revenue_cents = db.query(func.sum(models.Order.total_price)).filter(
-        models.Order.store_id == store_id,
-        models.Order.order_status.in_(['finalized', 'delivered']),
-        models.Order.created_at.between(start_datetime, end_datetime)
-    ).scalar()
+        total_revenue_cents = db.query(func.sum(models.Order.total_price)).filter(
+            models.Order.store_id == store_id,
+            models.Order.order_status.in_(['finalized', 'delivered']),
+            models.Order.created_at.between(start_datetime, end_datetime)
+        ).scalar()
 
-    # Converte o valor de centavos para Reais
-    return Decimal(total_revenue_cents or 0) / 100
+        # Converte de centavos para Reais
+        revenue_reais = Decimal(total_revenue_cents or 0) / 100
+        return revenue_reais.quantize(Decimal('0.01'))
+
+    except Exception as e:
+        print(f"Erro ao calcular faturamento da loja {store_id}: {e}")
+        return Decimal('0')
+
+
+def calculate_months_active(subscription: models.StoreSubscription, today: date) -> int:
+    """Calcula meses de parceria conosco"""
+    from dateutil.relativedelta import relativedelta
+
+    start_date = subscription.current_period_start.date()
+    months_active = relativedelta(today, start_date).months
+
+    return max(0, months_active)
 
 
 def generate_monthly_charges():
     """
-    Função principal do Job. Executada no início de cada mês para gerar
-    a cobrança do mês anterior para todas as lojas com assinaturas ativas.
+    Job principal com nossos diferenciais
     """
-    print("▶️ Executando job de geração de cobranças mensais...")
+    print("▶️ Iniciando processo de cobrança mensal...")
     today = date.today()
-    # O Job só executa no dia 1º de cada mês
-    if today.day != 1:
-        print("ℹ️ Job de cobrança executa apenas no dia 1º. Encerrando.")
+
+    if not is_first_business_day(today):
+        print("ℹ️ Agendado para o primeiro dia útil. Processo interrompido.")
         return
 
-    # Define o período de faturamento como o mês anterior completo
     last_day_of_previous_month = today - timedelta(days=1)
     first_day_of_previous_month = last_day_of_previous_month.replace(day=1)
 
     with get_db_manager() as db:
-        # Busca todas as assinaturas ativas e já carrega os dados do plano e da loja
         active_subscriptions = db.execute(
             select(models.StoreSubscription)
             .options(selectinload(models.StoreSubscription.plan), selectinload(models.StoreSubscription.store))
-            # ✅ GARANTE QUE APENAS ASSINATURAS 'active' SEJAM COBRADAS
-            # Lojas com status 'trialing', 'canceled', etc., serão ignoradas.
             .where(models.StoreSubscription.status == 'active')
         ).scalars().all()
+
+        print(f"📊 Processando {len(active_subscriptions)} assinaturas ativas...")
 
         for sub in active_subscriptions:
             store = sub.store
 
-            # 1. Calcula o faturamento usando a função helper
-            revenue = get_store_revenue_for_period(db, store.id, first_day_of_previous_month,
-                                                   last_day_of_previous_month)
+            if not store or not sub.plan:
+                continue
 
-            # 2. Calcula a taxa a ser cobrada usando a outra função helper
-            fee_to_charge = calculate_monthly_fee(revenue, sub.plan)
-            fee_in_cents = int(fee_to_charge * 100)
+            try:
+                # 1. Calcula tempo de parceria
+                months_active = calculate_months_active(sub, today)
 
-            gateway_transaction_id = None
-            if fee_in_cents > 0 and store.efi_payment_token:
-                try:
-                    # 3. Tenta criar a cobrança única na Efí
-                    charge_response = create_one_time_charge(
-                        payment_token=store.efi_payment_token,
-                        amount_in_cents=fee_in_cents,
-                        description=f"Mensalidade Ref. {first_day_of_previous_month.strftime('%m/%Y')}"
-                    )
-                    gateway_transaction_id = charge_response.get('charge_id')
-                    print(
-                        f"  -> Cobrança de R${fee_to_charge:.2f} iniciada na Efí para loja {store.id}. ID: {gateway_transaction_id}")
-                except Exception as e:
-                    print(f"  -> ERRO na cobrança da Efí para loja {store.id}: {e}")
+                # 2. Calcula faturamento do período
+                revenue = get_store_revenue_for_period(db, store.id, first_day_of_previous_month,
+                                                       last_day_of_previous_month)
 
-            # 4. Salva o registro da cobrança no banco de dados com o status 'pending'
-            new_charge = models.MonthlyCharge(
-                store_id=store.id,
-                subscription_id=sub.id,
-                charge_date=today,
-                billing_period_start=first_day_of_previous_month,
-                billing_period_end=last_day_of_previous_month,
-                total_revenue=revenue,
-                calculated_fee=fee_to_charge,
-                status="pending",
-                gateway_transaction_id=gateway_transaction_id
-            )
-            db.add(new_charge)
+                # 3. CALCULA COM NOSSOS DIFERENCIAIS
+                fee_details = calculate_platform_fee(revenue, sub.plan, months_active)
+                fee_in_cents = int(fee_details['final_fee'] * 100)
+
+                print(f"🏪 Loja {store.id} - {fee_details['message']}")
+
+                gateway_transaction_id = None
+                if fee_in_cents > 0 and store.efi_payment_token:
+                    try:
+                        charge_response = create_one_time_charge(
+                            payment_token=store.efi_payment_token,
+                            amount_in_cents=fee_in_cents,
+                            description=f"Investimento Plataforma - {first_day_of_previous_month.strftime('%m/%Y')}"
+                        )
+                        gateway_transaction_id = charge_response.get('charge_id')
+                        print(f"  ✅ Valor de R${fee_details['final_fee']:.2f} processado")
+                    except Exception as e:
+                        print(f"  ❌ Processamento não realizado: {e}")
+
+                # 4. Registra com nossos benefícios
+                new_charge = models.MonthlyCharge(
+                    store_id=store.id,
+                    subscription_id=sub.id,
+                    charge_date=today,
+                    billing_period_start=first_day_of_previous_month,
+                    billing_period_end=last_day_of_previous_month,
+                    total_revenue=revenue,
+                    calculated_fee=fee_details['final_fee'],
+                    status="pending" if gateway_transaction_id else "no_charge",
+                    gateway_transaction_id=gateway_transaction_id,
+                    # ✅ REGISTRA NOSSOS DIFERENCIAIS
+                    metadata={
+                        'pricing_strategy': 'value_based',
+                        'months_partnership': months_active,
+                        'base_fee': float(fee_details['base_fee']),
+                        'benefit_percentage': fee_details['discount_percentage'],
+                        'benefit_type': fee_details['benefit_type'],
+                        'fee_type': fee_details['fee_type'],
+                        'effective_rate': fee_details['effective_rate'],
+                        'has_special_benefit': fee_details['has_benefit']
+                    }
+                )
+                db.add(new_charge)
+
+            except Exception as e:
+                print(f"❌ Processo interrompido para loja {store.id}: {e}")
+                continue
 
         db.commit()
-    print("✅ Geração de cobranças mensais concluída.")
+        print("✅ Processo de cobrança concluído com sucesso!")

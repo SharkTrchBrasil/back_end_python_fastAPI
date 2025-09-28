@@ -2058,8 +2058,6 @@ class StoreSubscription(Base, TimestampMixin):
     )
 
 
-# src/core/models.py
-
 class Plans(Base, TimestampMixin):
     __tablename__ = "plans"
 
@@ -2068,24 +2066,18 @@ class Plans(Base, TimestampMixin):
     available: Mapped[bool] = mapped_column(default=True)
     support_type: Mapped[str | None] = mapped_column(nullable=True)
 
-    # --- ✅ CAMPOS REFORMULADOS PARA COBRANÇA DINÂMICA ---
+    # ✅ NOSSA ESTRUTURA DE PREÇOS DIFERENCIADA
+    minimum_fee: Mapped[int] = mapped_column(default=2990)  # R$ 29,90
+    revenue_percentage: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal('0.029'))  # 2.9%
+    revenue_cap_fee: Mapped[int | None] = mapped_column(default=19900)  # R$ 199,00
+    percentage_tier_start: Mapped[int | None] = mapped_column(default=110000)  # R$ 1.100,00
+    percentage_tier_end: Mapped[int | None] = mapped_column(default=700000)  # R$ 7.000,00
 
-    # O 'price' antigo agora vira a taxa mínima (piso), em centavos.
-    minimum_fee: Mapped[int] = mapped_column(doc="Taxa mínima mensal em centavos. Ex: 3990")
+    # ✅ NOSSOS DIFERENCIAIS EXCLUSIVOS
+    first_month_free: Mapped[bool] = mapped_column(default=True)
+    second_month_discount: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=Decimal('0.50'))  # 50%
+    third_month_discount: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=Decimal('0.75'))  # 25%
 
-    # A porcentagem cobrada sobre o faturamento.
-    revenue_percentage: Mapped[Decimal] = mapped_column(Numeric(5, 4), doc="Porcentagem como decimal. Ex: 3.6% = 0.0360")
-
-    # O valor máximo que será cobrado (teto), em centavos.
-    revenue_cap_fee: Mapped[int | None] = mapped_column(nullable=True, doc="Valor máximo da mensalidade em centavos. Ex: 25000")
-
-    # Limites de faturamento para a faixa de porcentagem, em centavos.
-    percentage_tier_start: Mapped[int | None] = mapped_column(nullable=True)
-    percentage_tier_end: Mapped[int | None] = mapped_column(nullable=True)
-
-
-
-    # --- Relacionamentos (continuam importantes) ---
     included_features: Mapped[List["PlansFeature"]] = relationship()
     subscriptions: Mapped[List["StoreSubscription"]] = relationship()
 

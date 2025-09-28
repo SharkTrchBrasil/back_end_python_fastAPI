@@ -1,10 +1,9 @@
-# src/core/db_initialization.py
-from decimal import Decimal
+# Arquivo: src/core/db_initialization.py
 
+from decimal import Decimal
 from sqlalchemy.orm import Session
 from src.core import models
-from datetime import datetime, timezone # Importe datetime e timezone para timestamps
-
+from datetime import datetime, timezone
 from src.core.utils.enums import ChatbotMessageGroupEnum
 
 
@@ -14,7 +13,7 @@ def initialize_roles(db: Session):
     """
     roles_to_ensure = ['owner', 'manager', 'cashier', 'stockManager']
     existing_roles = db.query(models.Role.machine_name).all()
-    existing_roles_names = {role[0] for role in existing_roles} # Converte para set para busca rápida
+    existing_roles_names = {role[0] for role in existing_roles}
 
     new_roles = []
     for role_name in roles_to_ensure:
@@ -23,7 +22,7 @@ def initialize_roles(db: Session):
             new_roles.append(
                 models.Role(
                     machine_name=role_name,
-                    created_at=datetime.now(timezone.utc), # Use timezone.utc para timestamps consistentes
+                    created_at=datetime.now(timezone.utc),
                     updated_at=datetime.now(timezone.utc)
                 )
             )
@@ -36,6 +35,82 @@ def initialize_roles(db: Session):
         print("Roles padrão criadas/verificadas com sucesso.")
     else:
         print("Todas as roles padrão já existem.")
+
+
+def seed_plans_and_features(db: Session):
+    """
+    Define nossa estrutura de valor único
+    """
+    print("Iniciando a semeadura da estrutura de Planos e Features...")
+
+    # Features essenciais
+    features_data = [
+        {'feature_key': 'review_automation', 'name': 'Automação de Avaliações',
+         'description': 'Solicita avaliações dos clientes automaticamente após a entrega.', 'is_addon': False},
+        {'feature_key': 'auto_printing', 'name': 'Impressão Automática',
+         'description': 'Configure a impressão automática de pedidos assim que são recebidos.', 'is_addon': False},
+        {'feature_key': 'basic_reports', 'name': 'Relatórios Básicos',
+         'description': 'Visualize o desempenho de suas vendas com relatórios essenciais.', 'is_addon': False},
+        {'feature_key': 'coupons', 'name': 'Módulo de Promoções',
+         'description': 'Crie cupons de desconto para atrair e fidelizar clientes.', 'is_addon': False},
+        {'feature_key': 'inventory_control', 'name': 'Controle de Estoque',
+         'description': 'Gerencie a quantidade de produtos disponíveis em tempo real.', 'is_addon': False},
+        {'feature_key': 'pdv', 'name': 'Ponto de Venda (PDV)',
+         'description': 'Sistema completo para registrar vendas no balcão.', 'is_addon': False},
+        {'feature_key': 'totem', 'name': 'Módulo de Totem',
+         'description': 'Permita que seus clientes façam pedidos sozinhos através de um totem de autoatendimento.',
+         'is_addon': False},
+        {'feature_key': 'multi_device_access', 'name': 'Acesso em Múltiplos Dispositivos',
+         'description': 'Gerencie sua loja de qualquer lugar, em vários dispositivos simultaneamente.',
+         'is_addon': False},
+        {'feature_key': 'financial_payables', 'name': 'Financeiro: Contas a Pagar',
+         'description': 'Controle suas despesas e contas a pagar diretamente pelo sistema.', 'is_addon': False},
+    ]
+
+    # Cria/atualiza features
+    for feature_data in features_data:
+        feature = db.query(models.Feature).filter_by(feature_key=feature_data['feature_key']).first()
+        if not feature:
+            feature = models.Feature(**feature_data)
+            db.add(feature)
+        else:
+            for key, value in feature_data.items():
+                setattr(feature, key, value)
+
+    db.flush()
+
+    # Nosso plano diferenciado
+    plans_data = [
+        {
+            'plan_name': 'Plano Parceiro',
+            'available': True,
+            # NOSSO VALOR JUSTO
+            'minimum_fee': 2990,  # R$ 29,90
+            'revenue_percentage': Decimal('0.029'),  # 2.9%
+            'revenue_cap_fee': 19900,  # R$ 199,00
+            'percentage_tier_start': 110000,  # R$ 1.100,00
+            'percentage_tier_end': 700000,  # R$ 7.000,00
+            # NOSSOS DIFERENCIAIS
+            'first_month_free': True,
+            'second_month_discount': Decimal('0.50'),
+            'third_month_discount': Decimal('0.75'),
+            'support_type': 'Suporte Parceiro Dedicado',
+        }
+    ]
+
+    for plan_data in plans_data:
+        plan = db.query(models.Plans).filter_by(plan_name=plan_data['plan_name']).first()
+        if not plan:
+            plan = models.Plans(**plan_data)
+            db.add(plan)
+        else:
+            for key, value in plan_data.items():
+                setattr(plan, key, value)
+
+    db.commit()
+    print("✅ Estrutura de valor único definida com sucesso!")
+
+
 
 
 # ✅ NOVA FUNÇÃO PARA SEMEAR OS TEMPLATES
@@ -195,128 +270,4 @@ def seed_chatbot_templates(db: Session):
 
     db.commit()
 
-
-
-def seed_plans_and_features(db: Session):
-    """
-    Define a estrutura de planos e features da plataforma.
-    Esta função é a fonte da verdade para a monetização.
-    """
-    print("Iniciando a semeadura da nova estrutura de Planos e Features...")
-
-    # 1. Definição de todas as Features (Mantida e completa)
-    features_data = [
-        # Adicionei a 'review_automation' que estava faltando para o job
-        {'feature_key': 'review_automation', 'name': 'Automação de Avaliações',
-         'description': 'Solicita avaliações dos clientes automaticamente após a entrega.', 'is_addon': False},
-
-        {'feature_key': 'auto_printing', 'name': 'Impressão Automática',
-         'description': 'Configure a impressão automática de pedidos assim que são recebidos.', 'is_addon': False},
-
-        # As outras features que você já tinha...
-        {'feature_key': 'basic_reports', 'name': 'Relatórios Básicos',
-         'description': 'Visualize o desempenho de suas vendas com relatórios essenciais.', 'is_addon': False},
-        {'feature_key': 'coupons', 'name': 'Módulo de Promoções',
-         'description': 'Crie cupons de desconto para atrair e fidelizar clientes.', 'is_addon': False},
-        {'feature_key': 'inventory_control', 'name': 'Controle de Estoque',
-         'description': 'Gerencie a quantidade de produtos disponíveis em tempo real.', 'is_addon': False},
-        {'feature_key': 'pdv', 'name': 'Ponto de Venda (PDV)',
-         'description': 'Sistema completo para registrar vendas no balcão.', 'is_addon': False},
-        {'feature_key': 'totem', 'name': 'Módulo de Totem',
-         'description': 'Permita que seus clientes façam pedidos sozinhos através de um totem de autoatendimento.',
-         'is_addon': False},
-        {'feature_key': 'multi_device_access', 'name': 'Acesso em Múltiplos Dispositivos',
-         'description': 'Gerencie sua loja de qualquer lugar, em vários dispositivos simultaneamente.',
-         'is_addon': False},
-        {'feature_key': 'auto_accept_orders', 'name': 'Aceite Automático de Pedidos',
-         'description': 'Configure para que os pedidos sejam aceitos automaticamente.', 'is_addon': False},
-        {'feature_key': 'financial_payables', 'name': 'Financeiro: Contas a Pagar',
-         'description': 'Controle suas despesas e contas a pagar diretamente pelo sistema.', 'is_addon': False},
-        {'feature_key': 'style_guide', 'name': 'Design Personalizável',
-         'description': 'Altere cores, fontes e o layout do seu cardápio digital.', 'is_addon': False},
-        {'feature_key': 'custom_banners', 'name': 'Banners Promocionais',
-         'description': 'Adicione banners visuais no topo do seu cardápio para destacar promoções.', 'is_addon': False},
-        {'feature_key': 'table_management_module', 'name': 'Módulo Mesas e Comandas',
-         'description': 'Gerencie pedidos por mesas e controle as comandas de forma eficiente.', 'is_addon': False},
-        {'feature_key': 'kds_module', 'name': 'Tela da Cozinha (KDS)',
-         'description': 'Envie pedidos diretamente para uma tela na cozinha, agilizando a preparação.',
-         'is_addon': False},
-        {'feature_key': 'delivery_personnel_management', 'name': 'Módulo de Entregadores',
-         'description': 'Cadastre e gerencie seus entregadores e rotas de entrega.', 'is_addon': False},
-        {'feature_key': 'loyalty_program', 'name': 'Programa de Fidelidade',
-         'description': 'Crie um programa de pontos para recompensar clientes fiéis.', 'is_addon': False},
-        {'feature_key': 'marketing_automation', 'name': 'Automação de Marketing',
-         'description': 'Recuperação de carrinho, reativação de clientes, etc.', 'is_addon': False},
-        # Add-ons (permanecem como addons)
-        {'feature_key': 'whatsapp_bot_ia', 'name': 'Módulo Bot (WhatsApp IA)',
-         'description': 'Automatize o atendimento e vendas pelo WhatsApp com um bot inteligente.', 'is_addon': True,
-         'addon_price': 7990},
-        {'feature_key': 'custom_domain', 'name': 'Domínio Personalizado',
-         'description': 'Use seu próprio domínio (ex: www.sualoja.com) para o cardápio.', 'is_addon': True,
-         'addon_price': 4990},
-    ]
-
-    features_map = {}
-    for feature_data in features_data:
-        feature = db.query(models.Feature).filter_by(feature_key=feature_data['feature_key']).first()
-        if not feature:
-            feature = models.Feature(**feature_data)
-            db.add(feature)
-        else:  # Atualiza caso exista
-            feature.name = feature_data['name']
-            feature.description = feature_data['description']
-            feature.is_addon = feature_data['is_addon']
-            feature.addon_price = feature_data.get('addon_price')
-        features_map[feature_data['feature_key']] = feature
-    db.flush()
-
-    # ✅ A DEFINIÇÃO DE PLANOS FICA MUITO MAIS SIMPLES
-    plans_data = [
-        {
-            'plan_name': 'Plano Pro',
-            'available': True,
-            'minimum_fee': 3990,
-            'revenue_percentage': Decimal('0.036'),
-            'revenue_cap_fee': 25000,
-            'percentage_tier_start': 110000,
-            'percentage_tier_end': 700000,
-            'support_type': 'Suporte Total via Chat e Telefone',
-        }
-    ]
-
-    plans_map = {}
-    for plan_data in plans_data:
-        plan = db.query(models.Plans).filter_by(plan_name=plan_data['plan_name']).first()
-        if not plan:
-            plan = models.Plans(**plan_data)
-            db.add(plan)
-        else:  # Atualiza os dados do plano se ele já existir
-            for key, value in plan_data.items():
-                setattr(plan, key, value)
-        plans_map[plan_data['plan_name']] = plan
-    db.flush()
-
-    # 3. Limpa associações antigas para reconstruir do zero
-    db.query(models.PlansFeature).delete()
-    print("Associações antigas de planos e features foram limpas.")
-
-
-    # Pega todas as features que não são add-ons
-    all_core_features = [f.feature_key for f in features_map.values() if not f.is_addon]
-
-    # 4. Definição das NOVAS Associações
-    plan_features_associations = {
-        'Plano Pro': all_core_features
-    }
-
-    for plan_name, feature_keys in plan_features_associations.items():
-        plan_obj = plans_map.get(plan_name)
-        for feature_key in feature_keys:
-            feature_obj = features_map.get(feature_key)
-            if plan_obj and feature_obj:
-                association = models.PlansFeature(plan=plan_obj, feature=feature_obj)
-                db.add(association)
-
-    db.commit()
-    print("Nova estrutura de Planos e Features semeada com sucesso.")
 
