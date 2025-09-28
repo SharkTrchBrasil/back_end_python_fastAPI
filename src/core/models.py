@@ -1853,7 +1853,10 @@ class Tables(Base, TimestampMixin):
     deleted_at: Mapped[datetime | None] = mapped_column(nullable=True)
     location_description: Mapped[str | None] = mapped_column(String(100), nullable=True)  # Ex: "Perto da janela"
 
-    orders: Mapped[list["Order"]] = relationship(back_populates="tables")
+    # ✅ CORRECTION APPLIED HERE
+    # Changed back_populates from "tables" to "table" to match the property in the Order model.
+    orders: Mapped[list["Order"]] = relationship(back_populates="table")
+
     commands: Mapped[list["Command"]] = relationship(back_populates="tables")
     history: Mapped[list["TableHistory"]] = relationship(back_populates="tables")
 
