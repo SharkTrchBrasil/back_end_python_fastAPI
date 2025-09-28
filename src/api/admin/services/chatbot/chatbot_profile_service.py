@@ -39,3 +39,23 @@ async def fetch_and_update_profile(db: GetDBDep, store_id: int, chat_id: str):
                     print(f"✅ Foto de perfil para {chat_id} atualizada com sucesso.")
     except Exception as e:
         print(f"AVISO: Não foi possível buscar a foto de perfil para {chat_id}. Erro: {e}")
+
+
+# ✅ ADICIONE ESTA NOVA FUNÇÃO
+async def fetch_contact_name(store_id: int, chat_id: str) -> Optional[str]:
+    """ Busca o nome de um contato no serviço Node.js. """
+    if not CHATBOT_SERVICE_URL:
+        return None
+
+    url = f"{CHATBOT_SERVICE_URL}/api/contact-name/{store_id}/{chat_id}"
+    headers = {"x-webhook-secret": CHATBOT_WEBHOOK_SECRET}
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers, timeout=10.0)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("name")
+    except Exception as e:
+        print(f"AVISO: Não foi possível buscar o nome do contato para {chat_id}. Erro: {e}")
+    return None

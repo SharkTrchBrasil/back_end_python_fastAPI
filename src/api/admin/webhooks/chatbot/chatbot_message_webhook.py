@@ -13,7 +13,7 @@ from .chatbot_webhook import verify_webhook_secret
 
 from src.api.admin.socketio.emitters import emit_new_chat_message
 from ...services.chatbot.chatbot_media_service import upload_media_from_buffer
-from ...services.chatbot.chatbot_profile_service import fetch_and_update_profile
+from ...services.chatbot.chatbot_profile_service import fetch_and_update_profile, fetch_contact_name
 
 router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
 
@@ -46,14 +46,23 @@ async def new_chatbot_message_webhook(
     if exists:
         return {"status": "sucesso", "message": "Mensagem duplicada, ignorada."}
 
+    # ✅ 2. LÓGICA ATUALIZADA
+    final_customer_name = customer_name
 
-    # ✅ --- INÍCIO DA ALTERAÇÃO ---
-    # 1. Primeiro, verificamos se a conversa é nova ANTES de inserir/atualizar.
     existing_metadata = db.query(models.ChatbotConversationMetadata).filter_by(
         chat_id=chat_id, store_id=store_id
     ).first()
     is_new_conversation = existing_metadata is None
     # ✅ --- FIM DA ALTERAÇÃO ---
+
+
+    # Se a mensagem é da loja E a conversa ainda não existe, busca o nome
+    if is_from_me and not existing_metadata:
+        fetched_name = await fetch_contact_name(store_id, chat_id)
+        if fetched_name:
+            final_customer_name = fetched_name
+
+
 
     media_url = None
     media_mime_type = None
@@ -99,7 +108,7 @@ async def new_chatbot_message_webhook(
     }
     if not is_from_me:
         # Só atualiza o nome do cliente se a mensagem veio dele
-        update_dict['customer_name'] = stmt.excluded.customer_name
+        update_dict['customer_name'] = final_customer_name
 
     stmt = stmt.on_conflict_do_update(
         index_elements=['chat_id', 'store_id'],
