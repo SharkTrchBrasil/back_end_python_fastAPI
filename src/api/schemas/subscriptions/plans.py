@@ -1,4 +1,3 @@
-# schemas/subscription_plan_schema.py
 
 from pydantic import BaseModel, ConfigDict, computed_field
 from decimal import Decimal

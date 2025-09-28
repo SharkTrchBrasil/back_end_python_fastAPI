@@ -8,7 +8,7 @@ from typing import Optional, List
 from sqlalchemy import DateTime, func, Index, LargeBinary, UniqueConstraint, Numeric, String, CheckConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase
 
 from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
@@ -17,7 +17,7 @@ from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, Store
 from src.api.schemas.shared.base import VariantType, UIDisplayMode
 
 from sqlalchemy.dialects.postgresql import ARRAY
-from sqlalchemy import ForeignKey, Enum, Text
+from sqlalchemy import  Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 import uuid
 from sqlalchemy import Table, Column, Integer, ForeignKey, String, Enum, Numeric, Boolean
@@ -1825,7 +1825,7 @@ class OrderPrintLog(Base, TimestampMixin):
 
 
 
-class Table(Base, TimestampMixin):
+class Tables(Base, TimestampMixin):
     __tablename__ = "tables"
     __table_args__ = (
         CheckConstraint("max_capacity > 0", name="check_max_capacity_positive"),
