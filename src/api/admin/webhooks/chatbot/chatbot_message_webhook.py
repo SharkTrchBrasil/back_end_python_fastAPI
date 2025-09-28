@@ -35,26 +35,22 @@ async def new_chatbot_message_webhook(
         text_content: str = Form(None),
         media_file: UploadFile = File(None),
         customer_name: str = Form("Cliente"),
-        # ✅ 1. RECEBE OS NOVOS CAMPOS ENVIADOS PELO NODE.JS
+
         media_filename_override: str = Form(None),
         media_mimetype_override: str = Form(None)
 ):
-    # O resto da sua lógica, que já estava correta, permanece igual.
 
-    # Verifica duplicatas
     exists = db.query(models.ChatbotMessage).filter_by(message_uid=message_uid).first()
     if exists:
         return {"status": "sucesso", "message": "Mensagem duplicada, ignorada."}
 
-    # ✅ 2. LÓGICA ATUALIZADA
+
     final_customer_name = customer_name
 
     existing_metadata = db.query(models.ChatbotConversationMetadata).filter_by(
         chat_id=chat_id, store_id=store_id
     ).first()
     is_new_conversation = existing_metadata is None
-    # ✅ --- FIM DA ALTERAÇÃO ---
-
 
     # Se a mensagem é da loja E a conversa ainda não existe, busca o nome
     if is_from_me and not existing_metadata:
@@ -63,19 +59,14 @@ async def new_chatbot_message_webhook(
             final_customer_name = fetched_name
 
 
-
     media_url = None
     media_mime_type = None
 
     # Lida com a mídia
     if media_file:
-        # ✅ 2. USA OS NOVOS CAMPOS COMO FONTE DA VERDADE
+
         final_filename = media_filename_override or media_file.filename
         final_mimetype = media_mimetype_override or media_file.content_type
-
-        print(f"--- DEBUG PYTHON FINAL ---")
-        print(f"Filename a ser usado: {final_filename}")
-        print(f"Mimetype a ser usado: {final_mimetype}")
 
         file_bytes = await media_file.read()
         media_url = upload_media_from_buffer(
@@ -137,15 +128,10 @@ async def new_chatbot_message_webhook(
     db.refresh(new_message)
 
 
-    # ✅ --- INÍCIO DA ALTERAÇÃO ---
-    # 2. Agora, só chamamos a função se a conversa for realmente nova.
     if is_new_conversation:
         print(f"INFO: Nova conversa detectada para {chat_id}. Tentando buscar foto de perfil.")
         await fetch_and_update_profile(db=db, store_id=store_id, chat_id=chat_id)
-    # ✅ --- FIM DA ALTERAÇÃO ---
 
-
-    # Notifica o frontend
     await emit_new_chat_message(db, new_message)
 
     return {"status": "sucesso", "message": "Mensagem processada."}

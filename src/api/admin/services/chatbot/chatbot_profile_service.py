@@ -1,6 +1,8 @@
 # src/services/chatbot_profile_service.py
 
 import os
+from typing import Optional
+
 import httpx
 from src.core import models
 from src.core.database import GetDBDep
