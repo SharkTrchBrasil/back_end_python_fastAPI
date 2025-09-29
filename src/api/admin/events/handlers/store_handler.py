@@ -164,12 +164,16 @@ async def handle_join_store_room(self, sid, data):
             subscription_payload, is_blocked = SubscriptionService.get_subscription_details(store)
 
             if is_blocked:
-                print(f"🔐 [join_store_room] Acesso bloqueado para SID {sid} à loja {store_id}. Motivo: {subscription_payload.get('status')}")
-                # Emite um evento de erro específico para o cliente que tentou entrar
+                print(
+                    f"🔐 [join_store_room] Acesso bloqueado para SID {sid} à loja {store_id}. Motivo: {subscription_payload.get('status')}")
+
+                # ✅ ALTERAÇÃO PRINCIPAL AQUI
+                # Agora enviamos um payload rico com todos os detalhes da assinatura
                 await self.emit('subscription_error', {
-                    'message': subscription_payload.get('warning_message'),
-                    'critical': True
+                    'store_id': store_id,
+                    'subscription': subscription_payload  # O payload já contém a mensagem e o status
                 }, to=sid)
+
                 return {'status': 'error', 'message': 'Acesso bloqueado devido à assinatura.'}
 
             # ✅ 3. LÓGICA PROSSEGUE NORMALMENTE SE NÃO HOUVER BLOQUEIO
