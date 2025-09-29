@@ -4,8 +4,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Header
 from sqlalchemy.orm import Session, joinedload
 
-
-
+from src.api.admin.services.subscription_service import SubscriptionService
 from src.core import models
 
 from src.core.database import GetDBDep
@@ -73,9 +72,9 @@ class GetStore:
                 raise HTTPException(status_code=404, detail="Store not found")
 
         else:
-            # 2. SE FOR UM USUÁRIO NORMAL, EXECUTA A LÓGICA DE PERMISSÃO PADRÃO
+
             db_store_access = db.query(models.StoreAccess).options(
-                # ... (resto da sua lógica original que busca na tabela StoreAccess)
+
             ).filter(
                 models.StoreAccess.user == user,
                 models.StoreAccess.store_id == store_id
@@ -96,19 +95,17 @@ class GetStore:
 
             store = db_store_access.store
 
-        # 3. A VERIFICAÇÃO DE ASSINATURA CONTINUA VALENDO PARA TODOS
-        active_sub = next(
-            (sub for sub in store.subscriptions
-             if sub.status in ['active', 'new_charge'] and
-             sub.current_period_end >= datetime.utcnow()),
-            None
-        )
 
-        if not active_sub:
+        subscription_details, is_blocked = SubscriptionService.get_subscription_details(store)
+
+        if is_blocked:
             raise HTTPException(
                 status_code=403,
-                detail={'message': 'A assinatura desta loja expirou.', 'code': 'PLAN_EXPIRED'}
+                # Usamos a mensagem de erro padronizada vinda do próprio serviço
+                detail={'message': subscription_details.get('warning_message', 'Acesso negado devido à assinatura.'),
+                        'code': 'PLAN_EXPIRED'} # O código pode ser genérico aqui
             )
+
 
         return store
 

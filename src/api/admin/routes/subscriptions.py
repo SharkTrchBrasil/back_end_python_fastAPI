@@ -1,153 +1,96 @@
-from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime, timedelta, timezone
+from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Annotated
 
-# Importe o serviço de pagamento para a cobrança avulsa
 from src.api.admin.services.payment import create_one_time_charge
 from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.core import models
 from src.core.database import GetDBDep
-from src.core.dependencies import GetStore
+# ✅ ALTERAÇÃO: Importamos uma dependência mais simples que só pega o usuário
+from src.core.dependencies import GetCurrentUserDep
 from src.api.schemas.subscriptions.store_subscription import CreateStoreSubscription
-from src.core.utils.enums import Roles
 
 router = APIRouter(tags=["Subscriptions"], prefix="/stores/{store_id}/subscriptions")
 
-# @router.post("")
-# async def create_or_reactivate_subscription(
-#     db: GetDBDep,
-#     store: Annotated[models.Store, Depends(GetStore([Roles.OWNER]))],
-#     subscription_data: CreateStoreSubscription,
-# ):
-#     """
-#     Cria uma nova assinatura ou reativa uma existente com pagamento pendente.
-#     """
-#     # --- FLUXO DE REATIVAÇÃO ---
-#     past_due_subscription = db.query(models.StoreSubscription).filter(
-#         models.StoreSubscription.store_id == store.id,
-#         models.StoreSubscription.status == 'past_due'
-#     ).first()
-#
-#     if past_due_subscription:
-#         failed_charge = db.query(models.MonthlyCharge).filter(
-#             models.MonthlyCharge.subscription_id == past_due_subscription.id,
-#             models.MonthlyCharge.status == 'failed'
-#         ).order_by(models.MonthlyCharge.charge_date.desc()).first()
-#
-#         if not failed_charge:
-#             raise HTTPException(status_code=404, detail="Débito pendente não localizado para quitação.")
-#
-#         try:
-#             # Tenta cobrar o valor pendente com o novo cartão
-#             amount_in_cents = int(failed_charge.calculated_fee * 100)
-#             create_one_time_charge(
-#                 payment_token=subscription_data.card.payment_token,
-#                 amount_in_cents=amount_in_cents,
-#                 description=f"Pagamento da fatura de {failed_charge.billing_period_start.strftime('%m/%Y')}"
-#             )
-#
-#             # Se a cobrança for bem-sucedida, atualiza os registros
-#             failed_charge.status = "paid"
-#             past_due_subscription.status = "active"
-#             past_due_subscription.current_period_start = datetime.utcnow()
-#             past_due_subscription.current_period_end = datetime.utcnow() + timedelta(days=30)
-#             store.efi_payment_token = subscription_data.card.payment_token
-#             db.commit()
-#
-#             # ✅ 3. EMITIR O EVENTO APÓS O SUCESSO DA REATIVAÇÃO
-#             await admin_emit_store_updated(db, store.id)
-#
-#             return {"status": "success", "message": "Pagamento efetuado e assinatura reativada!"}
-#
-#         except Exception as e:
-#             db.rollback()
-#             raise HTTPException(status_code=400, detail=f"Falha ao processar o pagamento do débito: {str(e)}")
-#
-#     # --- FLUXO DE CRIAÇÃO/TROCA DE PLANO (Lógica original) ---
-#     plan = db.query(models.Plans).filter_by(id=subscription_data.plan_id, available=True).first()
-#     if not plan:
-#         raise HTTPException(status_code=404, detail="Plano não encontrado.")
-#
-#     store.efi_payment_token = subscription_data.card.payment_token
-#
-#     # Cancela a assinatura ativa anterior, se houver (para trocas de plano)
-#     active_subscription = store.active_subscription
-#     if active_subscription:
-#         active_subscription.status = 'canceled'
-#
-#     db_subscription = models.StoreSubscription(
-#         store_id=store.id,
-#         subscription_plan_id=plan.id,
-#         status='active',
-#         current_period_start=datetime.utcnow(),
-#         current_period_end=datetime.utcnow() + timedelta(days=30),
-#     )
-#     db.add(db_subscription)
-#
-#     try:
-#         db.commit()
-#         await admin_emit_store_updated(db, store.id)
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail="Erro interno ao salvar a nova assinatura.")
-#
-#     return {"status": "success", "message": "Assinatura ativada com sucesso."}
-#
-
-# ... (imports)
-# ... (imports)
 
 @router.post("")
 async def create_or_reactivate_subscription(
         db: GetDBDep,
-        store: Annotated[models.Store, Depends(GetStore([Roles.OWNER]))],
+        store_id: int,
+        user: GetCurrentUserDep,  # ✅ ALTERAÇÃO: Usamos a dependência mais simples
         subscription_data: CreateStoreSubscription,
 ):
     """
-    Ativa uma assinatura pela primeira vez ou reativa uma existente
-    com pagamento pendente ou expirada.
+    Endpoint robusto que ativa ou reativa uma assinatura.
+    Ele mesmo faz a verificação de permissão para poder lidar com lojas 'expired'.
     """
-    # ✅ CORREÇÃO CRÍTICA AQUI: A consulta agora busca por 'past_due' OU 'expired'
-    subscription_to_reactivate = db.query(models.StoreSubscription).filter(
-        models.StoreSubscription.store_id == store.id,
-        models.StoreSubscription.status.in_(['past_due', 'expired'])
+    # 1. Busca a loja e verifica a permissão de 'owner' manualmente
+    store_access = db.query(models.StoreAccess).filter(
+        models.StoreAccess.store_id == store_id,
+        models.StoreAccess.user_id == user.id,
+        models.StoreAccess.role.has(machine_name='owner')
     ).first()
 
-    # Se não encontrar, pode ser uma ativação pós-trial, então pegamos a assinatura da loja
-    if not subscription_to_reactivate:
-        subscription_to_reactivate = db.query(models.StoreSubscription).filter(
-            models.StoreSubscription.store_id == store.id
-        ).first()
+    if not store_access:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso negado a esta loja.")
 
-    if not subscription_to_reactivate:
-        raise HTTPException(status_code=404, detail="Assinatura não encontrada para esta loja.")
+    store = store_access.store
+
+    # 2. Busca a assinatura existente da loja
+    subscription = db.query(models.StoreSubscription).filter(
+        models.StoreSubscription.store_id == store_id
+    ).first()
+
+    if not subscription:
+        # Lida com o caso de uma loja muito antiga que nunca teve um registro de assinatura
+        main_plan = db.query(models.Plans).filter_by(id=2).first()
+        if not main_plan:
+            raise HTTPException(status_code=500, detail="Plano padrão não configurado.")
+
+        subscription = models.StoreSubscription(
+            store=store, plan=main_plan, status="expired",
+            current_period_start=datetime.now(timezone.utc) - timedelta(days=30),
+            current_period_end=datetime.now(timezone.utc),
+        )
+        db.add(subscription)
+        db.flush()
+
+    # 3. Se a assinatura já estiver ativa, apenas atualiza o cartão.
+    if subscription.status == 'active':
+        if subscription_data.card and subscription_data.card.payment_token:
+            store.efi_payment_token = subscription_data.card.payment_token
+            db.commit()
+            return {"status": "success", "message": "Método de pagamento atualizado com sucesso."}
+        else:
+            return {"status": "info", "message": "Sua assinatura já está ativa."}
+
+    # 4. Lógica de Ativação / Reativação
+    if not subscription_data.card or not subscription_data.card.payment_token:
+        raise HTTPException(status_code=400, detail="Token de pagamento do cartão é obrigatório para ativar.")
 
     store.efi_payment_token = subscription_data.card.payment_token
 
-    # Tenta encontrar uma cobrança com 'failed' para quitar o débito
-    failed_charge = db.query(models.MonthlyCharge).filter(
-        models.MonthlyCharge.subscription_id == subscription_to_reactivate.id,
-        models.MonthlyCharge.status == 'failed'
-    ).order_by(models.MonthlyCharge.charge_date.desc()).first()
-
     try:
+        # Se houver uma cobrança pendente, tenta quitá-la
+        failed_charge = db.query(models.MonthlyCharge).filter(
+            models.MonthlyCharge.subscription_id == subscription.id,
+            models.MonthlyCharge.status == 'failed'
+        ).order_by(models.MonthlyCharge.charge_date.desc()).first()
+
         if failed_charge:
             amount_in_cents = int(failed_charge.calculated_fee * 100)
+            description = f"Pagamento da fatura pendente de {failed_charge.billing_period_start.strftime('%m/%Y')}"
             create_one_time_charge(
                 payment_token=store.efi_payment_token,
                 amount_in_cents=amount_in_cents,
-                # customer e address precisam ser passados para a função
-                customer=subscription_data.customer,
-                address=subscription_data.address,
-                description=f"Pagamento da fatura pendente de {failed_charge.billing_period_start.strftime('%m/%Y')}"
+                description=description
             )
             failed_charge.status = "paid"
-            print(f"✅ Dívida pendente da loja {store.id} quitada.")
 
-        # Ativa/Reativa a assinatura e inicia um novo ciclo de 30 dias
-        subscription_to_reactivate.status = "active"
-        subscription_to_reactivate.current_period_start = datetime.utcnow()
-        subscription_to_reactivate.current_period_end = datetime.utcnow() + timedelta(days=30)
+        # Define o status como ATIVO e inicia um novo ciclo de 30 dias
+        subscription.status = "active"
+        subscription.current_period_start = datetime.now(timezone.utc)
+        subscription.current_period_end = datetime.now(timezone.utc) + timedelta(days=30)
 
         db.commit()
         await admin_emit_store_updated(db, store.id)
@@ -156,4 +99,5 @@ async def create_or_reactivate_subscription(
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=f"Falha ao processar o pagamento: {str(e)}")
+        error_detail = getattr(e, 'detail', str(e))
+        raise HTTPException(status_code=400, detail=f"Falha ao processar o pagamento: {error_detail}")
