@@ -31,15 +31,6 @@ class PlanSchema(BaseModel):
     second_month_discount: Decimal  # Ex: 0.50 para 50%
     third_month_discount: Decimal  # Ex: 0.75 para 25%
 
-    # --- LIMITES DO PLANO ---
-    product_limit: int | None
-    category_limit: int | None
-    user_limit: int | None
-    monthly_order_limit: int | None
-    location_limit: int | None
-    banner_limit: int | None
-    max_active_devices: int | None
-
     # --- Campos de Relacionamento (Features) ---
     included_features: list[PlanFeatureAssociationSchema]
 
