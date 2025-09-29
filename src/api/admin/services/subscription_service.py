@@ -1,6 +1,6 @@
-# Versão Final: src/api/admin/services/subscription_service.py
+# Versão Final e Polida: src/api/admin/services/subscription_service.py
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from src.core import models
 
 
@@ -13,7 +13,6 @@ class SubscriptionService:
         """
         subscription_db = store.active_subscription
 
-        # --- Cenário 1: Nenhuma assinatura encontrada ---
         if not subscription_db or not subscription_db.plan:
             payload = {
                 "plan_name": "Nenhum",
@@ -21,37 +20,48 @@ class SubscriptionService:
                 "is_blocked": True,
                 "warning_message": "Nenhum plano ativo. Por favor, realize uma assinatura para ter acesso."
             }
-            return payload, True  # is_blocked = True
+            return payload, True
 
         plan = subscription_db.plan
-        now = datetime.utcnow()
+        # Garante que estamos sempre comparando com UTC para evitar erros de fuso horário
+        now = datetime.now(timezone.utc)
         is_blocked = False
         warning_message = None
 
-        # --- Cenário 2: Pagamento Pendente ---
-        if subscription_db.status == 'past_due':
+        # ✅ NOVO CENÁRIO: Tratamento explícito para o período de teste
+        if subscription_db.status == 'trialing':
+            dynamic_status = "trialing"
+            is_blocked = False  # Durante o trial, o acesso nunca é bloqueado
+            remaining_trial_days = (subscription_db.current_period_end - now).days
+
+            if remaining_trial_days > 0:
+                warning_message = f"Seu teste gratuito termina em {remaining_trial_days + 1} dia(s)."
+            else:
+                warning_message = "Seu período de teste terminou. Adicione um pagamento para ativar seu plano."
+
+        elif subscription_db.status == 'past_due':
             dynamic_status = "past_due"
             is_blocked = True
             warning_message = "Houve uma falha no pagamento. Atualize seus dados para reativar o acesso."
 
-        # --- Cenário 3: Assinatura Expirada (após período de carência) ---
         else:
+            # Para status 'active' ou 'expired', a lógica de data decide o estado
+            # Adicionamos um período de carência de 3 dias
             grace_period_end = subscription_db.current_period_end + timedelta(days=3)
+
             if now > grace_period_end:
                 dynamic_status = "expired"
                 is_blocked = True
                 warning_message = "Sua assinatura expirou. Renove seu plano para continuar."
             else:
-                # --- Cenário 4: Período de Aviso de Vencimento ---
                 remaining_days = (subscription_db.current_period_end - now).days
                 if remaining_days <= 3:
                     dynamic_status = "warning"
                     warning_message = f"Sua assinatura vencerá em {remaining_days + 1} dia(s)."
                 else:
-                    # --- Cenário 5: Assinatura Ativa ---
                     dynamic_status = "active"
 
-        # --- Montagem do Payload Final ---
+        # --- Montagem do Payload Final (sem alterações, já estava ótimo) ---
         plan_features = {f.feature.feature_key for f in plan.included_features}
 
         payload = {
