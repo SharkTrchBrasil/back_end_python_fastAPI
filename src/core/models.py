@@ -61,7 +61,7 @@ class Store(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     store_uuid: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        server_default=func.uuid_generate_v4(),
+        server_default=text("gen_random_uuid()"),  # ← Mude aqui
         unique=True,
         index=True,
         nullable=False
@@ -330,11 +330,13 @@ class Category(Base, TimestampMixin):
                                                         default=CashbackType.NONE)
     cashback_value: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.00'))
     printer_destination: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
     pricing_strategy: Mapped[PricingStrategyType] = mapped_column(
         Enum(PricingStrategyType, name="pricing_strategy_type_enum"),
         nullable=False,
-        default=PricingStrategyType.SUM_OF_ITEMS
+        server_default="SUM_OF_ITEMS"
     )
+
 
 
     price_varies_by_size: Mapped[bool] = mapped_column(
@@ -388,43 +390,43 @@ class TimeShift(Base, TimestampMixin):
     schedule_id: Mapped[int] = mapped_column(ForeignKey("category_schedules.id"))
     schedule: Mapped["CategorySchedule"] = relationship(back_populates="time_shifts")
 
-
 class OptionGroup(Base, TimestampMixin):
     __tablename__ = "option_groups"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100))  # Ex: "Tamanho", "Sabores", "Recheios"
+    name: Mapped[str] = mapped_column(String(100))
     min_selection: Mapped[int] = mapped_column(default=1)
     max_selection: Mapped[int] = mapped_column(default=1)
     priority: Mapped[int] = mapped_column(default=0)
-
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
-    category: Mapped["Category"] = relationship(back_populates="option_groups")
-    # ✅ NOVO CAMPO ADICIONADO AQUI
+
+    # CORREÇÃO: Use string simples sem text()
     pricing_strategy: Mapped[PricingStrategyType] = mapped_column(
         Enum(PricingStrategyType, name="pricing_strategy_type_enum"),
         nullable=False,
-        server_default=text('SUM_OF_ITEMS')
+        server_default="SUM_OF_ITEMS"  # ← String simples
     )
-
 
     is_configurable: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
-        # Define 'true' como padrão. Os templates irão definir como 'false' quando necessário.
-        server_default=text('true')
+        server_default=text('true')  # Para boolean pode usar text
     )
 
-
+    # CORREÇÃO: Use string simples sem text()
     group_type: Mapped[OptionGroupType] = mapped_column(
         Enum(OptionGroupType, name="option_group_type_enum"),
         nullable=False,
-        server_default=text('GENERIC')
+        server_default="GENERIC"  # ← String simples
     )
 
-    items: Mapped[List["OptionItem"]] = relationship(back_populates="group", cascade="all, delete-orphan",
-                                                     lazy="selectin")
-
+    # Relacionamentos
+    category: Mapped["Category"] = relationship(back_populates="option_groups")
+    items: Mapped[List["OptionItem"]] = relationship(
+        back_populates="group",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
 
 # Em seus modelos SQLAlchemy
 class OptionItem(Base, TimestampMixin):
