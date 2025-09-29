@@ -119,27 +119,45 @@ class Store(Base, TimestampMixin):
     # --- Relacionamentos (Seus relacionamentos existentes) ---
     segment: Mapped["Segment"] = relationship()
 
+    coupons: Mapped[List["Coupon"]] = relationship(
+        back_populates="store",
+        cascade="all, delete-orphan"  # ✅ ADICIONAR
+    )
 
-    coupons: Mapped[List["Coupon"]] = relationship(back_populates="store")
+
     # no Store
-    store_customers = relationship("StoreCustomer", back_populates="store")
+    store_customers = relationship(
+        "StoreCustomer",
+        back_populates="store",
+        cascade="all, delete-orphan"  # ✅ ADICIONAR
+    )
+
 
     theme: Mapped["StoreTheme"] = relationship(back_populates="store", uselist=False, cascade="all, delete-orphan")
     banners: Mapped[List["Banner"]] = relationship(back_populates="store", cascade="all, delete-orphan")
 
-    orders: Mapped[List["Order"]] = relationship("Order", back_populates="store", cascade="all, delete-orphan")
+    # CORREÇÃO:
+    orders: Mapped[List["Order"]] = relationship(
+        "Order",
+        back_populates="store",
+        cascade="all, delete-orphan"  # ✅ JÁ CORRIGIDO (está ok)
+    )
+
     efi_customer_id: Mapped[str | None] = mapped_column(nullable=True)
     efi_payment_token: Mapped[str | None] = mapped_column(nullable=True)  # IMPORTANTE: Criptografe este campo!
-    # ✅ ADIÇÃO
-    monthly_charges: Mapped[list["MonthlyCharge"]] = relationship(back_populates="store")
 
 
+    # CORREÇÃO:
+    monthly_charges: Mapped[list["MonthlyCharge"]] = relationship(
+        back_populates="store",
+        cascade="all, delete-orphan"  # ✅ ADICIONAR
+    )
     products = relationship(
         "Product",
         back_populates="store",
-        order_by="asc(Product.priority)"  # Ou "Product.name" para ordem alfabética
+        order_by="asc(Product.priority)",
+        cascade="all, delete-orphan"  # ✅ ADICIONAR
     )
-
     categories = relationship(
         "Category",
         back_populates="store",
@@ -170,19 +188,30 @@ class Store(Base, TimestampMixin):
         back_populates="store", cascade="all, delete-orphan"
     )
 
-    store_ratings: Mapped[List["StoreRating"]] = relationship(back_populates="store")
-
-
-
-    commands: Mapped[list["Command"]] = relationship(back_populates="store")
-
-    subscriptions: Mapped[list["StoreSubscription"]] = relationship(
-        "StoreSubscription",  # <-- Use a string aqui
+    store_ratings: Mapped[List["StoreRating"]] = relationship(
         back_populates="store",
-        lazy="select"
+        cascade="all, delete-orphan"  # ✅ ADICIONAR
     )
 
-    # active_sessions: Mapped[List["ActiveSession"]] = relationship(
+
+    subscriptions: Mapped[list["StoreSubscription"]] = relationship(
+        "StoreSubscription",
+        back_populates="store",
+        lazy="select",
+        cascade="all, delete-orphan"  # ✅ ADICIONAR
+    )
+
+    commands: Mapped[list["Command"]] = relationship(
+        back_populates="store",
+        cascade="all, delete-orphan"  # ✅ ADICIONAR
+    )
+
+
+    # acti    subscriptions: Mapped[list["StoreSubscription"]] = relationship(
+    #         "StoreSubscription",  # <-- Use a string aqui
+    #         back_populates="store",
+    #         lazy="select"
+    #     )ve_sessions: Mapped[List["ActiveSession"]] = relationship(
     #     back_populates="store",
     #     cascade="all, delete-orphan"
     # )
