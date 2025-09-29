@@ -146,15 +146,17 @@ def generate_monthly_charges():
                 continue
 
             try:
-                # 1. Calcula tempo de parceria
-                months_active = calculate_months_active(sub, today)
 
-                # 2. Calcula faturamento do período
+                if sub.current_period_start.date() >= first_day_of_previous_month:
+                    print(f"  ℹ️ Loja {store.id} iniciou no meio do período ({sub.current_period_start.date()}). A cobrança proporcional já foi feita. Pulando a fatura deste mês.")
+                    continue
+
+                # O resto da sua lógica de cobrança continua normalmente...
+                months_active = calculate_months_active(sub, today)
                 revenue = get_store_revenue_for_period(db, store.id, first_day_of_previous_month,
                                                        last_day_of_previous_month)
-
-                # 3. CALCULA COM NOSSOS DIFERENCIAIS
                 fee_details = calculate_platform_fee(revenue, sub.plan, months_active)
+
                 fee_in_cents = int(fee_details['final_fee'] * 100)
 
                 print(f"🏪 Loja {store.id} - {fee_details['message']}")
