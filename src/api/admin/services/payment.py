@@ -218,7 +218,7 @@ def cancel_subscription(subscription_id):
 
 # --- ✅ NOVAS FUNÇÕES PARA O MODELO DINÂMICO ---
 
-def create_one_time_charge(payment_token: str, amount_in_cents: int, customer: Customer, address: Address,
+def create_one_time_charge(payment_token: str, amount_in_cents: int,
                            description: str) -> dict:
     """
     Cria uma COBRANÇA ÚNICA no cartão de crédito do cliente.
@@ -227,17 +227,9 @@ def create_one_time_charge(payment_token: str, amount_in_cents: int, customer: C
     efi = get_master_efi_pay()
 
     body = {
-        'items': [{
-            'name': description,
-            'value': amount_in_cents,
-            'amount': 1
-        }],
+        'items': [{'name': description, 'value': amount_in_cents, 'amount': 1}],
         'payment': {
-            'credit_card': {
-                'payment_token': payment_token,
-                'billing_address': address.dict(),
-                'customer': customer.dict()
-            }
+            'credit_card': {'payment_token': payment_token}
         }
     }
 

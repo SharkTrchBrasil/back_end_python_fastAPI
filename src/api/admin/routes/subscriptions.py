@@ -95,6 +95,7 @@ router = APIRouter(tags=["Subscriptions"], prefix="/stores/{store_id}/subscripti
 #
 
 # ... (imports)
+# ... (imports)
 
 @router.post("")
 async def create_or_reactivate_subscription(
@@ -103,48 +104,50 @@ async def create_or_reactivate_subscription(
         subscription_data: CreateStoreSubscription,
 ):
     """
-    Ativa uma assinatura pela primeira vez (pós-trial) ou reativa
-    uma assinatura com pagamento pendente/expirada.
+    Ativa uma assinatura pela primeira vez ou reativa uma existente
+    com pagamento pendente ou expirada.
     """
-    # Procura uma assinatura existente para a loja, não importa o status
-    subscription = db.query(models.StoreSubscription).filter(
-        models.StoreSubscription.store_id == store.id
+    # ✅ CORREÇÃO CRÍTICA AQUI: A consulta agora busca por 'past_due' OU 'expired'
+    subscription_to_reactivate = db.query(models.StoreSubscription).filter(
+        models.StoreSubscription.store_id == store.id,
+        models.StoreSubscription.status.in_(['past_due', 'expired'])
     ).first()
 
-    if not subscription:
-        # Se por algum motivo não houver assinatura, não podemos continuar
-        raise HTTPException(status_code=404, detail="Assinatura não encontrada para esta loja.")
+    # Se não encontrar, pode ser uma ativação pós-trial, então pegamos a assinatura da loja
+    if not subscription_to_reactivate:
+        subscription_to_reactivate = db.query(models.StoreSubscription).filter(
+            models.StoreSubscription.store_id == store.id
+        ).first()
 
-    # A lógica é a mesma para ativar pela 1ª vez ou reativar:
-    # 1. Salvar o token do cartão
-    # 2. Mudar o status para 'active'
-    # 3. Definir o novo ciclo de faturamento
-    # 4. Tentar cobrar um débito PENDENTE, se houver.
+    if not subscription_to_reactivate:
+        raise HTTPException(status_code=404, detail="Assinatura não encontrada para esta loja.")
 
     store.efi_payment_token = subscription_data.card.payment_token
 
-    # Verifica se há uma cobrança com status 'failed' para quitar
+    # Tenta encontrar uma cobrança com 'failed' para quitar o débito
     failed_charge = db.query(models.MonthlyCharge).filter(
-        models.MonthlyCharge.subscription_id == subscription.id,
+        models.MonthlyCharge.subscription_id == subscription_to_reactivate.id,
         models.MonthlyCharge.status == 'failed'
     ).order_by(models.MonthlyCharge.charge_date.desc()).first()
 
     try:
         if failed_charge:
-            # Se houver um débito, tenta quitá-lo com o novo cartão
             amount_in_cents = int(failed_charge.calculated_fee * 100)
             create_one_time_charge(
                 payment_token=store.efi_payment_token,
                 amount_in_cents=amount_in_cents,
+                # customer e address precisam ser passados para a função
+                customer=subscription_data.customer,
+                address=subscription_data.address,
                 description=f"Pagamento da fatura pendente de {failed_charge.billing_period_start.strftime('%m/%Y')}"
             )
             failed_charge.status = "paid"
             print(f"✅ Dívida pendente da loja {store.id} quitada.")
 
         # Ativa/Reativa a assinatura e inicia um novo ciclo de 30 dias
-        subscription.status = "active"
-        subscription.current_period_start = datetime.utcnow()
-        subscription.current_period_end = datetime.utcnow() + timedelta(days=30)
+        subscription_to_reactivate.status = "active"
+        subscription_to_reactivate.current_period_start = datetime.utcnow()
+        subscription_to_reactivate.current_period_end = datetime.utcnow() + timedelta(days=30)
 
         db.commit()
         await admin_emit_store_updated(db, store.id)
