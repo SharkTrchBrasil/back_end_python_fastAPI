@@ -5,6 +5,7 @@ from urllib.parse import parse_qs
 
 from src.api.admin.services.store_access_service import StoreAccessService
 from src.api.admin.services.store_session_service import SessionService
+from src.api.admin.services.subscription_service import SubscriptionService
 from src.api.admin.utils.authorize_admin import authorize_admin_by_jwt
 from src.api.admin.utils.emit_updates import emit_store_updates
 from src.api.crud.store_crud import get_store_base_details
@@ -146,7 +147,8 @@ async def handle_update_operation_config(self, sid, data):
 
 async def handle_join_store_room(self, sid, data):
     """
-    Inscreve um admin na sala da loja e envia todos os dados iniciais de forma granular.
+    Inscreve um admin na sala da loja e envia todos os dados iniciais de forma granular,
+    após verificar o status da assinatura.
     """
     try:
         store_id = data.get("store_id")
@@ -154,11 +156,28 @@ async def handle_join_store_room(self, sid, data):
             return {'status': 'error', 'message': 'store_id é obrigatório'}
 
         with get_db_manager() as db:
+            # ✅ 2. VERIFICAÇÃO DA ASSINATURA ANTES DE QUALQUER AÇÃO
+            store = db.query(models.Store).get(store_id)
+            if not store:
+                return {'status': 'error', 'message': 'Loja não encontrada.'}
+
+            subscription_payload, is_blocked = SubscriptionService.get_subscription_details(store)
+
+            if is_blocked:
+                print(f"🔐 [join_store_room] Acesso bloqueado para SID {sid} à loja {store_id}. Motivo: {subscription_payload.get('status')}")
+                # Emite um evento de erro específico para o cliente que tentou entrar
+                await self.emit('subscription_error', {
+                    'message': subscription_payload.get('warning_message'),
+                    'critical': True
+                }, to=sid)
+                return {'status': 'error', 'message': 'Acesso bloqueado devido à assinatura.'}
+
+            # ✅ 3. LÓGICA PROSSEGUE NORMALMENTE SE NÃO HOUVER BLOQUEIO
             session = SessionService.get_session(db, sid, client_type="admin")
             if not session:
                 return {'status': 'error', 'message': 'Sessão inválida.'}
 
-            # Lógica para sair da sala antiga (seu código está perfeito)
+            # Lógica para sair da sala antiga
             if session.store_id and session.store_id != store_id:
                 old_room = f"admin_store_{session.store_id}"
                 await self.leave_room(sid, old_room)
@@ -170,7 +189,7 @@ async def handle_join_store_room(self, sid, data):
             print(f"✅ [join_store_room] Admin {sid} entrou na sala dinâmica: {new_room}")
             SessionService.update_session_store(db, sid=sid, store_id=store_id)
 
-
+            # Envia o pacote completo de dados iniciais
             await asyncio.gather(
                 admin_emit_store_updated(db, store_id),
                 admin_emit_dashboard_data_updated(db, store_id, sid),
@@ -179,7 +198,7 @@ async def handle_join_store_room(self, sid, data):
                 admin_emit_orders_initial(db, store_id, sid),
                 admin_emit_tables_and_commands(db, store_id, sid),
                 admin_emit_products_updated(db, store_id),
-                admin_emit_conversations_initial(db, store_id, sid)  # Adicione aqui
+                admin_emit_conversations_initial(db, store_id, sid)
             )
             print(f"✅ [Socket] Pacote de dados iniciais enviado para loja {store_id}.")
 
@@ -188,7 +207,6 @@ async def handle_join_store_room(self, sid, data):
     except Exception as e:
         print(f"❌ [join_store_room] Erro ao processar para a loja {data.get('store_id')}: {e}")
         return {'status': 'error', 'message': 'Erro interno do servidor.'}
-
 
 
 
