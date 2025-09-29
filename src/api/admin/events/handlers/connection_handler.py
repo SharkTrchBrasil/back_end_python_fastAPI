@@ -115,8 +115,21 @@ async def handle_admin_connect(self, sid, environ):
 
 
             print(f"DEBUG BACKEND: [4] stores_list_data FINAL enviado via 'admin_stores_list': {stores_list_data}")
+
+            print(f"DEBUG BACKEND: [4] stores_list_data FINAL enviado via 'admin_stores_list': {stores_list_data}")
+            # ✅ SEMPRE emite admin_stores_list, mesmo com lista vazia
             await self.emit("admin_stores_list", {"stores": stores_list_data}, to=sid)
+
+            if not stores_list_data:
+                print(f"🔵 [Socket] Usuário {admin_id} não tem lojas - emitindo evento específico")
+                await self.emit("user_has_no_stores", {
+                    "user_id": admin_id,
+                    "message": "Você não possui lojas. Crie uma nova loja para começar."
+                }, to=sid)
+
+
             await self.emit("consolidated_stores_updated", {"store_ids": consolidated_store_ids}, to=sid)
+
             print(f"✅ Lista de lojas e seleção consolidada enviada para {sid}")
 
         except Exception as e:
