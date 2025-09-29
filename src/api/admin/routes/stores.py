@@ -182,7 +182,7 @@ def create_store(
 
     # 1. Busca o plano principal da sua plataforma (Ex: "Plano Pro")
     # Em vez de procurar um plano com preço 0, buscamos o plano que será usado.
-    main_plan = db.query(models.Plans).filter(models.Plans.plan_name == "Plano Pro").first()
+    main_plan = db.query(models.Plans).first()
 
     if not main_plan:
         db.rollback()
