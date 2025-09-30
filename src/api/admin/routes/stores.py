@@ -124,6 +124,32 @@ def create_store(
     print("✅ Default chatbot messages created.")
     # =======================================================================
 
+    # ✅ NOVO BLOCO: POPULA AS FORMAS DE PAGAMENTO PADRÃO
+    print(f"Populating default payment methods for new store ID: {db_store.id}...")
+
+    # 1. Busca todos os métodos de pagamento da plataforma marcados como padrão
+    default_payment_methods = db.query(models.PlatformPaymentMethod).filter(
+        models.PlatformPaymentMethod.is_default_for_new_stores == True
+    ).all()
+
+    # 2. Cria uma entrada na tabela de ativação para cada método padrão
+    new_store_payment_activations = []
+    for platform_method in default_payment_methods:
+        new_store_payment_activations.append(
+            # Usa o seu modelo existente: StorePaymentMethodActivation
+            models.StorePaymentMethodActivation(
+                store_id=db_store.id,
+                platform_payment_method_id=platform_method.id,
+                is_active=True  # Já começa ativo por padrão
+            )
+        )
+
+    if new_store_payment_activations:
+        db.add_all(new_store_payment_activations)
+
+    print("✅ Default payment methods created.")
+    # =======================================================================
+
 
     # =======================================================================
     # PASSO 5: CRIA OBJETOS RELACIONADOS (Sua lógica está perfeita)
@@ -156,7 +182,7 @@ def create_store(
     db.add(db_store_access)
 
     # =======================================================================
-    # ✅ PASSO CRÍTICO: CRIAÇÃO DA ASSINATURA COM TRIAL DE 30 DIAS
+    # ✅ CRIAÇÃO DA ASSINATURA COM TRIAL DE 30 DIAS
     # =======================================================================
 
     # 1. Busca o plano principal da sua plataforma (Ex: "Plano Pro")
@@ -191,9 +217,6 @@ def create_store(
     db.commit()
     db.refresh(db_store_access)
 
-    # Disparar o serviço de verificação aqui (como discutimos)
-    # verification_service = VerificationService(db)
-    # background_tasks.add_task(verification_service.start_verification_process, db_store, user)
 
     return db_store_access
 

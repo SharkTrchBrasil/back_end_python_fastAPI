@@ -1172,6 +1172,9 @@ class PlatformPaymentMethod(Base, TimestampMixin):
     # ✅ CORREÇÃO: Adicionada a chave estrangeira que faltava
     category_id: Mapped[int] = mapped_column(ForeignKey("payment_method_categories.id"), nullable=False)
 
+    # ✅ NOVO CAMPO ADICIONADO AQUI
+    is_default_for_new_stores: Mapped[bool] = mapped_column(default=False, nullable=False)
+
     # Relacionamentos
     category = relationship("PaymentMethodCategory", back_populates="methods")
     activations = relationship("StorePaymentMethodActivation", back_populates="platform_method")

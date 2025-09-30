@@ -419,117 +419,150 @@ def seed_payment_methods(db: Session):
 
     db.flush()
 
-    # Métodos de pagamento específicos - USANDO OS VALORES CORRETOS DO ENUM
+    # Métodos de pagamento específicos - COM PAGAMENTOS PADRÃO PARA NOVAS LOJAS
     payment_methods_data = [
-        # PIX Online - Usando MANUAL_PIX (já que não existe "pix" no enum)
+        # PIX Online - PADRÃO PARA TODAS AS LOJAS
         {
             'name': 'pix_online',
             'description': 'Pagamento instantâneo via PIX',
-            'method_type': 'MANUAL_PIX',  # CORREÇÃO: Usando valor do enum
+            'method_type': 'MANUAL_PIX',
             'icon_key': 'pix',
             'is_globally_enabled': True,
             'requires_details': False,
+            'is_default_for_new_stores': True,  # ✅ PADRÃO
             'category_name': 'pix_online'
         },
 
-        # Cartão de Crédito Online - Usando ONLINE_GATEWAY
+        # Cartão de Crédito Online - PADRÃO PARA TODAS AS LOJAS
         {
             'name': 'credit_card_visa',
             'description': 'Cartão de crédito Visa',
-            'method_type': 'ONLINE_GATEWAY',  # CORREÇÃO
+            'method_type': 'ONLINE_GATEWAY',
             'icon_key': 'visa',
             'is_globally_enabled': True,
             'requires_details': True,
+            'is_default_for_new_stores': True,  # ✅ PADRÃO
             'category_name': 'credit_card_online'
         },
         {
             'name': 'credit_card_mastercard',
             'description': 'Cartão de crédito Mastercard',
-            'method_type': 'ONLINE_GATEWAY',  # CORREÇÃO
+            'method_type': 'ONLINE_GATEWAY',
             'icon_key': 'mastercard',
             'is_globally_enabled': True,
             'requires_details': True,
-            'category_name': 'credit_card_online'
-        },
-        {
-            'name': 'credit_card_amex',
-            'description': 'Cartão de crédito American Express',
-            'method_type': 'ONLINE_GATEWAY',  # CORREÇÃO
-            'icon_key': 'amex',
-            'is_globally_enabled': True,
-            'requires_details': True,
+            'is_default_for_new_stores': True,  # ✅ PADRÃO
             'category_name': 'credit_card_online'
         },
         {
             'name': 'credit_card_elo',
             'description': 'Cartão de crédito Elo',
-            'method_type': 'ONLINE_GATEWAY',  # CORREÇÃO
+            'method_type': 'ONLINE_GATEWAY',
             'icon_key': 'elo',
             'is_globally_enabled': True,
             'requires_details': True,
+            'is_default_for_new_stores': True,  # ✅ PADRÃO
             'category_name': 'credit_card_online'
         },
 
-        # Cartão de Débito Online - Usando ONLINE_GATEWAY
+        # Cartão de Débito Online - PADRÃO PARA TODAS AS LOJAS
         {
             'name': 'debit_card_visa',
             'description': 'Cartão de débito Visa',
-            'method_type': 'ONLINE_GATEWAY',  # CORREÇÃO
+            'method_type': 'ONLINE_GATEWAY',
             'icon_key': 'visa',
             'is_globally_enabled': True,
             'requires_details': True,
+            'is_default_for_new_stores': True,  # ✅ PADRÃO
             'category_name': 'debit_card_online'
         },
         {
             'name': 'debit_card_mastercard',
             'description': 'Cartão de débito Mastercard',
-            'method_type': 'ONLINE_GATEWAY',  # CORREÇÃO
+            'method_type': 'ONLINE_GATEWAY',
             'icon_key': 'mastercard',
             'is_globally_enabled': True,
             'requires_details': True,
+            'is_default_for_new_stores': True,  # ✅ PADRÃO
             'category_name': 'debit_card_online'
         },
 
-        # Dinheiro na Entrega - Usando CASH
+        # Dinheiro na Entrega - PADRÃO PARA TODAS AS LOJAS
         {
             'name': 'cash',
             'description': 'Pagamento em dinheiro',
-            'method_type': 'CASH',  # CORREÇÃO: Usando valor do enum
+            'method_type': 'CASH',
             'icon_key': 'cash',
             'is_globally_enabled': True,
             'requires_details': False,
+            'is_default_for_new_stores': True,  # ✅ PADRÃO
             'category_name': 'cash_delivery'
         },
 
-        # PIX na Entrega - Usando MANUAL_PIX
+        # PIX na Entrega - PADRÃO PARA TODAS AS LOJAS
         {
             'name': 'pix_delivery',
             'description': 'PIX na hora da entrega',
-            'method_type': 'MANUAL_PIX',  # CORREÇÃO: Usando valor do enum
+            'method_type': 'MANUAL_PIX',
             'icon_key': 'pix',
             'is_globally_enabled': True,
             'requires_details': False,
+            'is_default_for_new_stores': True,  # ✅ PADRÃO
             'category_name': 'pix_delivery'
         },
 
-        # Cartão na Entrega - Usando OFFLINE_CARD
+        # Cartão na Entrega - PADRÃO PARA TODAS AS LOJAS
         {
             'name': 'credit_card_machine',
             'description': 'Cartão na máquina na entrega',
-            'method_type': 'OFFLINE_CARD',  # CORREÇÃO: Usando valor do enum
+            'method_type': 'OFFLINE_CARD',
             'icon_key': 'credit_card',
             'is_globally_enabled': True,
             'requires_details': True,
+            'is_default_for_new_stores': True,  # ✅ PADRÃO
             'category_name': 'card_delivery'
         },
         {
             'name': 'debit_card_machine',
             'description': 'Débito na máquina na entrega',
-            'method_type': 'OFFLINE_CARD',  # CORREÇÃO: Usando valor do enum
+            'method_type': 'OFFLINE_CARD',
             'icon_key': 'debit_card',
             'is_globally_enabled': True,
             'requires_details': True,
+            'is_default_for_new_stores': True,  # ✅ PADRÃO
             'category_name': 'card_delivery'
+        },
+
+        # MÉTODOS OPCIONAIS (não padrão)
+        {
+            'name': 'credit_card_amex',
+            'description': 'Cartão de crédito American Express',
+            'method_type': 'ONLINE_GATEWAY',
+            'icon_key': 'amex',
+            'is_globally_enabled': True,
+            'requires_details': True,
+            'is_default_for_new_stores': False,  # ❌ OPCIONAL
+            'category_name': 'credit_card_online'
+        },
+        {
+            'name': 'credit_card_hipercard',
+            'description': 'Cartão de crédito Hipercard',
+            'method_type': 'ONLINE_GATEWAY',
+            'icon_key': 'hipercard',
+            'is_globally_enabled': True,
+            'requires_details': True,
+            'is_default_for_new_stores': False,  # ❌ OPCIONAL
+            'category_name': 'credit_card_online'
+        },
+        {
+            'name': 'credit_card_diners',
+            'description': 'Cartão de crédito Diners Club',
+            'method_type': 'ONLINE_GATEWAY',
+            'icon_key': 'diners',
+            'is_globally_enabled': True,
+            'requires_details': True,
+            'is_default_for_new_stores': False,  # ❌ OPCIONAL
+            'category_name': 'credit_card_online'
         }
     ]
 
@@ -542,7 +575,8 @@ def seed_payment_methods(db: Session):
             method_data['category_id'] = category.id
             method = models.PlatformPaymentMethod(**method_data)
             db.add(method)
-            print(f"Método de pagamento '{method_data['name']}' criado.")
+            status = "PADRÃO" if method_data.get('is_default_for_new_stores') else "opcional"
+            print(f"Método de pagamento '{method_data['name']}' criado ({status}).")
         else:
             method.category_id = category.id
             for key, value in method_data.items():
@@ -551,3 +585,4 @@ def seed_payment_methods(db: Session):
 
     db.commit()
     print("✅ Estrutura de pagamentos criada/atualizada com sucesso!")
+    print("🎯 Métodos padrão para novas lojas: PIX, Cartões (Visa/Master/Elo), Dinheiro e Cartão na Entrega")
