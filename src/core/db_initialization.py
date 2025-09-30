@@ -329,7 +329,6 @@ def seed_segments(db: Session):
 
     db.commit()
     print("✅ Segmentos criados/atualizados com sucesso!")
-
 def seed_payment_methods(db: Session):
     """
     Cria os grupos, categorias e métodos de pagamento padrão
@@ -396,13 +395,8 @@ def seed_payment_methods(db: Session):
             'group_name': 'delivery_payments'
         },
         {
-            'name': 'credit_card_delivery',
+            'name': 'card_delivery',
             'priority': 3,
-            'group_name': 'delivery_payments'
-        },
-        {
-            'name': 'debit_card_delivery',
-            'priority': 4,
             'group_name': 'delivery_payments'
         }
     ]
@@ -425,24 +419,24 @@ def seed_payment_methods(db: Session):
 
     db.flush()
 
-    # Métodos de pagamento específicos
+    # Métodos de pagamento específicos - USANDO OS VALORES CORRETOS DO ENUM
     payment_methods_data = [
-        # PIX Online
+        # PIX Online - Usando MANUAL_PIX (já que não existe "pix" no enum)
         {
-            'name': 'pix',
+            'name': 'pix_online',
             'description': 'Pagamento instantâneo via PIX',
-            'method_type': 'pix',
+            'method_type': 'MANUAL_PIX',  # CORREÇÃO: Usando valor do enum
             'icon_key': 'pix',
             'is_globally_enabled': True,
             'requires_details': False,
             'category_name': 'pix_online'
         },
 
-        # Cartão de Crédito Online
+        # Cartão de Crédito Online - Usando ONLINE_GATEWAY
         {
             'name': 'credit_card_visa',
             'description': 'Cartão de crédito Visa',
-            'method_type': 'credit_card',
+            'method_type': 'ONLINE_GATEWAY',  # CORREÇÃO
             'icon_key': 'visa',
             'is_globally_enabled': True,
             'requires_details': True,
@@ -451,7 +445,7 @@ def seed_payment_methods(db: Session):
         {
             'name': 'credit_card_mastercard',
             'description': 'Cartão de crédito Mastercard',
-            'method_type': 'credit_card',
+            'method_type': 'ONLINE_GATEWAY',  # CORREÇÃO
             'icon_key': 'mastercard',
             'is_globally_enabled': True,
             'requires_details': True,
@@ -460,7 +454,7 @@ def seed_payment_methods(db: Session):
         {
             'name': 'credit_card_amex',
             'description': 'Cartão de crédito American Express',
-            'method_type': 'credit_card',
+            'method_type': 'ONLINE_GATEWAY',  # CORREÇÃO
             'icon_key': 'amex',
             'is_globally_enabled': True,
             'requires_details': True,
@@ -469,36 +463,18 @@ def seed_payment_methods(db: Session):
         {
             'name': 'credit_card_elo',
             'description': 'Cartão de crédito Elo',
-            'method_type': 'credit_card',
+            'method_type': 'ONLINE_GATEWAY',  # CORREÇÃO
             'icon_key': 'elo',
             'is_globally_enabled': True,
             'requires_details': True,
             'category_name': 'credit_card_online'
         },
-        {
-            'name': 'credit_card_hipercard',
-            'description': 'Cartão de crédito Hipercard',
-            'method_type': 'credit_card',
-            'icon_key': 'hipercard',
-            'is_globally_enabled': True,
-            'requires_details': True,
-            'category_name': 'credit_card_online'
-        },
-        {
-            'name': 'credit_card_diners',
-            'description': 'Cartão de crédito Diners Club',
-            'method_type': 'credit_card',
-            'icon_key': 'diners',
-            'is_globally_enabled': True,
-            'requires_details': True,
-            'category_name': 'credit_card_online'
-        },
 
-        # Cartão de Débito Online
+        # Cartão de Débito Online - Usando ONLINE_GATEWAY
         {
             'name': 'debit_card_visa',
             'description': 'Cartão de débito Visa',
-            'method_type': 'debit_card',
+            'method_type': 'ONLINE_GATEWAY',  # CORREÇÃO
             'icon_key': 'visa',
             'is_globally_enabled': True,
             'requires_details': True,
@@ -507,64 +483,53 @@ def seed_payment_methods(db: Session):
         {
             'name': 'debit_card_mastercard',
             'description': 'Cartão de débito Mastercard',
-            'method_type': 'debit_card',
+            'method_type': 'ONLINE_GATEWAY',  # CORREÇÃO
             'icon_key': 'mastercard',
             'is_globally_enabled': True,
             'requires_details': True,
             'category_name': 'debit_card_online'
         },
-        {
-            'name': 'debit_card_elo',
-            'description': 'Cartão de débito Elo',
-            'method_type': 'debit_card',
-            'icon_key': 'elo',
-            'is_globally_enabled': True,
-            'requires_details': True,
-            'category_name': 'debit_card_online'
-        },
 
-        # Dinheiro na Entrega
+        # Dinheiro na Entrega - Usando CASH
         {
             'name': 'cash',
             'description': 'Pagamento em dinheiro',
-            'method_type': 'cash',
+            'method_type': 'CASH',  # CORREÇÃO: Usando valor do enum
             'icon_key': 'cash',
             'is_globally_enabled': True,
             'requires_details': False,
             'category_name': 'cash_delivery'
         },
 
-        # PIX na Entrega
+        # PIX na Entrega - Usando MANUAL_PIX
         {
             'name': 'pix_delivery',
             'description': 'PIX na hora da entrega',
-            'method_type': 'pix',
+            'method_type': 'MANUAL_PIX',  # CORREÇÃO: Usando valor do enum
             'icon_key': 'pix',
             'is_globally_enabled': True,
             'requires_details': False,
             'category_name': 'pix_delivery'
         },
 
-        # Cartão de Crédito na Entrega
+        # Cartão na Entrega - Usando OFFLINE_CARD
         {
             'name': 'credit_card_machine',
             'description': 'Cartão na máquina na entrega',
-            'method_type': 'credit_card',
+            'method_type': 'OFFLINE_CARD',  # CORREÇÃO: Usando valor do enum
             'icon_key': 'credit_card',
             'is_globally_enabled': True,
             'requires_details': True,
-            'category_name': 'credit_card_delivery'
+            'category_name': 'card_delivery'
         },
-
-        # Cartão de Débito na Entrega
         {
             'name': 'debit_card_machine',
             'description': 'Débito na máquina na entrega',
-            'method_type': 'debit_card',
+            'method_type': 'OFFLINE_CARD',  # CORREÇÃO: Usando valor do enum
             'icon_key': 'debit_card',
             'is_globally_enabled': True,
             'requires_details': True,
-            'category_name': 'debit_card_delivery'
+            'category_name': 'card_delivery'
         }
     ]
 
