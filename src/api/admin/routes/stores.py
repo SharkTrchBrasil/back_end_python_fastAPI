@@ -52,8 +52,7 @@ def create_store(
         # Responsável
         responsible_name: str = Form(...),
         responsible_phone: str = Form(...),
-        # Assinatura
-        signature_base64: str | None = Form(None)
+
 ):
     # =======================================================================
     # ✅ PASSO 1: VALIDAÇÕES DE UNICIDADE
@@ -101,7 +100,6 @@ def create_store(
     db.add(db_store)
     db.flush()
 
-
     # =======================================================================
     # ✅ NOVO BLOCO: POPULA AS CONFIGURAÇÕES DO CHATBOT PARA A NOVA LOJA
     # =======================================================================
@@ -126,25 +124,6 @@ def create_store(
     print("✅ Default chatbot messages created.")
     # =======================================================================
 
-    # =======================================================================
-    # PASSO 4: PROCESSA A ASSINATURA (Sua lógica, um pouco ajustada)
-    # =======================================================================
-    if signature_base64:
-        try:
-            # Tenta remover o cabeçalho 'data:image/png;base64,' se ele existir
-            if "," in signature_base64:
-                header, encoded = signature_base64.split(",", 1)
-            else:
-                encoded = signature_base64
-
-            image_data = base64.b64decode(encoded)
-
-            # Supondo que você tenha a função 'upload_file_bytes'
-            file_key = upload_single_file(image_data)
-            db_store.signature_file_key = file_key
-        except Exception as e:
-            print(f"Erro ao processar a assinatura: {e}")
-            raise HTTPException(status_code=400, detail="Formato de assinatura inválido.")
 
     # =======================================================================
     # PASSO 5: CRIA OBJETOS RELACIONADOS (Sua lógica está perfeita)

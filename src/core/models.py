@@ -1177,6 +1177,8 @@ class PlatformPaymentMethod(Base, TimestampMixin):
     activations = relationship("StorePaymentMethodActivation", back_populates="platform_method")
 
 
+
+
 class StorePaymentMethodActivation(Base, TimestampMixin):
     __tablename__ = "store_payment_method_activations"
 

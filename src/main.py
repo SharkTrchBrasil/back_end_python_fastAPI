@@ -16,7 +16,8 @@ from src.api.admin.webhooks.chatbot import chatbot_message_webhook
 from src.api.scheduler import start_scheduler
 # Imports do seu projeto
 from src.core.database import engine
-from src.core.db_initialization import initialize_roles, seed_chatbot_templates, seed_plans_and_features
+from src.core.db_initialization import initialize_roles, seed_chatbot_templates, seed_plans_and_features, seed_segments, \
+    seed_payment_methods
 from src.api.admin.events.admin_namespace import AdminNamespace
 from src.api.app.events.totem_namespace import TotemNamespace
 from src.socketio_instance import sio
@@ -33,7 +34,8 @@ async def lifespan(app: FastAPI):
     # --- Ações de Startup ---
     print("Iniciando a aplicação...")
     with Session(bind=engine) as db_session:
-        print("Verificando roles...")
+
+        print("Semeando roles...")
         initialize_roles(db_session)
         print("Roles verificadas.")
 
@@ -41,10 +43,18 @@ async def lifespan(app: FastAPI):
         seed_chatbot_templates(db_session)
         print("Templates do chatbot verificados.")
 
-        # ✅ 2. CHAME A NOVA FUNÇÃO AQUI
         print("Semeando planos e features...")
         seed_plans_and_features(db_session)
         print("Planos e features verificados.")
+
+        print("Semeando Segmentos...")
+        seed_segments(db_session)
+        print("Segmentos verificados.")
+
+        print("Semeando Formas de pagamentos...")
+        seed_payment_methods(db_session)
+        print("Formas de pagamentos verificados.")
+
 
     # ✅ 3. AGENDAMENTO DE TODOS OS JOBS
     print("Agendando tarefas automáticas (cron jobs)...")
