@@ -8,6 +8,7 @@ from src.api.admin.services.analytics_service import get_peak_hours_for_store
 from src.api.admin.services.holiday_service import HolidayService
 from src.api.admin.services.insights_service import InsightsService
 from src.api.admin.services.payable_service import payable_service
+from src.api.admin.services.store_access_service import StoreAccessService
 from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations_simplified
 from src.api.crud import store_crud
 from src.api.schemas.chatbot.chatbot_config import StoreChatbotConfigSchema
@@ -538,3 +539,44 @@ async def admin_emit_conversations_initial(db, store_id: int, sid: str | None = 
 
     except Exception as e:
         print(f'❌ Erro ao emitir conversations_initial: {e}')
+
+
+# ✅ ADICIONE ESTA NOVA FUNÇÃO
+async def admin_emit_stores_list_update(db, admin_user: models.User):
+    """
+    Envia a lista completa e atualizada de lojas para um admin específico.
+    Útil após criar ou deletar uma loja.
+    """
+    try:
+        # Reutiliza a mesma lógica de quando o admin se conecta
+        all_accessible_store_ids = StoreAccessService.get_accessible_store_ids_with_fallback(db, admin_user)
+
+        stores_list_data = []
+        if all_accessible_store_ids:
+            accessible_stores_objs = db.query(models.Store).filter(
+                models.Store.id.in_(all_accessible_store_ids)
+            ).all()
+
+            for store in accessible_stores_objs:
+                # O Pydantic aqui não é estritamente necessário, um dict já resolve
+                stores_list_data.append({
+                    "store": {"core": {"id": store.id, "name": store.name}},
+                    # Adicione outros campos se o seu model StoreWithRole precisar
+                })
+
+        # O admin pode ter múltiplas sessões (abas), então buscamos todas
+        admin_sessions = db.query(models.StoreSession).filter_by(user_id=admin_user.id, client_type='admin').all()
+
+        if not admin_sessions:
+            print(
+                f"ℹ️ Admin {admin_user.id} não possui sessão de socket ativa para receber atualização da lista de lojas.")
+            return
+
+        for session in admin_sessions:
+            await sio.emit("admin_stores_list", {"stores": stores_list_data}, to=session.sid, namespace='/admin')
+
+        print(
+            f"✅ [Socket] Lista de lojas atualizada enviada para {len(admin_sessions)} sessão(ões) do admin {admin_user.id}.")
+
+    except Exception as e:
+        print(f"❌ Erro ao emitir admin_emit_stores_list_update: {e}")

@@ -12,7 +12,7 @@ from sqlalchemy import func
 
 
 from src.api.schemas.auth.store_access import StoreAccess
-from src.api.admin.socketio.emitters import admin_emit_store_updated
+from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_stores_list_update
 from src.core.utils.enums import StoreVerificationStatus, Roles
 from src.api.app.socketio.socketio_emitters import emit_store_updated
 from src.api.schemas.store.store import StoreWithRole, Store
@@ -217,6 +217,7 @@ def create_store(
     db.commit()
     db.refresh(db_store_access)
 
+    asyncio.run(admin_emit_stores_list_update(db, user))
 
     return db_store_access
 
