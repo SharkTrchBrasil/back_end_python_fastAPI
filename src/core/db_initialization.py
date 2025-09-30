@@ -586,3 +586,5 @@ def seed_payment_methods(db: Session):
     db.commit()
     print("✅ Estrutura de pagamentos criada/atualizada com sucesso!")
     print("🎯 Métodos padrão para novas lojas: PIX, Cartões (Visa/Master/Elo), Dinheiro e Cartão na Entrega")
+
+
