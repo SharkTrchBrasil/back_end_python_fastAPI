@@ -31,7 +31,7 @@ router = APIRouter(prefix="/stores", tags=["Stores"])
 
 # ✅ ROTA CORRIGIDA E FINALIZADA
 @router.post("", response_model=StoreWithRole)
-def create_store(
+async def create_store(
         db: GetDBDep,
         user: GetCurrentUserDep,
         # --- Dados via Formulário (como no PATCH) ---
@@ -217,12 +217,15 @@ def create_store(
     db.commit()
     db.refresh(db_store_access)
 
-    asyncio.run(admin_emit_stores_list_update(db, user))
+    # Primeiro, atualiza a lista "magra" de lojas para todos os painéis do admin
+    await admin_emit_stores_list_update(db, admin_user=user)
 
+    # Em seguida, envia os dados "gordos" e completos da NOVA loja.
+    # O wizard, que está ouvindo os detalhes desta loja específica, receberá estes dados.
+    await admin_emit_store_updated(db, store_id=db_store.id)
+
+    # O retorno para a chamada HTTP continua o mesmo
     return db_store_access
-
-
-
 
 @router.get("", response_model=list[StoreWithRole])
 def list_stores(
