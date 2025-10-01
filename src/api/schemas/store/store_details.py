@@ -33,6 +33,8 @@ class StoreDetails(StoreSchema):
     chatbot_messages: list[StoreChatbotMessageSchema] = []
     chatbot_config: Optional[StoreChatbotConfigSchema] = None
 
+
+
     # ✅ O campo calculado agora é a ÚNICA fonte da verdade para 'payment_method_groups'
     @computed_field(return_type=list[PaymentMethodGroupOut])
     @property
@@ -40,6 +42,7 @@ class StoreDetails(StoreSchema):
         """
         Constrói dinamicamente a estrutura hierárquica de grupos de pagamento
         a partir da lista plana de 'payment_activations' carregada do banco.
+        USA A NOVA ARQUITETURA (Método -> Grupo).
         """
         # O Pydantic nos dá acesso ao objeto SQLAlchemy original (`self`)
         if not hasattr(self, 'payment_activations'):
@@ -49,6 +52,7 @@ class StoreDetails(StoreSchema):
 
         # Coleta todos os grupos únicos primeiro para manter a ordem de prioridade
         all_groups_from_activations = sorted(
+            # ✅ CORREÇÃO: Acessa o grupo diretamente do método
             list({act.platform_method.group for act in self.payment_activations if
                   act.platform_method and act.platform_method.group}),
             key=lambda g: g.priority
@@ -57,14 +61,19 @@ class StoreDetails(StoreSchema):
 
         for activation in self.payment_activations:
             method = activation.platform_method
+            # ✅ CORREÇÃO: Checa diretamente o grupo, não a categoria
             if not method or not method.group:
                 continue
 
             method_out = PlatformPaymentMethodOut.model_validate(method)
             # Anexa os detalhes da ativação (is_active, is_for_delivery, etc.)
-            method_out.activation = models.StorePaymentMethodActivation(**activation.__dict__) if isinstance(activation,
-                                                                                                             models.StorePaymentMethodActivation) else activation
+            # Precisamos garantir que o objeto de ativação seja do tipo correto para o Pydantic
+            if isinstance(activation, models.StorePaymentMethodActivation):
+                method_out.activation = StorePaymentMethodActivationOut.model_validate(activation)
+            else:
+                method_out.activation = activation
 
+            # ✅ CORREÇÃO: Agrupa pelo ID do grupo diretamente
             groups_map[method.group_id].append(method_out)
 
         # Constrói o resultado final na ordem correta
