@@ -1,4 +1,7 @@
-from datetime import date, timedelta
+# src/api/admin/services/dashboard_service.py
+
+# ✅ 1. IMPORTAMOS AS FERRAMENTAS NECESSÁRIAS
+from datetime import date, timedelta, datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 
@@ -18,10 +21,23 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
     Função central que calcula todos os dados do dashboard para um determinado período.
     Esta função contém toda a lógica que estava na sua rota GET /dashboard.
     """
+    # ✅ 2. AQUI ESTÁ A CORREÇÃO DEFINITIVA
+    # Garantimos que as datas de entrada sejam "aware" (com fuso horário UTC) antes de qualquer uso.
+    # Isso resolve o erro "can't subtract offset-naive and offset-aware datetimes".
+    if not isinstance(start_date, datetime):
+        start_date = datetime.combine(start_date, datetime.min.time())
+    if not isinstance(end_date, datetime):
+        end_date = datetime.combine(end_date, datetime.max.time())
+
+    if start_date.tzinfo is None:
+        start_date = start_date.replace(tzinfo=timezone.utc)
+    if end_date.tzinfo is None:
+        end_date = end_date.replace(tzinfo=timezone.utc)
+
     # Filtro base para pedidos concluídos no período
     base_order_filter = (
         models.Order.store_id == store_id,
-        models.Order.created_at.between(start_date, end_date + timedelta(days=1)),  # Inclui o dia de hoje
+        models.Order.created_at.between(start_date, end_date),
         models.Order.order_status == OrderStatus.DELIVERED
     )
 
@@ -30,7 +46,7 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
     kpi_query = db.query(
         func.sum(models.Order.discounted_total_price).label("total_revenue"),
         func.count(models.Order.id).label("transaction_count"),
-        func.sum(models.Order.cashback_amount_generated).label("total_cashback")  # Assumindo que você tem essa coluna
+        func.sum(models.Order.cashback_amount_generated).label("total_cashback")
     ).filter(*base_order_filter).first()
 
     current_revenue = (kpi_query.total_revenue or 0)
@@ -38,18 +54,15 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
     total_cashback = (kpi_query.total_cashback or 0)
     average_ticket = (current_revenue / transaction_count) if transaction_count > 0 else 0.0
 
-    # ✅ CORREÇÃO: CÁLCULO DE NOVOS CLIENTES PARA O PERÍODO ATUAL
     first_order_subquery = db.query(
         models.Order.customer_id,
         func.min(models.Order.created_at).label("first_order_date")
     ).filter(models.Order.store_id == store_id).group_by(models.Order.customer_id).subquery()
 
     new_customers_count = db.query(func.count(first_order_subquery.c.customer_id)).filter(
-        first_order_subquery.c.first_order_date.between(start_date, end_date + timedelta(days=1))
+        first_order_subquery.c.first_order_date.between(start_date, end_date)
     ).scalar() or 0
 
-    # --- CÁLCULO DA TAXA DE RETENÇÃO ---
-    # Subquery para contar o número de pedidos por cliente (considerando todos os pedidos da loja)
     order_count_per_customer_subquery = (
         db.query(
             models.Order.customer_id,
@@ -60,31 +73,24 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
         .subquery()
     )
 
-    # Contamos quantos clientes têm mais de 1 pedido (recorrentes)
     returning_customers_count = db.query(func.count(order_count_per_customer_subquery.c.customer_id)).filter(
         order_count_per_customer_subquery.c.order_count > 1
     ).scalar() or 0
 
-    # ✅ CORREÇÃO: O total de clientes da loja é o número total de
-    # entradas na nossa subquery (clientes com pelo menos 1 pedido).
     total_store_customers_count = db.query(func.count(order_count_per_customer_subquery.c.customer_id)).scalar() or 0
 
-    # Agora o cálculo da retenção é preciso para a loja
     retention_rate = (
                                  returning_customers_count / total_store_customers_count) * 100 if total_store_customers_count > 0 else 0.0
 
-
-
-
-
     # --- Cálculo da Variação de Receita (Comparação com período anterior) ---
-    period_duration = (end_date - start_date).days
+    # Agora esta operação é segura, pois as datas são "aware".
+    period_duration = (end_date.date() - start_date.date()).days
     previous_start_date = start_date - timedelta(days=period_duration + 1)
     previous_end_date = start_date - timedelta(days=1)
 
     previous_revenue = db.query(func.sum(models.Order.discounted_total_price)).filter(
         models.Order.store_id == store_id,
-        models.Order.created_at.between(previous_start_date, previous_end_date + timedelta(days=1)),
+        models.Order.created_at.between(previous_start_date, previous_end_date),
         models.Order.order_status == OrderStatus.DELIVERED
     ).scalar() or 0
 
@@ -93,31 +99,26 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
     else:
         revenue_change_percentage = 100.0 if current_revenue > 0 else 0.0
 
-        # ✅ CORREÇÃO NA CRIAÇÃO DO OBJETO kpis
     kpis = DashboardKpiSchema(
         total_revenue=current_revenue / 100,
         transaction_count=transaction_count,
         average_ticket=average_ticket / 100,
-        new_customers=new_customers_count,  # <-- Usa a contagem correta
+        new_customers=new_customers_count,
         total_cashback=total_cashback / 100,
         total_spent=current_revenue / 100,
         revenue_change_percentage=revenue_change_percentage,
         revenue_is_up=current_revenue > previous_revenue,
-        retention_rate=retention_rate,  # ✅ NOVO DADO
-
+        retention_rate=retention_rate,
     )
 
     # --- 2. DADOS PARA O GRÁFICO DE NOVOS CLIENTES POR MÊS ---
-    # ✅ LÓGICA REINSERIDA AQUI
-    six_months_ago = end_date - timedelta(days=180)
+    six_months_ago = end_date.date() - timedelta(days=180)
 
-    # Esta query busca a data do primeiro pedido de cada cliente na loja
     first_order_monthly_subquery = db.query(
         models.Order.customer_id,
         func.min(models.Order.created_at).label("first_order_date")
     ).filter(models.Order.store_id == store_id).group_by(models.Order.customer_id).subquery()
 
-    # Agora contamos quantos "primeiros pedidos" aconteceram em cada mês
     monthly_customers_data = (
         db.query(
             extract('year', first_order_monthly_subquery.c.first_order_date).label('year'),
@@ -175,16 +176,11 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
     if top_product_revenue_query:
         top_product_by_revenue = TopItemSchema(
             name=top_product_revenue_query.name,
-            count=0,  # A contagem não é relevante aqui, mas o schema exige
+            count=0,
             revenue=(top_product_revenue_query.revenue or 0) / 100
         )
 
-
-
-
     # --- 4. Top 5 Categorias ---
-    # (Requer que OrderProduct tenha uma relação com Product, que tem uma relação com Category)
-    # --- 4. Top 5 Categorias (CORRIGIDA para N-N) ---
     top_categories_query = db.query(
         models.Category.name,
         func.sum(models.OrderProduct.quantity).label("count"),
@@ -208,20 +204,18 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
     ).filter(*base_order_filter).group_by(models.Order.order_type).all()
 
     order_type_distribution = [
-        OrderTypeSummarySchema(order_type=row.order_type, count=row.count)  # Usamos .name se for um Enum
+        OrderTypeSummarySchema(order_type=row.order_type, count=row.count)
         for row in order_type_query
     ]
 
-
     # --- 5. Resumo por Método de Pagamento ---
-
     payment_methods_query = db.query(
         models.PlatformPaymentMethod.name.label("method_name"),
         func.sum(models.Order.discounted_total_price).label("total_amount")
     ).join(
-        models.Order.payment_method  # relacionamento com StorePaymentMethodActivation
+        models.Order.payment_method
     ).join(
-        models.StorePaymentMethodActivation.platform_method  # relacionamento com PlatformPaymentMethod
+        models.StorePaymentMethodActivation.platform_method
     ).filter(
         *base_order_filter
     ).group_by(
@@ -243,6 +237,6 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
         new_customers_over_time=new_customers_over_time,
         user_cards=[],
         currency_balances=[],
-        top_product_by_revenue=top_product_by_revenue,  # ✅ NOVO DADO
+        top_product_by_revenue=top_product_by_revenue,
         order_type_distribution=order_type_distribution,
     )
