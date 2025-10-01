@@ -6,7 +6,8 @@ from src.api.schemas.analytics.dashboard import DashboardMetrics
 from src.core.models import StorePayable, Store
 from src.api.schemas.store.store_payable import PayableCreate, PayableUpdate, PayableResponse
 from src.core.utils.enums import PayableStatus
-from datetime import date
+from datetime import date, datetime, timezone
+
 
 class PayableService:
     def get_payable_by_id(self, db: Session, payable_id: int, store_id: int) -> StorePayable | None:
@@ -60,7 +61,7 @@ class PayableService:
 
 
     def get_payables_metrics(self, db: Session, store_id: int) -> DashboardMetrics:
-        today = date.today()
+        today = datetime.now(timezone.utc).date()
         start_of_month = today.replace(day=1)
 
         metrics_query = db.query(
