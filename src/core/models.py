@@ -875,7 +875,7 @@ class CouponUsage(Base):
     coupon_id: Mapped[int] = mapped_column(ForeignKey("coupons.id"))
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), unique=True) # Garante um uso por pedido
-    used_at: Mapped[datetime] = mapped_column(default=func.now())
+    used_at: Mapped[datetime] = mapped_column(default=func.now(timezone.utc))
 
     # --- RELACIONAMENTOS CORRETOS ---
 
@@ -2184,7 +2184,7 @@ class CashbackTransaction(Base):
     type: Mapped[str] = mapped_column(String(50))  # "generated", "used", "expired"
     description: Mapped[str] = mapped_column(String(255))
     expires_at: Mapped[datetime] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=func.now())
+    created_at: Mapped[datetime] = mapped_column(default=func.now(timezone.utc))
 
     user: Mapped["User"] = relationship()
     order: Mapped["Order"] = relationship()
