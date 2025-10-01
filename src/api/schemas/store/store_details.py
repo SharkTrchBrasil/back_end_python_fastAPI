@@ -19,10 +19,6 @@ from src.core import models
 
 
 class StoreDetails(StoreSchema):
-    # --- Relações ---
-    # ❌ A LINHA CONFLITANTE FOI REMOVIDA
-    # payment_method_groups: list[PaymentMethodGroupOut] = []
-
     store_operation_config: StoreOperationConfigOut | None = None
     hours: list[StoreHoursOut] = []
     cities: list[StoreCitySchema] = []
