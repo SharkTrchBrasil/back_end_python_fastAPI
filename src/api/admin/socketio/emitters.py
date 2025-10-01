@@ -21,6 +21,8 @@ from src.api.schemas.orders.command import CommandOut
 from src.api.schemas.financial.payable_category import PayableCategoryResponse
 from src.api.schemas.analytics.peak_hours import PeakHoursAnalytics
 from src.api.schemas.financial.receivable import ReceivableResponse, ReceivableCategoryResponse
+# ✅ PASSO 1: Importar o schema necessário
+from src.api.schemas.store.store import StoreWithRole
 from src.api.schemas.store.store_details import StoreDetails
 from src.api.schemas.store.store_payable import PayableResponse
 from src.api.schemas.financial.supplier import SupplierResponse
@@ -541,30 +543,29 @@ async def admin_emit_conversations_initial(db, store_id: int, sid: str | None = 
         print(f'❌ Erro ao emitir conversations_initial: {e}')
 
 
-# ✅ ADICIONE ESTA NOVA FUNÇÃO
+# ✅ FUNÇÃO TOTALMENTE CORRIGIDA
 async def admin_emit_stores_list_update(db, admin_user: models.User):
     """
-    Envia a lista completa e atualizada de lojas para um admin específico.
+    Envia a lista completa e atualizada de lojas (com todos os detalhes) para um admin específico.
     Útil após criar ou deletar uma loja.
     """
     try:
-        # Reutiliza a mesma lógica de quando o admin se conecta
-        all_accessible_store_ids = StoreAccessService.get_accessible_store_ids_with_fallback(db, admin_user)
+        # PASSO 1: Busca todos os objetos `StoreAccess` para o usuário.
+        # Isso já nos dá a loja e a role associada, que é o que precisamos.
+        # O `selectinload` garante que os objetos `store` e `role` sejam carregados de forma otimizada.
+        store_accesses = db.query(models.StoreAccess).options(
+            selectinload(models.StoreAccess.store),
+            selectinload(models.StoreAccess.role)
+        ).filter(models.StoreAccess.user_id == admin_user.id).all()
 
-        stores_list_data = []
-        if all_accessible_store_ids:
-            accessible_stores_objs = db.query(models.Store).filter(
-                models.Store.id.in_(all_accessible_store_ids)
-            ).all()
+        # PASSO 2: Serializa a lista de `StoreAccess` para uma lista de dicionários
+        # usando o schema `StoreWithRole`, que é o que o frontend espera.
+        stores_list_payload = [
+            StoreWithRole.model_validate(access).model_dump(mode='json')
+            for access in store_accesses
+        ]
 
-            for store in accessible_stores_objs:
-                # O Pydantic aqui não é estritamente necessário, um dict já resolve
-                stores_list_data.append({
-                    "store": {"core": {"id": store.id, "name": store.name}},
-                    # Adicione outros campos se o seu model StoreWithRole precisar
-                })
-
-        # O admin pode ter múltiplas sessões (abas), então buscamos todas
+        # PASSO 3: Busca todas as sessões ativas do admin para enviar a atualização.
         admin_sessions = db.query(models.StoreSession).filter_by(user_id=admin_user.id, client_type='admin').all()
 
         if not admin_sessions:
@@ -572,11 +573,12 @@ async def admin_emit_stores_list_update(db, admin_user: models.User):
                 f"ℹ️ Admin {admin_user.id} não possui sessão de socket ativa para receber atualização da lista de lojas.")
             return
 
+        # PASSO 4: Emite o payload completo para cada sessão ativa.
         for session in admin_sessions:
-            await sio.emit("admin_stores_list", {"stores": stores_list_data}, to=session.sid, namespace='/admin')
+            await sio.emit("admin_stores_list", {"stores": stores_list_payload}, to=session.sid, namespace='/admin')
 
         print(
-            f"✅ [Socket] Lista de lojas atualizada enviada para {len(admin_sessions)} sessão(ões) do admin {admin_user.id}.")
+            f"✅ [Socket] Lista de lojas COMPLETA ({len(stores_list_payload)} lojas) enviada para {len(admin_sessions)} sessão(ões) do admin {admin_user.id}.")
 
     except Exception as e:
         print(f"❌ Erro ao emitir admin_emit_stores_list_update: {e}")
