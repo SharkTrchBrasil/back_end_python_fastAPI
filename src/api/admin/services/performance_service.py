@@ -495,7 +495,7 @@ def get_today_summary(db: Session, store_id: int) -> TodaySummarySchema:
     """Calcula um resumo rápido das vendas concluídas do dia de operação."""
     # O iFood considera o dia das 05:00 de hoje até 04:59 de amanhã.
     # Vamos simular essa lógica.
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     start_of_operation_day = now.replace(hour=5, minute=0, second=0, microsecond=0)
     if now.hour < 5:  # Se for antes das 5 da manhã, pega o dia anterior
         start_of_operation_day -= timedelta(days=1)

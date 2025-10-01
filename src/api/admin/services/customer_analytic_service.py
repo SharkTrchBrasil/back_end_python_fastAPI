@@ -60,7 +60,7 @@ async def get_customer_analytics_for_store(db: Session, store_id: int,
         )
 
     # 2. PROCESSAMENTO E CÁLCULOS (feitos no Python, fora da função de query)
-    today = datetime.now()
+    today = datetime.now(timezone.utc)
     start_date = today - timedelta(days=period_in_days)
 
     new_customers_count = sum(1 for c in customer_data if c['first_order_date'] >= start_date.date())

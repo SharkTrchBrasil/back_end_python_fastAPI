@@ -108,7 +108,7 @@ class BillingReportService:
         Relatório focado nos benefícios entregues aos parceiros.
         """
         # Consulta otimizada com filtro de data
-        cutoff_date = datetime.now() - func.make_interval(months=months)
+        cutoff_date = datetime.now(timezone.utc) - func.make_interval(months=months)
 
         result = db.query(
             func.count(models.MonthlyCharge.id).label('total_charges'),

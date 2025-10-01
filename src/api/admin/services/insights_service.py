@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
@@ -59,7 +59,7 @@ class InsightsService:
         """
         Gera um insight para um item que não vende há muito tempo.
         """
-        today = datetime.now()
+        today = datetime.now(timezone.utc)
         low_turnover_items = _process_low_turnover(all_products_data, today, period_in_days=30)
 
         if not low_turnover_items:
@@ -89,7 +89,7 @@ class InsightsService:
         insights = []
 
         # 1. Busca os dados base uma única vez
-        start_date = datetime.now() - timedelta(days=30)
+        start_date = datetime.now(timezone.utc) - timedelta(days=30)
         # Reutilizamos a função de busca que já existe e a executamos em uma thread
         all_products_data = await asyncio.to_thread(_fetch_product_data_from_db, db, store_id, start_date)
 

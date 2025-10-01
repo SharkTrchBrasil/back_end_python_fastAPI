@@ -1,7 +1,7 @@
 # Em src/api/admin/logic/analytic_logic.py
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict
 from sqlalchemy import text
 from sqlalchemy.orm import Session  # ✅ Usamos a Session síncrona
@@ -75,8 +75,8 @@ async def get_product_analytics_for_store(db: Session, store_id: int,
     """
     Orquestra a busca e o processamento de todos os dados de análise de produtos.
     """
-    start_date = datetime.now() - timedelta(days=period_in_days)
-    today = datetime.now()
+    start_date = datetime.now(timezone.utc) - timedelta(days=period_in_days)
+    today = datetime.now(timezone.utc)
 
     # 1. EXECUTA A QUERY SÍNCRONA EM UMA THREAD SEPARADA
     enriched_products = await asyncio.to_thread(_fetch_product_data_from_db, db, store_id, start_date)

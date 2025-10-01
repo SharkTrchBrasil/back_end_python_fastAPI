@@ -1,5 +1,5 @@
 import httpx
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from cachetools import cached, TTLCache
 from src.api.schemas.analytics.dashboard import DashboardInsight, HolidayInsightDetails
 
@@ -29,7 +29,7 @@ class HolidayService:
         Verifica se há um feriado nacional nos próximos 'days_ahead' dias
         e retorna um objeto de insight se houver.
         """
-        today = datetime.now().date()
+        today = datetime.now(timezone.utc).date()
         current_year = today.year
         limit_date = today + timedelta(days=days_ahead)
 
