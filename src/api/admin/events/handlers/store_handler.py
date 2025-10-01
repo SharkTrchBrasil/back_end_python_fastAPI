@@ -108,8 +108,7 @@ async def handle_update_operation_config(self, sid, data):
             db.add(config)
 
         try:
-            # ✅ CORREÇÃO: Lista explícita de campos atualizáveis.
-            # Isso evita o erro no editor e torna a intenção do código mais clara.
+
             updatable_fields = [
                 "is_store_open", "auto_accept_orders", "auto_print_orders",
                 "main_printer_destination", "kitchen_printer_destination", "bar_printer_destination",
@@ -127,13 +126,9 @@ async def handle_update_operation_config(self, sid, data):
 
             db.commit()  # Salva as alterações. Esta parte já funcionava.
 
-            # ✅ 2. CORREÇÃO DA ATUALIZAÇÃO DOS OBJETOS
-            # Atualiza o objeto 'config' para refletir o que foi salvo no banco.
+
             db.refresh(config)
 
-            # ✅ 3. CORREÇÃO DA CHAMADA DO EMISSOR
-            # Chama a função de broadcast com os argumentos corretos (db, store_id)
-            # para notificar outros clientes conectados.
             await emit_store_updates(db, requested_store_id)
 
         except Exception as e:
