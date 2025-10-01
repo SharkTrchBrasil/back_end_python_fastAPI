@@ -39,20 +39,21 @@ class Base(DeclarativeBase):
 
 
 class TimestampMixin:
-    # ✅ Otimizado com index=True
+    # ✅ USA `default` em vez de `server_default`
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=func.now(),
-        index=True  # <--- A ÚNICA MUDANÇA NECESSÁRIA
+        # `default` usa uma função Python, não do banco.
+        # Estamos explicitamente dizendo para usar a hora atual em UTC.
+        default=lambda: datetime.now(timezone.utc),
+        index=True
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now()
+        default=lambda: datetime.now(timezone.utc),
+        # `onupdate` também usa uma função Python.
+        onupdate=lambda: datetime.now(timezone.utc)
     )
-
-
 
 
 class Store(Base, TimestampMixin):
