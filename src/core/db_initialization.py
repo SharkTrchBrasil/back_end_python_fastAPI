@@ -4,7 +4,8 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 from src.core import models
 from datetime import datetime, timezone
-from src.core.utils.enums import ChatbotMessageGroupEnum
+from src.core.utils.enums import ChatbotMessageGroupEnum, PaymentMethodType
+
 
 def initialize_roles(db: Session):
     """
@@ -329,25 +330,39 @@ def seed_segments(db: Session):
 
     db.commit()
     print("✅ Segmentos criados/atualizados com sucesso!")
+
+
 def seed_payment_methods(db: Session):
     """
-    Cria os grupos, categorias e métodos de pagamento padrão
+    Cria os grupos e métodos de pagamento padrão com a nova estrutura simplificada.
     """
-    print("Iniciando a semeadura de métodos de pagamento...")
+    print("Iniciando a semeadura de métodos de pagamento (estrutura simplificada)...")
 
-    # Grupos de pagamento
+    # 1. Definir os Grupos Fundamentais
     groups_data = [
         {
-            'name': 'online_payments',
-            'title': 'Pagamento pelo App',
-            'description': 'Pagamentos realizados diretamente pelo aplicativo',
+            'name': 'credit_cards',
+            'title': 'Cartões de Crédito',
+            'description': 'Pagamentos com cartão de crédito.',
             'priority': 1
         },
         {
-            'name': 'delivery_payments',
-            'title': 'Pagamento na Entrega',
-            'description': 'Pagamentos realizados no momento da entrega/retirada',
+            'name': 'debit_cards',
+            'title': 'Cartões de Débito',
+            'description': 'Pagamentos com cartão de débito.',
             'priority': 2
+        },
+        {
+            'name': 'digital_payments',
+            'title': 'Pagamentos Digitais',
+            'description': 'Pagamentos instantâneos como PIX.',
+            'priority': 3
+        },
+        {
+            'name': 'cash_and_vouchers',
+            'title': 'Dinheiro e Vales',
+            'description': 'Pagamento em espécie ou com vales.',
+            'priority': 4
         }
     ]
 
@@ -357,234 +372,124 @@ def seed_payment_methods(db: Session):
         if not group:
             group = models.PaymentMethodGroup(**group_data)
             db.add(group)
-            print(f"Grupo de pagamento '{group_data['name']}' criado.")
+            print(f"Grupo de pagamento '{group_data['title']}' criado.")
         else:
             for key, value in group_data.items():
                 setattr(group, key, value)
-
     db.flush()
 
-    # Categorias de pagamento
-    categories_data = [
-        # Pagamento Online
-        {
-            'name': 'pix_online',
-            'priority': 1,
-            'group_name': 'online_payments'
-        },
-        {
-            'name': 'credit_card_online',
-            'priority': 2,
-            'group_name': 'online_payments'
-        },
-        {
-            'name': 'debit_card_online',
-            'priority': 3,
-            'group_name': 'online_payments'
-        },
+    # 2. Remover Categorias (lógica obsoleta)
+    # A tabela PaymentMethodCategory não existe mais, então não há nada para criar ou atualizar aqui.
 
-        # Pagamento na Entrega
-        {
-            'name': 'cash_delivery',
-            'priority': 1,
-            'group_name': 'delivery_payments'
-        },
-        {
-            'name': 'pix_delivery',
-            'priority': 2,
-            'group_name': 'delivery_payments'
-        },
-        {
-            'name': 'card_delivery',
-            'priority': 3,
-            'group_name': 'delivery_payments'
-        }
-    ]
-
-    # Criar/atualizar categorias
-    for category_data in categories_data:
-        group = db.query(models.PaymentMethodGroup).filter_by(name=category_data.pop('group_name')).first()
-        category = db.query(models.PaymentMethodCategory).filter_by(name=category_data['name']).first()
-
-        if not category:
-            category_data['group_id'] = group.id
-            category = models.PaymentMethodCategory(**category_data)
-            db.add(category)
-            print(f"Categoria de pagamento '{category_data['name']}' criada.")
-        else:
-            category.group_id = group.id
-            for key, value in category_data.items():
-                if key != 'group_name':
-                    setattr(category, key, value)
-
-    db.flush()
-
-    # Métodos de pagamento específicos - COM PAGAMENTOS PADRÃO PARA NOVAS LOJAS
+    # 3. Definir os Métodos de Pagamento e associá-los aos Grupos corretos
     payment_methods_data = [
-        # PIX Online - PADRÃO PARA TODAS AS LOJAS
+        # --- Grupo: Pagamentos Digitais ---
         {
-            'name': 'pix_online',
+            'name': 'Pix',
             'description': 'Pagamento instantâneo via PIX',
-            'method_type': 'MANUAL_PIX',
+            'method_type': PaymentMethodType.MANUAL_PIX,
             'icon_key': 'pix',
-            'is_globally_enabled': True,
-            'requires_details': False,
-            'is_default_for_new_stores': True,  # ✅ PADRÃO
-            'category_name': 'pix_online'
+            'is_default_for_new_stores': True,
+            'group_name': 'digital_payments'
         },
 
-        # Cartão de Crédito Online - PADRÃO PARA TODAS AS LOJAS
+        # --- Grupo: Dinheiro e Vales ---
         {
-            'name': 'credit_card_visa',
-            'description': 'Cartão de crédito Visa',
-            'method_type': 'ONLINE_GATEWAY',
-            'icon_key': 'visa',
-            'is_globally_enabled': True,
-            'requires_details': True,
-            'is_default_for_new_stores': True,  # ✅ PADRÃO
-            'category_name': 'credit_card_online'
-        },
-        {
-            'name': 'credit_card_mastercard',
-            'description': 'Cartão de crédito Mastercard',
-            'method_type': 'ONLINE_GATEWAY',
-            'icon_key': 'mastercard',
-            'is_globally_enabled': True,
-            'requires_details': True,
-            'is_default_for_new_stores': True,  # ✅ PADRÃO
-            'category_name': 'credit_card_online'
-        },
-        {
-            'name': 'credit_card_elo',
-            'description': 'Cartão de crédito Elo',
-            'method_type': 'ONLINE_GATEWAY',
-            'icon_key': 'elo',
-            'is_globally_enabled': True,
-            'requires_details': True,
-            'is_default_for_new_stores': True,  # ✅ PADRÃO
-            'category_name': 'credit_card_online'
-        },
-
-        # Cartão de Débito Online - PADRÃO PARA TODAS AS LOJAS
-        {
-            'name': 'debit_card_visa',
-            'description': 'Cartão de débito Visa',
-            'method_type': 'ONLINE_GATEWAY',
-            'icon_key': 'visa',
-            'is_globally_enabled': True,
-            'requires_details': True,
-            'is_default_for_new_stores': True,  # ✅ PADRÃO
-            'category_name': 'debit_card_online'
-        },
-        {
-            'name': 'debit_card_mastercard',
-            'description': 'Cartão de débito Mastercard',
-            'method_type': 'ONLINE_GATEWAY',
-            'icon_key': 'mastercard',
-            'is_globally_enabled': True,
-            'requires_details': True,
-            'is_default_for_new_stores': True,  # ✅ PADRÃO
-            'category_name': 'debit_card_online'
-        },
-
-        # Dinheiro na Entrega - PADRÃO PARA TODAS AS LOJAS
-        {
-            'name': 'cash',
-            'description': 'Pagamento em dinheiro',
-            'method_type': 'CASH',
+            'name': 'Dinheiro',
+            'description': 'Pagamento em dinheiro na entrega/retirada',
+            'method_type': PaymentMethodType.CASH,
             'icon_key': 'cash',
-            'is_globally_enabled': True,
-            'requires_details': False,
-            'is_default_for_new_stores': True,  # ✅ PADRÃO
-            'category_name': 'cash_delivery'
+            'is_default_for_new_stores': True,
+            'group_name': 'cash_and_vouchers'
         },
 
-        # PIX na Entrega - PADRÃO PARA TODAS AS LOJAS
+        # --- Grupo: Cartões de Crédito ---
         {
-            'name': 'pix_delivery',
-            'description': 'PIX na hora da entrega',
-            'method_type': 'MANUAL_PIX',
-            'icon_key': 'pix',
-            'is_globally_enabled': True,
-            'requires_details': False,
-            'is_default_for_new_stores': True,  # ✅ PADRÃO
-            'category_name': 'pix_delivery'
-        },
-
-        # Cartão na Entrega - PADRÃO PARA TODAS AS LOJAS
-        {
-            'name': 'credit_card_machine',
-            'description': 'Cartão na máquina na entrega',
-            'method_type': 'OFFLINE_CARD',
-            'icon_key': 'credit_card',
-            'is_globally_enabled': True,
-            'requires_details': True,
-            'is_default_for_new_stores': True,  # ✅ PADRÃO
-            'category_name': 'card_delivery'
+            'name': 'Visa Crédito',
+            'description': 'Cartão de crédito Visa',
+            'method_type': PaymentMethodType.ONLINE_GATEWAY,  # ou OFFLINE_CARD se for só na maquininha
+            'icon_key': 'visa',
+            'is_default_for_new_stores': True,
+            'group_name': 'credit_cards'
         },
         {
-            'name': 'debit_card_machine',
-            'description': 'Débito na máquina na entrega',
-            'method_type': 'OFFLINE_CARD',
-            'icon_key': 'debit_card',
-            'is_globally_enabled': True,
-            'requires_details': True,
-            'is_default_for_new_stores': True,  # ✅ PADRÃO
-            'category_name': 'card_delivery'
+            'name': 'Mastercard Crédito',
+            'description': 'Cartão de crédito Mastercard',
+            'method_type': PaymentMethodType.ONLINE_GATEWAY,
+            'icon_key': 'mastercard',
+            'is_default_for_new_stores': True,
+            'group_name': 'credit_cards'
         },
-
-        # MÉTODOS OPCIONAIS (não padrão)
         {
-            'name': 'credit_card_amex',
+            'name': 'Elo Crédito',
+            'description': 'Cartão de crédito Elo',
+            'method_type': PaymentMethodType.ONLINE_GATEWAY,
+            'icon_key': 'elo',
+            'is_default_for_new_stores': True,
+            'group_name': 'credit_cards'
+        },
+        {
+            'name': 'Amex Crédito',
             'description': 'Cartão de crédito American Express',
-            'method_type': 'ONLINE_GATEWAY',
+            'method_type': PaymentMethodType.ONLINE_GATEWAY,
             'icon_key': 'amex',
-            'is_globally_enabled': True,
-            'requires_details': True,
-            'is_default_for_new_stores': False,  # ❌ OPCIONAL
-            'category_name': 'credit_card_online'
+            'is_default_for_new_stores': False,  # Opcional
+            'group_name': 'credit_cards'
         },
         {
-            'name': 'credit_card_hipercard',
+            'name': 'Hipercard',
             'description': 'Cartão de crédito Hipercard',
-            'method_type': 'ONLINE_GATEWAY',
+            'method_type': PaymentMethodType.ONLINE_GATEWAY,
             'icon_key': 'hipercard',
-            'is_globally_enabled': True,
-            'requires_details': True,
-            'is_default_for_new_stores': False,  # ❌ OPCIONAL
-            'category_name': 'credit_card_online'
+            'is_default_for_new_stores': False,  # Opcional
+            'group_name': 'credit_cards'
+        },
+
+        # --- Grupo: Cartões de Débito ---
+        {
+            'name': 'Visa Débito',
+            'description': 'Cartão de débito Visa',
+            'method_type': PaymentMethodType.ONLINE_GATEWAY,
+            'icon_key': 'visa',
+            'is_default_for_new_stores': True,
+            'group_name': 'debit_cards'
         },
         {
-            'name': 'credit_card_diners',
-            'description': 'Cartão de crédito Diners Club',
-            'method_type': 'ONLINE_GATEWAY',
-            'icon_key': 'diners',
-            'is_globally_enabled': True,
-            'requires_details': True,
-            'is_default_for_new_stores': False,  # ❌ OPCIONAL
-            'category_name': 'credit_card_online'
+            'name': 'Mastercard Débito',
+            'description': 'Cartão de débito Mastercard',
+            'method_type': PaymentMethodType.ONLINE_GATEWAY,
+            'icon_key': 'mastercard',
+            'is_default_for_new_stores': True,
+            'group_name': 'debit_cards'
         }
     ]
 
     # Criar/atualizar métodos de pagamento
     for method_data in payment_methods_data:
-        category = db.query(models.PaymentMethodCategory).filter_by(name=method_data.pop('category_name')).first()
+        # Pega o grupo pai pelo nome que definimos
+        group = db.query(models.PaymentMethodGroup).filter_by(name=method_data.pop('group_name')).first()
+        if not group:
+            print(
+                f"⚠️  Aviso: Grupo '{method_data.get('group_name')}' não encontrado para o método '{method_data['name']}'. Pulando.")
+            continue
+
         method = db.query(models.PlatformPaymentMethod).filter_by(name=method_data['name']).first()
 
+        # Valores padrão para campos que não estão em todos os métodos
+        method_data.setdefault('is_globally_enabled', True)
+        method_data.setdefault('requires_details', False)  # A maioria não requer, cartões sim. Ajuste se necessário.
+
         if not method:
-            method_data['category_id'] = category.id
+            method_data['group_id'] = group.id
             method = models.PlatformPaymentMethod(**method_data)
             db.add(method)
             status = "PADRÃO" if method_data.get('is_default_for_new_stores') else "opcional"
-            print(f"Método de pagamento '{method_data['name']}' criado ({status}).")
+            print(f"Método de pagamento '{method_data['name']}' criado no grupo '{group.title}' ({status}).")
         else:
-            method.category_id = category.id
+            method.group_id = group.id
             for key, value in method_data.items():
-                if key != 'category_name':
-                    setattr(method, key, value)
+                setattr(method, key, value)
 
     db.commit()
-    print("✅ Estrutura de pagamentos criada/atualizada com sucesso!")
-    print("🎯 Métodos padrão para novas lojas: PIX, Cartões (Visa/Master/Elo), Dinheiro e Cartão na Entrega")
-
+    print("✅ Estrutura de pagamentos simplificada criada/atualizada com sucesso!")
 

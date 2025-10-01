@@ -1133,8 +1133,6 @@ class StoreChatbotConfig(Base, TimestampMixin):
     store: Mapped["Store"] = relationship(back_populates="chatbot_config")
 
 
-
-
 class PaymentMethodGroup(Base):
     __tablename__ = "payment_method_groups"
 
@@ -1142,21 +1140,10 @@ class PaymentMethodGroup(Base):
     name: Mapped[str] = mapped_column(String(50), unique=True)
     title: Mapped[str] = mapped_column(String(255), nullable=True)
     description: Mapped[str] = mapped_column(String(255), nullable=True)
-
     priority: Mapped[int] = mapped_column(default=0)
-    categories = relationship("PaymentMethodCategory", back_populates="group")
 
-
-class PaymentMethodCategory(Base):
-    __tablename__ = "payment_method_categories"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(50))
-    priority: Mapped[int] = mapped_column(default=0)
-    group_id: Mapped[int] = mapped_column(ForeignKey("payment_method_groups.id"), nullable=False)
-    group = relationship("PaymentMethodGroup", back_populates="categories")
-    methods = relationship("PlatformPaymentMethod", back_populates="category")
-
+    # ✅ RELAÇÃO ATUALIZADA: Um grupo agora tem vários métodos diretamente.
+    methods: Mapped[list["PlatformPaymentMethod"]] = relationship(back_populates="group")
 
 
 class PlatformPaymentMethod(Base, TimestampMixin):
@@ -1169,18 +1156,15 @@ class PlatformPaymentMethod(Base, TimestampMixin):
     icon_key: Mapped[str] = mapped_column(String(100), nullable=True)
     is_globally_enabled: Mapped[bool] = mapped_column(default=True)
     requires_details: Mapped[bool] = mapped_column(default=False)
-
-    # ✅ CORREÇÃO: Adicionada a chave estrangeira que faltava
-    category_id: Mapped[int] = mapped_column(ForeignKey("payment_method_categories.id"), nullable=False)
-
-    # ✅ NOVO CAMPO ADICIONADO AQUI
     is_default_for_new_stores: Mapped[bool] = mapped_column(default=False, nullable=False)
 
-    # Relacionamentos
-    category = relationship("PaymentMethodCategory", back_populates="methods")
-    activations = relationship("StorePaymentMethodActivation", back_populates="platform_method")
+    # ✅ CORREÇÃO: A chave estrangeira agora aponta para `payment_method_groups`.
+    group_id: Mapped[int] = mapped_column(ForeignKey("payment_method_groups.id"), nullable=False)
 
+    # ✅ CORREÇÃO: O relacionamento agora é com `PaymentMethodGroup`.
+    group: Mapped["PaymentMethodGroup"] = relationship(back_populates="methods")
 
+    activations: Mapped[list["StorePaymentMethodActivation"]] = relationship(back_populates="platform_method")
 
 
 class StorePaymentMethodActivation(Base, TimestampMixin):

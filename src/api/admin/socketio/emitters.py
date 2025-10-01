@@ -8,14 +8,12 @@ from src.api.admin.services.analytics_service import get_peak_hours_for_store
 from src.api.admin.services.holiday_service import HolidayService
 from src.api.admin.services.insights_service import InsightsService
 from src.api.admin.services.payable_service import payable_service
-from src.api.admin.services.store_access_service import StoreAccessService
-from src.api.admin.utils.payment_method_group import _build_payment_groups_from_activations_simplified
+
 from src.api.crud import store_crud
 from src.api.schemas.chatbot.chatbot_config import StoreChatbotConfigSchema
 from src.api.schemas.chatbot.chatbot_conversation import ChatbotConversationSchema
 from src.api.schemas.chatbot.chatbot_message import ChatbotMessageSchema
-from src.api.schemas.financial.coupon import CouponOut
-from src.api.schemas.financial.payment_method import PaymentMethodGroupOut
+
 from src.api.schemas.products.category import Category
 from src.api.schemas.orders.command import CommandOut
 from src.api.schemas.financial.payable_category import PayableCategoryResponse
@@ -45,48 +43,36 @@ from sqlalchemy.orm import selectinload
 from src.api.schemas.products.variant import Variant
 
 
-
 async def admin_emit_store_updated(db, store_id: int):
     """
     Envia os dados de configuração da loja, incluindo grupos de pagamento e cupons.
+    AGORA REUTILIZANDO A LÓGICA DO SCHEMA 'StoreDetails'.
     """
     try:
+        # 1. Busca os dados brutos da loja (a consulta já otimiza o carregamento)
         store = store_crud.get_store_base_details(db=db, store_id=store_id)
         if not store:
             return
 
+
+        store_schema_instance = StoreDetails.model_validate(store)
+
+        store_payload = store_schema_instance.model_dump(mode='json')
+
+        # Busca os detalhes da assinatura (isso continua igual)
         subscription_payload, _ = SubscriptionService.get_subscription_details(store)
-        store_schema = StoreDetails.model_validate(store)
 
-        # Converte o schema base para um dicionário
-        store_payload = store_schema.model_dump(mode='json')
-
-        # ✅ 1. CORREÇÃO PARA OS GRUPOS DE PAGAMENTO
-        payment_groups_structured = _build_payment_groups_from_activations_simplified(store.payment_activations)
-        # Converte CADA objeto do grupo para um dicionário antes de adicionar ao payload
-        store_payload['payment_method_groups'] = [
-            PaymentMethodGroupOut.model_validate(group).model_dump(mode='json')
-            for group in payment_groups_structured
-        ]
-
-        # ✅ 2. SUA LÓGICA DE CUPOM (QUE JÁ ESTAVA CORRETA)
-        if store.coupons:
-            store_payload['coupons'] = [CouponOut.model_validate(c).model_dump(mode='json') for c in store.coupons]
-        else:
-            store_payload['coupons'] = []
-
-        # Monta o payload final
+        # 4. Monta o payload final
         payload = {
             "store": store_payload,
             "subscription": subscription_payload,
         }
 
         await sio.emit('store_details_updated', payload, namespace='/admin', room=f"admin_store_{store_id}")
-        print(f"✅ [Socket] Dados da loja {store_id} (com pagamentos e cupons) atualizados e enviados.")
+        print(f"✅ [Socket] Dados da loja {store_id} (usando lógica centralizada do Schema) atualizados.")
 
     except Exception as e:
         print(f'❌ Erro ao emitir store_details_updated: {e}')
-
 
 
 async def admin_emit_dashboard_data_updated(db, store_id: int, sid: str | None = None):

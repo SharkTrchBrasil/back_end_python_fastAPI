@@ -28,22 +28,14 @@ class PlatformPaymentMethodOut(BaseModel):
         from_attributes = True
 
 
-
-class PaymentMethodCategoryOut(BaseModel):
-    name: str
-
-    methods: list[PlatformPaymentMethodOut] = []  # Contém uma lista de métodos
-
-    class Config:
-        from_attributes = True
-
-
-
+# ✅ SCHEMA DE GRUPO ATUALIZADO
 class PaymentMethodGroupOut(BaseModel):
     name: str
-    title: str | None = None  # ✅ Adicione este campo
-    description: str | None = None  # ✅ Adicione este campo
-    categories: list[PaymentMethodCategoryOut] = []  # Contém uma lista de categorias
+    title: str | None = None
+    description: str | None = None
+
+    # ✅ AGORA ELE TEM UMA LISTA DE MÉTODOS DIRETAMENTE
+    methods: list[PlatformPaymentMethodOut] = []
 
     class Config:
         from_attributes = True

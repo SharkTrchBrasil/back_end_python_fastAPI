@@ -1,5 +1,6 @@
+from collections import defaultdict
 from typing import Optional, List
-from pydantic import Field, ConfigDict
+from pydantic import Field, ConfigDict, computed_field
 
 from src.api.schemas.chatbot.chatbot_config import StoreChatbotMessageSchema, StoreChatbotConfigSchema
 from src.api.schemas.products.category import Category
@@ -8,7 +9,7 @@ from src.api.schemas.subscriptions.store_subscription import StoreSubscriptionSc
 
 
 from src.api.schemas.financial.coupon import CouponOut
-from src.api.schemas.financial.payment_method import PaymentMethodGroupOut
+from src.api.schemas.financial.payment_method import PaymentMethodGroupOut, PlatformPaymentMethodOut
 
 from src.api.schemas.products.product import  ProductOut
 from src.api.schemas.products.rating import RatingsSummaryOut
@@ -43,8 +44,53 @@ class StoreDetails(StoreSchema):
     # ✅ ADICIONE ESTA LINHA
     chatbot_config: Optional[StoreChatbotConfigSchema] = None
 
+    @computed_field
+    @property
+    def payment_method_groups(self) -> list[PaymentMethodGroupOut]:
+        if not hasattr(self, 'payment_activations'):
+            return []
+
+        # Dicionário para agrupar os métodos por seu grupo pai
+        groups_map = defaultdict(list)
+
+        for activation in self.payment_activations:
+            method = activation.platform_method
+            if not method or not method.group:
+                continue
+
+            # Anexa os detalhes da ativação da loja ao método
+            method_out = PlatformPaymentMethodOut.model_validate(method)
+            method_out.activation = activation
+
+            # Agrupa o método completo sob o ID do seu grupo pai
+            groups_map[method.group.id].append(method_out)
+
+        # Constrói a lista final de grupos
+        result = []
+
+        # Precisamos buscar todos os grupos para ter a lista completa e ordenada
+        # É seguro assumir que `self.payment_activations[0].platform_method.group` existe se a lista não for vazia
+        # Uma forma mais segura seria ter acesso ao 'db' aqui, mas vamos usar o que temos.
+        # Vamos coletar todos os grupos únicos a partir das ativações.
+        all_groups = sorted(
+            list({act.platform_method.group for act in self.payment_activations if
+                  act.platform_method and act.platform_method.group}),
+            key=lambda g: g.priority
+        )
+
+        for group_model in all_groups:
+            group_out = PaymentMethodGroupOut.model_validate(group_model)
+            # Pega os métodos já processados do nosso mapa
+            group_out.methods = sorted(groups_map.get(group_model.id, []), key=lambda m: m.id)
+            result.append(group_out)
+
+        return result
+
     model_config = ConfigDict(
         from_attributes=True,
         arbitrary_types_allowed=True,
         populate_by_name=True
     )
+
+
+

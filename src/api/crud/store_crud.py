@@ -26,10 +26,10 @@ def get_store_for_customer_view(db, store_id: int) -> models.Store | None:
             selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
 
             # --- Payment Methods ---
-            selectinload(models.Store.payment_activations)
+             selectinload(models.Store.payment_activations)
             .selectinload(models.StorePaymentMethodActivation.platform_method)
-            .selectinload(models.PlatformPaymentMethod.category)
-            .selectinload(models.PaymentMethodCategory.group),
+            .selectinload(models.PlatformPaymentMethod.group),
+
 
             # --- Full Menu/Catalog Loading ---
             selectinload(models.Store.categories)  # categorias da loja
