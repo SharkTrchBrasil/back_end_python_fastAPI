@@ -44,37 +44,45 @@ from sqlalchemy.orm import selectinload
 from src.api.schemas.products.variant import Variant
 
 
+# ✅ FUNÇÃO TOTALMENTE CORRIGIDA E SIMPLIFICADA
 async def admin_emit_store_updated(db, store_id: int):
     """
-    Envia os dados de configuração da loja, incluindo grupos de pagamento e cupons.
-    AGORA REUTILIZANDO A LÓGICA DO SCHEMA 'StoreDetails'.
+    Envia os dados de configuração da loja, incluindo os grupos de pagamento computados,
+    reutilizando a lógica centralizada do schema 'StoreDetails'.
     """
     try:
-        # 1. Busca os dados brutos da loja (a consulta já otimiza o carregamento)
-        store = store_crud.get_store_base_details(db=db, store_id=store_id)
-        if not store:
+        # 1. Busca o objeto Store do banco de dados com todos os relacionamentos necessários.
+        # A função 'get_store_base_details' já faz isso perfeitamente.
+        store_model = store_crud.get_store_base_details(db=db, store_id=store_id)
+        if not store_model:
+            print(f"⚠️ [Socket] Loja {store_id} não encontrada para emitir 'store_details_updated'.")
             return
 
+        # 2. ✅ A CORREÇÃO MÁGICA ESTÁ AQUI
+        # Validamos o objeto SQLAlchemy diretamente com o schema StoreDetails.
+        # Isso executa o @computed_field 'payment_method_groups', criando a estrutura que o frontend espera.
+        store_details_schema = StoreDetails.model_validate(store_model)
 
-        store_schema_instance = StoreDetails.model_validate(store)
+        # 3. Convertemos o schema validado (que agora inclui os grupos de pagamento) em um dicionário.
+        store_payload = store_details_schema.model_dump(mode='json')
 
-        store_payload = store_schema_instance.model_dump(mode='json')
+        # 4. Buscamos os detalhes da assinatura (isso pode continuar separado).
+        subscription_payload, _ = SubscriptionService.get_subscription_details(store_model)
 
-        # Busca os detalhes da assinatura (isso continua igual)
-        subscription_payload, _ = SubscriptionService.get_subscription_details(store)
-
-        # 4. Monta o payload final
+        # 5. Montamos o payload final para o socket.
         payload = {
             "store": store_payload,
             "subscription": subscription_payload,
         }
 
+        # 6. Emitimos o evento.
         await sio.emit('store_details_updated', payload, namespace='/admin', room=f"admin_store_{store_id}")
-        print(f"✅ [Socket] Dados da loja {store_id} (usando lógica centralizada do Schema) atualizados.")
+        print(f"✅ [Socket] Dados detalhados da loja {store_id} (com payment_method_groups) enviados.")
 
     except Exception as e:
-        print(f'❌ Erro ao emitir store_details_updated: {e}')
-
+        print(f'❌ Erro CRÍTICO ao emitir store_details_updated: {e}')
+        import traceback
+        traceback.print_exc()
 
 async def admin_emit_dashboard_data_updated(db, store_id: int, sid: str | None = None):
     """
