@@ -142,7 +142,7 @@ async def handle_join_store_room(sid, data):
             # movê-lo de volta para a lista de confiança.
             emitters_to_run = [
                 emitters.admin_emit_store_updated(db=db, store_id=store_id),
-                emitters.admin_emit_dashboard_data_updated(db=db, store_id=store_id, sid=sid),
+              #  emitters.admin_emit_dashboard_data_updated(db=db, store_id=store_id, sid=sid),
                 emitters.admin_emit_dashboard_payables_data_updated(db=db, store_id=store_id, sid=sid),
                 emitters.admin_emit_orders_initial(db=db, store_id=store_id, sid=sid),
                 emitters.admin_emit_tables_and_commands(db=db, store_id=store_id, sid=sid),
