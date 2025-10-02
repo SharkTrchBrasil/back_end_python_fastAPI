@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 
 from sqlalchemy import delete
 from urllib.parse import parse_qs
@@ -138,75 +139,131 @@ async def handle_update_operation_config(self, sid, data):
 
 
 
-async def handle_join_store_room(self, sid, data):
+# async def handle_join_store_room(self, sid, data):
+#     """
+#     Inscreve um admin na sala da loja e envia todos os dados iniciais de forma granular,
+#     após verificar o status da assinatura.
+#     """
+#     try:
+#         store_id = data.get("store_id")
+#         if not store_id:
+#             return {'status': 'error', 'message': 'store_id é obrigatório'}
+#
+#         with get_db_manager() as db:
+#             # ✅ 2. VERIFICAÇÃO DA ASSINATURA ANTES DE QUALQUER AÇÃO
+#             store = db.query(models.Store).get(store_id)
+#             if not store:
+#                 return {'status': 'error', 'message': 'Loja não encontrada.'}
+#
+#             subscription_payload, is_blocked = SubscriptionService.get_subscription_details(store)
+#
+#             if is_blocked:
+#                 print(
+#                     f"🔐 [join_store_room] Acesso bloqueado para SID {sid} à loja {store_id}. Motivo: {subscription_payload.get('status')}")
+#
+#                 # ✅ ALTERAÇÃO PRINCIPAL AQUI
+#                 # Agora enviamos um payload rico com todos os detalhes da assinatura
+#                 await self.emit('subscription_error', {
+#                     'store_id': store_id,
+#                     'subscription': subscription_payload  # O payload já contém a mensagem e o status
+#                 }, to=sid)
+#
+#                 return {'status': 'error', 'message': 'Acesso bloqueado devido à assinatura.'}
+#
+#             # ✅ 3. LÓGICA PROSSEGUE NORMALMENTE SE NÃO HOUVER BLOQUEIO
+#             session = SessionService.get_session(db, sid, client_type="admin")
+#             if not session:
+#                 return {'status': 'error', 'message': 'Sessão inválida.'}
+#
+#             # Lógica para sair da sala antiga
+#             if session.store_id and session.store_id != store_id:
+#                 old_room = f"admin_store_{session.store_id}"
+#                 await self.leave_room(sid, old_room)
+#                 print(f"🚪 [join_store_room] Admin {sid} saiu da sala antiga: {old_room}")
+#
+#             # Entra na nova sala
+#             new_room = f"admin_store_{store_id}"
+#             await self.enter_room(sid, new_room)
+#             print(f"✅ [join_store_room] Admin {sid} entrou na sala dinâmica: {new_room}")
+#             SessionService.update_session_store(db, sid=sid, store_id=store_id)
+#
+#             # Envia o pacote completo de dados iniciais
+#             await asyncio.gather(
+#                 admin_emit_store_updated(db, store_id),
+#                 admin_emit_dashboard_data_updated(db, store_id, sid),
+#                 admin_emit_dashboard_payables_data_updated(db, store_id, sid),
+#                 admin_emit_financials_updated(db, store_id, sid),
+#                 admin_emit_orders_initial(db, store_id, sid),
+#                 admin_emit_tables_and_commands(db, store_id, sid),
+#                 admin_emit_products_updated(db, store_id),
+#                 admin_emit_conversations_initial(db, store_id, sid)
+#             )
+#             print(f"✅ [Socket] Pacote de dados iniciais enviado para loja {store_id}.")
+#
+#             return {'status': 'success', 'joined_room': new_room}
+#
+#     except Exception as e:
+#         print(f"❌ [join_store_room] Erro ao processar para a loja {data.get('store_id')}: {e}")
+#         return {'status': 'error', 'message': 'Erro interno do servidor.'}
+
+
+async def handle_join_store_room(sid, data):
     """
-    Inscreve um admin na sala da loja e envia todos os dados iniciais de forma granular,
-    após verificar o status da assinatura.
+    Handler para quando o admin seleciona uma loja no frontend.
+    Esta função agora tem logging detalhado para depuração.
     """
-    try:
-        store_id = data.get("store_id")
-        if not store_id:
-            return {'status': 'error', 'message': 'store_id é obrigatório'}
+    store_id = data.get('store_id')
+    if not store_id:
+        print("⚠️ [join_store_room] Recebido sem store_id.")
+        return
 
-        with get_db_manager() as db:
-            # ✅ 2. VERIFICAÇÃO DA ASSINATURA ANTES DE QUALQUER AÇÃO
-            store = db.query(models.Store).get(store_id)
-            if not store:
-                return {'status': 'error', 'message': 'Loja não encontrada.'}
+    print(f"🕵️‍♂️ [DEBUG] Iniciando processamento de 'join_store_room' para loja {store_id} (SID: {sid})")
 
-            subscription_payload, is_blocked = SubscriptionService.get_subscription_details(store)
+    with get_db_manager() as db:
+        try:
+            # 1. Atualiza a sessão e entra na sala (lógica existente)
+            session = db.query(models.StoreSession).filter_by(sid=sid).first()
+            if session:
+                session.store_id = store_id
+                db.commit()
+            await sio.enter_room(sid, f"admin_store_{store_id}", namespace='/admin')
+            print(f"✅ [DEBUG] Admin {sid} entrou na sala de socket da loja {store_id}.")
 
-            if is_blocked:
-                print(
-                    f"🔐 [join_store_room] Acesso bloqueado para SID {sid} à loja {store_id}. Motivo: {subscription_payload.get('status')}")
+            # ✅ 2. AQUI ESTÁ A INSTRUMENTAÇÃO PARA DEBUG
+            # Vamos chamar cada função de emissão em um bloco try/except separado.
 
-                # ✅ ALTERAÇÃO PRINCIPAL AQUI
-                # Agora enviamos um payload rico com todos os detalhes da assinatura
-                await self.emit('subscription_error', {
-                    'store_id': store_id,
-                    'subscription': subscription_payload  # O payload já contém a mensagem e o status
-                }, to=sid)
+            emit_functions_to_run = {
+                "store_updated": admin_emit_store_updated(db, store_id),
+                "dashboard_data": admin_emit_dashboard_data_updated(db, store_id, sid),
+                "payables_data": admin_emit_dashboard_payables_data_updated(db, store_id, sid),
+                "orders_initial": admin_emit_orders_initial(db, store_id, sid),
+                "tables_and_commands": admin_emit_tables_and_commands(db, store_id, sid),
+                "products_updated": admin_emit_products_updated(db, store_id),
+                "conversations_initial": admin_emit_conversations_initial(db, store_id, sid),
+                "financials_updated": admin_emit_financials_updated(db, store_id, sid),
 
-                return {'status': 'error', 'message': 'Acesso bloqueado devido à assinatura.'}
+            }
 
-            # ✅ 3. LÓGICA PROSSEGUE NORMALMENTE SE NÃO HOUVER BLOQUEIO
-            session = SessionService.get_session(db, sid, client_type="admin")
-            if not session:
-                return {'status': 'error', 'message': 'Sessão inválida.'}
+            for name, coro in emit_functions_to_run.items():
+                try:
+                    print(f"⏳ [DEBUG] Executando emissor: '{name}'...")
+                    await coro
+                    print(f"✔️ [DEBUG] Emissor '{name}' concluído com sucesso.")
+                except Exception as e:
+                    # ESTE LOG NOS DIRÁ EXATAMENTE QUEM É O CULPADO!
+                    print(f"🔥🔥🔥 [FANTASMA ENCONTRADO] Erro ao executar o emissor '{name}' 🔥🔥🔥")
+                    print(f"Error Type: {type(e).__name__}")
+                    print(f"Error Details: {e}")
+                    traceback.print_exc()  # Imprime o traceback completo para análise detalhada
+                    # Opcional: podemos decidir parar ou continuar após um erro. Por enquanto, vamos parar.
+                    return
 
-            # Lógica para sair da sala antiga
-            if session.store_id and session.store_id != store_id:
-                old_room = f"admin_store_{session.store_id}"
-                await self.leave_room(sid, old_room)
-                print(f"🚪 [join_store_room] Admin {sid} saiu da sala antiga: {old_room}")
+            print(f"✅ [DEBUG] Todos os dados iniciais para a loja {store_id} foram emitidos com sucesso para {sid}.")
 
-            # Entra na nova sala
-            new_room = f"admin_store_{store_id}"
-            await self.enter_room(sid, new_room)
-            print(f"✅ [join_store_room] Admin {sid} entrou na sala dinâmica: {new_room}")
-            SessionService.update_session_store(db, sid=sid, store_id=store_id)
-
-            # Envia o pacote completo de dados iniciais
-            await asyncio.gather(
-                admin_emit_store_updated(db, store_id),
-                admin_emit_dashboard_data_updated(db, store_id, sid),
-                admin_emit_dashboard_payables_data_updated(db, store_id, sid),
-                admin_emit_financials_updated(db, store_id, sid),
-                admin_emit_orders_initial(db, store_id, sid),
-                admin_emit_tables_and_commands(db, store_id, sid),
-                admin_emit_products_updated(db, store_id),
-                admin_emit_conversations_initial(db, store_id, sid)
-            )
-            print(f"✅ [Socket] Pacote de dados iniciais enviado para loja {store_id}.")
-
-            return {'status': 'success', 'joined_room': new_room}
-
-    except Exception as e:
-        print(f"❌ [join_store_room] Erro ao processar para a loja {data.get('store_id')}: {e}")
-        return {'status': 'error', 'message': 'Erro interno do servidor.'}
-
-
-
+        except Exception as e:
+            # Este é um erro geral, caso algo fora dos emissores falhe.
+            print(f"❌ [join_store_room] Erro GERAL ao processar para a loja {store_id}: {e}")
+            traceback.print_exc()
 
 async def handle_leave_store_room(self, sid, data):
     """
