@@ -32,7 +32,7 @@ class AdminNamespace(AsyncNamespace):
         return await handle_update_order_status(self, sid, data)
 
     async def on_join_store_room(self, sid, data):
-        await handle_join_store_room(self, sid, data)
+        await handle_join_store_room(sid, data)
 
     async def on_leave_store_room(self, sid, data):
         await handle_leave_store_room(self, sid, data)
