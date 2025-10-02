@@ -23,18 +23,25 @@ class SubscriptionService:
             return payload, True
 
         plan = subscription_db.plan
-        # Garante que estamos sempre comparando com UTC para evitar erros de fuso horário
         now = datetime.now(timezone.utc)
         is_blocked = False
         warning_message = None
 
-        # ✅ NOVO CENÁRIO: Tratamento explícito para o período de teste
+        # ✅ AQUI ESTÁ A CORREÇÃO PRINCIPAL
+        # Garantimos que a data vinda do banco seja "aware" antes de usá-la.
+        # Se a data não tiver fuso horário, nós adicionamos UTC a ela.
+        current_period_end_aware = subscription_db.current_period_end
+        if current_period_end_aware and current_period_end_aware.tzinfo is None:
+            current_period_end_aware = current_period_end_aware.replace(tzinfo=timezone.utc)
+
         if subscription_db.status == 'trialing':
             dynamic_status = "trialing"
-            is_blocked = False  # Durante o trial, o acesso nunca é bloqueado
-            remaining_trial_days = (subscription_db.current_period_end - now).days
+            is_blocked = False
 
-            if remaining_trial_days > 0:
+            # A operação agora é segura, pois ambas as datas são "aware"
+            remaining_trial_days = (current_period_end_aware - now).days if current_period_end_aware else -1
+
+            if remaining_trial_days >= 0:
                 warning_message = f"Seu teste gratuito termina em {remaining_trial_days + 1} dia(s)."
             else:
                 warning_message = "Seu período de teste terminou. Adicione um pagamento para ativar seu plano."
@@ -45,23 +52,21 @@ class SubscriptionService:
             warning_message = "Houve uma falha no pagamento. Atualize seus dados para reativar o acesso."
 
         else:
-            # Para status 'active' ou 'expired', a lógica de data decide o estado
             # Adicionamos um período de carência de 3 dias
-            grace_period_end = subscription_db.current_period_end + timedelta(days=3)
+            grace_period_end = current_period_end_aware + timedelta(days=3) if current_period_end_aware else now
 
             if now > grace_period_end:
                 dynamic_status = "expired"
                 is_blocked = True
                 warning_message = "Sua assinatura expirou. Renove seu plano para continuar."
             else:
-                remaining_days = (subscription_db.current_period_end - now).days
+                remaining_days = (current_period_end_aware - now).days if current_period_end_aware else 0
                 if remaining_days <= 3:
                     dynamic_status = "warning"
                     warning_message = f"Sua assinatura vencerá em {remaining_days + 1} dia(s)."
                 else:
                     dynamic_status = "active"
 
-        # --- Montagem do Payload Final (sem alterações, já estava ótimo) ---
         plan_features = {f.feature.feature_key for f in plan.included_features}
 
         payload = {
