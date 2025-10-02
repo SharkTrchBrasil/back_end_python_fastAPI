@@ -1,6 +1,6 @@
 # src/api/admin/services/dashboard_service.py
 
-# ✅ 1. IMPORTAMOS AS FERRAMENTAS NECESSÁRIAS
+# ✅ 1. IMPORTAMOS AS FERRAMENTAS CORRETAS
 from datetime import date, timedelta, datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
@@ -19,7 +19,6 @@ from src.core.utils.enums import OrderStatus
 def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, end_date: date) -> DashboardDataSchema:
     """
     Função central que calcula todos os dados do dashboard para um determinado período.
-    Esta função contém toda a lógica que estava na sua rota GET /dashboard.
     """
     # ✅ 2. AQUI ESTÁ A CORREÇÃO DEFINITIVA
     # Garantimos que as datas de entrada sejam "aware" (com fuso horário UTC) antes de qualquer uso.
