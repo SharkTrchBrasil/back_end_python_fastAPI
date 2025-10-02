@@ -288,10 +288,11 @@ async def admin_emit_order_updated_from_obj(order: models.Order):
         logger.error(f'Erro ao emitir order_updated: {e}')
 
 
+
 async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = None):
-    #  print(f"🔄 [Admin] emit_tables_and_commands para store_id: {store_id}")
     try:
-        tables = db.query(models.Table).filter_by(store_id=store_id, is_deleted=False).all()
+        # ✅ A CORREÇÃO: Trocamos models.Table por models.Tables para corresponder ao seu modelo atualizado.
+        tables = db.query(models.Tables).filter_by(store_id=store_id, is_deleted=False).all()
         commands = db.query(models.Command).filter_by(store_id=store_id).all()
 
         tables_data = [TableOut.model_validate(table).model_dump(mode='json') for table in tables]
@@ -316,6 +317,8 @@ async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = No
         else:
             await sio.emit("tables_and_commands", {"store_id": store_id, "tables": [], "commands": []},
                            namespace="/admin", room=f"admin_store_{store_id}")
+
+
 
 
 async def emit_new_order_notification(db, store_id: int, order_id: int):
