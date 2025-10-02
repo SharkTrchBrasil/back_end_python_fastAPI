@@ -1,6 +1,5 @@
 # src/api/admin/services/dashboard_service.py
 
-# ✅ 1. IMPORTAMOS AS FERRAMENTAS CORRETAS
 from datetime import date, timedelta, datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
@@ -19,10 +18,9 @@ from src.core.utils.enums import OrderStatus
 def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, end_date: date) -> DashboardDataSchema:
     """
     Função central que calcula todos os dados do dashboard para um determinado período.
+    Versão final com proteção contra valores nulos em agregações.
     """
-    # ✅ 2. AQUI ESTÁ A CORREÇÃO DEFINITIVA
-    # Garantimos que as datas de entrada sejam "aware" (com fuso horário UTC) antes de qualquer uso.
-    # Isso resolve o erro "can't subtract offset-naive and offset-aware datetimes".
+    # Garante que as datas de entrada sejam "aware" (com fuso horário UTC)
     if not isinstance(start_date, datetime):
         start_date = datetime.combine(start_date, datetime.min.time())
     if not isinstance(end_date, datetime):
@@ -41,16 +39,17 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
     )
 
     # --- 1. Cálculo dos KPIs ---
-
+    # ✅ CORREÇÃO: Usamos func.coalesce para garantir que a soma nunca retorne NULL.
     kpi_query = db.query(
-        func.sum(models.Order.discounted_total_price).label("total_revenue"),
+        func.coalesce(func.sum(models.Order.discounted_total_price), 0).label("total_revenue"),
         func.count(models.Order.id).label("transaction_count"),
-        func.sum(models.Order.cashback_amount_generated).label("total_cashback")
+        func.coalesce(func.sum(models.Order.cashback_amount_generated), 0).label("total_cashback")
     ).filter(*base_order_filter).first()
 
-    current_revenue = (kpi_query.total_revenue or 0)
-    transaction_count = (kpi_query.transaction_count or 0)
-    total_cashback = (kpi_query.total_cashback or 0)
+    # Agora estas variáveis sempre receberão um número (0 se não houver dados).
+    current_revenue = kpi_query.total_revenue
+    transaction_count = kpi_query.transaction_count
+    total_cashback = kpi_query.total_cashback
     average_ticket = (current_revenue / transaction_count) if transaction_count > 0 else 0.0
 
     first_order_subquery = db.query(
@@ -82,16 +81,18 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
                                  returning_customers_count / total_store_customers_count) * 100 if total_store_customers_count > 0 else 0.0
 
     # --- Cálculo da Variação de Receita (Comparação com período anterior) ---
-    # Agora esta operação é segura, pois as datas são "aware".
     period_duration = (end_date.date() - start_date.date()).days
     previous_start_date = start_date - timedelta(days=period_duration + 1)
     previous_end_date = start_date - timedelta(days=1)
 
-    previous_revenue = db.query(func.sum(models.Order.discounted_total_price)).filter(
+    # ✅ CORREÇÃO: func.coalesce também aplicado aqui.
+    previous_revenue = db.query(
+        func.coalesce(func.sum(models.Order.discounted_total_price), 0)
+    ).filter(
         models.Order.store_id == store_id,
         models.Order.created_at.between(previous_start_date, previous_end_date),
         models.Order.order_status == OrderStatus.DELIVERED
-    ).scalar() or 0
+    ).scalar()
 
     if previous_revenue > 0:
         revenue_change_percentage = ((current_revenue - previous_revenue) / previous_revenue) * 100
@@ -139,9 +140,10 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
         )
 
     # --- 2. Dados para o Gráfico de Vendas ---
+    # ✅ CORREÇÃO: func.coalesce aplicado na soma da receita.
     sales_over_time_query = db.query(
         func.date(models.Order.created_at).label("period"),
-        func.sum(models.Order.discounted_total_price).label("revenue")
+        func.coalesce(func.sum(models.Order.discounted_total_price), 0).label("revenue")
     ).filter(*base_order_filter).group_by(
         func.date(models.Order.created_at)
     ).order_by(func.date(models.Order.created_at)).all()
@@ -152,21 +154,23 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
     ]
 
     # --- 3. Top 5 Produtos ---
+    # ✅ CORREÇÃO: func.coalesce aplicado na soma da receita.
     top_products_query = db.query(
         models.OrderProduct.name,
         func.sum(models.OrderProduct.quantity).label("count"),
-        func.sum(models.OrderProduct.price * models.OrderProduct.quantity).label("revenue")
+        func.coalesce(func.sum(models.OrderProduct.price * models.OrderProduct.quantity), 0).label("revenue")
     ).join(models.Order).filter(*base_order_filter).group_by(
         models.OrderProduct.name
     ).order_by(func.sum(models.OrderProduct.quantity).desc()).limit(5).all()
 
-    top_products = [TopItemSchema(name=row.name, count=row.count, revenue=(row.revenue or 0) / 100) for row in
+    top_products = [TopItemSchema(name=row.name, count=row.count, revenue=row.revenue / 100) for row in
                     top_products_query]
 
     # --- 6. TOP PRODUTO POR RECEITA ---
+    # ✅ CORREÇÃO: func.coalesce aplicado na soma da receita.
     top_product_revenue_query = db.query(
         models.OrderProduct.name,
-        func.sum(models.OrderProduct.price * models.OrderProduct.quantity).label("revenue")
+        func.coalesce(func.sum(models.OrderProduct.price * models.OrderProduct.quantity), 0).label("revenue")
     ).join(models.Order).filter(*base_order_filter).group_by(
         models.OrderProduct.name
     ).order_by(func.sum(models.OrderProduct.price * models.OrderProduct.quantity).desc()).first()
@@ -176,14 +180,15 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
         top_product_by_revenue = TopItemSchema(
             name=top_product_revenue_query.name,
             count=0,
-            revenue=(top_product_revenue_query.revenue or 0) / 100
+            revenue=top_product_revenue_query.revenue / 100
         )
 
     # --- 4. Top 5 Categorias ---
+    # ✅ CORREÇÃO: func.coalesce aplicado na soma da receita.
     top_categories_query = db.query(
         models.Category.name,
         func.sum(models.OrderProduct.quantity).label("count"),
-        func.sum(models.OrderProduct.price * models.OrderProduct.quantity).label("revenue")
+        func.coalesce(func.sum(models.OrderProduct.price * models.OrderProduct.quantity), 0).label("revenue")
     ).select_from(models.OrderProduct) \
         .join(models.Order, models.OrderProduct.order_id == models.Order.id) \
         .join(models.Product, models.OrderProduct.product_id == models.Product.id) \
@@ -194,7 +199,7 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
         .order_by(func.sum(models.OrderProduct.quantity).desc()) \
         .limit(5).all()
 
-    top_categories = [TopItemSchema(name=row.name, count=row.count, revenue=(row.revenue or 0) / 100) for row in
+    top_categories = [TopItemSchema(name=row.name, count=row.count, revenue=row.revenue / 100) for row in
                       top_categories_query]
 
     order_type_query = db.query(
@@ -208,9 +213,10 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
     ]
 
     # --- 5. Resumo por Método de Pagamento ---
+    # ✅ CORREÇÃO: func.coalesce aplicado na soma do total.
     payment_methods_query = db.query(
         models.PlatformPaymentMethod.name.label("method_name"),
-        func.sum(models.Order.discounted_total_price).label("total_amount")
+        func.coalesce(func.sum(models.Order.discounted_total_price), 0).label("total_amount")
     ).join(
         models.Order.payment_method
     ).join(
