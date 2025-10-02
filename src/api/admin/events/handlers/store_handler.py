@@ -19,6 +19,7 @@ from src.api.admin.socketio.emitters import (
 )
 from src.core.database import get_db_manager
 from src.core.models import StoreOperationConfig
+from src.socketio_instance import sio
 
 
 async def handle_set_consolidated_stores(self, sid, data):
