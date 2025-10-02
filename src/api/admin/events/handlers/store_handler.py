@@ -127,48 +127,38 @@ async def handle_update_operation_config(sio_namespace, sid, data):
             return {"error": str(e)}
 
 
-# ✅ PASSO 2: Crie uma instância da fábrica
-db_manager = get_db_manager()
-
-@sio.on('join_store_room', namespace='/admin')
 async def handle_join_store_room(sid, data):
     store_id = data.get('store_id')
     if not store_id:
         return
 
-    # ✅ CORREÇÃO DO AWAIT
     await sio.enter_room(sid, f'admin_store_{store_id}', namespace='/admin')
 
-    with db_manager as db:
+    # ✅ CORREÇÃO: Usamos o 'get_db_manager' diretamente aqui.
+    # A cada chamada, ele cria uma nova sessão de banco de dados, fresca e pronta para uso.
+    with get_db_manager() as db:
         try:
-            # Lista de emissores que agora sabemos que são confiáveis
-            trusted_emitters = [
+            # Agora que o bug do dashboard foi corrigido na fonte, podemos
+            # movê-lo de volta para a lista de confiança.
+            emitters_to_run = [
                 emitters.admin_emit_store_updated(db=db, store_id=store_id),
-                # emitters.admin_emit_dashboard_data_updated, # <-- REMOVIDO DAQUI
+                emitters.admin_emit_dashboard_data_updated(db=db, store_id=store_id, sid=sid),
                 emitters.admin_emit_dashboard_payables_data_updated(db=db, store_id=store_id, sid=sid),
                 emitters.admin_emit_orders_initial(db=db, store_id=store_id, sid=sid),
                 emitters.admin_emit_tables_and_commands(db=db, store_id=store_id, sid=sid),
                 emitters.admin_emit_products_updated(db=db, store_id=store_id),
                 emitters.emit_chatbot_config_update(db=db, store_id=store_id),
                 emitters.admin_emit_conversations_initial(db=db, store_id=store_id, sid=sid),
-                # Vamos manter o financials no modo seguro por enquanto, é uma boa prática
-                emitters.safe_admin_emit_financials_updated(store_id=store_id, sid=sid)
+                emitters.admin_emit_financials_updated(db=db, store_id=store_id, sid=sid)
             ]
 
-            # ✅ O VERDADEIRO CULPADO AGORA É CHAMADO SEPARADAMENTE
-            suspect_emitter = emitters.safe_admin_emit_dashboard_data_updated(store_id=store_id, sid=sid)
-
-            all_tasks = trusted_emitters + [suspect_emitter]
-            await asyncio.gather(*all_tasks, return_exceptions=True)
+            await asyncio.gather(*emitters_to_run, return_exceptions=True)
 
         except Exception as e:
             print(f"🔥🔥🔥 [ERRO GERAL] Erro no manipulador de join_store_room: {e}")
+        # O 'with' statement já garante que 'db.close()' será chamado.
 
     print(f"🏁 [DEBUG] Todos os emissores para a loja {store_id} foram processados.")
-
-
-
-
 
 
 
