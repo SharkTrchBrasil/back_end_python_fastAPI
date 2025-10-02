@@ -44,38 +44,30 @@ from sqlalchemy.orm import selectinload
 from src.api.schemas.products.variant import Variant
 
 
-# ✅ FUNÇÃO TOTALMENTE CORRIGIDA E SIMPLIFICADA
+# ✅ FUNÇÃO FINAL, SIMPLIFICADA E CORRETA
 async def admin_emit_store_updated(db, store_id: int):
     """
-    Envia os dados de configuração da loja, incluindo os grupos de pagamento computados,
-    reutilizando a lógica centralizada do schema 'StoreDetails'.
+    Busca os dados da loja, valida com o schema StoreDetails (que computa os campos
+    necessários) e emite o payload completo e correto para o cliente.
     """
     try:
-        # 1. Busca o objeto Store do banco de dados com todos os relacionamentos necessários.
-        # A função 'get_store_base_details' já faz isso perfeitamente.
+
         store_model = store_crud.get_store_base_details(db=db, store_id=store_id)
         if not store_model:
             print(f"⚠️ [Socket] Loja {store_id} não encontrada para emitir 'store_details_updated'.")
             return
 
-        # 2. ✅ A CORREÇÃO MÁGICA ESTÁ AQUI
-        # Validamos o objeto SQLAlchemy diretamente com o schema StoreDetails.
-        # Isso executa o @computed_field 'payment_method_groups', criando a estrutura que o frontend espera.
         store_details_schema = StoreDetails.model_validate(store_model)
 
-        # 3. Convertemos o schema validado (que agora inclui os grupos de pagamento) em um dicionário.
+        # 3. Converte o schema, agora completo, em um dicionário para o JSON.
         store_payload = store_details_schema.model_dump(mode='json')
 
-        # 4. Buscamos os detalhes da assinatura (isso pode continuar separado).
-        subscription_payload, _ = SubscriptionService.get_subscription_details(store_model)
 
-        # 5. Montamos o payload final para o socket.
         payload = {
-            "store": store_payload,
-            "subscription": subscription_payload,
+            "store": store_payload
         }
 
-        # 6. Emitimos o evento.
+        # 5. Emite o evento.
         await sio.emit('store_details_updated', payload, namespace='/admin', room=f"admin_store_{store_id}")
         print(f"✅ [Socket] Dados detalhados da loja {store_id} (com payment_method_groups) enviados.")
 
@@ -83,6 +75,11 @@ async def admin_emit_store_updated(db, store_id: int):
         print(f'❌ Erro CRÍTICO ao emitir store_details_updated: {e}')
         import traceback
         traceback.print_exc()
+
+
+
+
+
 
 async def admin_emit_dashboard_data_updated(db, store_id: int, sid: str | None = None):
     """
