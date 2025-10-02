@@ -1,11 +1,12 @@
-# Em: src/api/admin/services/payable_service.py
+# src/api/admin/services/payable_service.py
+
 from sqlalchemy import func, case
 from sqlalchemy.orm import Session
-
 from src.api.schemas.analytics.dashboard import DashboardMetrics
 from src.core.models import StorePayable, Store
 from src.api.schemas.store.store_payable import PayableCreate, PayableUpdate, PayableResponse
 from src.core.utils.enums import PayableStatus
+# O import de 'timezone' já está aqui, o que é ótimo.
 from datetime import date, datetime, timezone
 
 
@@ -21,19 +22,15 @@ class PayableService:
         if status:
             query = query.filter(StorePayable.status == status)
         # ... outros filtros ...
-        # ✅ ADIÇÃO: Paginação que estava faltando
         return query.order_by(StorePayable.due_date.asc()).offset(skip).limit(limit).all()
 
-    # ✅ NOVO MÉTODO (lógica movida do router)
     def create_payable(self, db: Session, store: Store, payload: PayableCreate) -> StorePayable:
-        # Lógica de recorrência pode ser adicionada aqui
         payable = StorePayable(**payload.model_dump(exclude={"recurrence"}), store_id=store.id)
         db.add(payable)
         db.commit()
         db.refresh(payable)
         return payable
 
-    # ✅ NOVO MÉTODO (lógica movida do router)
     def update_payable(self, db: Session, payable: StorePayable, payload: PayableUpdate) -> StorePayable:
         update_data = payload.model_dump(exclude_unset=True)
         for key, value in update_data.items():
@@ -42,7 +39,6 @@ class PayableService:
         db.refresh(payable)
         return payable
 
-    # ✅ NOVO MÉTODO (lógica movida do router)
     def delete_payable(self, db: Session, payable: StorePayable):
         db.delete(payable)
         db.commit()
@@ -50,17 +46,15 @@ class PayableService:
     def mark_as_paid(self, db: Session, payable: StorePayable) -> StorePayable:
         if payable.status != PayableStatus.paid:
             payable.status = PayableStatus.paid
-            payable.payment_date = date.today()
+            # ✅ CORREÇÃO APLICADA
+            # Substituímos date.today() pela versão com fuso horário para consistência.
+            payable.payment_date = datetime.now(timezone.utc).date()
             db.commit()
             db.refresh(payable)
         return payable
 
-
-
-
-
-
     def get_payables_metrics(self, db: Session, store_id: int) -> DashboardMetrics:
+        # Esta parte do seu código já estava correta!
         today = datetime.now(timezone.utc).date()
         start_of_month = today.replace(day=1)
 
@@ -78,7 +72,6 @@ class PayableService:
             StorePayable.due_date >= today
         ).order_by(StorePayable.due_date.asc()).limit(5).all()
 
-        # ✅ MELHORIA: Retornando um schema Pydantic em vez de um dict
         return DashboardMetrics(
             total_pending=metrics_query.total_pending or 0,
             total_overdue=metrics_query.total_overdue or 0,
