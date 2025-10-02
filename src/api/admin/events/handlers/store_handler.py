@@ -6,6 +6,7 @@ from urllib.parse import parse_qs
 from src.api.admin.services.store_access_service import StoreAccessService
 from src.api.admin.services.store_session_service import SessionService
 from src.api.admin.services.subscription_service import SubscriptionService
+from src.api.admin.socketio import emitters
 from src.api.admin.utils.authorize_admin import authorize_admin_by_jwt
 from src.api.admin.utils.emit_updates import emit_store_updates
 
@@ -17,6 +18,7 @@ from src.api.admin.socketio.emitters import (
 
 )
 from src.core.database import get_db_manager
+from src.socketio_instance import sio
 
 
 async def handle_set_consolidated_stores(sio_namespace, sid, data):
@@ -130,83 +132,46 @@ async def handle_update_operation_config(sio_namespace, sid, data):
             return {"error": str(e)}
 
 
-# A versão antiga desta função está comentada para referência
-# async def handle_join_store_room(self, sid, data): ...
 
-# ✅ CORREÇÃO PRINCIPAL: A função agora aceita 'sio_namespace' como o primeiro argumento
-async def handle_join_store_room(sio_namespace, sid, data):
-    """
-    Handler para quando o admin seleciona uma loja no frontend.
-    Esta função agora tem logging detalhado para depuração.
-    """
+# ✅ PASSO 2: Crie uma instância da fábrica
+db_manager = get_db_manager()
+
+@sio.on('join_store_room', namespace='/admin')
+async def handle_join_store_room(sid, data):
     store_id = data.get('store_id')
     if not store_id:
-        print("⚠️ [join_store_room] Recebido sem store_id.")
         return
 
-    print(f"🕵️‍♂️ [DEBUG] Iniciando processamento de 'join_store_room' para loja {store_id} (SID: {sid})")
+    sio.enter_room(sid, f'admin_store_{store_id}', namespace='/admin')
 
-    with get_db_manager() as db:
+    # ✅ PASSO 3: Use a fábrica para criar a sessão principal.
+    # O context manager nos dá a sessão quando entramos nele.
+    with db_manager as db:
         try:
-            # 1. Lógica de verificação de assinatura e acesso à sala
-            store = db.query(models.Store).get(store_id)
-            if not store:
-                return {'status': 'error', 'message': 'Loja não encontrada.'}
+            # Lista de emissores confiáveis que usarão a sessão principal 'db'
+            trusted_emitters = [
+                emitters.admin_emit_store_updated(db=db, store_id=store_id),
+                emitters.admin_emit_dashboard_data_updated(db=db, store_id=store_id, sid=sid),
+                emitters.admin_emit_dashboard_payables_data_updated(db=db, store_id=store_id, sid=sid),
+                emitters.admin_emit_orders_initial(db=db, store_id=store_id, sid=sid),
+                emitters.admin_emit_tables_and_commands(db=db, store_id=store_id, sid=sid),
+                emitters.admin_emit_products_updated(db=db, store_id=store_id),
+                emitters.emit_chatbot_config_update(db=db, store_id=store_id),
+                emitters.admin_emit_conversations_initial(db=db, store_id=store_id, sid=sid)
+            ]
 
-            subscription_payload, is_blocked = SubscriptionService.get_subscription_details(store)
-            if is_blocked:
-                print(f"🔐 [join_store_room] Acesso bloqueado para SID {sid} à loja {store_id}.")
-                await sio_namespace.emit('subscription_error',
-                                         {'store_id': store_id, 'subscription': subscription_payload}, to=sid)
-                return {'status': 'error', 'message': 'Acesso bloqueado devido à assinatura.'}
+            # O suspeito é chamado separadamente pela função segura
+            # (que internamente também usará o get_db_manager)
+            suspect_emitter = emitters.safe_admin_emit_financials_updated(store_id=store_id, sid=sid)
 
-            session = SessionService.get_session(db, sid, client_type="admin")
-            if not session:
-                return {'status': 'error', 'message': 'Sessão inválida.'}
-
-            if session.store_id and session.store_id != store_id:
-                await sio_namespace.leave_room(sid, f"admin_store_{session.store_id}")
-
-            await sio_namespace.enter_room(sid, f"admin_store_{store_id}")
-            SessionService.update_session_store(db, sid=sid, store_id=store_id)
-            print(f"✅ [DEBUG] Admin {sid} entrou na sala de socket da loja {store_id}.")
-
-            # 2. INSTRUMENTAÇÃO PARA DEBUG
-            emit_functions_to_run = {
-                "store_updated": admin_emit_store_updated(db, store_id),
-                "dashboard_data": admin_emit_dashboard_data_updated(db, store_id, sid),
-                "payables_data": admin_emit_dashboard_payables_data_updated(db, store_id, sid),
-                "orders_initial": admin_emit_orders_initial(db, store_id, sid),
-                "tables_and_commands": admin_emit_tables_and_commands(db, store_id, sid),
-                "products_updated": admin_emit_products_updated(db, store_id),
-                "conversations_initial": admin_emit_conversations_initial(db, store_id, sid),
-                "financials_updated": admin_emit_financials_updated(db, store_id, sid)
-            }
-
-            for name, coro in emit_functions_to_run.items():
-                try:
-                    print(f"⏳ [DEBUG] Executando emissor: '{name}'...")
-                    await coro
-                    print(f"✔️ [DEBUG] Emissor '{name}' concluído com sucesso.")
-                except TypeError as e:
-                    if "can't subtract offset-naive and offset-aware datetimes" in str(e):
-                        print(f"🔥🔥🔥 [FANTASMA DO DATETIME ENCONTRADO] Erro ao executar o emissor '{name}' 🔥🔥🔥")
-                        traceback.print_exc()
-                        return
-                    else:
-                        raise
-                except Exception as e:
-                    print(f"🔥🔥🔥 [ERRO INESPERADO] Erro ao executar o emissor '{name}' 🔥🔥🔥")
-                    traceback.print_exc()
-                    return
-
-            print(f"✅ [DEBUG] Todos os dados iniciais para a loja {store_id} foram emitidos com sucesso para {sid}.")
-            return {'status': 'success', 'joined_room': f"admin_store_{store_id}"}
+            all_tasks = trusted_emitters + [suspect_emitter]
+            await asyncio.gather(*all_tasks, return_exceptions=True)
 
         except Exception as e:
-            print(f"❌ [join_store_room] Erro GERAL ao processar para a loja {store_id}: {e}")
-            traceback.print_exc()
-            return {'status': 'error', 'message': 'Erro interno do servidor.'}
+            print(f"🔥🔥🔥 [ERRO GERAL] Erro no manipulador de join_store_room: {e}")
+        # O `with` statement já garante que `db.close()` será chamado, mesmo se ocorrer um erro.
+
+    print(f"🏁 [DEBUG] Todos os emissores para a loja {store_id} foram processados.")
 
 
 async def handle_leave_store_room(sio_namespace, sid, data):

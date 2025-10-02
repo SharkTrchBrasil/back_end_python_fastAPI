@@ -32,6 +32,7 @@ from src.api.admin.services.product_analytic_services import get_product_analyti
 from src.api.admin.services.subscription_service import SubscriptionService
 
 from src.api.schemas.orders.order import OrderDetails
+from src.core.database import get_db_manager
 from src.core.models import Order
 from src.core.utils.enums import ProductStatus
 from src.socketio_instance import sio
@@ -571,3 +572,30 @@ async def admin_emit_stores_list_update(db, admin_user: models.User):
 
     except Exception as e:
         print(f"❌ Erro ao emitir admin_emit_stores_list_update: {e}")
+
+
+
+
+# ✅ NOVA FUNÇÃO "SEGURA" ADICIONADA
+async def safe_admin_emit_financials_updated(store_id: int, sid: str | None = None):
+    """
+    Wrapper seguro que executa admin_emit_financials_updated em sua própria
+    sessão de banco de dados para isolar qualquer erro potencial.
+    """
+    print("🛡️ [DEBUG] Executando emissor 'financials_updated' em modo seguro...")
+    db_manager = get_db_manager()
+    session_generator = db_manager.get_session()
+    db_session = next(session_generator)
+    try:
+        # Chama a função original com a sessão de banco de dados isolada
+        await admin_emit_financials_updated(db=db_session, store_id=store_id, sid=sid)
+    except Exception as e:
+        # Se um erro ocorrer aqui, ele será contido e logado, mas não vai
+        # quebrar a transação para os outros emissores.
+        print(f"🔥🔥🔥 [ERRO ISOLADO] Erro no emissor 'financials_updated': {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        # Garante que a sessão isolada seja fechada.
+        db_session.close()
+        print("✔️ [DEBUG] Emissor 'financials_updated' (modo seguro) concluído.")
