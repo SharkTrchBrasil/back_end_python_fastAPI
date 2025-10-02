@@ -7,7 +7,9 @@ from src.api.schemas.products.category import Category
 from src.api.schemas.store.scheduled_pauses import ScheduledPauseOut
 from src.api.schemas.subscriptions.store_subscription import StoreSubscriptionSchema
 from src.api.schemas.financial.coupon import CouponOut
-from src.api.schemas.financial.payment_method import PaymentMethodGroupOut, PlatformPaymentMethodOut
+# ✅ Importe os schemas corretos
+from src.api.schemas.financial.payment_method import PaymentMethodGroupOut, PlatformPaymentMethodOut, \
+    StorePaymentMethodActivationOut
 from src.api.schemas.products.product import ProductOut
 from src.api.schemas.products.rating import RatingsSummaryOut
 from src.api.schemas.store.store import StoreSchema
@@ -33,58 +35,56 @@ class StoreDetails(StoreSchema):
     chatbot_messages: list[StoreChatbotMessageSchema] = []
     chatbot_config: Optional[StoreChatbotConfigSchema] = None
 
-
-
-    # ✅ O campo calculado agora é a ÚNICA fonte da verdade para 'payment_method_groups'
+    # ✅ ================== LÓGICA TOTALMENTE REFEITA ==================
     @computed_field(return_type=list[PaymentMethodGroupOut])
     @property
     def payment_method_groups(self) -> list[PaymentMethodGroupOut]:
         """
         Constrói dinamicamente a estrutura hierárquica de grupos de pagamento
-        a partir da lista plana de 'payment_activations' carregada do banco.
-        USA A NOVA ARQUITETURA (Método -> Grupo).
+        a partir da lista de 'payment_activations' carregada do banco.
+        A estrutura final é: [Grupo(com seus Métodos), Grupo(com seus Métodos), ...].
         """
-        # O Pydantic nos dá acesso ao objeto SQLAlchemy original (`self`)
         if not hasattr(self, 'payment_activations'):
             return []
 
-        groups_map = defaultdict(list)
-
-        # Coleta todos os grupos únicos primeiro para manter a ordem de prioridade
-        all_groups_from_activations = sorted(
-            # ✅ CORREÇÃO: Acessa o grupo diretamente do método
-            list({act.platform_method.group for act in self.payment_activations if
-                  act.platform_method and act.platform_method.group}),
-            key=lambda g: g.priority
-        )
-        group_model_map = {g.id: g for g in all_groups_from_activations}
+        # 1. Agrupar métodos por ID do grupo
+        methods_by_group = defaultdict(list)
+        # 2. Manter um mapa de modelos de grupo para não perder os que não têm métodos ativos
+        group_models = {}
 
         for activation in self.payment_activations:
-            method = activation.platform_method
-            # ✅ CORREÇÃO: Checa diretamente o grupo, não a categoria
-            if not method or not method.group:
+            method_model = activation.platform_method
+            if not method_model or not method_model.group:
                 continue
 
-            method_out = PlatformPaymentMethodOut.model_validate(method)
-            # Anexa os detalhes da ativação (is_active, is_for_delivery, etc.)
-            # Precisamos garantir que o objeto de ativação seja do tipo correto para o Pydantic
-            if isinstance(activation, models.StorePaymentMethodActivation):
-                method_out.activation = StorePaymentMethodActivationOut.model_validate(activation)
-            else:
-                method_out.activation = activation
+            # Converte o método do SQLAlchemy para o schema Pydantic
+            method_out = PlatformPaymentMethodOut.model_validate(method_model)
+            # Anexa os detalhes da ativação (is_active, fee, etc.) ao método
+            method_out.activation = StorePaymentMethodActivationOut.model_validate(activation)
 
-            # ✅ CORREÇÃO: Agrupa pelo ID do grupo diretamente
-            groups_map[method.group_id].append(method_out)
+            # Adiciona o método processado à lista do seu grupo
+            methods_by_group[method_model.group_id].append(method_out)
 
-        # Constrói o resultado final na ordem correta
+            # Armazena o modelo do grupo para usar depois
+            if method_model.group_id not in group_models:
+                group_models[method_model.group_id] = method_model.group
+
+        # 3. Construir a lista final de grupos
         result = []
-        for group_id in group_model_map:
-            group_model = group_model_map[group_id]
+        # Ordena os grupos pela prioridade definida no banco
+        sorted_group_ids = sorted(group_models.keys(), key=lambda gid: group_models[gid].priority)
+
+        for group_id in sorted_group_ids:
+            group_model = group_models[group_id]
+
+            # Converte o grupo do SQLAlchemy para o schema Pydantic
             group_out = PaymentMethodGroupOut.model_validate(group_model)
 
-            # Pega os métodos já processados e os ordena
-            methods_for_group = groups_map.get(group_id, [])
-            group_out.methods = sorted(methods_for_group, key=lambda m: m.name)
+            # Pega os métodos que agrupamos anteriormente e os ordena por nome
+            methods_for_group = sorted(methods_by_group.get(group_id, []), key=lambda m: m.name)
+
+            # Atribui a lista de métodos ao grupo
+            group_out.methods = methods_for_group
 
             result.append(group_out)
 

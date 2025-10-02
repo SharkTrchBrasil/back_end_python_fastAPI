@@ -5,14 +5,13 @@ class StorePaymentMethodActivationOut(BaseModel):
     id: int
     is_active: bool
     fee_percentage: float = 0.0
-    details: dict | None = None  # Armazena a chave Pix, etc.
+    details: dict | None = None
     is_for_delivery: bool
     is_for_pickup: bool
     is_for_in_store: bool
 
     class Config:
         from_attributes = True
-
 
 
 class PlatformPaymentMethodOut(BaseModel):
@@ -23,18 +22,18 @@ class PlatformPaymentMethodOut(BaseModel):
     requires_details: bool
     activation: StorePaymentMethodActivationOut | None = None
 
-
     class Config:
         from_attributes = True
 
 
-# ✅ SCHEMA DE GRUPO ATUALIZADO
+# ✅ ================== CORREÇÃO AQUI ==================
+# O grupo agora contém a lista de métodos diretamente.
 class PaymentMethodGroupOut(BaseModel):
     name: str
     title: str | None = None
     description: str | None = None
 
-    # ✅ AGORA ELE TEM UMA LISTA DE MÉTODOS DIRETAMENTE
+    # A lista de métodos agora faz parte do grupo.
     methods: list[PlatformPaymentMethodOut] = []
 
     class Config:
