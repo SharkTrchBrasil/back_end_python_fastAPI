@@ -1,12 +1,26 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
+
+# Importe o novo schema
+from src.api.schemas.store.location.store_neighborhood import StoreNeighborhoodSchema, NeighborhoodNestedInputSchema
 
 
-from src.api.schemas.store.location.store_neighborhood import StoreNeighborhoodSchema
+# ATUALIZADO: Schema para criação/atualização
+class StoreCityUpsertSchema(BaseModel):
+    id: Optional[int] = None # Essencial para saber se é uma cidade nova ou existente
+    name: str
+    delivery_fee: int = 0
+    is_active: bool = True
+    neighborhoods: List[NeighborhoodNestedInputSchema] = [] # Usa o novo schema aninhado
 
+    model_config = {
+        "from_attributes": True,
+        "arbitrary_types_allowed": True
+    }
 
-# Input: para criação/atualização (com todos os dados)
-class StoreCityBaseSchema(BaseModel):
+# Schema de saída (quando você busca uma cidade)
+class StoreCitySchema(BaseModel):
+    id: int
     name: str
     delivery_fee: int = 0
     is_active: bool = True
@@ -17,10 +31,7 @@ class StoreCityBaseSchema(BaseModel):
         "arbitrary_types_allowed": True
     }
 
-class StoreCitySchema(StoreCityBaseSchema):
-    id: int
-
-# Output: só retorna o id
+# Output: só retorna o id (se ainda precisar dele)
 class StoreCityOut(BaseModel):
     id: int
 
