@@ -599,3 +599,23 @@ async def safe_admin_emit_financials_updated(store_id: int, sid: str | None = No
         # Garante que a sessão isolada seja fechada.
         db_session.close()
         print("✔️ [DEBUG] Emissor 'financials_updated' (modo seguro) concluído.")
+
+
+
+async def safe_admin_emit_dashboard_data_updated(store_id: int, sid: str | None = None):
+    """
+    Wrapper seguro que executa admin_emit_dashboard_data_updated em sua própria
+    sessão de banco de dados para isolar o erro conhecido.
+    """
+    print("🛡️ [DEBUG] Executando emissor 'dashboard_data' em modo seguro...")
+    db_manager = get_db_manager()
+    with db_manager as db_session:
+        try:
+            # Chama a função original com a sessão de banco de dados isolada
+            await admin_emit_dashboard_data_updated(db=db_session, store_id=store_id, sid=sid)
+            print("✔️ [DEBUG] Emissor 'dashboard_data' (modo seguro) concluído com sucesso.")
+        except Exception as e:
+            # Se um erro ocorrer aqui, ele será contido e logado.
+            print(f"🔥🔥🔥 [ERRO ISOLADO] Erro no emissor 'dashboard_data': {e}")
+            import traceback
+            traceback.print_exc()
