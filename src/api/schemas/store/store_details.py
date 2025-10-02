@@ -36,11 +36,9 @@ class StoreDetails(StoreSchema):
     chatbot_config: Optional[StoreChatbotConfigSchema] = None
 
 
-    payment_activations: list[StorePaymentMethodActivationOut] = Field(default=[], exclude=True)
-    active_subscription: Optional[StoreSubscriptionSchema] = Field(default=None) # Agora o schema cuida disso
+    payment_activations: list[models.StorePaymentMethodActivation] = Field(default=[], exclude=True)
+    active_subscription: Optional[StoreSubscriptionSchema] = Field(default=None)
 
-    # ✅ PASSO 2: O CAMPO COMPUTADO PERMANECE O MESMO
-    # Ele agora tem certeza de que 'self.payment_activations' estará disponível.
     @computed_field(return_type=list[PaymentMethodGroupOut])
     @property
     def payment_method_groups(self) -> list[PaymentMethodGroupOut]:
@@ -54,13 +52,16 @@ class StoreDetails(StoreSchema):
         methods_by_group = defaultdict(list)
         group_models = {}
 
+
         for activation in self.payment_activations:
             method_model = activation.platform_method
             if not method_model or not method_model.group:
                 continue
 
+            # Converte o método do SQLAlchemy para o schema Pydantic
             method_out = PlatformPaymentMethodOut.model_validate(method_model)
-            method_out.activation = activation
+            # Anexa os detalhes da ativação (convertidos para schema) ao método
+            method_out.activation = StorePaymentMethodActivationOut.model_validate(activation)
 
             methods_by_group[method_model.group_id].append(method_out)
 
