@@ -26,23 +26,20 @@ def get_store_for_customer_view(db, store_id: int) -> models.Store | None:
             selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
 
             # --- Payment Methods ---
-             selectinload(models.Store.payment_activations)
+            selectinload(models.Store.payment_activations)
             .selectinload(models.StorePaymentMethodActivation.platform_method)
             .selectinload(models.PlatformPaymentMethod.group),
 
-
             # --- Full Menu/Catalog Loading ---
-            selectinload(models.Store.categories)  # categorias da loja
-            .selectinload(models.Category.product_links)  # link categoria-produto
-            .selectinload(models.ProductCategoryLink.product)  # produto associado
+            selectinload(models.Store.categories)
+            .selectinload(models.Category.product_links)
+            .selectinload(models.ProductCategoryLink.product)
             .options(
-                # Carrega variantes, opções e produtos vinculados
                 selectinload(models.Product.variant_links)
                 .joinedload(models.ProductVariantLink.variant)
                 .selectinload(models.Variant.options)
                 .joinedload(models.VariantOption.linked_product),
 
-                # Carrega opções padrão
                 selectinload(models.Product.default_options)
                 .joinedload(models.ProductDefaultOption.option),
             ),
@@ -72,10 +69,14 @@ def get_store_base_details(db, store_id: int) -> models.Store | None:
             selectinload(models.Store.scheduled_pauses),
             selectinload(models.Store.banners),
             selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
+
+            # ✅ AQUI ESTÁ A CORREÇÃO FINAL
+            # Simplificamos a corrente de carregamento para refletir a estrutura real dos modelos.
+            # `PlatformPaymentMethod` se relaciona diretamente com `group`.
             selectinload(models.Store.payment_activations)
-                .selectinload(models.StorePaymentMethodActivation.platform_method)
-                .selectinload(models.PlatformPaymentMethod.category)
-                .selectinload(models.PaymentMethodCategory.group),
+            .selectinload(models.StorePaymentMethodActivation.platform_method)
+            .selectinload(models.PlatformPaymentMethod.group),
+
             selectinload(models.Store.subscriptions).joinedload(models.StoreSubscription.plan),
             selectinload(models.Store.coupons).selectinload(models.Coupon.rules),
             selectinload(models.Store.chatbot_messages).joinedload(models.StoreChatbotMessage.template),
