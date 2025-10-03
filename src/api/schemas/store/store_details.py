@@ -41,18 +41,14 @@ class StoreDetails(StoreSchema):
 
     payment_activations: list[models.StorePaymentMethodActivation] = Field(default=[], exclude=True)
 
-    # ✅ 2. Adicione o campo para o preview do faturamento
+
     billing_preview: Optional[BillingPreviewSchema] = Field(default=None)
 
-    # ✅ O CAMPO CRUCIAL
-    # Este campo não vem diretamente do banco, ele será populado pelo nosso serviço.
+
     active_subscription: SubscriptionDetailsSchema | None
 
-    class Config:
-        from_attributes = True
 
-    # ✅ A MÁGICA ACONTECE AQUI
-    # Este validador intercepta a criação do schema e popula o campo 'active_subscription'
+
     @model_validator(mode='before')
     @classmethod
     def populate_subscription_details(cls, data):
