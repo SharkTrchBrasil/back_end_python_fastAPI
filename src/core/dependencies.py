@@ -59,10 +59,7 @@ class GetStore:
 
     def __call__(self, db: GetDBDep, user: GetCurrentUserDep, store_id: int):
 
-        # --- A MUDANÇA ESTÁ AQUI ---
-        # 1. VERIFICA SE O USUÁRIO É UM SUPERUSER PELO CAMPO NO BANCO DE DADOS
         if user.is_superuser:
-            # Se for, ele tem acesso a TUDO. Busca a loja diretamente.
             store = db.query(models.Store).options(
                 joinedload(models.Store.subscriptions)
                 .joinedload(models.StoreSubscription.plan)
@@ -72,10 +69,7 @@ class GetStore:
                 raise HTTPException(status_code=404, detail="Store not found")
 
         else:
-
-            db_store_access = db.query(models.StoreAccess).options(
-
-            ).filter(
+            db_store_access = db.query(models.StoreAccess).filter(
                 models.StoreAccess.user == user,
                 models.StoreAccess.store_id == store_id
             ).first()
@@ -95,18 +89,19 @@ class GetStore:
 
             store = db_store_access.store
 
-        # ✅✅✅ A CORREÇÃO ESTÁ AQUI ✅✅✅
-        # Usamos `*_` para ignorar quaisquer valores extras retornados pelo serviço.
-        subscription_details, is_blocked, *_ = SubscriptionService.get_subscription_details(store)
+        # ✅✅✅ A CORREÇÃO DEFINITIVA ESTÁ AQUI ✅✅✅
+        # 1. Recebe o dicionário completo retornado pelo serviço.
+        sub_details = SubscriptionService.get_subscription_details(store)
 
-        if is_blocked:
+        # 2. Acessa as chaves 'is_blocked' e 'warning_message' do dicionário.
+        if sub_details.get("is_blocked"):
             raise HTTPException(
                 status_code=403,
-                # Usamos a mensagem de erro padronizada vinda do próprio serviço
-                detail={'message': subscription_details.get('warning_message', 'Acesso negado devido à assinatura.'),
-                        'code': 'PLAN_EXPIRED'} # O código pode ser genérico aqui
+                detail={
+                    'message': sub_details.get('warning_message', 'Acesso negado devido à assinatura.'),
+                    'code': 'PLAN_EXPIRED'
+                }
             )
-
 
         return store
 
@@ -135,7 +130,6 @@ GetProductDep = Annotated[models.Product, Depends(get_product)]
 
 
 def get_variant_template(db: GetDBDep, store_id: int, variant_id: int):
-    # ✅ NOME ATUALIZADO PARA CLAREZA
     db_variant = db.query(models.Variant).filter(
         models.Variant.id == variant_id,
         models.Variant.store_id == store_id
@@ -147,10 +141,9 @@ def get_variant_template(db: GetDBDep, store_id: int, variant_id: int):
 GetVariantDep = Annotated[models.Variant, Depends(get_variant_template)]
 
 def get_variant_option(db: GetDBDep, variant: GetVariantDep, option_id: int):
-    # ✅ CÓDIGO CORRIGIDO E MAIS SEGURO
     option = db.query(models.VariantOption).filter(
         models.VariantOption.id == option_id,
-        models.VariantOption.variant_id == variant.id # Garante que a opção pertence à variante correta
+        models.VariantOption.variant_id == variant.id
     ).first()
     if not option:
         raise HTTPException(status_code=404, detail="Option not found")
@@ -182,15 +175,10 @@ GetStoreFromTotemTokenDep = Annotated[models.Store, Depends(get_store_from_token
 
 
 def get_customer_from_token(token: str, db: Session) -> models.Customer:
-    """
-    Verifica um token de acesso e retorna o Customer correspondente.
-    Assume que o token do cliente também armazena o email.
-    """
     email = verify_access_token(token)
     if not email:
         raise HTTPException(status_code=401, detail="Token de cliente inválido ou expirado")
 
-    # Altera a busca para a tabela Customer
     customer = db.query(models.Customer).filter(models.Customer.email == email).first()
 
     if not customer:
@@ -202,11 +190,7 @@ def get_customer_from_token(token: str, db: Session) -> models.Customer:
 def get_current_customer(
         db: GetDBDep, token: Annotated[str, Depends(oauth2_scheme)]
 ) -> models.Customer:
-    """
-    Dependência FastAPI para obter o cliente autenticado atualmente.
-    """
     return get_customer_from_token(token, db)
 
 
-# Esta é a dependência que usaremos na nossa rota de review
 get_current_customer_dep = Annotated[models.Customer, Depends(get_current_customer)]
