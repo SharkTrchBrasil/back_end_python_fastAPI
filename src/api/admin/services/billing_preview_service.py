@@ -61,12 +61,12 @@ class BillingPreviewService:
         # 1. Buscar dados de faturamento e pedidos ATÉ A DATA ATUAL
         # Filtra apenas por pedidos que representam receita confirmada.
         query_result = db.query(
-            # ✅ CORREÇÃO: models.Order.total_amount -> models.Order.total_price
             func.sum(models.Order.total_price).label('total_revenue'),
             func.count(models.Order.id).label('total_orders')
         ).filter(
             models.Order.store_id == store.id,
-            models.Order.status.in_(['COMPLETED', 'DELIVERED', 'READY']),  # Status que contam como receita
+            # ✅ CORREÇÃO: models.Order.status -> models.Order.order_status
+            models.Order.order_status.in_(['COMPLETED', 'DELIVERED', 'READY']),  # Status que contam como receita
             and_(
                 models.Order.created_at >= period_start,
                 models.Order.created_at <= now
