@@ -1,7 +1,8 @@
 from collections import defaultdict
 from typing import Optional, List
-from pydantic import Field, ConfigDict, computed_field
+from pydantic import Field, ConfigDict, computed_field, model_validator
 
+from src.api.admin.services.subscription_service import SubscriptionService
 from src.api.schemas.chatbot.chatbot_config import StoreChatbotMessageSchema, StoreChatbotConfigSchema
 from src.api.schemas.financial.billing_preview import BillingPreviewSchema
 from src.api.schemas.products.category import Category
@@ -18,6 +19,7 @@ from src.api.schemas.store.location.store_city import StoreCitySchema
 from src.api.schemas.store.store_hours import StoreHoursOut
 from src.api.schemas.store.store_operation_config import StoreOperationConfigOut
 from src.api.schemas.products.variant import Variant
+from src.api.schemas.subscriptions.subscription_schemas import SubscriptionDetailsSchema
 from src.core import models
 
 
@@ -38,11 +40,31 @@ class StoreDetails(StoreSchema):
 
 
     payment_activations: list[models.StorePaymentMethodActivation] = Field(default=[], exclude=True)
-    active_subscription: Optional[StoreSubscriptionSchema] = Field(default=None)
+
     # ✅ 2. Adicione o campo para o preview do faturamento
     billing_preview: Optional[BillingPreviewSchema] = Field(default=None)
 
+    # ✅ O CAMPO CRUCIAL
+    # Este campo não vem diretamente do banco, ele será populado pelo nosso serviço.
+    active_subscription: SubscriptionDetailsSchema | None
 
+    class Config:
+        from_attributes = True
+
+    # ✅ A MÁGICA ACONTECE AQUI
+    # Este validador intercepta a criação do schema e popula o campo 'active_subscription'
+    @model_validator(mode='before')
+    @classmethod
+    def populate_subscription_details(cls, data):
+        if isinstance(data, models.Store):
+            # 'data' é o objeto ORM da loja.
+            # Chamamos nosso serviço para obter os detalhes calculados.
+            subscription_details = SubscriptionService.get_subscription_details(data)
+
+            # Adicionamos os detalhes calculados ao dicionário de dados
+            # que será usado para criar o StoreSchema.
+            data.active_subscription = subscription_details
+        return data
 
 
 
