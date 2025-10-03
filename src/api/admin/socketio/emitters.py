@@ -58,13 +58,14 @@ async def admin_emit_store_updated(db, store_id: int):
             print(f"⚠️ [Socket] Loja {store_id} não encontrada para emitir 'store_details_updated'.")
             return
 
-        billing_preview_data = BillingPreviewService.get_billing_preview(db, store_model)
 
+        billing_preview_data = BillingPreviewService.get_billing_preview(db, store_model)
         setattr(store_model, 'billing_preview', billing_preview_data)
+
 
         store_details_schema = StoreDetails.model_validate(store_model)
 
-        # 3. Converte o schema, agora completo, em um dicionário para o JSON.
+
         store_payload = store_details_schema.model_dump(mode='json')
 
         payload = {
@@ -73,17 +74,12 @@ async def admin_emit_store_updated(db, store_id: int):
 
         # 5. Emite o evento.
         await sio.emit('store_details_updated', payload, namespace='/admin', room=f"admin_store_{store_id}")
-        print(f"✅ [Socket] Dados detalhados da loja {store_id} (com payment_method_groups) enviados.")
+        print(f"✅ [Socket] Dados detalhados da loja {store_id} (com subscription calculada) enviados.")
 
     except Exception as e:
         print(f'❌ Erro CRÍTICO ao emitir store_details_updated: {e}')
         import traceback
         traceback.print_exc()
-
-
-
-
-
 
 async def admin_emit_dashboard_data_updated(db, store_id: int, sid: str | None = None):
     """
