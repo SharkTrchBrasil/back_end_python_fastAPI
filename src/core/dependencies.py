@@ -95,8 +95,9 @@ class GetStore:
 
             store = db_store_access.store
 
-
-        subscription_details, is_blocked = SubscriptionService.get_subscription_details(store)
+        # ✅✅✅ A CORREÇÃO ESTÁ AQUI ✅✅✅
+        # Usamos `*_` para ignorar quaisquer valores extras retornados pelo serviço.
+        subscription_details, is_blocked, *_ = SubscriptionService.get_subscription_details(store)
 
         if is_blocked:
             raise HTTPException(
