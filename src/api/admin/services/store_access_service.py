@@ -7,7 +7,7 @@ class StoreAccessService:
     """
 
     @staticmethod
-    def get_accessible_stores_with_roles(db: Session, admin_user: models.AdminUser) -> list[models.StoreAccess]:
+    def get_accessible_stores_with_roles(db: Session, admin_user: models.User) -> list[models.StoreAccess]:
         """
         ✅ O NOVO MÉTODO PRINCIPAL
         Busca todos os objetos `StoreAccess` para um admin, carregando de forma otimizada
@@ -17,7 +17,8 @@ class StoreAccessService:
             return []
 
         # Se for superadmin, ele tem acesso a TODAS as lojas com a role de 'owner'.
-        if admin_user.is_superadmin:
+        # ✅ CORREÇÃO: O campo no seu modelo é 'is_superuser'
+        if admin_user.is_superuser:
             all_stores = db.query(models.Store).all()
             owner_role = db.query(models.Role).filter_by(machine_name='owner').first()
 
@@ -43,7 +44,7 @@ class StoreAccessService:
 
 
     @staticmethod
-    def get_accessible_store_ids_with_fallback(db: Session, admin_user: models.AdminUser) -> list[int]:
+    def get_accessible_store_ids_with_fallback(db: Session, admin_user: models.User) -> list[int]:
         """
         (MÉTODO ANTIGO ATUALIZADO)
         Retorna apenas os IDs das lojas que o admin pode acessar.
@@ -52,7 +53,8 @@ class StoreAccessService:
         if not admin_user:
             return []
 
-        if admin_user.is_superadmin:
+        # ✅ CORREÇÃO: O campo no seu modelo é 'is_superuser'
+        if admin_user.is_superuser:
             # Superadmin tem acesso a todas as lojas.
             return [store.id for store in db.query(models.Store.id).all()]
 
