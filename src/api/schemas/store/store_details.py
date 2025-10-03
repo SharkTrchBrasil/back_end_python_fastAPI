@@ -3,6 +3,7 @@ from typing import Optional, List
 from pydantic import Field, ConfigDict, computed_field
 
 from src.api.schemas.chatbot.chatbot_config import StoreChatbotMessageSchema, StoreChatbotConfigSchema
+from src.api.schemas.financial.billing_preview import BillingPreviewSchema
 from src.api.schemas.products.category import Category
 from src.api.schemas.store.scheduled_pauses import ScheduledPauseOut
 from src.api.schemas.subscriptions.store_subscription import StoreSubscriptionSchema
@@ -38,6 +39,13 @@ class StoreDetails(StoreSchema):
 
     payment_activations: list[models.StorePaymentMethodActivation] = Field(default=[], exclude=True)
     active_subscription: Optional[StoreSubscriptionSchema] = Field(default=None)
+    # ✅ 2. Adicione o campo para o preview do faturamento
+    billing_preview: Optional[BillingPreviewSchema] = Field(default=None)
+
+
+
+
+
 
     @computed_field(return_type=list[PaymentMethodGroupOut])
     @property

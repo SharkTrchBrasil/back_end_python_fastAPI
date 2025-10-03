@@ -5,6 +5,7 @@ from typing import Optional
 from venv import logger
 
 from src.api.admin.services.analytics_service import get_peak_hours_for_store
+from src.api.admin.services.billing_preview_service import BillingPreviewService
 from src.api.admin.services.holiday_service import HolidayService
 from src.api.admin.services.insights_service import InsightsService
 from src.api.admin.services.payable_service import payable_service
@@ -57,11 +58,14 @@ async def admin_emit_store_updated(db, store_id: int):
             print(f"⚠️ [Socket] Loja {store_id} não encontrada para emitir 'store_details_updated'.")
             return
 
+        billing_preview_data = BillingPreviewService.get_billing_preview(db, store_model)
+
+        setattr(store_model, 'billing_preview', billing_preview_data)
+
         store_details_schema = StoreDetails.model_validate(store_model)
 
         # 3. Converte o schema, agora completo, em um dicionário para o JSON.
         store_payload = store_details_schema.model_dump(mode='json')
-
 
         payload = {
             "store": store_payload
