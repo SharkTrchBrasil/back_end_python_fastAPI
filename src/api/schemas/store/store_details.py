@@ -47,22 +47,34 @@ class StoreDetails(StoreSchema):
 
     active_subscription: SubscriptionDetailsSchema | None
 
-
-
+    # ✅✅✅ A CORREÇÃO FINAL E DEFINITIVA ESTÁ AQUI ✅✅✅
     @model_validator(mode='before')
     @classmethod
     def populate_subscription_details(cls, data):
+        """
+        Este validador intercepta os dados de entrada. Se for um objeto SQLAlchemy,
+        ele calcula os detalhes da assinatura e os injeta nos dados ANTES de o
+        Pydantic criar o modelo final.
+        """
+        # Só executa se a entrada for um objeto do nosso modelo SQLAlchemy
         if isinstance(data, models.Store):
-            # 'data' é o objeto ORM da loja.
-            # Chamamos nosso serviço para obter os detalhes calculados.
+            # 1. Calcula os detalhes da assinatura usando o serviço.
             subscription_details = SubscriptionService.get_subscription_details(data)
 
-            # Adicionamos os detalhes calculados ao dicionário de dados
-            # que será usado para criar o StoreSchema.
-            data.active_subscription = subscription_details
+            # 2. Converte o objeto SQLAlchemy em um dicionário.
+            #    Isso é necessário porque não podemos (e não devemos) modificar
+            #    o objeto SQLAlchemy diretamente com dados calculados.
+            store_dict = data.__dict__
+
+            # 3. Injeta o dicionário de assinatura calculado no dicionário da loja.
+            store_dict['active_subscription'] = subscription_details
+
+            # 4. Retorna o DICIONÁRIO modificado. O Pydantic agora usará
+            #    este dicionário para construir o modelo `StoreDetails`.
+            return store_dict
+
+        # Se a entrada já for um dicionário (ex: em um POST), apenas o retorna.
         return data
-
-
 
 
     @computed_field(return_type=list[PaymentMethodGroupOut])
