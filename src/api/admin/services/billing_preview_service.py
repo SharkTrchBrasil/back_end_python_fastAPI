@@ -15,7 +15,7 @@ class BillingPreviewService:
     """
 
     @staticmethod
-    def _calculate_fee(revenue: Decimal, plan: models.Plan) -> Decimal:
+    def _calculate_fee(revenue: Decimal, plan: models.Plans) -> Decimal: # ✅ CORREÇÃO: models.Plan -> models.Plans
         """
         Calcula a taxa do sistema com base no faturamento e nas regras do plano.
         Esta lógica deve espelhar sua cobrança real para garantir consistência.
