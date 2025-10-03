@@ -70,19 +70,11 @@ def get_store_base_details(db, store_id: int) -> models.Store | None:
             selectinload(models.Store.banners),
             selectinload(models.Store.cities).selectinload(models.StoreCity.neighborhoods),
 
-            # ✅ AQUI ESTÁ A CORREÇÃO FINAL
-            # Simplificamos a corrente de carregamento para refletir a estrutura real dos modelos.
-            # `PlatformPaymentMethod` se relaciona diretamente com `group`.
             selectinload(models.Store.payment_activations)
             .selectinload(models.StorePaymentMethodActivation.platform_method)
             .selectinload(models.PlatformPaymentMethod.group),
-            # ✅✅✅ A CORREÇÃO PRINCIPAL ESTÁ AQUI ✅✅✅
-            # Carregamos a 'active_subscription' e, dentro dela, o seu 'plan'.
-            # Isso garante que o SubscriptionService receba o objeto correto.
-            selectinload(models.Store.active_subscription).joinedload(models.StoreSubscription.plan),
 
-
-
+            selectinload(models.Store.subscriptions).joinedload(models.StoreSubscription.plan),
 
             selectinload(models.Store.coupons).selectinload(models.Coupon.rules),
             selectinload(models.Store.chatbot_messages).joinedload(models.StoreChatbotMessage.template),
