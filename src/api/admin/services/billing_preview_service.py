@@ -15,7 +15,7 @@ class BillingPreviewService:
     """
 
     @staticmethod
-    def _calculate_fee(revenue: Decimal, plan: models.Plans) -> Decimal: # ✅ CORREÇÃO: models.Plan -> models.Plans
+    def _calculate_fee(revenue: Decimal, plan: models.Plans) -> Decimal:
         """
         Calcula a taxa do sistema com base no faturamento e nas regras do plano.
         Esta lógica deve espelhar sua cobrança real para garantir consistência.
@@ -61,7 +61,8 @@ class BillingPreviewService:
         # 1. Buscar dados de faturamento e pedidos ATÉ A DATA ATUAL
         # Filtra apenas por pedidos que representam receita confirmada.
         query_result = db.query(
-            func.sum(models.Order.total_amount).label('total_revenue'),
+            # ✅ CORREÇÃO: models.Order.total_amount -> models.Order.total_price
+            func.sum(models.Order.total_price).label('total_revenue'),
             func.count(models.Order.id).label('total_orders')
         ).filter(
             models.Order.store_id == store.id,
