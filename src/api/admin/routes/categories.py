@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 
 from src.api.admin.utils.emit_updates import emit_updates_products
 from src.api.crud import crud_category, crud_option
@@ -7,7 +7,7 @@ from src.api.schemas.products.category import (
     CategoryCreate, Category, OptionGroup, OptionGroupCreate,
     OptionItemCreate, OptionItem, CategoryUpdate
 )
-from src.core.aws import delete_file
+from src.core.aws import delete_file, upload_single_file
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 
@@ -19,6 +19,45 @@ async def create_category(category_data: CategoryCreate, db: GetDBDep, store: Ge
     db_category = crud_category.create_category(db=db, category_data=category_data, store_id=store.id)
     await emit_updates_products(db, store.id)
     return db_category
+
+
+
+# ROTA DEDICADA PARA UPLOAD DA IMAGEM DO ITEM
+@router.post("/option-items/{item_id}/image", response_model=OptionItem)
+async def upload_option_item_image(
+    item_id: int,
+    db: GetDBDep,
+    store: GetStoreDep,
+    image_file: UploadFile = File(...)
+):
+    # 1. Busca o item e verifica se pertence à loja
+    db_item = crud_option.get_option_item(db, item_id=item_id)
+    if not db_item or db_item.group.category.store_id != store.id:
+        raise HTTPException(status_code=404, detail="Option Item not found in this store")
+
+    # 2. Se já houver uma imagem antiga, apaga ela do S3
+    if db_item.file_key:
+        delete_file(db_item.file_key)
+
+    # ✅ 2. A CORREÇÃO PRINCIPAL: CHAMA A FUNÇÃO CORRETA
+    # Faz o upload do novo arquivo usando a função refatorada
+    folder_path = f"stores/{store.id}/option-items/{db_item.id}"
+    file_key = upload_single_file(file=image_file, folder=folder_path)
+
+    # 3. Verifica se o upload falhou
+    if not file_key:
+        raise HTTPException(status_code=500, detail="Failed to upload image to S3")
+
+    # 4. Atualiza o banco de dados com a nova file_key
+    db_item.file_key = file_key
+    db.commit()
+    db.refresh(db_item)
+
+    # 5. Emite a atualização e retorna o objeto completo
+    await emit_updates_products(db, store.id)
+    return db_item
+
+
 
 
 @router.get("", response_model=list[Category])

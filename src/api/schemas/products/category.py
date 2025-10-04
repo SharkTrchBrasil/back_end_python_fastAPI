@@ -68,6 +68,18 @@ class OptionItem(OptionItemBase):
     # ✨ E retorna uma lista do nosso Enum
     tags: list[FoodTagEnum] = []
 
+    # ✅ 1. ADICIONE O CAMPO 'file_key' PARA BUSCAR DO BANCO
+    file_key: str | None = Field(None, exclude=True)
+
+    # ✅ 2. ADICIONE O CAMPO COMPUTADO PARA GERAR A URL
+    @computed_field
+    @property
+    def image_path(self) -> str | None:
+        """Gera a URL completa e pública da imagem."""
+        if self.file_key:
+            return f"{S3_PUBLIC_BASE_URL}/{self.file_key}"
+        return None
+
     class Config: from_attributes = True
 
 
