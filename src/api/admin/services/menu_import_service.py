@@ -22,7 +22,7 @@ if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
 
-async def process_menu_with_gemini(db: Session, store_id: int, user_id: int, file_data_list: List[Dict]):
+async def process_menu_with_gemini(db: Session, store_id: int, file_data_list: List[Dict]):
     """
     Tarefa de background que usa a IA do Gemini e os CRUDs do projeto para criar o cardápio.
     """
