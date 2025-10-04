@@ -55,6 +55,9 @@ from src.api.admin.routes.product_category_link import router as product_categor
 from src.api.admin.routes.table import router as table_router
 from src.api.admin.routes.chatbot_api import router as chatbot_api_router
 from src.api.admin.routes.chatbot_config import router as chatbot_config_router
+# ✅ 1. IMPORTE OS DOIS ROUTERS DO MÓDULO 'categories'
+from src.api.admin.routes.categories import router as categories_router, nested_router as categories_nested_router
+
 
 router = APIRouter(prefix="/admin")
 router.include_router(stores_router)
@@ -119,3 +122,4 @@ router.include_router(product_category_link_router)
 router.include_router(table_router)
 router.include_router(chatbot_api_router)
 router.include_router(chatbot_config_router)
+router.include_router(categories_nested_router)
