@@ -7,7 +7,7 @@ from src.core.dependencies import GetStoreDep, get_current_user
 
 
 
-router = APIRouter(prefix="/import", tags=["Import"])
+router = APIRouter(prefix="/stores/{store_id}/import", tags=["Import"])
 
 @router.post("/menu-from-images")
 async def import_menu_from_images(
