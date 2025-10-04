@@ -473,6 +473,8 @@ class OptionItem(Base, TimestampMixin):
     external_code: Mapped[str | None] = mapped_column(String(50), nullable=True)  # ✅ Para o Cód. PDV
     slices: Mapped[int | None] = mapped_column(nullable=True)  # ✅ Para a Qtd. Pedaços
     max_flavors: Mapped[int | None] = mapped_column(nullable=True)  # ✅ Para a Qtd. Sabores
+    # ✅ 1. ADICIONE O CAMPO AQUI
+    file_key: Mapped[str | None] = mapped_column(String, nullable=True, doc="Chave do arquivo da imagem no S3.")
 
     option_group_id: Mapped[int] = mapped_column(ForeignKey("option_groups.id"))
     group: Mapped["OptionGroup"] = relationship(back_populates="items")
