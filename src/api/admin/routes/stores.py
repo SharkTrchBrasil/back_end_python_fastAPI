@@ -10,7 +10,7 @@ from fastapi.params import File
 
 from sqlalchemy import func
 
-
+from src.api.admin.services.cloning_service import clone_store_data
 from src.api.schemas.auth.store_access import StoreAccess
 from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_stores_list_update
 from src.core.utils.enums import StoreVerificationStatus, Roles
@@ -225,6 +225,134 @@ async def create_store(
 
     # O retorno para a chamada HTTP continua o mesmo
     return db_store_access
+
+
+# ✅ NOVO ENDPOINT PARA CLONAGEM
+@router.post("/clone", response_model=StoreWithRole, status_code=status.HTTP_201_CREATED)
+async def clone_store(
+        db: GetDBDep,
+        user: GetCurrentUserDep,
+        source_store_id: int = Form(...),
+        name: str = Form(...),
+        url_slug: str = Form(...),
+        phone: str = Form(...),
+        description: str | None = Form(None),
+        # Endereço como JSON
+        address_json: str = Form(..., alias="address"),
+        # Opções de clonagem como JSON
+        options_json: str = Form(..., alias="options"),
+):
+    """
+    Cria uma nova loja clonando dados de uma loja de origem.
+    """
+    import json
+    address = json.loads(address_json)
+    options = json.loads(options_json)
+
+    # 1. Valida se a loja de origem existe e se o usuário tem acesso a ela
+    source_store_access = db.query(models.StoreAccess).filter(
+        models.StoreAccess.store_id == source_store_id,
+        models.StoreAccess.user_id == user.id
+    ).first()
+
+    if not source_store_access:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Loja de origem não encontrada ou você não tem permissão para acessá-la."
+        )
+
+    source_store = source_store_access.store
+
+    # 2. Validações de unicidade para a nova loja (URL, etc.)
+    existing_by_url = db.query(models.Store).filter(models.Store.url_slug == url_slug).first()
+    if existing_by_url:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A URL informada já está em uso."
+        )
+
+    # 3. Cria a nova loja base (sem os dados clonados ainda)
+    new_store = models.Store(
+        name=name,
+        url_slug=url_slug,
+        phone=phone,
+        description=description,
+        # Copia o segmento da loja original
+        segment_id=source_store.segment_id,
+        # Novos dados de endereço
+        zip_code=address.get('cep'),
+        street=address.get('street'),
+        number=address.get('number'),
+        complement=address.get('complement'),
+        neighborhood=address.get('neighborhood'),
+        city=address.get('city'),
+        state=address.get('uf'),
+        # O responsável é o usuário logado
+        responsible_name=user.name,
+        responsible_phone=user.phone,
+        # Status iniciais
+        is_active=True,
+        is_setup_complete=False,  # O wizard de setup da loja pode ser rodado depois
+        verification_status=StoreVerificationStatus.UNVERIFIED
+    )
+    db.add(new_store)
+    db.flush()  # Para obter o new_store.id
+
+    # 4. Chama o serviço de clonagem para popular os dados
+    clone_store_data(db, source_store_id=source_store.id, new_store_id=new_store.id, options=options)
+
+    # 5. Cria o acesso de 'owner' para o usuário na nova loja
+    owner_role = db.query(models.Role).filter(models.Role.machine_name == "owner").first()
+    new_access = models.StoreAccess(user=user, role=owner_role, store=new_store)
+    db.add(new_access)
+
+    # 6. Cria a assinatura com trial
+    main_plan = db.query(models.Plans).first()
+    if not main_plan:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Configuração de plano principal não encontrada.")
+
+    start_date = datetime.now(timezone.utc)
+    end_date = start_date + timedelta(days=30)
+
+    new_subscription = models.StoreSubscription(
+        store=new_store,
+        plan=main_plan,
+        status="trialing",
+        current_period_start=start_date,
+        current_period_end=end_date,
+    )
+    db.add(new_subscription)
+
+    db.commit()
+    db.refresh(new_access)
+
+    # Emite eventos, etc.
+    await admin_emit_stores_list_update(db, admin_user=user)
+    await admin_emit_store_updated(db, store_id=new_store.id)
+
+    return new_access
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 @router.get("", response_model=list[StoreWithRole])
 def list_stores(
