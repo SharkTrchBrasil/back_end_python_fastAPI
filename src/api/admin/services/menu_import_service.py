@@ -1,5 +1,6 @@
 import google.generativeai as genai
 import json
+
 import os
 from typing import List, Dict
 from sqlalchemy.orm import Session
@@ -9,8 +10,6 @@ from src.api.schemas.products.category import CategoryCreate
 from src.api.schemas.products.product import SimpleProductWizardCreate
 from src.api.schemas.products.product_category_link import ProductCategoryLinkCreate
 
-# Seus CRUDs exatos
-from src.api.crud import crud_category, crud_product, store_crud
 from src.core import models
 
 # É uma boa prática usar logging
