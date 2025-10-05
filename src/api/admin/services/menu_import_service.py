@@ -74,7 +74,7 @@ async def process_menu_with_gemini(db: Session, store_id: int, file_data_list: L
 
     # 2. Chamar a API do Gemini Pro Vision
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        model = genai.GenerativeModel('gemini-pro-vision')
         response = await model.generate_content_async([prompt_text, *image_parts])
 
         json_response_str = response.text
