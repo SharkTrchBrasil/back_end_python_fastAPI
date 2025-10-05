@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Backgro
 from src.api.admin.services import menu_import_service
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep, get_current_user
-
+from src.core.models import User
 
 
 router = APIRouter(prefix="/stores/{store_id}/import", tags=["Import"])
@@ -14,6 +14,7 @@ async def import_menu_from_images(
     store: GetStoreDep,
     db: GetDBDep,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
     files: List[UploadFile] = File(..., description="Uma ou mais imagens do cardápio para processar."),
 ):
     """
@@ -26,19 +27,16 @@ async def import_menu_from_images(
             detail="Nenhum arquivo de imagem foi enviado."
         )
 
-    # Coleta os dados dos arquivos para passar para a tarefa em background.
-    # Precisamos fazer isso porque o objeto UploadFile não pode ser passado diretamente.
     file_data_list = [
         {"content": await file.read(), "content_type": file.content_type}
         for file in files
     ]
 
-    # Adiciona a tarefa pesada (chamar a IA e salvar no banco) para ser executada em segundo plano.
-    # Isso faz com que a requisição retorne instantaneamente para o usuário.
     background_tasks.add_task(
-        menu_import_service.process_menu_with_gemini, # A função que vamos criar
+        menu_import_service.process_menu_with_openai,
         db=db,
         store_id=store.id,
+        user_id=current_user.id,
         file_data_list=file_data_list
     )
 
