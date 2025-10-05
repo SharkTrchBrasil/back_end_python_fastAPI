@@ -61,7 +61,7 @@ async def process_menu_with_openai(db: Session, store_id: int, user_id: int, fil
     try:
         logger.info(f"Enviando requisição para a API da OpenAI para store_id {store_id}...")
         response = await client.chat.completions.create(
-            model="gpt-4-vision-preview",
+            model="gpt-4o-mini",
             messages=[
                 {
                     "role": "user",
