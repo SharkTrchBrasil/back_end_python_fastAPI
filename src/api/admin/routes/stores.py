@@ -226,8 +226,7 @@ async def create_store(
     # O retorno para a chamada HTTP continua o mesmo
     return db_store_access
 
-
-# ✅ NOVO ENDPOINT PARA CLONAGEM
+# ✅ ENDPOINT DE CLONAGEM ATUALIZADO
 @router.post("/clone", response_model=StoreWithRole, status_code=status.HTTP_201_CREATED)
 async def clone_store(
         db: GetDBDep,
@@ -277,9 +276,7 @@ async def clone_store(
         url_slug=url_slug,
         phone=phone,
         description=description,
-        # Copia o segmento da loja original
         segment_id=source_store.segment_id,
-        # Novos dados de endereço
         zip_code=address.get('cep'),
         street=address.get('street'),
         number=address.get('number'),
@@ -287,26 +284,34 @@ async def clone_store(
         neighborhood=address.get('neighborhood'),
         city=address.get('city'),
         state=address.get('uf'),
-        # O responsável é o usuário logado
         responsible_name=user.name,
         responsible_phone=user.phone,
-        # Status iniciais
         is_active=True,
-        is_setup_complete=False,  # O wizard de setup da loja pode ser rodado depois
+        is_setup_complete=False,
         verification_status=StoreVerificationStatus.UNVERIFIED
     )
     db.add(new_store)
-    db.flush()  # Para obter o new_store.id
+    db.flush()
 
-    # 4. Chama o serviço de clonagem para popular os dados
+    # ✅ 4. CRIA CONFIGURAÇÕES PADRÃO ANTES DE CLONAR
+    # Se a clonagem de 'operation_config' não for selecionada, criamos uma padrão.
+    if not options.get('operation_config', False):
+        db_store_configuration = models.StoreOperationConfig(
+            store_id=new_store.id,
+            is_store_open=True,
+            **default_delivery_settings
+        )
+        db.add(db_store_configuration)
+
+    # 5. Chama o serviço de clonagem para popular os dados
     clone_store_data(db, source_store_id=source_store.id, new_store_id=new_store.id, options=options)
 
-    # 5. Cria o acesso de 'owner' para o usuário na nova loja
+    # 6. Cria o acesso de 'owner' para o usuário na nova loja
     owner_role = db.query(models.Role).filter(models.Role.machine_name == "owner").first()
     new_access = models.StoreAccess(user=user, role=owner_role, store=new_store)
     db.add(new_access)
 
-    # 6. Cria a assinatura com trial
+    # 7. Cria a assinatura com trial
     main_plan = db.query(models.Plans).first()
     if not main_plan:
         db.rollback()
@@ -332,9 +337,6 @@ async def clone_store(
     await admin_emit_store_updated(db, store_id=new_store.id)
 
     return new_access
-
-
-
 
 
 
