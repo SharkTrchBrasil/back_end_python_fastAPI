@@ -37,6 +37,8 @@ class CouponBase(BaseModel):
                                                description="Teto do desconto em centavos para %")
 
     # Validade
+    # ✅✅✅ CORREÇÃO APLICADA AQUI ✅✅✅
+    # Adicionados os aliases que faltavam para corresponder ao frontend.
     start_date: datetime = Field(..., alias="startDate")
     end_date: datetime = Field(..., alias="endDate")
     is_active: bool = Field(default=True, alias="isActive")
