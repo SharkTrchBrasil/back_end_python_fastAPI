@@ -80,9 +80,14 @@ def _clone_catalog(db: Session, source_id: int, new_id: int, options: dict):
 
     # Mapeamento de IDs antigos para novos (essencial)
     category_id_map = {}
+    product_id_map = {}
 
-    # 1. Clonar Categorias
-    if options.get('categories', False):
+    # ✅ LÓGICA REFINADA: Se vamos clonar produtos, PRECISAMOS clonar as categorias primeiro.
+    clone_categories_flag = options.get('categories', False) or options.get('products', False)
+
+    # 1. Clonar Categorias (se necessário)
+    if clone_categories_flag:
+        print("Clonando categorias...")
         source_categories = db.query(models.Category).filter_by(store_id=source_id).all()
         for source_cat in source_categories:
             new_cat = models.Category(
@@ -90,15 +95,20 @@ def _clone_catalog(db: Session, source_id: int, new_id: int, options: dict):
                 name=source_cat.name,
                 priority=source_cat.priority,
                 is_active=source_cat.is_active,
-                type=source_cat.type
-                # ... copie outros campos da categoria
+                type=source_cat.type,
+                # ... copie outros campos da categoria, como 'pricing_strategy', 'price_varies_by_size', etc.
+                pricing_strategy=source_cat.pricing_strategy,
+                price_varies_by_size=source_cat.price_varies_by_size,
+                selected_template=source_cat.selected_template,
             )
             db.add(new_cat)
-            db.flush()  # Para obter o new_cat.id
+            db.flush()
             category_id_map[source_cat.id] = new_cat.id
+        print(f"{len(category_id_map)} categorias clonadas.")
 
     # 2. Clonar Produtos (se a opção estiver marcada)
     if options.get('products', False):
+        print("Clonando produtos...")
         source_products = db.query(models.Product).filter_by(store_id=source_id).all()
         for source_prod in source_products:
             new_prod = models.Product(
@@ -106,10 +116,13 @@ def _clone_catalog(db: Session, source_id: int, new_id: int, options: dict):
                 name=source_prod.name,
                 description=source_prod.description,
                 status=source_prod.status,
+                priority=source_prod.priority,
+                featured=source_prod.featured,
                 # ... copie outros campos do produto
             )
             db.add(new_prod)
-            db.flush()  # Para obter o new_prod.id
+            db.flush()
+            product_id_map[source_prod.id] = new_prod.id
 
             # 3. Linkar o novo produto às novas categorias
             for link in source_prod.category_links:
@@ -119,7 +132,12 @@ def _clone_catalog(db: Session, source_id: int, new_id: int, options: dict):
                         product_id=new_prod.id,
                         category_id=new_category_id,
                         price=link.price,
-                        is_available=link.is_available
+                        is_available=link.is_available,
                         # ... copie outros campos do link
+                        cost_price=link.cost_price,
+                        is_on_promotion=link.is_on_promotion,
+                        promotional_price=link.promotional_price,
+                        display_order=link.display_order
                     )
                     db.add(new_link)
+        print(f"{len(product_id_map)} produtos clonados e linkados.")
