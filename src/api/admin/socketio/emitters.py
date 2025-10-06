@@ -65,8 +65,7 @@ async def admin_emit_store_updated(db, store_id: int):
 
         store_details_schema = StoreDetails.model_validate(store_model)
 
-
-        store_payload = store_details_schema.model_dump(mode='json')
+        store_payload = store_details_schema.model_dump(mode='json', by_alias=True)
 
         payload = {
             "store": store_payload
