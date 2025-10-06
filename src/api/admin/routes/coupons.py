@@ -30,44 +30,45 @@ async def create_coupon(
     ).first()
 
     if existing_coupon:
-        raise HTTPException(status_code=400, detail="Um cupom com este código já existe para esta loja.")
+        # ✅ Melhoria: Retorna um JSON mais detalhado para o frontend poder tratar o erro
+        raise HTTPException(status_code=400, detail={"message": "Um cupom com este código já existe para esta loja.",
+                                                     "code": "CODE_ALREADY_EXISTS"})
 
-    coupon_rules = coupon_data.rules
+    # --- INÍCIO DA LÓGICA CORRIGIDA ---
+
+    # 1. Cria o objeto PAI (Coupon) em memória.
     db_coupon = models.Coupon(
         **coupon_data.model_dump(exclude={'rules'}),
         store_id=store.id,
     )
-    db.add(db_coupon)
 
-    for rule_schema in coupon_rules:
+    # 2. Anexa os objetos FILHOS (CouponRule) à lista de relacionamento do PAI.
+    #    É esta etapa que garante que o `cascade` funcione.
+    for rule_schema in coupon_data.rules:
         new_rule = models.CouponRule(
             rule_type=rule_schema.rule_type,
-            value=rule_schema.value,
-            coupon=db_coupon
+            value=rule_schema.value
         )
-        db.add(new_rule)
+        db_coupon.rules.append(new_rule)
 
+    # 3. Adiciona APENAS o objeto PAI à sessão.
+    #    O SQLAlchemy irá automaticamente adicionar os filhos em cascata.
+    db.add(db_coupon)
+
+    # 4. Faz o commit da transação. Agora, tanto o cupom quanto suas regras serão salvos.
     db.commit()
-    # ❌ REMOVA ESTA LINHA:
-    # db.refresh(db_coupon)
 
-    # ✅ SUBSTITUA PELA LÓGICA ABAIXO:
-    # Buscamos o cupom recém-criado pelo seu ID, mas desta vez forçando
-    # o carregamento do relacionamento 'rules' com `selectinload`.
-    created_coupon_with_rules = db.query(models.Coupon).options(
-        selectinload(models.Coupon.rules)
-    ).filter(models.Coupon.id == db_coupon.id).first()
+    # 5. Atualiza o objeto `db_coupon` com os dados do banco (incluindo os novos IDs).
+    db.refresh(db_coupon)
 
+    # --- FIM DA LÓGICA CORRIGIDA ---
 
+    # Emite os eventos de atualização para os clientes conectados
     await asyncio.create_task(emit_store_updated(db, store.id))
     await admin_emit_store_updated(db, store.id)
 
-    # ✅ Retorna o objeto completo que acabamos de buscar
-    return created_coupon_with_rules
-
-
-
-
+    # Retorna o objeto `db_coupon` completo, que agora contém as `rules` com seus IDs.
+    return db_coupon
 
 # ===================================================================
 # 2. BUSCANDO CUPONS (carregando as regras)
