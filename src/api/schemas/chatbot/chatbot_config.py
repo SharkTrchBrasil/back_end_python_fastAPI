@@ -19,8 +19,8 @@ class ChatbotWebhookPayload(BaseModel):
 class StoreChatbotConfigSchema(BaseModel):
     whatsapp_name: str | None
     connection_status: str
-    last_qr_code: str | None = None  # ✅ CAMPO ADICIONADO AQUI
-    pairing_code: Optional[str] = None  # ✅ CAMPO ADICIONADO
+    last_qr_code: str | None = None
+    last_connection_code: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 
