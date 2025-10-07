@@ -27,6 +27,8 @@ def verify_webhook_secret(x_webhook_secret: str = Header(...)):
     dependencies=[Depends(verify_webhook_secret)],
     include_in_schema=False
 )
+
+
 async def chatbot_webhook(payload: ChatbotWebhookPayload, db: GetDBDep):
     print(f"🤖 Webhook do Chatbot recebido para loja {payload.storeId}: status {payload.status}")
 
@@ -51,14 +53,21 @@ async def chatbot_webhook(payload: ChatbotWebhookPayload, db: GetDBDep):
     if payload.status in ['disconnected', 'error']:
         config.last_qr_code = None
         config.whatsapp_name = None
-        config.pairing_code = None
+        # ✅ CORRIGIDO: Usando o nome do campo do modelo
+        config.last_connection_code = None
     elif payload.status == 'awaiting_pairing_code':
-        config.pairing_code = payload.pairingCode
+        # ✅ CORRIGIDO: Usando o nome do campo do modelo
+        config.last_connection_code = payload.pairingCode
         config.last_qr_code = None
-    else:
+    elif payload.status == 'awaiting_qr': # Adicionado para clareza
         config.last_qr_code = payload.qrCode
+        config.whatsapp_name = None # Nome só vem quando conectado
+        config.last_connection_code = None
+    elif payload.status == 'connected':
         config.whatsapp_name = payload.whatsappName
-        config.pairing_code = None  # Limpar após conexão
+        # Limpa os códigos após a conexão ser bem-sucedida
+        config.last_qr_code = None
+        config.last_connection_code = None
 
     db.commit()
 
