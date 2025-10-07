@@ -165,13 +165,15 @@ async def conectar_whatsapp(store: GetStoreDep, db: GetDBDep,
 
 
 
-@router.post("/disconnect", status_code=200)
+
+@router.delete("/disconnect", status_code=200)
 async def desconectar_whatsapp(store: GetStoreDep, db: GetDBDep,
                                http_client: httpx.AsyncClient = Depends(get_async_http_client)):
     desconectar_url = f"{CHATBOT_SERVICE_URL}/disconnect"
     headers = {'x-webhook-secret': CHATBOT_WEBHOOK_SECRET}
 
     try:
+        # A requisição para o serviço Node.js continua sendo POST, pois é uma chamada de serviço interno
         response = await http_client.post(
             desconectar_url,
             json={"storeId": store.id},
@@ -186,8 +188,9 @@ async def desconectar_whatsapp(store: GetStoreDep, db: GetDBDep,
     if chatbot_config:
         chatbot_config.connection_status = 'disconnected'
         chatbot_config.whatsapp_name = None
-        chatbot_config.whatsapp_number = None  # CORREÇÃO: Mantive isso, mas considere se realmente deve limpar o número
+        chatbot_config.whatsapp_number = None
         chatbot_config.last_qr_code = None
+        chatbot_config.last_connection_code = None # Limpa também o código de conexão
         db.commit()
         await admin_emit_store_updated(db, store.id)
 
