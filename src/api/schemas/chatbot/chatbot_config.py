@@ -20,6 +20,7 @@ class StoreChatbotConfigSchema(BaseModel):
     whatsapp_name: str | None
     connection_status: str
     last_qr_code: str | None = None  # ✅ CAMPO ADICIONADO AQUI
+    pairing_code: Optional[str] = None  # ✅ CAMPO ADICIONADO
     model_config = ConfigDict(from_attributes=True)
 
 
