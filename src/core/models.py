@@ -1145,6 +1145,26 @@ class StoreChatbotConfig(Base, TimestampMixin):
 
     # Relacionamento de volta para a classe Store (a última alteração que fizemos)
     store: Mapped["Store"] = relationship(back_populates="chatbot_config")
+# ... (cole isso no final do seu arquivo models.py)
+
+class ChatbotAuthCredential(Base):
+    """
+    Armazena as credenciais de autenticação da Baileys (WhatsApp)
+    para cada sessão, permitindo a reconexão sem precisar ler o QR Code novamente.
+    Esta tabela substitui o uso de arquivos no disco, sendo mais performática e
+    estável para um ambiente de produção.
+    """
+    __tablename__ = "chatbot_auth_credentials"
+
+    # Chave primária composta: cada credencial é única para uma sessão
+    session_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    cred_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+
+    # O valor da credencial, armazenado como JSONB para eficiência no PostgreSQL
+    cred_value: Mapped[dict] = mapped_column(JSONB, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<ChatbotAuthCredential(session='{self.session_id}', cred='{self.cred_id}')>"
 
 
 class PaymentMethodGroup(Base):
