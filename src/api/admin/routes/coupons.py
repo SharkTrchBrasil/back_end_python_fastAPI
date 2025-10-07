@@ -1,8 +1,9 @@
 import asyncio
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from sqlalchemy.orm import selectinload  # ✅ Adicionado selectinload
 
+from src.api.admin.services.coupon_notification_service import send_coupon_notification_task
 from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.app.socketio.socketio_emitters import emit_store_updated
 from src.api.schemas.financial.coupon import CouponCreate, CouponUpdate, CouponOut
@@ -23,6 +24,7 @@ async def create_coupon(
         db: GetDBDep,
         store: GetStoreDep,
         coupon_data: CouponCreate,
+        background_tasks: BackgroundTasks,
 ):
     existing_coupon = db.query(models.Coupon).filter(
         models.Coupon.code == coupon_data.code.upper(),
@@ -34,9 +36,6 @@ async def create_coupon(
         raise HTTPException(status_code=400, detail={"message": "Um cupom com este código já existe para esta loja.",
                                                      "code": "CODE_ALREADY_EXISTS"})
 
-    # --- INÍCIO DA LÓGICA CORRIGIDA ---
-
-    # 1. Cria o objeto PAI (Coupon) em memória.
     db_coupon = models.Coupon(
         **coupon_data.model_dump(exclude={'rules'}),
         store_id=store.id,
@@ -61,9 +60,16 @@ async def create_coupon(
     # 5. Atualiza o objeto `db_coupon` com os dados do banco (incluindo os novos IDs).
     db.refresh(db_coupon)
 
-    # --- FIM DA LÓGICA CORRIGIDA ---
 
-    # Emite os eventos de atualização para os clientes conectados
+    if coupon_data.notify_customers:
+        # Marca o status como "enfileirado" para a UI poder mostrar um feedback
+        db_coupon.whatsapp_notification_status = 'queued'
+        db.commit()
+
+        # 5. Adiciona a tarefa pesada para ser executada em segundo plano
+        background_tasks.add_task(send_coupon_notification_task, db, db_coupon.id, store.id)
+
+
     await asyncio.create_task(emit_store_updated(db, store.id))
     await admin_emit_store_updated(db, store.id)
 

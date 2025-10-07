@@ -36,9 +36,7 @@ class CouponBase(BaseModel):
     max_discount_amount: Optional[int] = Field(None, gt=0, alias="maxDiscountAmount",
                                                description="Teto do desconto em centavos para %")
 
-    # Validade
-    # ✅✅✅ CORREÇÃO APLICADA AQUI ✅✅✅
-    # Adicionados os aliases que faltavam para corresponder ao frontend.
+
     start_date: datetime = Field(..., alias="startDate")
     end_date: datetime = Field(..., alias="endDate")
     is_active: bool = Field(default=True, alias="isActive")
@@ -55,6 +53,11 @@ class CouponBase(BaseModel):
 class CouponCreate(CouponBase):
     # Agora, em vez de campos de regra individuais, recebemos uma lista de regras
     rules: list[CouponRuleSchema] = []
+  
+    notify_customers: bool = Field(
+        False,
+        description="Se True, dispara uma notificação via WhatsApp para os clientes da loja."
+    )
 
 
 class CouponUpdate(BaseModel):

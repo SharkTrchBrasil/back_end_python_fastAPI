@@ -840,6 +840,18 @@ class Coupon(Base, TimestampMixin):
     end_date: Mapped[datetime] = mapped_column()
     is_active: Mapped[bool] = mapped_column(default=True)
 
+
+    whatsapp_notification_sent_at: Mapped[datetime | None] = mapped_column(
+        nullable=True,
+        doc="Timestamp de quando a notificação em massa foi concluída."
+    )
+    whatsapp_notification_status: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        default='pending',
+        doc="Status do envio: pending, queued, sending, sent, failed"
+    )
+
     # Relacionamentos
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
 
