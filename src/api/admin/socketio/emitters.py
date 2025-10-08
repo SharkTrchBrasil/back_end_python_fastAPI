@@ -26,7 +26,7 @@ from src.api.schemas.store.store_details import StoreDetails
 from src.api.schemas.store.store_payable import PayableResponse
 from src.api.schemas.financial.supplier import SupplierResponse
 
-from src.api.schemas.store.table import TableOut
+from src.api.schemas.store.table import TableOut, SaloonOut
 from src.api.admin.services.customer_analytic_service import get_customer_analytics_for_store
 from src.api.admin.services.dashboard_service import get_dashboard_data_for_period
 from src.api.admin.services.product_analytic_services import get_product_analytics_for_store
@@ -296,17 +296,22 @@ async def admin_emit_order_updated_from_obj(order: models.Order):
 
 async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = None):
     try:
-        # ✅ A CORREÇÃO: Trocamos models.Table por models.Tables para corresponder ao seu modelo atualizado.
+        # ✅ CORREÇÃO: Trocamos models.Table por models.Tables para corresponder ao seu modelo atualizado.
         tables = db.query(models.Tables).filter_by(store_id=store_id, is_deleted=False).all()
         commands = db.query(models.Command).filter_by(store_id=store_id).all()
+        # ✅ NOVO: Buscar salões da loja
+        saloons = db.query(models.Saloon).filter_by(store_id=store_id).all()
 
         tables_data = [TableOut.model_validate(table).model_dump(mode='json') for table in tables]
         commands_data = [CommandOut.model_validate(cmd).model_dump(mode='json') for cmd in commands]
+        # ✅ NOVO: Serializar salões
+        saloons_data = [SaloonOut.model_validate(saloon).model_dump(mode='json') for saloon in saloons]
 
         payload = {
             "store_id": store_id,
             "tables": tables_data,
             "commands": commands_data,
+            "saloons": saloons_data,  # ✅ Adicionar salões ao payload
         }
 
         if sid:
@@ -317,12 +322,11 @@ async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = No
     except Exception as e:
         print(f'❌ Erro em emit_tables_and_commands: {str(e)}')
         if sid:
-            await sio.emit("tables_and_commands", {"store_id": store_id, "tables": [], "commands": []},
+            await sio.emit("tables_and_commands", {"store_id": store_id, "tables": [], "commands": [], "saloons": []},
                            namespace="/admin", to=sid)
         else:
-            await sio.emit("tables_and_commands", {"store_id": store_id, "tables": [], "commands": []},
+            await sio.emit("tables_and_commands", {"store_id": store_id, "tables": [], "commands": [], "saloons": []},
                            namespace="/admin", room=f"admin_store_{store_id}")
-
 
 
 
