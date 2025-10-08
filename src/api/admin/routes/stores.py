@@ -101,6 +101,37 @@ async def create_store(
     db.flush()
 
     # =======================================================================
+    # ✅ NOVO BLOCO: CRIAÇÃO DO SALÃO E MESAS PADRÃO
+    # =======================================================================
+    print(f"Criando salão e mesas padrão para a loja ID: {db_store.id}...")
+
+    # 1. Cria o Salão Principal
+    default_saloon = models.Saloon(
+        store_id=db_store.id,
+        name="Salão Principal"
+    )
+    db.add(default_saloon)
+    db.flush()  # Para obter o ID do salão para as mesas
+
+    # 2. Cria 10 mesas padrão dentro do salão
+    default_tables = []
+    for i in range(1, 11):
+        table = models.Tables(
+            store_id=db_store.id,
+            saloon_id=default_saloon.id,
+            name=f"Mesa {i:02d}",  # Formata como "Mesa 01", "Mesa 02", etc.
+            max_capacity=4  # Capacidade padrão
+        )
+        default_tables.append(table)
+
+    db.add_all(default_tables)
+    print("✅ Salão e mesas padrão criados com sucesso.")
+    # =======================================================================
+
+
+
+
+    # =======================================================================
     # ✅ NOVO BLOCO: POPULA AS CONFIGURAÇÕES DO CHATBOT PARA A NOVA LOJA
     # =======================================================================
     print(f"Populating default chatbot messages for new store ID: {db_store.id}...")

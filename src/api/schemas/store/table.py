@@ -1,33 +1,75 @@
-# em schemas/table.py
-from pydantic import BaseModel
+# src/api/schemas/store/table.py
+from pydantic import BaseModel, Field
 from typing import List, Optional
 
-# Schema para adicionar um item a uma mesa/comanda
+from src.core.utils.enums import TableStatus
+
+
+# --- Schemas para Itens e Comandas (Já existentes e melhorados) ---
+
 class AddItemToCommandSchema(BaseModel):
     product_id: int
-    quantity: int
+    quantity: int = Field(..., gt=0)
     notes: Optional[str] = None
-    # Adicione aqui os campos para variantes, se necessário
-    # variants: List[VariantSchema] 
+    # variante_options: Optional[List[int]] = [] # Exemplo para o futuro
 
-# Para representar um item dentro de uma comanda
 class CommandItemSchema(BaseModel):
     product_name: str
     quantity: int
-    price: int
+    price: int # Em centavos
 
-# Para representar uma comanda ativa
+    class Config:
+        from_attributes = True
+
 class CommandSchema(BaseModel):
     id: int
     customer_name: Optional[str]
-    items: List[CommandItemSchema]
-
-# O schema completo de uma mesa para ser enviado via WebSocket/API
-class TableOut(BaseModel):
-    id: int
-    name: str
-    status: str
-    commands: List[CommandSchema]
+    items: List[CommandItemSchema] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+
+# --- Schemas para Mesas (Tables) ---
+
+class TableBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=50)
+    max_capacity: int = Field(4, gt=0)
+    location_description: Optional[str] = Field(None, max_length=100)
+
+class TableCreate(TableBase):
+    saloon_id: int
+
+class TableUpdate(TableBase):
+    name: Optional[str] = Field(None, min_length=1, max_length=50)
+    max_capacity: Optional[int] = Field(None, gt=0)
+
+class TableOut(TableBase):
+    id: int
+    store_id: int
+    saloon_id: int
+    status: TableStatus
+    commands: List[CommandSchema] = []
+
+    class Config:
+        from_attributes = True
+
+
+# --- Schemas para Salões (Saloons) ---
+
+class SaloonBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    display_order: int = 0
+
+class SaloonCreate(SaloonBase):
+    pass
+
+class SaloonUpdate(SaloonBase):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    display_order: Optional[int] = None
+
+class SaloonOut(SaloonBase):
+    id: int
+    tables: List[TableOut] = []
+
+    class Config:
+        from_attributes = True

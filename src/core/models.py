@@ -17,25 +17,15 @@ from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, Store
 from src.api.schemas.shared.base import VariantType, UIDisplayMode
 
 from sqlalchemy.dialects.postgresql import ARRAY
-from sqlalchemy import  Text
+from sqlalchemy import Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 import uuid
 from sqlalchemy import Table, Column, Integer, ForeignKey, String, Enum, Numeric, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
-
-
-
-
-
-
 class Base(DeclarativeBase):
     pass
-
-
-
-
 
 
 class TimestampMixin:
@@ -67,7 +57,6 @@ class Store(Base, TimestampMixin):
         index=True,
         nullable=False
     )
-
 
     # --- Identificação Básica ---
     name: Mapped[str] = mapped_column()
@@ -125,14 +114,12 @@ class Store(Base, TimestampMixin):
         cascade="all, delete-orphan"  # ✅ ADICIONAR
     )
 
-
     # no Store
     store_customers = relationship(
         "StoreCustomer",
         back_populates="store",
         cascade="all, delete-orphan"  # ✅ ADICIONAR
     )
-
 
     theme: Mapped["StoreTheme"] = relationship(back_populates="store", uselist=False, cascade="all, delete-orphan")
     banners: Mapped[List["Banner"]] = relationship(back_populates="store", cascade="all, delete-orphan")
@@ -146,7 +133,6 @@ class Store(Base, TimestampMixin):
 
     efi_customer_id: Mapped[str | None] = mapped_column(nullable=True)
     efi_payment_token: Mapped[str | None] = mapped_column(nullable=True)  # IMPORTANTE: Criptografe este campo!
-
 
     # CORREÇÃO:
     monthly_charges: Mapped[list["MonthlyCharge"]] = relationship(
@@ -194,7 +180,6 @@ class Store(Base, TimestampMixin):
         cascade="all, delete-orphan"  # ✅ ADICIONAR
     )
 
-
     subscriptions: Mapped[list["StoreSubscription"]] = relationship(
         "StoreSubscription",
         back_populates="store",
@@ -206,7 +191,6 @@ class Store(Base, TimestampMixin):
         back_populates="store",
         cascade="all, delete-orphan"  # ✅ ADICIONAR
     )
-
 
     # acti    subscriptions: Mapped[list["StoreSubscription"]] = relationship(
     #         "StoreSubscription",  # <-- Use a string aqui
@@ -220,6 +204,13 @@ class Store(Base, TimestampMixin):
     # dentro da classe Store
     accesses: Mapped[List["StoreAccess"]] = relationship(
         back_populates="store", cascade="all, delete-orphan"
+    )
+
+    # ✅ NOVO RELACIONAMENTO: Store para Saloon
+    saloons: Mapped[list["Saloon"]] = relationship(
+        back_populates="store",
+        cascade="all, delete-orphan",
+        order_by="asc(Saloon.display_order)"
     )
 
     variants: Mapped[List["Variant"]] = relationship(
@@ -287,37 +278,37 @@ class Store(Base, TimestampMixin):
         ).correlate_except(StoreSubscription).as_scalar()
 
 
-
-
 class User(Base, TimestampMixin):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(unique=True, index=True)
     name: Mapped[str] = mapped_column()
-    phone: Mapped[Optional[str]] = mapped_column(nullable=True) # ALTERADO
+    phone: Mapped[Optional[str]] = mapped_column(nullable=True)  # ALTERADO
     hashed_password: Mapped[str] = mapped_column()
     is_active: Mapped[bool] = mapped_column(default=True)
     is_email_verified: Mapped[bool] = mapped_column(default=False)
 
-
     is_superuser: Mapped[bool] = mapped_column(default=False, nullable=False)
 
-    verification_code: Mapped[Optional[str]] = mapped_column(nullable=True) # ALTERADO
-    cpf: Mapped[Optional[str]] = mapped_column(unique=True, index=True, nullable=True) # ALTERADO
-    birth_date: Mapped[Optional[date]] = mapped_column(nullable=True) # ALTERADO
+    verification_code: Mapped[Optional[str]] = mapped_column(nullable=True)  # ALTERADO
+    cpf: Mapped[Optional[str]] = mapped_column(unique=True, index=True, nullable=True)  # ALTERADO
+    birth_date: Mapped[Optional[date]] = mapped_column(nullable=True)  # ALTERADO
 
     # --- CAMPOS PARA O SISTEMA DE INDICAÇÃO ---
     referral_code: Mapped[str] = mapped_column(unique=True, index=True)
-    referred_by_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True) # ALTERADO
+    referred_by_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)  # ALTERADO
 
     # --- Relacionamentos SQLAlchemy ---
-    referrer: Mapped[Optional["User"]] = relationship(remote_side=[id]) # ALTERADO
+    referrer: Mapped[Optional["User"]] = relationship(remote_side=[id])  # ALTERADO
+
+
 class Role(Base, TimestampMixin):
     __tablename__ = "roles"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     machine_name: Mapped[str] = mapped_column(unique=True)
+
 
 class StoreAccess(Base, TimestampMixin):
     __tablename__ = "store_accesses"
@@ -331,7 +322,6 @@ class StoreAccess(Base, TimestampMixin):
     role: Mapped[Role] = relationship()
 
     __table_args__ = (Index("ix_store_user", "store_id", "user_id"),)
-
 
 
 # --- MODELO PRINCIPAL DE CATEGORIA (ATUALIZADO) ---
@@ -367,12 +357,10 @@ class Category(Base, TimestampMixin):
         server_default="SUM_OF_ITEMS"
     )
 
-
-
     price_varies_by_size: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
-        server_default=text('false') # Define 'false' como padrão no banco
+        server_default=text('false')  # Define 'false' como padrão no banco
     )
 
     availability_type: Mapped[AvailabilityTypeEnum] = mapped_column(
@@ -388,12 +376,8 @@ class Category(Base, TimestampMixin):
         server_default=text("'BLANK'")  # Define 'BLANK' ou 'NONE' como padrão
     )
 
-
-
-
-    schedules: Mapped[List["CategorySchedule"]] = relationship(back_populates="category", cascade="all, delete-orphan", lazy="selectin")
-
-
+    schedules: Mapped[List["CategorySchedule"]] = relationship(back_populates="category", cascade="all, delete-orphan",
+                                                               lazy="selectin")
 
 
 class CategorySchedule(Base, TimestampMixin):
@@ -419,6 +403,7 @@ class TimeShift(Base, TimestampMixin):
 
     schedule_id: Mapped[int] = mapped_column(ForeignKey("category_schedules.id"))
     schedule: Mapped["CategorySchedule"] = relationship(back_populates="time_shifts")
+
 
 class OptionGroup(Base, TimestampMixin):
     __tablename__ = "option_groups"
@@ -457,6 +442,7 @@ class OptionGroup(Base, TimestampMixin):
         cascade="all, delete-orphan",
         lazy="selectin"
     )
+
 
 # Em seus modelos SQLAlchemy
 class OptionItem(Base, TimestampMixin):
@@ -518,7 +504,6 @@ class Product(Base, TimestampMixin):
     # ✅ Torne a descrição opcional também, é uma boa prática
     description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 
-
     # ✅ Adicione os padrões aqui
     status: Mapped[ProductStatus] = mapped_column(
         Enum(ProductStatus, name="product_status_enum"),
@@ -531,14 +516,12 @@ class Product(Base, TimestampMixin):
 
     featured: Mapped[bool] = mapped_column(default=False)
 
-
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
 
     store: Mapped["Store"] = relationship(back_populates="products")
 
-
-    category_links: Mapped[List["ProductCategoryLink"]] = relationship(back_populates="product", cascade="all, delete-orphan")
-
+    category_links: Mapped[List["ProductCategoryLink"]] = relationship(back_populates="product",
+                                                                       cascade="all, delete-orphan")
 
     ean: Mapped[str | None] = mapped_column(nullable=True)
 
@@ -548,13 +531,11 @@ class Product(Base, TimestampMixin):
     max_stock: Mapped[int] = mapped_column(default=0)
     unit: Mapped[str] = mapped_column(default="Unidade")
 
-
     serves_up_to: Mapped[int | None] = mapped_column(nullable=True, doc="Indica quantas pessoas o item serve")
     weight: Mapped[int | None] = mapped_column(nullable=True, doc="Peso do item em gramas ou ml")
 
     product_ratings: Mapped[List["ProductRating"]] = relationship(back_populates="product")
     sold_count: Mapped[int] = mapped_column(nullable=False, default=0)
-
 
     cashback_type: Mapped[CashbackType] = mapped_column(Enum(CashbackType, name="cashback_type_enum"),
                                                         default=CashbackType.NONE)
@@ -573,9 +554,6 @@ class Product(Base, TimestampMixin):
         lazy="selectin"  # 'selectin' é ótimo para carregar as galerias
     )
 
-
-
-
     default_options: Mapped[list["ProductDefaultOption"]] = relationship(
         back_populates="product",
         cascade="all, delete-orphan"
@@ -592,7 +570,6 @@ class Product(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
 
-
     dietary_tags: Mapped[List[FoodTagEnum]] = mapped_column(
         ARRAY(Enum(FoodTagEnum, name="food_tag_enum", create_type=False)),
         nullable=False,
@@ -605,13 +582,10 @@ class Product(Base, TimestampMixin):
         server_default="{}"
     )
 
-
     master_product_id: Mapped[int | None] = mapped_column(ForeignKey("master_products.id"), nullable=True)
     master_product: Mapped[Optional["MasterProduct"]] = relationship()
 
     prices: Mapped[List["FlavorPrice"]] = relationship(back_populates="product", cascade="all, delete-orphan")
-
-
 
     @hybrid_property
     def cover_image_key(self) -> str | None:
@@ -682,12 +656,12 @@ class Variant(Base, TimestampMixin):
         doc="Define a finalidade do grupo..."
     )
 
-
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
 
     # Relacionamentos
     options: Mapped[list["VariantOption"]] = relationship(back_populates="variant", cascade="all, delete-orphan")
-    product_links: Mapped[list["ProductVariantLink"]] = relationship(back_populates="variant", cascade="all, delete-orphan")
+    product_links: Mapped[list["ProductVariantLink"]] = relationship(back_populates="variant",
+                                                                     cascade="all, delete-orphan")
     store: Mapped["Store"] = relationship(back_populates="variants")
 
 
@@ -699,8 +673,8 @@ class VariantOption(Base, TimestampMixin):
     variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id", ondelete="CASCADE"))
     variant: Mapped["Variant"] = relationship(back_populates="options")
 
-
-    linked_product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"), nullable=True, doc="...")
+    linked_product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"), nullable=True,
+                                                          doc="...")
     linked_product: Mapped[Optional["Product"]] = relationship()
     name_override: Mapped[str] = mapped_column(nullable=True,
                                                doc="Nome customizado. Se nulo, usa o nome do produto linkado (se houver).")
@@ -729,7 +703,6 @@ class VariantOption(Base, TimestampMixin):
     __table_args__ = (
         CheckConstraint('stock_quantity >= 0', name='check_stock_quantity_non_negative'),
     )
-
 
     @hybrid_property
     def resolved_name(self) -> str:
@@ -767,15 +740,12 @@ class ProductVariantLink(Base, TimestampMixin):
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"))
     variant_id: Mapped[int] = mapped_column(ForeignKey("variants.id"))
 
-
-
     # --- REGRAS DE COMPORTAMENTO E INTERFACE ---
 
     ui_display_mode: Mapped[UIDisplayMode] = mapped_column(
         Enum(UIDisplayMode, native_enum=False),  # <--- A MUDANÇA É AQUI
         doc="Define a finalidade do grupo..."
     )
-
 
     min_selected_options: Mapped[int] = mapped_column(default=0,
                                                       doc="Qtd. mínima de opções. 0=Opcional, >0=Obrigatório.")
@@ -791,22 +761,24 @@ class ProductVariantLink(Base, TimestampMixin):
     product: Mapped["Product"] = relationship(back_populates="variant_links")
     variant: Mapped["Variant"] = relationship(back_populates="product_links")
 
-
-   # ✅ 4. GARANTA A UNICIDADE COM UMA `UniqueConstraint`
+    # ✅ 4. GARANTA A UNICIDADE COM UMA `UniqueConstraint`
     # Isso impede que o mesmo produto seja ligado ao mesmo grupo mais de uma vez.
     __table_args__ = (
         UniqueConstraint('product_id', 'variant_id', name='uq_product_variant'),
     )
 
+
 class ProductDefaultOption(Base, TimestampMixin):
     __tablename__ = "product_default_options"
 
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), primary_key=True)
-    variant_option_id: Mapped[int] = mapped_column(ForeignKey("variant_options.id", ondelete="CASCADE"), primary_key=True)
+    variant_option_id: Mapped[int] = mapped_column(ForeignKey("variant_options.id", ondelete="CASCADE"),
+                                                   primary_key=True)
 
     # Relacionamentos para facilitar as consultas
     product: Mapped["Product"] = relationship(back_populates="default_options")
     option: Mapped["VariantOption"] = relationship()
+
 
 class KitComponent(Base, TimestampMixin):
     __tablename__ = "kit_components"
@@ -831,15 +803,14 @@ class Coupon(Base, TimestampMixin):
 
     # A AÇÃO do cupom
     discount_type: Mapped[str] = mapped_column(String(20))  # 'PERCENTAGE', 'FIXED_AMOUNT', 'FREE_DELIVERY'
-    discount_value: Mapped[float] = mapped_column() # Em % ou centavos
+    discount_value: Mapped[float] = mapped_column()  # Em % ou centavos
 
-    max_discount_amount: Mapped[int] = mapped_column(nullable=True) # Teto do desconto em centavos
+    max_discount_amount: Mapped[int] = mapped_column(nullable=True)  # Teto do desconto em centavos
 
     # Validade e Status
     start_date: Mapped[datetime] = mapped_column()
     end_date: Mapped[datetime] = mapped_column()
     is_active: Mapped[bool] = mapped_column(default=True)
-
 
     whatsapp_notification_sent_at: Mapped[datetime | None] = mapped_column(
         nullable=True,
@@ -888,7 +859,7 @@ class CouponUsage(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     coupon_id: Mapped[int] = mapped_column(ForeignKey("coupons.id"))
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
-    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), unique=True) # Garante um uso por pedido
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), unique=True)  # Garante um uso por pedido
     used_at: Mapped[datetime] = mapped_column(default=func.now(timezone.utc))
 
     # --- RELACIONAMENTOS CORRETOS ---
@@ -902,8 +873,6 @@ class CouponUsage(Base):
     customer = relationship("Customer")
 
 
-
-    
 class TotemAuthorization(Base, TimestampMixin):
     __tablename__ = "totem_authorizations"
 
@@ -931,7 +900,6 @@ class StoreSession(Base, TimestampMixin):
 
     # ✨ CORREÇÃO: Tornamos o user_id opcional (pode ser nulo) no banco
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
-
 
     store_id: Mapped[Optional[int]] = mapped_column(ForeignKey("stores.id"), nullable=True)
 
@@ -970,10 +938,8 @@ class AdminConsolidatedStoreSelection(Base, TimestampMixin):  # Adicionei Timest
     __table_args__ = (UniqueConstraint('admin_id', 'store_id', name='uq_admin_store_selection'),)
 
     # ✅ CORREÇÃO: O relacionamento agora é com o modelo de usuário (ex: User)
-    admin_user: Mapped["User"] = relationship() # O nome do modelo pode variar (User, AdminUser, etc)
+    admin_user: Mapped["User"] = relationship()  # O nome do modelo pode variar (User, AdminUser, etc)
     store: Mapped["Store"] = relationship()
-
-
 
 
 class StoreTheme(Base, TimestampMixin):
@@ -1050,7 +1016,6 @@ class PixDevolution(Base, TimestampMixin):
     reason: Mapped[str | None] = mapped_column()
 
 
-
 class ChatbotMessageTemplate(Base, TimestampMixin):
     __tablename__ = "chatbot_message_templates"
 
@@ -1102,7 +1067,6 @@ class StoreChatbotMessage(Base, TimestampMixin):
         UniqueConstraint('store_id', 'template_key', name='_store_template_uc'),
     )
 
-
     @hybrid_property
     def final_content(self) -> str:
         """
@@ -1145,6 +1109,8 @@ class StoreChatbotConfig(Base, TimestampMixin):
 
     # Relacionamento de volta para a classe Store (a última alteração que fizemos)
     store: Mapped["Store"] = relationship(back_populates="chatbot_config")
+
+
 # ... (cole isso no final do seu arquivo models.py)
 
 class ChatbotAuthCredential(Base):
@@ -1223,7 +1189,7 @@ class StorePaymentMethodActivation(Base, TimestampMixin):
 # --- ATUALIZAÇÕES NECESSÁRIAS EM MODELOS EXISTENTES ---
 
 class StoreOperationConfig(Base, TimestampMixin):
-    __tablename__ = "store_operation_config" # Novo nome de tabela
+    __tablename__ = "store_operation_config"  # Novo nome de tabela
 
     id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), unique=True, index=True)
@@ -1256,7 +1222,8 @@ class StoreOperationConfig(Base, TimestampMixin):
 
     # ✅ Relacionamento atualizado no modelo 'Store'
     store: Mapped["Store"] = relationship(back_populates="store_operation_config")
-    free_delivery_threshold: Mapped[float] = mapped_column(nullable=True) # Valor a partir do qual o frete é grátis
+    free_delivery_threshold: Mapped[float] = mapped_column(nullable=True)  # Valor a partir do qual o frete é grátis
+
 
 class StoreHours(Base, TimestampMixin):
     __tablename__ = "store_hours"
@@ -1301,8 +1268,6 @@ class StoreNeighborhood(Base, TimestampMixin):
     city: Mapped["StoreCity"] = relationship("StoreCity", back_populates="neighborhoods")
 
 
-
-
 # Crie estes novos modelos também
 class PayableCategory(Base):
     __tablename__ = "payable_categories"
@@ -1314,9 +1279,6 @@ class PayableCategory(Base):
     name: Mapped[str] = mapped_column()
     # Relacionamento inverso
     payables: Mapped[list["StorePayable"]] = relationship(back_populates="category")
-
-
-
 
 
 class Supplier(Base):
@@ -1343,7 +1305,6 @@ class Supplier(Base):
     payables: Mapped[list["StorePayable"]] = relationship(back_populates="supplier")
 
 
-
 class PayableRecurrence(Base):
     __tablename__ = "payable_recurrences"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -1356,7 +1317,6 @@ class PayableRecurrence(Base):
     start_date: Mapped[date] = mapped_column()
     end_date: Mapped[date | None] = mapped_column()  # A recorrência pode ser infinita
 
-
     # ✅ CORREÇÃO: Especifica qual chave estrangeira usar para este relacionamento
     original_payable: Mapped["StorePayable"] = relationship(
         back_populates="recurrence",
@@ -1368,6 +1328,8 @@ class PayableRecurrence(Base):
         back_populates="parent_recurrence",
         foreign_keys="[StorePayable.parent_recurrence_id]"
     )
+
+
 class StorePayable(Base, TimestampMixin):
     __tablename__ = "store_payables"
 
@@ -1405,13 +1367,11 @@ class StorePayable(Base, TimestampMixin):
         )
     )
 
-
     recurrence: Mapped["PayableRecurrence"] = relationship(
         back_populates="original_payable",
         foreign_keys="[PayableRecurrence.original_payable_id]",
         cascade="all, delete-orphan"
     )
-
 
     parent_recurrence: Mapped["PayableRecurrence"] = relationship(
         back_populates="generated_payables",
@@ -1469,6 +1429,7 @@ class StoreReceivable(Base):  # Adicione , TimestampMixin se usar
         lazy="joined"
     )
 
+
 # --- ATUALIZAÇÕES NECESSÁRIAS EM OUTROS MODELOS ---
 
 
@@ -1488,7 +1449,6 @@ class CashierSession(Base, TimestampMixin):
     cash_difference: Mapped[int] = mapped_column(Integer, default=0)
     expected_amount: Mapped[int] = mapped_column(Integer, default=0)
     informed_amount: Mapped[int] = mapped_column(Integer, default=0)
-
 
     status: Mapped[str] = mapped_column(default="open")
 
@@ -1516,7 +1476,7 @@ class CashierTransaction(Base, TimestampMixin):
     cashier_session_id: Mapped[int] = mapped_column(ForeignKey("cashier_sessions.id"))
     type: Mapped[str] = mapped_column()  # inflow ou outflow
     amount: Mapped[float] = mapped_column()
-   # payment_method_id: Mapped[int] = mapped_column(ForeignKey("store_payment_methods.id"))
+    # payment_method_id: Mapped[int] = mapped_column(ForeignKey("store_payment_methods.id"))
     description: Mapped[Optional[str]] = mapped_column()
     order_id: Mapped[Optional[int]] = mapped_column(ForeignKey("orders.id"), nullable=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))  # Novo campo recomendado
@@ -1524,7 +1484,9 @@ class CashierTransaction(Base, TimestampMixin):
 
     cashier_session: Mapped["CashierSession"] = relationship("CashierSession", back_populates="transactions")
     user: Mapped["User"] = relationship("User")
-   # payment_method: Mapped["StorePaymentMethods"] = relationship("StorePaymentMethods")
+
+
+# payment_method: Mapped["StorePaymentMethods"] = relationship("StorePaymentMethods")
 
 
 class Customer(Base):
@@ -1551,6 +1513,7 @@ class Customer(Base):
     # ✅ CORREÇÃO: Adiciona o back_populates
     receivables: Mapped[list["StoreReceivable"]] = relationship(back_populates="customer")
 
+
 class StoreCustomer(Base, TimestampMixin):
     __tablename__ = "store_customers"
 
@@ -1559,11 +1522,11 @@ class StoreCustomer(Base, TimestampMixin):
 
     total_orders: Mapped[int] = mapped_column(default=1)
     total_spent: Mapped[int] = mapped_column(default=0)
-    last_order_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),   index=True,nullable=True)
+    last_order_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=True)
     store = relationship("Store", back_populates="store_customers")
     customer = relationship("Customer", back_populates="store_customers")
 
- # ✅ NOVO CAMPO ADICIONADO
+    # ✅ NOVO CAMPO ADICIONADO
     last_reactivation_attempt_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
@@ -1592,12 +1555,12 @@ class Address(Base):
 
     reference: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
 
-
     city_id: Mapped[Optional[int]] = mapped_column(ForeignKey("store_cities.id"), nullable=True)
     neighborhood_id: Mapped[Optional[int]] = mapped_column(ForeignKey("store_neighborhoods.id"), nullable=True)
 
     # --- Relacionamento ---
     customer: Mapped["Customer"] = relationship("Customer", back_populates="customer_addresses")
+
 
 class Banner(Base, TimestampMixin):
     __tablename__ = "banners"
@@ -1610,7 +1573,6 @@ class Banner(Base, TimestampMixin):
 
     product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True)
-
 
     start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -1625,8 +1587,6 @@ class Banner(Base, TimestampMixin):
     store: Mapped["Store"] = relationship(back_populates="banners")
 
 
-
-
 class Order(Base, TimestampMixin):
     __tablename__ = "orders"
 
@@ -1634,9 +1594,7 @@ class Order(Base, TimestampMixin):
     sequential_id: Mapped[int] = mapped_column()
     public_id: Mapped[str] = mapped_column(unique=True, index=True)
 
-
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), index=True)
-
 
     customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True, index=True)
 
@@ -1667,9 +1625,6 @@ class Order(Base, TimestampMixin):
         default=0  # Valor padrão no Python
     )
 
-
-
-
     discounted_total_price: Mapped[int] = mapped_column()
     delivery_fee: Mapped[int] = mapped_column(default=0)
     change_amount: Mapped[float | None] = mapped_column(nullable=True)
@@ -1683,7 +1638,6 @@ class Order(Base, TimestampMixin):
     # Status e pagamento
     payment_status: Mapped[str] = mapped_column()
 
-
     order_status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus, native_enum=False), default=OrderStatus.PENDING,
                                                       index=True)
 
@@ -1693,15 +1647,13 @@ class Order(Base, TimestampMixin):
     cashback_amount_generated: Mapped[int] = mapped_column(default=0)
     cashback_used: Mapped[int] = mapped_column(default=0)
 
-
     # ✅ CORREÇÃO 1: Usando back_populates para consistência
     products: Mapped[list["OrderProduct"]] = relationship(
         back_populates="order",
-        cascade="all, delete-orphan" # Adicionando cascade que estava faltando
+        cascade="all, delete-orphan"  # Adicionando cascade que estava faltando
     )
 
     store = relationship("Store", back_populates="orders")
-
 
     transactions: Mapped[list["CashierTransaction"]] = relationship(back_populates="order")
 
@@ -1715,14 +1667,11 @@ class Order(Base, TimestampMixin):
     # ✅ CORREÇÃO APLICADA AQUI
     table: Mapped[Optional["Tables"]] = relationship(back_populates="orders")
 
-
     command_id: Mapped[int | None] = mapped_column(ForeignKey("commands.id", ondelete="SET NULL"), nullable=True)
     command: Mapped[Optional["Command"]] = relationship(back_populates="orders")
 
-
     # NOVO RELACIONAMENTO
     print_logs: Mapped[list["OrderPrintLog"]] = relationship(back_populates="order")
-
 
     payment_method_id: Mapped[int | None] = mapped_column(
         ForeignKey("store_payment_method_activations.id", ondelete="SET NULL"),  # Aponta para a nova tabela
@@ -1738,9 +1687,7 @@ class Order(Base, TimestampMixin):
         cascade="all, delete-orphan"  # Garante que ao apagar um pedido, os pagamentos parciais também sejam apagados.
     )
 
-
     coupon_usage: Mapped["CouponUsage"] = relationship(back_populates="order")
-
 
     review_request_sent_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
@@ -1757,16 +1704,15 @@ class Order(Base, TimestampMixin):
         doc="Timestamp de quando o alerta de pedido preso foi enviado."
     )
 
-
     @hybrid_property
     def is_printed(self) -> bool:
         return len(self.print_logs) > 0
-
 
     __table_args__ = (
         # Este índice é um "super-índice" para a combinação mais comum de filtros
         Index('ix_orders_store_id_created_at', 'store_id', 'created_at'),
     )
+
 
 class OrderProduct(Base, TimestampMixin):
     __tablename__ = "order_products"
@@ -1794,7 +1740,7 @@ class OrderProduct(Base, TimestampMixin):
     quantity: Mapped[int] = mapped_column()
     note: Mapped[str] = mapped_column(default='', nullable=False)
     image_url: Mapped[str | None] = mapped_column(nullable=True)  # URL da imagem do produto no momento do pedido
-   # file_key: Mapped[str] = mapped_column(String(255))
+    # file_key: Mapped[str] = mapped_column(String(255))
 
     # ✅ ADICIONE ESTA COLUNA OBRIGATÓRIA
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=False)
@@ -1806,6 +1752,7 @@ class OrderProduct(Base, TimestampMixin):
     discount_amount: Mapped[int] = mapped_column(default=0)  # Valor do desconto neste item
     discount_percentage: Mapped[float | None] = mapped_column(nullable=True)
     variants: Mapped[List["OrderVariant"]] = relationship(back_populates="order_product")
+
 
 class OrderVariant(Base, TimestampMixin):
     __tablename__ = "order_variants"
@@ -1831,7 +1778,6 @@ class OrderVariant(Base, TimestampMixin):
     options: Mapped[List["OrderVariantOption"]] = relationship(back_populates="order_variant")
 
 
-
 class OrderVariantOption(Base, TimestampMixin):
     __tablename__ = "order_variant_options"
 
@@ -1854,10 +1800,6 @@ class OrderVariantOption(Base, TimestampMixin):
     quantity: Mapped[int] = mapped_column()
 
 
-
-
-
-
 class OrderPrintLog(Base, TimestampMixin):
     __tablename__ = "order_print_logs"
 
@@ -1873,15 +1815,43 @@ class OrderPrintLog(Base, TimestampMixin):
 
 
 
+
+class Saloon(Base, TimestampMixin):
+    __tablename__ = "saloons"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    display_order: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Relacionamentos
+    store: Mapped["Store"] = relationship(back_populates="saloons")
+    tables: Mapped[list["Tables"]] = relationship(
+        back_populates="saloon",
+        cascade="all, delete-orphan",
+        order_by="asc(Tables.name)"  # Ordena as mesas pelo nome
+    )
+
+    __table_args__ = (
+        UniqueConstraint('store_id', 'name', name='uq_store_saloon_name'),
+    )
+
+
+
 class Tables(Base, TimestampMixin):
     __tablename__ = "tables"
     __table_args__ = (
         CheckConstraint("max_capacity > 0", name="check_max_capacity_positive"),
         Index("idx_table_store", "store_id", "status"),
+        UniqueConstraint('saloon_id', 'name', name='uq_saloon_table_name'),  # ✅ Garante nome único da mesa por salão
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
+    # ✅ NOVO CAMPO: Chave estrangeira para o Salão
+    saloon_id: Mapped[int] = mapped_column(ForeignKey("saloons.id", ondelete="CASCADE"), nullable=False, index=True)
+
     name: Mapped[str] = mapped_column(String(50))
     status: Mapped[TableStatus] = mapped_column(
         Enum(TableStatus, native_enum=False),
@@ -1896,19 +1866,17 @@ class Tables(Base, TimestampMixin):
     deleted_at: Mapped[datetime | None] = mapped_column(nullable=True)
     location_description: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
+    # ✅ NOVO RELACIONAMENTO: Mesa para Salão
+    saloon: Mapped["Saloon"] = relationship(back_populates="tables")
+
     # Relacionamento com Order (já estava correto)
     orders: Mapped[list["Order"]] = relationship(back_populates="table")
 
-    # ✅ CORREÇÃO APLICADA AQUI
-    # O back_populates foi alterado de "tables" para "table"
+    # ✅ back_populates corrigido para "table"
     commands: Mapped[list["Command"]] = relationship(back_populates="table")
 
-    # ✅ CORREÇÃO APLICADA AQUI
-    # O back_populates foi alterado de "tables" para "table"
+    # ✅ back_populates corrigido para "table"
     history: Mapped[list["TableHistory"]] = relationship(back_populates="table")
-
-
-
 
 
 class Command(Base, TimestampMixin):
@@ -1931,7 +1899,7 @@ class Command(Base, TimestampMixin):
 
     store: Mapped["Store"] = relationship(back_populates="commands")
 
-    # ✅ CORREÇÃO APLICADA AQUI
+    # ✅ Relacionamento corrigido
     table: Mapped["Tables | None"] = relationship(back_populates="commands")
 
     orders: Mapped[list["Order"]] = relationship(back_populates="command")
@@ -1976,13 +1944,9 @@ class TableHistory(Base):
     changed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
-    # ✅ CORREÇÃO APLICADA AQUI
+    # ✅ Relacionamento corrigido
     table: Mapped["Tables"] = relationship(back_populates="history")
     user: Mapped["User | None"] = relationship()
-
-
-
-
 
 
 # class OrderProductTicket(Base, TimestampMixin):
@@ -2054,9 +2018,6 @@ class ProductRating(Base, TimestampMixin):
     )
 
 
-
-
-
 class Feature(Base, TimestampMixin):
     __tablename__ = "features"
 
@@ -2108,7 +2069,7 @@ class StoreSubscription(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(index=True)  # ex: "active", "past_due", "canceled"
     current_period_start: Mapped[datetime] = mapped_column()
     current_period_end: Mapped[datetime] = mapped_column(index=True)
-    gateway_subscription_id: Mapped[str | None] = mapped_column(nullable=True) # Preço do plano em CENTAVOS
+    gateway_subscription_id: Mapped[str | None] = mapped_column(nullable=True)  # Preço do plano em CENTAVOS
     # Relacionamento com o plano principal assinado
     plan: Mapped["Plans"] = relationship(back_populates="subscriptions")
     # ✅ ADIÇÃO
@@ -2167,8 +2128,6 @@ class PlansAddon(Base, TimestampMixin):
     feature: Mapped["Feature"] = relationship(back_populates="addon_subscriptions")
 
 
-
-
 class Segment(Base, TimestampMixin):
     __tablename__ = "segments"
 
@@ -2223,6 +2182,7 @@ class LoyaltyConfig(Base, TimestampMixin):
     # REGRA DE GANHO: Quantos pontos o cliente ganha a cada Real (R$ 1,00) gasto.
     # Exemplo: 1.0 = 1 ponto por real / 0.5 = 1 ponto a cada R$ 2,00.
     points_per_real: Mapped[Decimal] = mapped_column(Numeric(10, 4), default=Decimal("0.0"))
+
 
 class LoyaltyReward(Base, TimestampMixin):
     __tablename__ = "loyalty_rewards"
@@ -2295,7 +2255,8 @@ class Cart(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), index=True)
 
     # Status do ciclo de vida do carrinho
-    status: Mapped[CartStatus] = mapped_column(Enum(CartStatus, native_enum=False), index=True, default=CartStatus.ACTIVE)
+    status: Mapped[CartStatus] = mapped_column(Enum(CartStatus, native_enum=False), index=True,
+                                               default=CartStatus.ACTIVE)
 
     # Campos que podem ser definidos antes do checkout
     coupon_id: Mapped[int | None] = mapped_column(ForeignKey("coupons.id"), nullable=True)
@@ -2313,8 +2274,6 @@ class Cart(Base, TimestampMixin):
     customer: Mapped["Customer"] = relationship()
     store: Mapped["Store"] = relationship()
     coupon: Mapped["Coupon"] = relationship()
-
-
 
     items: Mapped[list["CartItem"]] = relationship(
         back_populates="cart",
@@ -2353,8 +2312,10 @@ class CartItem(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
 
- # ✅ --- CAMPO FINGERPRINT ADICIONADO --- ✅
-    fingerprint: Mapped[str] = mapped_column(index=True, doc="Hash único da configuração do item (produto + variantes) para evitar duplicatas.")
+    # ✅ --- CAMPO FINGERPRINT ADICIONADO --- ✅
+    fingerprint: Mapped[str] = mapped_column(index=True,
+                                             doc="Hash único da configuração do item (produto + variantes) para evitar duplicatas.")
+
 
 class CartItemVariant(Base, TimestampMixin):
     __tablename__ = "cart_item_variants"
@@ -2410,7 +2371,6 @@ class ScheduledPause(Base):
     store: Mapped["Store"] = relationship(back_populates="scheduled_pauses")
 
 
-
 class ProductView(Base):
     __tablename__ = "product_views"
 
@@ -2464,13 +2424,10 @@ class MasterProduct(Base):
 
     # ✅ SUGESTÃO: Adicione o vínculo com a categoria mestre
     category_id: Mapped[int | None] = mapped_column(ForeignKey("master_categories.id"))
-    category:  Mapped[Optional["MasterCategory"]]  = relationship(back_populates="master_products")
-
+    category: Mapped[Optional["MasterCategory"]] = relationship(back_populates="master_products")
 
     @hybrid_property
     def image_path(self):
-
-
         return f"{S3_PUBLIC_BASE_URL}/{self.file_key}" if self.file_key else None
 
     __table_args__ = (
@@ -2488,8 +2445,6 @@ class MasterCategory(Base):
     master_products: Mapped[List["MasterProduct"]] = relationship(back_populates="category")
 
 
-
-
 class ChatbotMessage(Base, TimestampMixin):
     __tablename__ = "chatbot_messages"
 
@@ -2497,24 +2452,24 @@ class ChatbotMessage(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), index=True)
 
     # Identificadores da mensagem
-    message_uid: Mapped[str] = mapped_column(String(255), unique=True, index=True, doc="ID único da mensagem do WhatsApp para evitar duplicatas")
+    message_uid: Mapped[str] = mapped_column(String(255), unique=True, index=True,
+                                             doc="ID único da mensagem do WhatsApp para evitar duplicatas")
     chat_id: Mapped[str] = mapped_column(String(100), index=True, doc="ID do chat (ex: 5531..._@_s.whatsapp.net)")
     sender_id: Mapped[str] = mapped_column(String(100), doc="Quem enviou (pode ser o cliente ou o número da loja)")
 
     # Conteúdo da mensagem
-    content_type: Mapped[str] = mapped_column(String(20), default="text") # 'text', 'image', 'audio'
+    content_type: Mapped[str] = mapped_column(String(20), default="text")  # 'text', 'image', 'audio'
     text_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     media_url: Mapped[str | None] = mapped_column(String(1024), nullable=True, doc="URL do arquivo de mídia no S3")
     media_mime_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     # Metadados
     is_from_me: Mapped[bool] = mapped_column(Boolean, doc="True se foi a loja/bot que enviou, False se foi o cliente")
-    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, doc="Timestamp original da mensagem do WhatsApp")
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True,
+                                                doc="Timestamp original da mensagem do WhatsApp")
 
     # Relacionamento (opcional, mas bom)
     store: Mapped["Store"] = relationship()
-
-
 
 
 class ChatbotConversationMetadata(Base, TimestampMixin):
@@ -2533,7 +2488,6 @@ class ChatbotConversationMetadata(Base, TimestampMixin):
     unread_count: Mapped[int] = mapped_column(default=0)
 
     store: Mapped["Store"] = relationship()
-
 
 
 # 2. Adicione esta NOVA classe no final do arquivo
