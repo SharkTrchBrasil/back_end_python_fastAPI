@@ -229,7 +229,7 @@ async def admin_emit_orders_initial(db, store_id: int, sid: Optional[str] = None
         orders = (
             db.query(models.Order)
             .options(
-                # ✅ CORREÇÃO: Adicione esta linha para carregar os logs de impressão de cada pedido
+
                 selectinload(models.Order.print_logs),
 
                 # Mantém os carregamentos que você já tinha
@@ -304,47 +304,46 @@ async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = No
     """
     print(f"🚀 [Socket] Atualizando salões, mesas e comandas para a loja {store_id}...")
     try:
-        # --- 1. A Consulta Otimizada ---
-        # Buscamos o "topo" da hierarquia (Saloon) e usamos `selectinload`
-        # para carregar os relacionamentos de forma eficiente em poucas queries.
+        # --- 1. A CONSULTA CORRIGIDA ---
+        # A lógica é: a partir de Saloon, carregue o atributo 'tables'.
+        # E para cada item em 'tables', carregue o atributo 'commands'.
         saloons_with_tables = db.query(models.Saloon)\
             .options(
-                # Para cada Salão, carregue a lista de Mesas (tables).
-                # E para cada Mesa, carregue a lista de Comandas (commands).
-                selectinload(models.Saloon.tables).selectinload(models.Tables.commands)
+                selectinload(models.Saloon.tables)  # Carrega a relação Saloon -> Tables
+                .selectinload(models.Tables.commands)  # A partir de Tables, carrega a relação Tables -> Command
             )\
             .filter(models.Saloon.store_id == store_id)\
             .order_by(models.Saloon.display_order)\
             .all()
 
-        # --- 2. Serialização Simplificada ---
-        # Como os dados já estão aninhados corretamente graças à consulta,
-        # só precisamos serializar a lista de salões. Os schemas Pydantic
-        # (SaloonOut, TableOut, CommandOut) cuidarão do resto.
+        # --- 2. Serialização (continua igual, pois seus schemas estão corretos) ---
         saloons_data = [SaloonOut.model_validate(saloon).model_dump(mode='json') for saloon in saloons_with_tables]
 
-        # --- 3. Montagem do Payload Estruturado ---
-        # O payload agora contém apenas uma chave principal "saloons",
-        # com as mesas e comandas aninhadas dentro dela.
+        # --- 3. Montagem do Payload (continua igual) ---
         payload = {
             "store_id": store_id,
             "saloons": saloons_data,
         }
 
+        # Adiciona um log para depuração para ver o que está sendo enviado
+        print(f"✅ [Socket] Payload a ser enviado: {payload}")
+
+        # --- 4. Emissão (continua igual) ---
         if sid:
             await sio.emit("tables_and_commands", payload, namespace="/admin", to=sid)
         else:
             await sio.emit("tables_and_commands", payload, namespace="/admin", room=f"admin_store_{store_id}")
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f'❌ Erro em emit_tables_and_commands: {str(e)}')
+        # A lógica de fallback para emitir listas vazias em caso de erro é mantida
+        error_payload = {"store_id": store_id, "saloons": []}
         if sid:
-            await sio.emit("tables_and_commands", {"store_id": store_id, "tables": [], "commands": [], "saloons": []},
-                           namespace="/admin", to=sid)
+            await sio.emit("tables_and_commands", error_payload, namespace="/admin", to=sid)
         else:
-            await sio.emit("tables_and_commands", {"store_id": store_id, "tables": [], "commands": [], "saloons": []},
-                           namespace="/admin", room=f"admin_store_{store_id}")
-
+            await sio.emit("tables_and_commands", error_payload, namespace="/admin", room=f"admin_store_{store_id}")
 
 
 
