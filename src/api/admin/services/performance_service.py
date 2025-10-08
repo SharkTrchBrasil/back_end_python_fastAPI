@@ -1,7 +1,7 @@
 # src/api/admin/services/performance_service.py
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional, Tuple
 
 from sqlalchemy import and_, case, func
