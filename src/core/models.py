@@ -1222,18 +1222,6 @@ class StorePaymentMethodActivation(Base, TimestampMixin):
 
 # --- ATUALIZAÇÕES NECESSÁRIAS EM MODELOS EXISTENTES ---
 
-
-
-
-
-
-
-
-
-
-
-
-# ✅ NOVO MODELO UNIFICADO
 class StoreOperationConfig(Base, TimestampMixin):
     __tablename__ = "store_operation_config" # Novo nome de tabela
 
