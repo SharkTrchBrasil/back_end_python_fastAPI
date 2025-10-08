@@ -30,7 +30,10 @@ from src.api.schemas.store.table import TableOut, SaloonOut
 from src.api.admin.services.customer_analytic_service import get_customer_analytics_for_store
 from src.api.admin.services.dashboard_service import get_dashboard_data_for_period
 from src.api.admin.services.product_analytic_services import get_product_analytics_for_store
-from src.api.admin.services.subscription_service import SubscriptionService
+
+
+from sqlalchemy.orm import selectinload # 👈 Importe o selectinload
+
 
 from src.api.schemas.orders.order import OrderDetails
 from src.core.database import get_db_manager
@@ -295,23 +298,37 @@ async def admin_emit_order_updated_from_obj(order: models.Order):
 
 
 async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = None):
+    """
+    Busca os salões da loja com suas respectivas mesas e comandas de forma otimizada
+    e emite o payload hierárquico completo para o admin.
+    """
+    print(f"🚀 [Socket] Atualizando salões, mesas e comandas para a loja {store_id}...")
     try:
-        # ✅ CORREÇÃO: Trocamos models.Table por models.Tables para corresponder ao seu modelo atualizado.
-        tables = db.query(models.Tables).filter_by(store_id=store_id, is_deleted=False).all()
-        commands = db.query(models.Command).filter_by(store_id=store_id).all()
-        # ✅ NOVO: Buscar salões da loja
-        saloons = db.query(models.Saloon).filter_by(store_id=store_id).all()
+        # --- 1. A Consulta Otimizada ---
+        # Buscamos o "topo" da hierarquia (Saloon) e usamos `selectinload`
+        # para carregar os relacionamentos de forma eficiente em poucas queries.
+        saloons_with_tables = db.query(models.Saloon)\
+            .options(
+                # Para cada Salão, carregue a lista de Mesas (tables).
+                # E para cada Mesa, carregue a lista de Comandas (commands).
+                selectinload(models.Saloon.tables).selectinload(models.Tables.commands)
+            )\
+            .filter(models.Saloon.store_id == store_id)\
+            .order_by(models.Saloon.display_order)\
+            .all()
 
-        tables_data = [TableOut.model_validate(table).model_dump(mode='json') for table in tables]
-        commands_data = [CommandOut.model_validate(cmd).model_dump(mode='json') for cmd in commands]
-        # ✅ NOVO: Serializar salões
-        saloons_data = [SaloonOut.model_validate(saloon).model_dump(mode='json') for saloon in saloons]
+        # --- 2. Serialização Simplificada ---
+        # Como os dados já estão aninhados corretamente graças à consulta,
+        # só precisamos serializar a lista de salões. Os schemas Pydantic
+        # (SaloonOut, TableOut, CommandOut) cuidarão do resto.
+        saloons_data = [SaloonOut.model_validate(saloon).model_dump(mode='json') for saloon in saloons_with_tables]
 
+        # --- 3. Montagem do Payload Estruturado ---
+        # O payload agora contém apenas uma chave principal "saloons",
+        # com as mesas e comandas aninhadas dentro dela.
         payload = {
             "store_id": store_id,
-            "tables": tables_data,
-            "commands": commands_data,
-            "saloons": saloons_data,  # ✅ Adicionar salões ao payload
+            "saloons": saloons_data,
         }
 
         if sid:
@@ -327,6 +344,7 @@ async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = No
         else:
             await sio.emit("tables_and_commands", {"store_id": store_id, "tables": [], "commands": [], "saloons": []},
                            namespace="/admin", room=f"admin_store_{store_id}")
+
 
 
 
