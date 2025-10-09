@@ -187,26 +187,13 @@ class Store(Base, TimestampMixin):
         cascade="all, delete-orphan"  # ✅ ADICIONAR
     )
 
-    commands: Mapped[list["Command"]] = relationship(
-        back_populates="store",
-        cascade="all, delete-orphan"  # ✅ ADICIONAR
-    )
 
-    # acti    subscriptions: Mapped[list["StoreSubscription"]] = relationship(
-    #         "StoreSubscription",  # <-- Use a string aqui
-    #         back_populates="store",
-    #         lazy="select"
-    #     )ve_sessions: Mapped[List["ActiveSession"]] = relationship(
-    #     back_populates="store",
-    #     cascade="all, delete-orphan"
-    # )
 
-    # dentro da classe Store
     accesses: Mapped[List["StoreAccess"]] = relationship(
         back_populates="store", cascade="all, delete-orphan"
     )
 
-    # ✅ NOVO RELACIONAMENTO: Store para Saloon
+
     saloons: Mapped[list["Saloon"]] = relationship(
         back_populates="store",
         cascade="all, delete-orphan",
@@ -1897,9 +1884,7 @@ class Command(Base, TimestampMixin):
     attendant_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)  # Observações especiais
 
-    store: Mapped["Store"] = relationship(back_populates="commands")
 
-    # ✅ Relacionamento corrigido
     table: Mapped["Tables | None"] = relationship(back_populates="commands")
 
     orders: Mapped[list["Order"]] = relationship(back_populates="command")

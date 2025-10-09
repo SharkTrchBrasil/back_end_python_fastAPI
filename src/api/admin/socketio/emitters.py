@@ -16,11 +16,11 @@ from src.api.schemas.chatbot.chatbot_conversation import ChatbotConversationSche
 from src.api.schemas.chatbot.chatbot_message import ChatbotMessageSchema
 
 from src.api.schemas.products.category import Category
-from src.api.schemas.orders.command import CommandOut
+
 from src.api.schemas.financial.payable_category import PayableCategoryResponse
 from src.api.schemas.analytics.peak_hours import PeakHoursAnalytics
 from src.api.schemas.financial.receivable import ReceivableResponse, ReceivableCategoryResponse
-# ✅ PASSO 1: Importar o schema necessário
+
 from src.api.schemas.store.store import StoreWithRole
 from src.api.schemas.store.store_details import StoreDetails
 from src.api.schemas.store.store_payable import PayableResponse
@@ -31,8 +31,6 @@ from src.api.admin.services.customer_analytic_service import get_customer_analyt
 from src.api.admin.services.dashboard_service import get_dashboard_data_for_period
 from src.api.admin.services.product_analytic_services import get_product_analytics_for_store
 
-
-from sqlalchemy.orm import selectinload # 👈 Importe o selectinload
 
 
 from src.api.schemas.orders.order import OrderDetails
@@ -48,7 +46,7 @@ from sqlalchemy.orm import selectinload
 from src.api.schemas.products.variant import Variant
 
 
-# ✅ FUNÇÃO FINAL, SIMPLIFICADA E CORRETA
+
 async def admin_emit_store_updated(db, store_id: int):
     """
     Busca os dados da loja, valida com o schema StoreDetails (que computa os campos
