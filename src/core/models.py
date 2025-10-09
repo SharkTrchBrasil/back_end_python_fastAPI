@@ -1840,9 +1840,11 @@ class Tables(Base, TimestampMixin):
     saloon_id: Mapped[int] = mapped_column(ForeignKey("saloons.id", ondelete="CASCADE"), nullable=False, index=True)
 
     name: Mapped[str] = mapped_column(String(50))
+
     status: Mapped[TableStatus] = mapped_column(
-        Enum(TableStatus, native_enum=False),
+        Enum(TableStatus, native_enum=True),  # <-- ALTERADO PARA True
         default=TableStatus.AVAILABLE,
+        server_default=TableStatus.AVAILABLE.value  # Opcional, mas bom: define o padrão no DB
     )
 
     max_capacity: Mapped[int] = mapped_column(default=4)
@@ -1877,9 +1879,11 @@ class Command(Base, TimestampMixin):
     table_id: Mapped[int | None] = mapped_column(ForeignKey("tables.id", ondelete="SET NULL"), nullable=True)
     customer_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     customer_contact: Mapped[str | None] = mapped_column(String(50), nullable=True)  # Telefone/email
+
     status: Mapped[CommandStatus] = mapped_column(
-        Enum(CommandStatus, native_enum=False),
+        Enum(CommandStatus, native_enum=True), # <-- ALTERADO PARA True
         default=CommandStatus.ACTIVE,
+        server_default=CommandStatus.ACTIVE.value
     )
     attendant_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)  # Observações especiais

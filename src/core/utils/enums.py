@@ -14,18 +14,18 @@ class CashbackType(enum.Enum):
     PERCENTAGE = "percentage"
 
 
-class TableStatus(enum.Enum):
-    AVAILABLE = "available"
-    OCCUPIED = "occupied"
-    RESERVED = "reserved"
-    MAINTENANCE = "maintenance"
-    CLEANING = "cleaning"
+class TableStatus(str, enum.Enum): # Herdar de 'str' é uma boa prática
+    AVAILABLE = "AVAILABLE"
+    OCCUPIED = "OCCUPIED"
+    RESERVED = "RESERVED"
+    MAINTENANCE = "MAINTENANCE"
+    CLEANING = "CLEANING"
 
-
-class CommandStatus(enum.Enum):
-    ACTIVE = "active"
-    CLOSED = "closed"
-    CANCELED = "canceled"
+# Faça o mesmo para CommandStatus para padronizar
+class CommandStatus(str, enum.Enum):
+    ACTIVE = "ACTIVE"
+    CLOSED = "CLOSED"
+    CANCELED = "CANCELED"
 
 # Enum para o status de verificação
 class StoreVerificationStatus(enum.Enum):
