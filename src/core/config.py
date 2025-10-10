@@ -25,4 +25,10 @@ class Config(BaseSettings):
     PLATFORM_DOMAIN: str
 
 
+
+    # TOKENS
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # Duração do token de acesso (em minutos)
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30    # Duração do token de atualização (em dias)
+
+
 config = Config()
