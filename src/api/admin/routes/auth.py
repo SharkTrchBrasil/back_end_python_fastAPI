@@ -14,6 +14,7 @@ from src.core.database import GetDBDep
 from src.core.dependencies import GetCurrentUserDep
 from src.api.schemas.auth.user import ChangePasswordData
 from src.core.models import TotemAuthorization
+# ✅ Funções de criação de token importadas
 from src.core.security import create_access_token, create_refresh_token, verify_refresh_token, get_password_hash
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -39,13 +40,25 @@ def login_for_access_token(
     return {"access_token": access_token, "token_type": "bearer", "refresh_token": refresh_token}
 
 
+# ✨ PENTE FINO: Endpoint /refresh com Rotação de Token ✨
 @router.post("/refresh", response_model=TokenResponse)
-def refresh_access_token(refresh_token: Annotated[str, Body(..., embed=True)]):
+def refresh_access_token(refresh_token: Annotated[str, Body(..., embed=True)], db: GetDBDep):
     email = verify_refresh_token(refresh_token)
     if not email:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    # Verifica se o usuário ainda existe e está ativo no banco de dados
+    user = db.query(models.User).filter(models.User.email == email, models.User.is_active == True).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found or inactive")
+
+    # ✅ Cria um NOVO access token
     new_access_token = create_access_token(data={"sub": email})
-    return {"access_token": new_access_token, "token_type": "bearer", "refresh_token": refresh_token}
+    # ✅ Cria um NOVO refresh token (Rotação)
+    new_refresh_token = create_refresh_token(data={"sub": email})
+
+    # Retorna o novo par de tokens
+    return {"access_token": new_access_token, "token_type": "bearer", "refresh_token": new_refresh_token}
 
 
 @router.post("/change-password")
@@ -62,12 +75,7 @@ def change_password(
     db.commit()
 
 
-
-
-
-
-
-
+# ... (O resto do seu arquivo auth.py permanece igual)
 @router.post("/subdomain", response_model=TotemAuthorizationResponse)
 def authenticate_by_url(
     db: GetDBDep,
@@ -95,9 +103,6 @@ def authenticate_by_url(
     db.refresh(totem_auth)
 
     return totem_auth # Retorna o objeto TotemAuthorization completo
-
-
-
 
 
 @router.post("/check-token", response_model=TotemCheckTokenResponse)
