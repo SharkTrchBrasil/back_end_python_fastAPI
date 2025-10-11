@@ -16,9 +16,7 @@ class ProductMinimal(AppBaseModel):
     # ✅ 2. ADICIONAR O CAMPO QUE ESTAVA FALTANDO
     product_type: ProductType
 
-    # O campo 'available' parece ser um status mais antigo.
-    # Se o seu modelo de produto principal usa 'status', é bom manter a consistência.
-    # Por enquanto, manteremos como está para não quebrar outras partes.
+
     status: ProductStatus | None = None
     stock_quantity: int = 0
     file_key: str | None = Field(None, exclude=True)

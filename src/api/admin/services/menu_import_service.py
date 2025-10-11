@@ -109,7 +109,7 @@ async def process_menu_with_openai(db: Session, store_id: int, user_id: int, fil
                 product_schema = SimpleProductWizardCreate(
                     name=product_name.strip(),
                     description=prod_data.get("description"),
-                    product_type='INDIVIDUAL',
+                    product_type='PREPARED',
                     status='ACTIVE',
                     category_links=[link_data]
                 )

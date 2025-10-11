@@ -41,7 +41,7 @@ def decrease_stock_for_order(order: models.Order, db: Session):
             # Nota: O estoque do produto "Kit" em si não é alterado.
 
         # --- CAMINHO 2: O PRODUTO É INDIVIDUAL ---
-        elif product_master.product_type == ProductType.INDIVIDUAL:
+        elif product_master.product_type == ProductType.PREPARED:
             print(f"  -> Item é Individual: '{product_master.name}'.")
             # 2a: Baixa no estoque do produto principal
             product_to_update = db.query(models.Product).filter(
@@ -100,7 +100,7 @@ def restock_for_canceled_order(order: models.Order, db: Session):
                         f"    - Componente '{component_product.name}': devolveu {quantity_to_increase} unidades. Novo estoque: {component_product.stock_quantity}")
 
         # --- LÓGICA DE DEVOLUÇÃO PARA PRODUTOS INDIVIDUAIS ---
-        elif product_master.product_type == ProductType.INDIVIDUAL:
+        elif product_master.product_type == ProductType.PREPARED:
             print(f"  -> Item é Individual: '{product_master.name}'.")
             product_to_update = db.query(models.Product).filter(
                 models.Product.id == product_master.id

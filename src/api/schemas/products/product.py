@@ -71,7 +71,7 @@ class SimpleProductWizardCreate(AppBaseModel):
     status: ProductStatus = Field(ProductStatus.ACTIVE, description="Status do produto")
 
 
-    product_type: ProductType = Field(ProductType.INDIVIDUAL, description="Tipo do produto")
+    product_type: ProductType = Field(ProductType.PREPARED, description="Tipo do produto")
     stock_quantity: Optional[int] = Field(0, ge=0, description="Quantidade em estoque")
     control_stock: bool = Field(False, description="Se controla estoque")
     # ✅ CAMPO ADICIONADO AQUI
@@ -102,7 +102,7 @@ class FlavorWizardCreate(AppBaseModel):
     description: Optional[str] = Field(None, max_length=2000)
     ean: Optional[str] = Field(None, max_length=13)
     status: ProductStatus = Field(ProductStatus.ACTIVE)
-    product_type: ProductType = ProductType.INDIVIDUAL
+    product_type: ProductType = ProductType.PREPARED
 
     # --- Estoque (iguais ao SimpleProductWizardCreate) ---
     stock_quantity: int = Field(0, ge=0)
@@ -121,7 +121,7 @@ class Product(AppBaseModel):
     """Campos essenciais que definem um produto."""
     name: str = Field(..., min_length=1, max_length=255)
     description: str = Field("", max_length=2000)
-    product_type: ProductType = Field(ProductType.INDIVIDUAL)
+    product_type: ProductType = Field(ProductType.PREPARED)
     status: ProductStatus | None = None
     featured: bool = Field(False)
     ean: str = Field("")

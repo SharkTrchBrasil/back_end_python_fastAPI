@@ -528,7 +528,7 @@ class Product(Base, TimestampMixin):
                                                         default=CashbackType.NONE)
     cashback_value: Mapped[int] = mapped_column(default=0)
 
-    product_type: Mapped[ProductType] = mapped_column(default=ProductType.INDIVIDUAL)
+    product_type: Mapped[ProductType] = mapped_column(default=ProductType.PREPARED)
 
     order_items: Mapped[list["OrderProduct"]] = relationship(back_populates="product")
 
