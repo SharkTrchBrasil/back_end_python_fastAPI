@@ -63,11 +63,22 @@ class CartStatus(str, enum.Enum):
     COMPLETED = "completed"
     ABANDONED = "abandoned"
 
-class ProductType(enum.Enum):
+class ProductType(str, enum.Enum):
+    # Um item vendável único. A maioria dos seus produtos, incluindo 'sabores', serão deste tipo.
     INDIVIDUAL = "INDIVIDUAL"
+
+    # Um produto que é um pacote de outros produtos.
     KIT = "KIT"
 
+    # Um produto que é preparado na hora. Pode ser um subtipo de INDIVIDUAL,
+    # mas se a sua lógica de negócio precisa diferenciá-lo, ele deve estar aqui.
+    PREPARED = "PREPARED"
 
+    # Um produto revendido, como um refrigerante em lata.
+    INDUSTRIALIZED = "INDUSTRIALIZED"
+
+    # É sempre bom ter um tipo padrão, embora raramente usado se a validação for boa.
+    # UNKNOWN = "UNKNOWN"
 
 class OrderStatus(str, enum.Enum):
     """
