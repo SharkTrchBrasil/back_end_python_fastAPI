@@ -21,10 +21,10 @@ from src.api.schemas.financial.payable_category import PayableCategoryResponse
 from src.api.schemas.analytics.peak_hours import PeakHoursAnalytics
 from src.api.schemas.financial.receivable import ReceivableResponse, ReceivableCategoryResponse
 
-from src.api.schemas.store.store import StoreWithRole
 from src.api.schemas.store.store_details import StoreDetails
 from src.api.schemas.store.store_payable import PayableResponse
 from src.api.schemas.financial.supplier import SupplierResponse
+from src.api.schemas.store.store_with_role import StoreWithRole
 
 from src.api.schemas.store.table import TableOut, SaloonOut
 from src.api.admin.services.customer_analytic_service import get_customer_analytics_for_store
@@ -80,6 +80,10 @@ async def admin_emit_store_updated(db, store_id: int):
         print(f'❌ Erro CRÍTICO ao emitir store_details_updated: {e}')
         import traceback
         traceback.print_exc()
+
+
+
+
 
 async def admin_emit_dashboard_data_updated(db, store_id: int, sid: str | None = None):
     """

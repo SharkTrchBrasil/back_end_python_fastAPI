@@ -125,13 +125,3 @@ class StoreSchema(Store):
     model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
 
 
-# --- Schemas para Acesso ---
-class RoleSchema(BaseModel):
-    machine_name: str
-    model_config = ConfigDict(from_attributes=True)
-
-
-class StoreWithRole(BaseModel):
-    store: StoreSchema
-    role: RoleSchema
-    model_config = ConfigDict(from_attributes=True)

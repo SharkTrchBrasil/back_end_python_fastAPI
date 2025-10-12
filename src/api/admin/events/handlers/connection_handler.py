@@ -1,11 +1,13 @@
 import asyncio
 from sqlalchemy import select
-from datetime import datetime, timedelta
+
 from urllib.parse import parse_qs
 
 from src.api.admin.services.store_access_service import StoreAccessService
 from src.api.admin.services.store_session_service import SessionService
-from src.api.schemas.store.store import StoreWithRole
+from src.api.schemas.store.store_details import StoreDetails
+from src.api.schemas.store.store_with_role import StoreWithRole
+
 from src.core import models
 from src.core.database import get_db_manager
 from src.socketio_instance import sio
@@ -70,8 +72,9 @@ async def handle_admin_connect(self, sid, environ):
                 # Isso aciona o @model_validator em StoreDetails para cada loja!
                 print(f"🔧 Serializando {len(accessible_store_accesses)} loja(s) com o schema StoreWithRole...")
                 for access in accessible_store_accesses:
-                    store_with_role_schema = StoreWithRole.model_validate(access)
-                    stores_list_payload.append(store_with_role_schema.model_dump(mode='json'))
+
+                    store_with_role = StoreWithRole.model_validate(access)
+                    stores_list_payload.append(store_with_role.model_dump(mode='json'))
 
             print(f"🔍 [DEBUG] Enviando admin_stores_list para SID {sid} com {len(stores_list_payload)} loja(s)")
 

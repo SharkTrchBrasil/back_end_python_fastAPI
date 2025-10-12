@@ -15,7 +15,8 @@ from src.api.schemas.auth.store_access import StoreAccess
 from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_stores_list_update
 from src.core.utils.enums import StoreVerificationStatus, Roles
 from src.api.app.socketio.socketio_emitters import emit_store_updated
-from src.api.schemas.store.store import StoreWithRole, Store
+from src.api.schemas.store.store import Store
+from src.api.schemas.store.store_with_role import StoreWithRole
 from src.api.schemas.store.store_details import StoreDetails
 from src.core import models
 
@@ -371,35 +372,32 @@ async def clone_store(
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-@router.get("", response_model=list[StoreWithRole])
+@router.get("", response_model=list[StoreWithRole])  # ✅ Agora tipado
 def list_stores(
     db: GetDBDep,
     user: GetCurrentUserDep,
 ):
-    db_store_accesses = db.query(models.StoreAccess).filter(models.StoreAccess.user == user).all()
-    return db_store_accesses
+    """
+    Retorna a lista de lojas acessíveis pelo usuário, com subscription calculada.
+    """
+    db_store_accesses = db.query(models.StoreAccess).filter(
+        models.StoreAccess.user == user
+    ).all()
+
+    # ✅ Conversão automática via Pydantic (mais limpo!)
+    return [
+        StoreWithRole.model_validate(access)
+        for access in db_store_accesses
+    ]
+
+
 
 @router.get("/{store_id}", response_model=StoreDetails)
 def get_store(
     store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
 ):
     return store
+
 
 
 @router.patch("/{store_id}", response_model=StoreDetails)
