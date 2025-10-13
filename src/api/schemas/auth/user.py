@@ -13,6 +13,10 @@ class UserSchema(BaseModel):
     cpf: str | None = None
     birth_date: date | None = None
 
+
+    is_store_owner: bool = Field(
+        description="Indica se o usuário é proprietário de loja ou funcionário"
+    )
     is_superuser: bool
     referral_code: str
     model_config = ConfigDict(from_attributes=True)
@@ -107,10 +111,7 @@ class CreateStoreUserRequest(BaseModel):
     @field_validator('phone')
     @classmethod
     def validate_phone(cls, v: str) -> str:
-        """
-        Valida e normaliza o telefone.
-        Remove caracteres não numéricos e verifica comprimento.
-        """
+        """Valida e normaliza o telefone."""
         # Remove tudo que não for número
         phone_clean = re.sub(r'\D', '', v)
 
@@ -118,7 +119,7 @@ class CreateStoreUserRequest(BaseModel):
         if len(phone_clean) < 10 or len(phone_clean) > 11:
             raise ValueError('Telefone deve ter 10 ou 11 dígitos')
 
-        return phone_clean
+        return phone_clean  # ✅ RETORNA O TELEFONE LIMPO
 
     @field_validator('password')
     @classmethod

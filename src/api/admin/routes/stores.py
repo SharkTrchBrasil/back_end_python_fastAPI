@@ -23,6 +23,7 @@ from src.core.defaults.delivery_methods import default_delivery_settings
 from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetStore
 from src.core.security import get_password_hash
 from src.core.utils.enums import StoreVerificationStatus, Roles
+from src.core.utils.referral import generate_unique_referral_code
 
 router = APIRouter(prefix="/stores", tags=["Stores"])
 
@@ -366,8 +367,16 @@ async def create_user_for_store(
         user_data: CreateStoreUserRequest,
         current_user: GetCurrentUserDep,
 ):
-    """Cria um novo usuário no sistema e concede acesso à loja especificada."""
+    """
+    Cria um novo usuário no sistema e concede acesso à loja especificada.
 
+    - Valida todos os dados de entrada
+    - Verifica duplicatas de e-mail e telefone
+    - Cria o usuário com senha criptografada
+    - Vincula o usuário à loja com a função especificada
+    """
+
+    # ✅ 1. VALIDAÇÃO DA FUNÇÃO (ROLE)
     role = db.query(models.Role).filter(
         models.Role.machine_name == user_data.role_machine_name
     ).first()
@@ -384,6 +393,7 @@ async def create_user_for_store(
             detail=f"Não é permitido criar usuários com a função '{user_data.role_machine_name}'."
         )
 
+    # ✅ 2. NORMALIZAÇÃO E VALIDAÇÃO DO E-MAIL
     normalized_email = user_data.email.strip().lower()
 
     existing_user = db.query(models.User).filter(
@@ -396,6 +406,7 @@ async def create_user_for_store(
             detail=f"Um usuário com o e-mail '{user_data.email}' já está cadastrado no sistema."
         )
 
+    # ✅ 3. LIMPEZA E VALIDAÇÃO DO TELEFONE
     phone_clean = re.sub(r'\D', '', user_data.phone)
 
     if len(phone_clean) < 10 or len(phone_clean) > 11:
@@ -404,12 +415,25 @@ async def create_user_for_store(
             detail="O telefone deve ter 10 ou 11 dígitos."
         )
 
+    # ✅ 4. VERIFICAÇÃO DE TELEFONE DUPLICADO
+    existing_phone = db.query(models.User).filter(
+        models.User.phone == phone_clean
+    ).first()
+
+    if existing_phone:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"O telefone '{user_data.phone}' já está cadastrado no sistema."
+        )
+
+    # ✅ 5. VALIDAÇÃO DA SENHA
     if len(user_data.password) < 6:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A senha deve ter no mínimo 6 caracteres."
         )
 
+    # ✅ 6. VALIDAÇÃO DO NOME
     name_clean = user_data.name.strip()
 
     if len(name_clean) < 3:
@@ -418,28 +442,34 @@ async def create_user_for_store(
             detail="O nome deve ter no mínimo 3 caracteres."
         )
 
+    # ✅ 7. CRIAÇÃO DO USUÁRIO COM TRATAMENTO DE ERRO
     try:
         hashed_password = get_password_hash(user_data.password)
 
+        # ✅ IMPORTAÇÃO NECESSÁRIA: from src.core.utils.referral import generate_unique_referral_code
         new_user = models.User(
             email=normalized_email,
             name=name_clean,
             phone=phone_clean,
             hashed_password=hashed_password,
             is_active=True,
-            is_email_verified=True
+            is_store_owner=False,
+            is_email_verified=True,  # ✅ Usuários criados manualmente são pré-verificados
+            referral_code=generate_unique_referral_code(db, name_clean),  # ✅ OBRIGATÓRIO
+            referred_by_user_id=None
         )
 
         db.add(new_user)
-        db.flush()
+        db.flush()  # ✅ CRUCIAL: Garante que o ID seja gerado antes de prosseguir
 
     except Exception as e:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Erro ao criar o usuário. Tente novamente."
+            detail=f"Erro ao criar o usuário: {str(e)}"
         )
 
+    # ✅ 8. CRIAÇÃO DO ACESSO À LOJA COM TRATAMENTO DE ERRO
     try:
         new_access = models.StoreAccess(
             user=new_user,
@@ -455,10 +485,17 @@ async def create_user_for_store(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Erro ao criar o acesso à loja. Tente novamente."
+            detail=f"Erro ao criar o acesso à loja: {str(e)}"
         )
 
+    # ✅ 9. RETORNO DO ACESSO CRIADO
     return new_access
+
+
+
+
+
+
 
 
 @router.get("/{store_id}/accesses", response_model=list[StoreAccess])

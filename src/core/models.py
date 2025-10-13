@@ -278,6 +278,12 @@ class User(Base, TimestampMixin):
 
     is_superuser: Mapped[bool] = mapped_column(default=False, nullable=False)
 
+    is_store_owner: Mapped[bool] = mapped_column(
+        default=True,
+        nullable=False,
+        doc="True = usuário criou sua própria loja | False = foi adicionado como funcionário"
+    )
+
     verification_code: Mapped[Optional[str]] = mapped_column(nullable=True)  # ALTERADO
     cpf: Mapped[Optional[str]] = mapped_column(unique=True, index=True, nullable=True)  # ALTERADO
     birth_date: Mapped[Optional[date]] = mapped_column(nullable=True)  # ALTERADO
