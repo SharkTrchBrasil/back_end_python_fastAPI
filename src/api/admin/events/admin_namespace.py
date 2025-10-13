@@ -13,8 +13,6 @@ from .handlers.store_handler import (
     handle_join_store_room,
     handle_leave_store_room,
 
-    handle_set_consolidated_stores
-    # ✅ REMOVIDO: handle_update_operation_config não é mais necessário aqui
 )
 
 
@@ -37,12 +35,6 @@ class AdminNamespace(AsyncNamespace):
 
     async def on_leave_store_room(self, sid, data):
         await handle_leave_store_room(self, sid, data)
-
-    # ✅ REMOVIDO: O método on_update_store_settings foi removido.
-    # A atualização agora é feita via HTTP PUT.
-
-    async def on_set_consolidated_stores(self, sid, data):
-        return await handle_set_consolidated_stores(self, sid, data)
 
     # ✅ CORREÇÃO 2: Adiciona o método que recebe o evento do cliente
     async def on_claim_specific_print_job(self, sid, data):

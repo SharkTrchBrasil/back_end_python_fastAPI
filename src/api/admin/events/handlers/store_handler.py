@@ -1,72 +1,16 @@
 import asyncio
-import traceback
-from sqlalchemy import delete
-from urllib.parse import parse_qs
 
-from src.api.admin.services.store_access_service import StoreAccessService
 from src.api.admin.services.store_session_service import SessionService
-from src.api.admin.services.subscription_service import SubscriptionService
-from src.api.admin.socketio import emitters
-from src.api.admin.utils.authorize_admin import authorize_admin_by_jwt
-from src.api.admin.utils.emit_updates import emit_store_updates
 
-from src.core import models
+from src.api.admin.socketio import emitters
+
+
+
 
 from src.core.database import get_db_manager
 from src.socketio_instance import sio
 
 
-async def handle_set_consolidated_stores(sio_namespace, sid, data):
-    """
-    Atualiza as PREFERÊNCIAS de lojas consolidadas de um admin no banco de dados.
-    """
-    try:
-        selected_store_ids = set(data.get("store_ids", []))
-        if not isinstance(data.get("store_ids"), list):
-            return {"error": "'store_ids' deve ser uma lista"}
-
-        with get_db_manager() as db:
-            session = SessionService.get_session(db, sid)
-
-            if not session or not session.user_id:
-                return {"error": "Sessão não autorizada"}
-
-            admin_id = session.user_id
-
-            db.execute(
-                delete(models.AdminConsolidatedStoreSelection).where(
-                    models.AdminConsolidatedStoreSelection.admin_id == admin_id
-                )
-            )
-
-            for store_id in selected_store_ids:
-                new_selection = models.AdminConsolidatedStoreSelection(
-                    admin_id=admin_id, store_id=store_id
-                )
-                db.add(new_selection)
-
-            db.commit()
-
-            print(f"✅ Preferências de consolidação do admin {admin_id} atualizadas para: {selected_store_ids}")
-
-            # ✅ CORREÇÃO: Usa o sio_namespace para emitir
-            await sio_namespace.emit(
-                "consolidated_stores_updated",
-                {"store_ids": list(selected_store_ids)},
-                to=sid,
-            )
-
-            return {"success": True, "selected_stores": list(selected_store_ids)}
-
-    except Exception as e:
-        if 'db' in locals() and db.is_active:
-            db.rollback()
-        print(f"❌ Erro em on_set_consolidated_stores: {str(e)}")
-        return {"error": f"Falha interna: {str(e)}"}
-
-
-# ✅ REMOVIDO: A função handle_update_operation_config foi removida,
-# pois a lógica agora está centralizada no endpoint HTTP PUT.
 
 
 async def handle_join_store_room(sid, data):

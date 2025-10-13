@@ -919,21 +919,6 @@ class CustomerSession(Base, TimestampMixin):
     store: Mapped["Store"] = relationship()
 
 
-class AdminConsolidatedStoreSelection(Base, TimestampMixin):  # Adicionei TimestampMixin aqui também para padronizar
-    __tablename__ = 'admin_consolidated_store_selection'
-
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-
-    # ✅ CORREÇÃO: A ForeignKey agora aponta para 'users.id'
-    admin_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), nullable=False)
-
-    __table_args__ = (UniqueConstraint('admin_id', 'store_id', name='uq_admin_store_selection'),)
-
-    # ✅ CORREÇÃO: O relacionamento agora é com o modelo de usuário (ex: User)
-    admin_user: Mapped["User"] = relationship()  # O nome do modelo pode variar (User, AdminUser, etc)
-    store: Mapped["Store"] = relationship()
-
 
 class StoreTheme(Base, TimestampMixin):
     __tablename__ = "store_themes"
