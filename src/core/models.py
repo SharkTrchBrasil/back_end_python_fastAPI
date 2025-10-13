@@ -288,13 +288,13 @@ class User(Base, TimestampMixin):
     cpf: Mapped[Optional[str]] = mapped_column(unique=True, index=True, nullable=True)  # ALTERADO
     birth_date: Mapped[Optional[date]] = mapped_column(nullable=True)  # ALTERADO
 
-    # --- CAMPOS PARA O SISTEMA DE INDICAÇÃO ---
+
     referral_code: Mapped[str] = mapped_column(unique=True, index=True)
     referred_by_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)  # ALTERADO
 
-    # --- Relacionamentos SQLAlchemy ---
     referrer: Mapped[Optional["User"]] = relationship(remote_side=[id])  # ALTERADO
 
+    sessions = relationship("StoreSession", back_populates="user", cascade="all, delete-orphan")
 
 class Role(Base, TimestampMixin):
     __tablename__ = "roles"
