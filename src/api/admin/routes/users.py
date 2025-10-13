@@ -42,7 +42,7 @@ def create_user(user_data: UserCreate, db: GetDBDep):
         phone=user_data.phone,
         hashed_password=hashed_password,
         is_email_verified=False,
-        is_store_owner=True,
+        is_store_owner=True,  # ✅ Novos usuários são proprietários por padrão
         verification_code=verification_code,
 
         referral_code=generate_unique_referral_code(db, user_data.name),

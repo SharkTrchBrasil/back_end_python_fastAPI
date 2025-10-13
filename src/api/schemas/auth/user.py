@@ -29,7 +29,7 @@ class UserCreate(BaseModel):
     phone: str
     password: str = Field(..., min_length=8)
 
-    # ✅ CAMPO ADICIONADO: Opcional, para o novo usuário inserir o código de quem o indicou
+
     referral_code: str | None = None
 
 
@@ -39,7 +39,7 @@ class UserUpdate(BaseModel):
     name: str | None = Field(None, min_length=3)
     phone: str | None = None
 
-    # ✅ CAMPOS ADICIONADOS: Para salvar os dados do responsável
+
     cpf: str | None = None
     birth_date: date | None = None  # A API espera receber no formato "AAAA-MM-DD"
 
