@@ -11,11 +11,12 @@ from src.core.database import get_db_manager
 from src.socketio_instance import sio
 from src.api.admin.utils.authorize_admin import authorize_admin_by_jwt
 
+
 async def handle_admin_connect(self, sid, environ):
     """
     Manipulador de conexão do admin.
     - Autentica o usuário via JWT.
-    - Gerencia sessões únicas.
+    - Permite até 5 dispositivos simultâneos por admin.
     - Envia a lista COMPLETA de lojas acessíveis, incluindo detalhes da assinatura.
     - Configura a sessão e as salas de notificação.
     """
@@ -39,19 +40,36 @@ async def handle_admin_connect(self, sid, environ):
             admin_id = admin_user.id
             print(f"✅ Admin {admin_user.email} (ID: {admin_id}) autenticado com sucesso.")
 
-            # Lógica de sessão única
-            old_sessions = db.query(models.StoreSession).filter(
+            # ✅ NOVA LÓGICA: Limita a 5 dispositivos simultâneos
+            MAX_DEVICES = 5
+            active_sessions = db.query(models.StoreSession).filter(
                 models.StoreSession.user_id == admin_id,
                 models.StoreSession.client_type == 'admin',
                 models.StoreSession.sid != sid
-            ).all()
-            if old_sessions:
+            ).order_by(models.StoreSession.created_at.asc()).all()  # Ordena do mais antigo ao mais novo
+
+            if len(active_sessions) >= MAX_DEVICES:
+                # Remove o dispositivo MAIS ANTIGO para dar lugar ao novo
+                oldest_session = active_sessions[0]
                 print(
-                    f"🔌 Encontrada(s) {len(old_sessions)} sessão(ões) antiga(s) para o admin {admin_id}. Desconectando...")
-                for old_session in old_sessions:
-                    await sio.disconnect(old_session.sid, namespace='/admin')
-                    db.delete(old_session)
+                    f"⚠️ Limite de {MAX_DEVICES} dispositivos atingido. Desconectando o mais antigo: {oldest_session.sid}")
+
+                # Envia notificação ao dispositivo que será desconectado
+                await self.emit(
+                    "session_limit_reached",
+                    {
+                        "message": f"Você foi desconectado porque o limite de {MAX_DEVICES} dispositivos foi atingido.",
+                        "max_devices": MAX_DEVICES
+                    },
+                    to=oldest_session.sid
+                )
+
+                # Desconecta e remove da base
+                await sio.disconnect(oldest_session.sid, namespace='/admin')
+                db.delete(oldest_session)
                 db.commit()
+
+            print(f"✅ Dispositivos ativos para admin {admin_id}: {len(active_sessions)} de {MAX_DEVICES}")
 
             # Entrar na sala de notificações
             notification_room = f"admin_notifications_{admin_id}"
@@ -105,8 +123,6 @@ async def handle_admin_connect(self, sid, environ):
             print(f"❌ Erro na conexão do admin (SID: {sid}): {str(e)}")
             self.environ.pop(sid, None)
             raise ConnectionRefusedError(f"Falha na autenticação: {str(e)}")
-
-
 
 
 async def handle_admin_disconnect(self, sid):
