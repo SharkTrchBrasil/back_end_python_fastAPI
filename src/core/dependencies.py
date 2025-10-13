@@ -107,7 +107,7 @@ class GetStore:
 
 
 
-get_store = GetStore([Roles.OWNER, Roles.ADMIN])
+get_store = GetStore([Roles.OWNER, Roles.MANAGER])
 GetStoreDep = Annotated[models.Store, Depends(get_store)]
 
 
