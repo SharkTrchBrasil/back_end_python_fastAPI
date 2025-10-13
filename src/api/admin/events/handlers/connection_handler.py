@@ -58,7 +58,7 @@ async def handle_admin_connect(self, sid, environ):
             await self.enter_room(sid, notification_room)
             print(f"✅ Admin {sid} (ID: {admin_id}) entrou na sala de notificações: {notification_room}")
 
-            # ✅ Busca os objetos de acesso, que contêm a loja e a role
+            # Busca os objetos de acesso (loja + role)
             accessible_store_accesses = StoreAccessService.get_accessible_stores_with_roles(db, admin_user)
 
             stores_list_payload = []
@@ -83,13 +83,13 @@ async def handle_admin_connect(self, sid, environ):
             else:
                 print(f"✅ [Socket] Usuário {admin_id} tem {len(stores_list_payload)} lojas")
 
-            # ✅ CORREÇÃO: Extrai os IDs das lojas acessíveis
+            # Extrai os IDs das lojas acessíveis
             all_accessible_store_ids = [access.store_id for access in accessible_store_accesses]
 
-            # ✅ CORREÇÃO: Define a primeira loja como padrão (ou None se não houver lojas)
+            # Define a primeira loja como padrão (ou None se não houver lojas)
             default_store_id = all_accessible_store_ids[0] if all_accessible_store_ids else None
 
-            # ✅ CORREÇÃO: Cria/atualiza a sessão com a loja padrão
+            # Cria/atualiza a sessão com a loja padrão
             SessionService.create_or_update_session(
                 db,
                 sid=sid,
@@ -105,6 +105,7 @@ async def handle_admin_connect(self, sid, environ):
             print(f"❌ Erro na conexão do admin (SID: {sid}): {str(e)}")
             self.environ.pop(sid, None)
             raise ConnectionRefusedError(f"Falha na autenticação: {str(e)}")
+
 
 
 
