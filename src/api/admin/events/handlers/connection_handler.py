@@ -15,15 +15,18 @@ from src.api.admin.utils.authorize_admin import authorize_admin_by_jwt
 async def handle_admin_connect(self, sid, environ):
     """
     Manipulador de conexão do admin.
-    - Autentica o usuário via JWT.
-    - Permite até 5 dispositivos simultâneos por admin.
-    - Envia a lista COMPLETA de lojas acessíveis, incluindo detalhes da assinatura.
-    - Configura a sessão e as salas de notificação.
+    Captura informações do dispositivo para gerenciamento de sessões.
     """
     print(f"[ADMIN] Tentativa de conexão: {sid}")
 
     query = parse_qs(environ.get("QUERY_STRING", ""))
     token = query.get("admin_token", [None])[0]
+
+    # ✅ NOVO: Captura informações do dispositivo
+    device_name = query.get("device_name", ["Unknown Device"])[0]
+    device_type = query.get("device_type", ["unknown"])[0]
+    platform = query.get("platform", ["unknown"])[0]
+    browser = query.get("browser", ["Flutter"])[0]
 
     if not token:
         raise ConnectionRefusedError("Token obrigatório")
@@ -40,21 +43,25 @@ async def handle_admin_connect(self, sid, environ):
             admin_id = admin_user.id
             print(f"✅ Admin {admin_user.email} (ID: {admin_id}) autenticado com sucesso.")
 
-            # ✅ NOVA LÓGICA: Limita a 5 dispositivos simultâneos
+            # Captura o IP do cliente
+            ip_address = None
+            if 'HTTP_X_FORWARDED_FOR' in environ:
+                ip_address = environ['HTTP_X_FORWARDED_FOR'].split(',')[0].strip()
+            elif 'REMOTE_ADDR' in environ:
+                ip_address = environ['REMOTE_ADDR']
+
+            # Lógica de limite de dispositivos (já implementada)
             MAX_DEVICES = 5
             active_sessions = db.query(models.StoreSession).filter(
                 models.StoreSession.user_id == admin_id,
                 models.StoreSession.client_type == 'admin',
                 models.StoreSession.sid != sid
-            ).order_by(models.StoreSession.created_at.asc()).all()  # Ordena do mais antigo ao mais novo
+            ).order_by(models.StoreSession.created_at.asc()).all()
 
             if len(active_sessions) >= MAX_DEVICES:
-                # Remove o dispositivo MAIS ANTIGO para dar lugar ao novo
                 oldest_session = active_sessions[0]
-                print(
-                    f"⚠️ Limite de {MAX_DEVICES} dispositivos atingido. Desconectando o mais antigo: {oldest_session.sid}")
+                print(f"⚠️ Limite de {MAX_DEVICES} dispositivos atingido. Desconectando: {oldest_session.sid}")
 
-                # Envia notificação ao dispositivo que será desconectado
                 await self.emit(
                     "session_limit_reached",
                     {
@@ -64,7 +71,6 @@ async def handle_admin_connect(self, sid, environ):
                     to=oldest_session.sid
                 )
 
-                # Desconecta e remove da base
                 await sio.disconnect(oldest_session.sid, namespace='/admin')
                 db.delete(oldest_session)
                 db.commit()
@@ -76,54 +82,48 @@ async def handle_admin_connect(self, sid, environ):
             await self.enter_room(sid, notification_room)
             print(f"✅ Admin {sid} (ID: {admin_id}) entrou na sala de notificações: {notification_room}")
 
-            # Busca os objetos de acesso (loja + role)
+            # Busca lojas acessíveis
             accessible_store_accesses = StoreAccessService.get_accessible_stores_with_roles(db, admin_user)
 
             stores_list_payload = []
             if accessible_store_accesses:
-                print(f"🔧 Serializando {len(accessible_store_accesses)} loja(s) com o schema StoreWithRole...")
+                print(f"🔧 Serializando {len(accessible_store_accesses)} loja(s)...")
                 for access in accessible_store_accesses:
                     store_with_role = StoreWithRole.model_validate(access)
                     stores_list_payload.append(store_with_role.model_dump(mode='json'))
 
-            print(f"🔍 [DEBUG] Enviando admin_stores_list para SID {sid} com {len(stores_list_payload)} loja(s)")
-
-            # Emite a lista de lojas
             await self.emit("admin_stores_list", {"stores": stores_list_payload}, to=sid)
 
-            # Verifica se o usuário tem lojas
             if not stores_list_payload:
-                print(f"🔵 [Socket] Usuário {admin_id} não tem lojas - emitindo user_has_no_stores")
                 await self.emit("user_has_no_stores", {
                     "user_id": admin_id,
-                    "message": "Você não possui lojas. Crie uma nova loja para começar."
+                    "message": "Você não possui lojas."
                 }, to=sid)
-            else:
-                print(f"✅ [Socket] Usuário {admin_id} tem {len(stores_list_payload)} lojas")
 
-            # Extrai os IDs das lojas acessíveis
             all_accessible_store_ids = [access.store_id for access in accessible_store_accesses]
-
-            # Define a primeira loja como padrão (ou None se não houver lojas)
             default_store_id = all_accessible_store_ids[0] if all_accessible_store_ids else None
 
-            # Cria/atualiza a sessão com a loja padrão
+            # ✅ NOVO: Cria sessão com informações do dispositivo
             SessionService.create_or_update_session(
                 db,
                 sid=sid,
                 user_id=admin_id,
                 store_id=default_store_id,
-                client_type="admin"
+                client_type="admin",
+                device_name=device_name,
+                device_type=device_type,
+                platform=platform,
+                browser=browser,
+                ip_address=ip_address
             )
 
-            print(f"🏁 Conexão do admin {admin_id} (SID: {sid}) finalizada com sucesso")
+            print(f"🏁 Conexão do admin {admin_id} (SID: {sid}) finalizada. Dispositivo: {device_name} ({platform})")
 
         except Exception as e:
             db.rollback()
             print(f"❌ Erro na conexão do admin (SID: {sid}): {str(e)}")
             self.environ.pop(sid, None)
             raise ConnectionRefusedError(f"Falha na autenticação: {str(e)}")
-
 
 async def handle_admin_disconnect(self, sid):
     # Esta função não precisa de alterações.

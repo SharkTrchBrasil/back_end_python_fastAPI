@@ -886,21 +886,31 @@ class TotemAuthorization(Base, TimestampMixin):
     store_url: Mapped[str] = mapped_column(unique=True, nullable=False)
 
 
-class StoreSession(Base, TimestampMixin):
+
+class StoreSession(Base):
     __tablename__ = "store_sessions"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id = Column(Integer, primary_key=True, index=True)
+    sid = Column(String, unique=True, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    store_id = Column(Integer, ForeignKey("stores.id", ondelete="CASCADE"), nullable=True)
+    client_type = Column(String, nullable=False)  # 'admin', 'totem', etc.
 
-    # ✨ CORREÇÃO: Tornamos o user_id opcional (pode ser nulo) no banco
-    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    # ✅ NOVOS CAMPOS
+    device_name = Column(String, nullable=True)  # Ex: "iPhone 14 Pro"
+    device_type = Column(String, nullable=True)  # Ex: "mobile", "desktop", "tablet"
+    platform = Column(String, nullable=True)  # Ex: "iOS", "Windows", "Android"
+    browser = Column(String, nullable=True)  # Ex: "Chrome", "Safari", "Flutter"
+    ip_address = Column(String, nullable=True)  # IP de conexão
 
-    store_id: Mapped[Optional[int]] = mapped_column(ForeignKey("stores.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_activity = Column(DateTime, default=datetime.utcnow)  # ✅ NOVO
 
-    client_type: Mapped[str] = mapped_column()  # 'admin' ou 'totem'
-    sid: Mapped[str] = mapped_column(unique=True)
+    # Relacionamentos
+    user = relationship("User", back_populates="sessions")
+    store = relationship("Store")
 
-    # Opcional: Adicionar um relationship para facilitar o acesso ao usuário
-    # user: Mapped["User"] = relationship()
 
 
 class CustomerSession(Base, TimestampMixin):
