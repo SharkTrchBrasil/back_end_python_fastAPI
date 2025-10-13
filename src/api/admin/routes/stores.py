@@ -453,6 +453,7 @@ async def create_user_for_store(
             phone=phone_clean,
             hashed_password=hashed_password,
             is_active=True,
+            referral_code=generate_unique_referral_code(db, name_clean),
             is_store_owner=False,
             is_email_verified=True,
             referred_by_user_id=None
