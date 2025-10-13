@@ -7,18 +7,29 @@ from datetime import datetime, timezone
 from src.core.utils.enums import ChatbotMessageGroupEnum, PaymentMethodType
 
 
+
+
 def initialize_roles(db: Session):
     """
     Verifica a existência de roles padrão e as cria se não existirem.
+    ✅ VERSÃO ALINHADA COM O ENUM Roles
     """
-    roles_to_ensure = ['owner', 'manager', 'cashier', 'stockManager']
+    # ✅ CORREÇÃO: Alinhado com o enum Roles
+    roles_to_ensure = [
+        'owner',  # Proprietário
+        'manager',  # Gerente
+        'cashier',  # Caixa
+        'waiter',  # Garçom
+        'stock_manager'  # Gerente de Estoque
+    ]
+
     existing_roles = db.query(models.Role.machine_name).all()
     existing_roles_names = {role[0] for role in existing_roles}
 
     new_roles = []
     for role_name in roles_to_ensure:
         if role_name not in existing_roles_names:
-            print(f"Role '{role_name}' não encontrada. Criando...")
+            print(f"✨ Role '{role_name}' não encontrada. Criando...")
             new_roles.append(
                 models.Role(
                     machine_name=role_name,
@@ -27,14 +38,20 @@ def initialize_roles(db: Session):
                 )
             )
         else:
-            print(f"Role '{role_name}' já existe.")
+            print(f"✅ Role '{role_name}' já existe.")
 
     if new_roles:
         db.add_all(new_roles)
         db.commit()
-        print("Roles padrão criadas/verificadas com sucesso.")
+        print("✅ Roles padrão criadas/verificadas com sucesso.")
     else:
-        print("Todas as roles padrão já existem.")
+        print("✅ Todas as roles padrão já existem.")
+
+
+
+
+
+
 def seed_plans_and_features(db: Session):
     """
     Define nossa estrutura de valor único

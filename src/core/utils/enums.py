@@ -3,9 +3,15 @@ import enum
 
 
 class Roles(enum.Enum):
-    OWNER = 'owner'
-    MANAGER = 'manager'
-    ADMIN = 'admin'
+    """
+    Funções/Roles disponíveis no sistema.
+    IMPORTANTE: Mantenha sincronizado com db_initialization.py e o frontend.
+    """
+    OWNER = 'owner'          # Proprietário (acesso total, não pode ser criado via API)
+    MANAGER = 'manager'      # Gerente (pode gerenciar tudo exceto outros proprietários)
+    CASHIER = 'cashier'      # Caixa (foco em vendas e pagamentos)
+    WAITER = 'waiter'        # Garçom (foco em pedidos de mesas)
+    STOCK_MANAGER = 'stock_manager'  # ✅ Gerente de Estoque (controle de produtos)
 
 
 class CashbackType(enum.Enum):

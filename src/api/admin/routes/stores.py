@@ -13,6 +13,8 @@ from sqlalchemy import func
 from src.api.admin.services.cloning_service import clone_store_data
 from src.api.schemas.auth.store_access import StoreAccess
 from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_stores_list_update
+from src.api.schemas.auth.user import CreateStoreUserRequest
+from src.core.security import get_password_hash
 from src.core.utils.enums import StoreVerificationStatus, Roles
 from src.api.app.socketio.socketio_emitters import emit_store_updated
 from src.api.schemas.store.store import Store
@@ -475,6 +477,79 @@ async def patch_store(
     await asyncio.create_task(emit_store_updated(db,store.id))
     await admin_emit_store_updated(db, store.id)
     return store
+
+
+# Em: src/api/admin/routes/stores.py
+
+@router.post(
+    "/{store_id}/accesses",
+    response_model=StoreAccess,
+    status_code=status.HTTP_201_CREATED,  # ✅ CORREÇÃO: Era HTTP_21_CREATED
+    summary="Criar um novo usuário e associá-lo a uma loja"
+)
+async def create_user_for_store(
+        db: GetDBDep,
+        store: GetStoreDep,
+        user_data: CreateStoreUserRequest,
+        current_user: GetCurrentUserDep,
+):
+    """
+    Cria um novo usuário diretamente no sistema, já ativo,
+    e o associa à loja especificada com a função definida.
+    """
+    # 1. Validações Iniciais
+    role = db.query(models.Role).filter(models.Role.machine_name == user_data.role_machine_name).first()
+    if not role:
+        raise HTTPException(
+            status_code=404,
+            detail=f"A função '{user_data.role_machine_name}' não foi encontrada."
+        )
+
+    if role.machine_name == "owner":
+        raise HTTPException(
+            status_code=403,
+            detail="Não é permitido criar outro proprietário para a loja."
+        )
+
+    # 2. Verifica se o email JÁ EXISTE no sistema
+    existing_user = db.query(models.User).filter(
+        func.lower(models.User.email) == user_data.email.lower()
+    ).first()
+
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Um usuário com este e-mail já está cadastrado no sistema."
+        )
+
+    # 3. Cria o novo usuário
+    hashed_password = get_password_hash(user_data.password)
+
+    new_user = models.User(
+        email=user_data.email.lower(),
+        name=user_data.name,
+        phone=user_data.phone,
+        hashed_password=hashed_password,
+        is_active=True,
+        is_email_verified=True
+    )
+    db.add(new_user)
+    db.flush()
+
+    # 4. Cria o acesso à loja
+    new_access = models.StoreAccess(
+        user=new_user,
+        store=store,
+        role=role
+    )
+    db.add(new_access)
+
+    # 5. Commit e retorna
+    db.commit()
+    db.refresh(new_access)
+
+    return new_access
+
 
 
 
