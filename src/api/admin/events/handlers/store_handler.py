@@ -107,11 +107,10 @@ async def handle_join_store_room(sid, data):
 
 
 
-
-
 async def handle_leave_store_room(sio_namespace, sid, data):
     """
     Remove um admin da sala de uma loja específica.
+    ✅ CORREÇÃO: Remove a verificação de store_id da sessão
     """
     try:
         store_id = data.get("store_id")
@@ -124,15 +123,12 @@ async def handle_leave_store_room(sio_namespace, sid, data):
             if not session:
                 return {'status': 'error', 'message': 'Sessão inválida.'}
 
-            if session.store_id == store_id:
-                room = f"admin_store_{store_id}"
-                await sio_namespace.leave_room(sid, room)
-                print(f"🚪 [leave_store_room] Admin {sid} saiu da sala: {room}")
-                return {'status': 'success', 'left_room': room}
-            else:
-                print(
-                    f"⚠️ [leave_store_room] Admin {sid} tentou sair da loja {store_id}, mas a loja ativa era {session.store_id}.")
-                return {'status': 'error', 'message': 'Inconsistência de estado da loja.'}
+            # ✅ CORREÇÃO: Remove a verificação problemática
+            # Permite sair de qualquer sala, independentemente do store_id da sessão
+            room = f"admin_store_{store_id}"
+            await sio_namespace.leave_room(sid, room)
+            print(f"🚪 [leave_store_room] Admin {sid} saiu da sala: {room}")
+            return {'status': 'success', 'left_room': room}
 
     except Exception as e:
         print(f"❌ [leave_store_room] Erro ao processar para a loja {data.get('store_id')}: {e}")
