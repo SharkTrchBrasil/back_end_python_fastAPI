@@ -20,12 +20,10 @@ class RevokeAllOthersRequest(BaseModel):
 
 @router.get("/active", response_model=List[SessionOut])
 async def get_active_sessions(
-        db: GetDBDep,
-        current_user: GetCurrentUserDep
+    current_sid: str | None = None,  # ✅ NOVO: Parâmetro opcional
+    db: GetDBDep = Depends(),
+    current_user: GetCurrentUserDep = Depends()
 ):
-    """
-    Retorna todas as sessões ativas do admin autenticado.
-    """
     sessions = db.query(models.StoreSession).filter(
         models.StoreSession.user_id == current_user.id,
         models.StoreSession.client_type == 'admin'
@@ -42,10 +40,11 @@ async def get_active_sessions(
             ip_address=s.ip_address,
             created_at=s.created_at,
             last_activity=s.last_activity,
-            is_current=False  # O Flutter marcará qual é o atual
+            is_current=(s.sid == current_sid)  # ✅ Compara com o SID enviado
         )
         for s in sessions
     ]
+
 
 
 @router.delete("/{session_id}")
