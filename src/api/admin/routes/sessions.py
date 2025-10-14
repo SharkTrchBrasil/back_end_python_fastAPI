@@ -56,7 +56,6 @@ async def revoke_session(
 ):
     """
     Desconecta uma sessão específica pelo ID.
-    Apenas o dono da sessão pode revogá-la.
     """
     session = db.query(models.StoreSession).filter(
         models.StoreSession.id == session_id,
@@ -69,8 +68,22 @@ async def revoke_session(
             detail="Sessão não encontrada ou você não tem permissão para revogá-la"
         )
 
-    # Desconecta via Socket.IO
+    # ✅ NOVO: Envia evento ANTES de desconectar
     try:
+        await sio.emit(
+            'session_revoked',
+            {
+                'reason': 'Sessão encerrada por outro dispositivo',
+                'message': 'Você foi desconectado. Por favor, faça login novamente.'
+            },
+            room=session.sid,
+            namespace='/admin'
+        )
+        print(f"✅ Evento 'session_revoked' enviado para {session.sid}")
+
+        # Aguarda um momento para o evento ser entregue
+        await asyncio.sleep(0.5)
+
         await sio.disconnect(session.sid, namespace='/admin')
         print(f"✅ Sessão {session.sid} desconectada via socket")
     except Exception as e:
@@ -93,7 +106,7 @@ async def revoke_all_other_sessions(
         current_user: GetCurrentUserDep
 ):
     """
-    Desconecta todas as outras sessões do usuário, mantendo apenas a atual.
+    Desconecta todas as outras sessões do usuário.
     """
     current_sid = request.current_sid
 
@@ -106,6 +119,21 @@ async def revoke_all_other_sessions(
     count = 0
     for session in other_sessions:
         try:
+            # ✅ NOVO: Envia evento antes de desconectar cada sessão
+            await sio.emit(
+                'session_revoked',
+                {
+                    'reason': 'Todas as sessões foram encerradas',
+                    'message': 'O administrador desconectou todos os dispositivos.'
+                },
+                room=session.sid,
+                namespace='/admin'
+            )
+            print(f"✅ Evento 'session_revoked' enviado para {session.sid}")
+
+            # Aguarda para o evento ser entregue
+            await asyncio.sleep(0.5)
+
             await sio.disconnect(session.sid, namespace='/admin')
             print(f"✅ Sessão {session.sid} desconectada via socket")
         except Exception as e:
