@@ -10,7 +10,7 @@ from src.core import models
 
 from src.socketio_instance import sio
 
-router = APIRouter(prefix="/admin/sessions", tags=["Sessions"])
+router = APIRouter(prefix="/sessions", tags=["Sessions"])
 
 
 # ✅ Schema para o body do endpoint de revogar todos
