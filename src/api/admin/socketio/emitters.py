@@ -298,8 +298,7 @@ async def admin_emit_order_updated_from_obj(order: models.Order):
         logger.error(f'Erro ao emitir order_updated: {e}')
 
 
-
-async def admin_emit_tables_and_commands(db, store_id: int):
+async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = None):
     """
     Emite a estrutura completa de salões/mesas/comandas + comandas avulsas
     para todos os admins conectados à sala dessa loja.
@@ -370,26 +369,24 @@ async def admin_emit_tables_and_commands(db, store_id: int):
 
         logger.info(
             f"   [DEBUG] 7. Payload final montado com {len(payload['saloons'])} salões e {len(payload['standalone_commands'])} comandas avulsas.")
-        logger.debug(f"   [DEBUG] 8. Payload completo: {payload}")
 
         # ===== 5. EMITE VIA SOCKET =====
         room = f"admin_store_{store_id}"
-        logger.info(f"   [DEBUG] 9. Emitindo evento 'tables_and_commands_updated' para a sala '{room}'...")
+        event_name = "tables_and_commands_updated"
 
-        await sio.emit(
-            "tables_and_commands_updated",
-            payload,
-            room=room,
-            namespace="/admin"
-        )
+        # ✅ CORREÇÃO: Suporta emissão para SID específico ou room
+        if sid:
+            await sio.emit(event_name, payload, namespace='/admin', to=sid)
+            logger.info(f"   [DEBUG] Evento '{event_name}' enviado para SID: {sid}")
+        else:
+            await sio.emit(event_name, payload, namespace='/admin', room=room)
+            logger.info(f"   [DEBUG] Evento '{event_name}' enviado para sala: {room}")
 
         logger.info("--- ✅ [DEBUG END] Função concluída com sucesso. ---")
 
     except Exception as e:
         logger.error(f"❌ Erro ao emitir tables_and_commands: {e}", exc_info=True)
         raise
-
-
 
 
 
