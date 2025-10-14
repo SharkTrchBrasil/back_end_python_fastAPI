@@ -22,10 +22,11 @@ class RevokeAllOthersRequest(BaseModel):
 
 @router.get("/active", response_model=List[SessionOut])
 async def get_active_sessions(
-    current_sid: str | None = None,  # ✅ NOVO: Parâmetro opcional
-    db: GetDBDep = Depends(),
-    current_user: GetCurrentUserDep = Depends()
-):
+    current_sid: str,
+    db: GetDBDep,
+    current_user: GetCurrentUserDep
+    ):
+
     sessions = db.query(models.StoreSession).filter(
         models.StoreSession.user_id == current_user.id,
         models.StoreSession.client_type == 'admin'
