@@ -1,67 +1,421 @@
-# em services/table_service.py
-from sqlalchemy.orm import Session
+# src/api/services/table_service.py
+from datetime import datetime, timezone
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.exc import IntegrityError
 
-from src.api.schemas.store.table import AddItemToCommandSchema
+from src.api.schemas.tables.table import CreateSaloonRequest, OpenTableRequest, CreateTableRequest, \
+    AddItemToTableRequest, UpdateTableRequest, UpdateSaloonRequest
 from src.core import models
-from src.core.database import GetDBDep
+from src.core.utils.enums import TableStatus, CommandStatus, OrderStatus
 
 
 class TableService:
-    def __init__(self, db: GetDBDep):
+    """Service para gerenciar mesas, comandas e pedidos de salão"""
+
+    def __init__(self, db: Session):
         self.db = db
 
-    def add_item_to_table(self, table_id: int, item_data: AddItemToCommandSchema):
-        # 1. Encontrar a mesa
-        table = self.db.query(models.Table).filter(models.Table.id == table_id).first()
-        if not table:
-            raise Exception("Mesa não encontrada")
+    # ========== GERENCIAMENTO DE SALÕES ==========
 
-        # 2. Encontrar ou criar uma comanda ativa para a mesa
-        # (Lógica simplificada: pega a primeira comanda ativa)
+    def create_saloon(self, store_id: int, request: CreateSaloonRequest) -> models.Saloon:
+        """Cria um novo salão/ambiente"""
+        saloon = models.Saloon(
+            store_id=store_id,
+            name=request.name,
+            display_order=request.display_order,
+            is_active=True,
+        )
+        self.db.add(saloon)
+
+        try:
+            self.db.commit()
+            self.db.refresh(saloon)
+            return saloon
+        except IntegrityError:
+            self.db.rollback()
+            raise ValueError(f"Já existe um salão com o nome '{request.name}' nesta loja.")
+
+    def update_saloon(self, saloon_id: int, store_id: int, request: UpdateSaloonRequest) -> models.Saloon:
+        """Atualiza um salão existente"""
+        saloon = self.db.query(models.Saloon).filter(
+            models.Saloon.id == saloon_id,
+            models.Saloon.store_id == store_id
+        ).first()
+
+        if not saloon:
+            raise ValueError("Salão não encontrado")
+
+        if request.name is not None:
+            saloon.name = request.name
+        if request.display_order is not None:
+            saloon.display_order = request.display_order
+        if request.is_active is not None:
+            saloon.is_active = request.is_active
+
+        self.db.commit()
+        self.db.refresh(saloon)
+        return saloon
+
+    def delete_saloon(self, saloon_id: int, store_id: int) -> bool:
+        """Deleta um salão (soft delete)"""
+        saloon = self.db.query(models.Saloon).filter(
+            models.Saloon.id == saloon_id,
+            models.Saloon.store_id == store_id
+        ).first()
+
+        if not saloon:
+            raise ValueError("Salão não encontrado")
+
+        # Verifica se há mesas ativas
+        active_tables = self.db.query(models.Tables).filter(
+            models.Tables.saloon_id == saloon_id,
+            models.Tables.status != TableStatus.AVAILABLE
+        ).count()
+
+        if active_tables > 0:
+            raise ValueError("Não é possível deletar um salão com mesas ocupadas ou reservadas")
+
+        saloon.is_active = False
+        self.db.commit()
+        return True
+
+    # ========== GERENCIAMENTO DE MESAS ==========
+
+    def create_table(self, store_id: int, request: CreateTableRequest) -> models.Tables:
+        """Cria uma nova mesa"""
+        # Valida se o salão existe e pertence à loja
+        saloon = self.db.query(models.Saloon).filter(
+            models.Saloon.id == request.saloon_id,
+            models.Saloon.store_id == store_id
+        ).first()
+
+        if not saloon:
+            raise ValueError("Salão não encontrado")
+
+        table = models.Tables(
+            store_id=store_id,
+            saloon_id=request.saloon_id,
+            name=request.name,
+            max_capacity=request.max_capacity,
+            location_description=request.location_description,
+            status=TableStatus.AVAILABLE,
+            current_capacity=0,
+            opened_at=datetime.now(timezone.utc),
+        )
+
+        self.db.add(table)
+
+        try:
+            self.db.commit()
+            self.db.refresh(table)
+            return table
+        except IntegrityError:
+            self.db.rollback()
+            raise ValueError(f"Já existe uma mesa com o nome '{request.name}' neste salão.")
+
+    def update_table(self, table_id: int, store_id: int, request: UpdateTableRequest) -> models.Tables:
+        """Atualiza informações de uma mesa"""
+        table = self.db.query(models.Tables).filter(
+            models.Tables.id == table_id,
+            models.Tables.store_id == store_id
+        ).first()
+
+        if not table:
+            raise ValueError("Mesa não encontrada")
+
+        if request.name is not None:
+            table.name = request.name
+        if request.max_capacity is not None:
+            table.max_capacity = request.max_capacity
+        if request.location_description is not None:
+            table.location_description = request.location_description
+        if request.status is not None:
+            table.status = TableStatus(request.status)
+
+        self.db.commit()
+        self.db.refresh(table)
+        return table
+
+    def delete_table(self, table_id: int, store_id: int) -> bool:
+        """Deleta uma mesa (soft delete)"""
+        table = self.db.query(models.Tables).filter(
+            models.Tables.id == table_id,
+            models.Tables.store_id == store_id
+        ).first()
+
+        if not table:
+            raise ValueError("Mesa não encontrada")
+
+        if table.status != TableStatus.AVAILABLE:
+            raise ValueError("Não é possível deletar uma mesa ocupada ou reservada")
+
+        table.is_deleted = True
+        table.deleted_at = datetime.now(timezone.utc)
+        self.db.commit()
+        return True
+
+    # ========== ABERTURA E FECHAMENTO DE MESAS ==========
+
+    def open_table(self, store_id: int, request: OpenTableRequest) -> models.Command:
+        """Abre uma mesa criando uma comanda ativa"""
+        table = self.db.query(models.Tables).filter(
+            models.Tables.id == request.table_id,
+            models.Tables.store_id == store_id
+        ).first()
+
+        if not table:
+            raise ValueError("Mesa não encontrada")
+
+        if table.status != TableStatus.AVAILABLE:
+            raise ValueError("Esta mesa já está ocupada ou reservada")
+
+        # Cria a comanda
+        command = models.Command(
+            store_id=store_id,
+            table_id=request.table_id,
+            customer_name=request.customer_name,
+            customer_contact=request.customer_contact,
+            attendant_id=request.attendant_id,
+            notes=request.notes,
+            status=CommandStatus.ACTIVE,
+        )
+        self.db.add(command)
+
+        # Atualiza o status da mesa
+        table.status = TableStatus.OCCUPIED
+        table.opened_at = datetime.now(timezone.utc)
+
+        self.db.commit()
+        self.db.refresh(command)
+
+        # Carrega os relacionamentos necessários para o socket
+        self.db.refresh(table)
+        table = self.db.query(models.Tables).options(
+            selectinload(models.Tables.commands)
+        ).filter(models.Tables.id == table.id).first()
+
+        return command
+
+    def close_table(self, store_id: int, table_id: int, command_id: int) -> models.Tables:
+        """Fecha uma mesa e sua comanda"""
+        table = self.db.query(models.Tables).filter(
+            models.Tables.id == table_id,
+            models.Tables.store_id == store_id
+        ).first()
+
+        if not table:
+            raise ValueError("Mesa não encontrada")
+
         command = self.db.query(models.Command).filter(
+            models.Command.id == command_id,
             models.Command.table_id == table_id,
-            models.Command.status == 'ACTIVE'
+            models.Command.store_id == store_id
         ).first()
 
         if not command:
-            # Se não houver comanda, cria uma nova
-            command = models.Command(store_id=table.store_id, table_id=table.id, status='ACTIVE')
-            self.db.add(command)
-            self.db.flush()  # Para pegar o ID da nova comanda
+            raise ValueError("Comanda não encontrada")
 
-        # 3. Encontrar o produto para pegar o preço e nome
-        product = self.db.query(models.Product).filter(models.Product.id == item_data.product_id).first()
-        if not product:
-            raise Exception("Produto não encontrado")
+        # Fecha a comanda
+        command.status = CommandStatus.CLOSED
 
-        # 4. Criar o pedido (Order) associado à comanda
-        new_order = models.Order(
-            store_id=table.store_id,
-            command_id=command.id,
-            table_id=table.id,
-            # ... preencha outros campos do Order, como total_price, etc.
-            # Este é um ponto crucial: você precisa calcular o preço total aqui
-        )
-
-        # 5. Criar o item do pedido (OrderProduct)
-        order_product = models.OrderProduct(
-            order=new_order,
-            product_id=product.id,
-            name=product.name,
-            price=product.price,  # Assumindo que o preço está no produto
-            quantity=item_data.quantity,
-            note=item_data.notes
-            # ... associar variantes aqui
-        )
-
-        self.db.add(new_order)
-        self.db.add(order_product)
-
-        # 6. Atualizar o status da mesa se necessário
-        if table.status == 'AVAILABLE':
-            table.status = 'OCCUPIED'
+        # Libera a mesa
+        table.status = TableStatus.AVAILABLE
+        table.current_capacity = 0
+        table.closed_at = datetime.now(timezone.utc)
 
         self.db.commit()
-        # Aqui, você retornaria o estado atualizado da mesa ou emitiria o evento WebSocket
-
+        self.db.refresh(table)
         return table
+
+    # ========== ADICIONAR/REMOVER ITENS ==========
+
+    def add_item_to_table(self, store_id: int, request: AddItemToTableRequest) -> models.Order:
+        """Adiciona um item ao pedido de uma mesa"""
+
+        # 1. Valida a mesa
+        table = self.db.query(models.Tables).filter(
+            models.Tables.id == request.table_id,
+            models.Tables.store_id == store_id
+        ).first()
+
+        if not table:
+            raise ValueError("Mesa não encontrada")
+
+        # 2. Valida a comanda
+        command = self.db.query(models.Command).filter(
+            models.Command.id == request.command_id,
+            models.Command.table_id == request.table_id,
+            models.Command.status == CommandStatus.ACTIVE
+        ).first()
+
+        if not command:
+            raise ValueError("Comanda não encontrada ou inativa")
+
+        # 3. Busca o produto
+        product = self.db.query(models.Product).filter(
+            models.Product.id == request.product_id,
+            models.Product.store_id == store_id
+        ).first()
+
+        if not product:
+            raise ValueError("Produto não encontrado")
+
+        # 4. Busca o link de preço do produto na categoria
+        product_link = self.db.query(models.ProductCategoryLink).filter(
+            models.ProductCategoryLink.product_id == request.product_id,
+            models.ProductCategoryLink.category_id == request.category_id
+        ).first()
+
+        if not product_link:
+            raise ValueError("Produto não encontrado nesta categoria")
+
+        # 5. Calcula o preço base
+        base_price = product_link.promotional_price if product_link.is_on_promotion else product_link.price
+
+        # 6. Cria o pedido (Order)
+        order = models.Order(
+            store_id=store_id,
+            table_id=request.table_id,
+            command_id=request.command_id,
+            sequential_id=self._get_next_sequential_id(store_id),
+            public_id=self._generate_public_id(store_id),
+            order_type="table",
+            delivery_type="in_store",
+            order_status=OrderStatus.PENDING,  # ✅ Usa o Enum
+            payment_status="pending",
+            consumption_type="dine_in",  # ✅ ADICIONE este campo
+            total_price=0,
+            subtotal_price=0,
+            discounted_total_price=0,
+            delivery_fee=0,  # ✅ ADICIONE este campo
+            street="",
+            neighborhood="",
+            city="",
+            customer_name=None,  # ✅ Pega da comanda depois se precisar
+            customer_phone=None,
+        )
+
+        self.db.add(order)
+        self.db.flush()
+
+        # 7. Cria o item do pedido (OrderProduct)
+        order_product = models.OrderProduct(
+            order_id=order.id,
+            store_id=store_id,
+            product_id=request.product_id,
+            category_id=request.category_id,
+            name=product.name,
+            price=base_price,
+            original_price=base_price,
+            quantity=request.quantity,
+            note=request.note or "",
+        )
+        self.db.add(order_product)
+        self.db.flush()
+
+        # 8. Processa as variantes
+        total_variants_price = 0
+        for variant_data in request.variants:
+            order_variant = models.OrderVariant(
+                order_product_id=order_product.id,
+                variant_id=variant_data.variant_id,
+                store_id=store_id,
+                name="",  # Será preenchido depois
+            )
+            self.db.add(order_variant)
+            self.db.flush()
+
+            for option_data in variant_data.options:
+                variant_option = self.db.query(models.VariantOption).filter(
+                    models.VariantOption.id == option_data.variant_option_id
+                ).first()
+
+                if variant_option:
+                    order_variant_option = models.OrderVariantOption(
+                        order_variant_id=order_variant.id,
+                        variant_option_id=option_data.variant_option_id,
+                        store_id=store_id,
+                        name=variant_option.resolved_name,
+                        price=variant_option.resolved_price,
+                        quantity=option_data.quantity,
+                    )
+                    self.db.add(order_variant_option)
+                    total_variants_price += variant_option.resolved_price * option_data.quantity
+
+        # 9. Calcula o total do pedido
+        item_total = (base_price * request.quantity) + total_variants_price
+        order.total_price = item_total
+        order.subtotal_price = item_total
+        order.discounted_total_price = item_total
+
+        self.db.commit()
+        self.db.refresh(order)
+        return order
+
+    def remove_item_from_table(self, store_id: int, order_product_id: int, command_id: int) -> bool:
+        """Remove um item do pedido de uma mesa"""
+        order_product = self.db.query(models.OrderProduct).filter(
+            models.OrderProduct.id == order_product_id,
+            models.OrderProduct.store_id == store_id
+        ).first()
+
+        if not order_product:
+            raise ValueError("Item não encontrado")
+
+        # Valida se o item pertence a um pedido da comanda
+        order = self.db.query(models.Order).filter(
+            models.Order.id == order_product.order_id,
+            models.Order.command_id == command_id
+        ).first()
+
+        if not order:
+            raise ValueError("Item não pertence a esta comanda")
+
+        # Remove o item
+        self.db.delete(order_product)
+
+        # Recalcula o total do pedido
+        remaining_items = self.db.query(models.OrderProduct).filter(
+            models.OrderProduct.order_id == order.id
+        ).all()
+
+        if not remaining_items:
+            # Se não há mais itens, cancela o pedido
+            order.order_status = OrderStatus.CANCELLED
+        else:
+            # Recalcula o total
+            new_total = sum(item.price * item.quantity for item in remaining_items)
+            order.total_price = new_total
+            order.subtotal_price = new_total
+            order.discounted_total_price = new_total
+
+        self.db.commit()
+        return True
+
+    # ========== MÉTODOS AUXILIARES ==========
+
+    def _get_next_sequential_id(self, store_id: int) -> int:
+        """Gera o próximo ID sequencial para pedidos da loja"""
+        last_order = self.db.query(models.Order).filter(
+            models.Order.store_id == store_id
+        ).order_by(models.Order.sequential_id.desc()).first()
+
+        return (last_order.sequential_id + 1) if last_order else 1
+
+    def _generate_public_id(self, store_id: int) -> str:
+        """Gera um ID público único para o pedido"""
+        from datetime import datetime
+        import random
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        random_suffix = random.randint(1000, 9999)
+        return f"{store_id}{timestamp}{random_suffix}"
+
+    def get_table_with_details(self, table_id: int, store_id: int) -> models.Tables:
+        """Busca uma mesa com todos os relacionamentos carregados"""
+        return self.db.query(models.Tables).options(
+            selectinload(models.Tables.commands),
+            selectinload(models.Tables.orders)
+        ).filter(
+            models.Tables.id == table_id,
+            models.Tables.store_id == store_id
+        ).first()

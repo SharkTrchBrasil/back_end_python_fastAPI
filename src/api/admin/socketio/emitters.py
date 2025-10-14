@@ -26,7 +26,7 @@ from src.api.schemas.store.store_payable import PayableResponse
 from src.api.schemas.financial.supplier import SupplierResponse
 from src.api.schemas.store.store_with_role import StoreWithRole
 
-from src.api.schemas.store.table import TableOut, SaloonOut
+from src.api.schemas.tables.table import TableOut, SaloonOut
 from src.api.admin.services.customer_analytic_service import get_customer_analytics_for_store
 from src.api.admin.services.dashboard_service import get_dashboard_data_for_period
 from src.api.admin.services.product_analytic_services import get_product_analytics_for_store

@@ -1,222 +1,266 @@
-import uuid
-from datetime import datetime, timezone
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session, joinedload
+# src/api/routes/admin/table.py
+from fastapi import APIRouter, HTTPException, status
 
-from src.core import models
+from src.api.admin.services.table_service import TableService
+from src.api.schemas.tables.table import SaloonOut, CreateSaloonRequest, UpdateSaloonRequest, TableOut, \
+    CreateTableRequest, UpdateTableRequest, OpenTableRequest, CloseTableRequest, AddItemToTableRequest, \
+    RemoveItemFromTableRequest
+
 from src.core.database import GetDBDep
-from src.core.dependencies import GetStoreDep, GetCurrentUserDep
-from src.api.schemas.store import table as table_schemas
-from src.core.utils.enums import Roles, TableStatus, CommandStatus, OrderStatus
+from src.core.dependencies import GetStoreDep
 
-router = APIRouter(prefix="/tables", tags=["Tables"])
+router = APIRouter(tags=["Tables"], prefix="/stores/{store_id}/tables")
 
 
-# --- Endpoints para Salões (Saloons) ---
+# ========== ROTAS DE SALÕES ==========
 
-@router.post("/saloons", response_model=table_schemas.SaloonOut, status_code=status.HTTP_201_CREATED)
-def create_saloon(
-    store: GetStoreDep,
-    saloon_data: table_schemas.SaloonCreate,
+@router.post("/saloons", response_model=SaloonOut, status_code=status.HTTP_201_CREATED)
+async def create_saloon(
+    request: CreateSaloonRequest,
     db: GetDBDep,
-    user: GetCurrentUserDep, # Garante autenticação
-):
-    """Cria um novo salão (ambiente) para a loja."""
-    db_saloon = models.Saloon(**saloon_data.model_dump(), store_id=store.id)
-    db.add(db_saloon)
-    db.commit()
-    db.refresh(db_saloon)
-    # TODO: Emitir evento WebSocket para atualizar a UI em tempo real
-    return db_saloon
-
-@router.get("/saloons", response_model=List[table_schemas.SaloonOut])
-def list_saloons(
     store: GetStoreDep,
-    db: GetDBDep,
 ):
-    """Lista todos os salões e suas respectivas mesas para a loja."""
-    saloons = db.query(models.Saloon).filter(models.Saloon.store_id == store.id)\
-        .options(joinedload(models.Saloon.tables).joinedload(models.Tables.commands))\
-        .order_by(models.Saloon.display_order)\
-        .all()
-    return saloons
+    """Cria um novo salão/ambiente"""
+    service = TableService(db)
 
-@router.put("/saloons/{saloon_id}", response_model=table_schemas.SaloonOut)
-def update_saloon(
+    try:
+        saloon = service.create_saloon(store.id, request)
+
+        # Emite evento via socket
+        from src.api.admin.socketio import emitters
+        import asyncio
+        asyncio.create_task(
+            emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
+        )
+
+        return saloon
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch("/saloons/{saloon_id}", response_model=SaloonOut)
+async def update_saloon(
     saloon_id: int,
-    saloon_data: table_schemas.SaloonUpdate,
-    store: GetStoreDep,
+    request: UpdateSaloonRequest,
     db: GetDBDep,
+    store: GetStoreDep,
 ):
-    """Atualiza os dados de um salão."""
-    db_saloon = db.query(models.Saloon).filter(models.Saloon.id == saloon_id, models.Saloon.store_id == store.id).first()
-    if not db_saloon:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Salão não encontrado.")
+    """Atualiza um salão existente"""
+    service = TableService(db)
 
-    update_data = saloon_data.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(db_saloon, key, value)
+    try:
+        saloon = service.update_saloon(saloon_id, store.id, request)
 
-    db.commit()
-    db.refresh(db_saloon)
-    # TODO: Emitir evento WebSocket
-    return db_saloon
+        # Emite evento via socket
+        from src.api.admin.socketio import emitters
+        import asyncio
+        asyncio.create_task(
+            emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
+        )
+
+        return saloon
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
 
 @router.delete("/saloons/{saloon_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_saloon(saloon_id: int, store: GetStoreDep, db: GetDBDep):
-    """Deleta um salão e todas as suas mesas associadas (cascade)."""
-    db_saloon = db.query(models.Saloon).filter(models.Saloon.id == saloon_id, models.Saloon.store_id == store.id).first()
-    if not db_saloon:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Salão não encontrado.")
-
-    db.delete(db_saloon)
-    db.commit()
-    # TODO: Emitir evento WebSocket
-    return None
-
-# --- Endpoints para Mesas (Tables) ---
-
-@router.post("/tables", response_model=table_schemas.TableOut, status_code=status.HTTP_201_CREATED)
-def create_table(
-    store: GetStoreDep,
-    table_data: table_schemas.TableCreate,
+async def delete_saloon(
+    saloon_id: int,
     db: GetDBDep,
+    store: GetStoreDep,
 ):
-    """Cria uma nova mesa em um salão específico."""
-    # Valida se o salão pertence à loja
-    saloon = db.query(models.Saloon).filter(models.Saloon.id == table_data.saloon_id, models.Saloon.store_id == store.id).first()
-    if not saloon:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Salão inválido.")
+    """Deleta um salão"""
+    service = TableService(db)
 
-    db_table = models.Tables(**table_data.model_dump(), store_id=store.id)
-    db.add(db_table)
-    db.commit()
-    db.refresh(db_table)
-    # TODO: Emitir evento WebSocket
-    return db_table
+    try:
+        service.delete_saloon(saloon_id, store.id)
 
-@router.put("/tables/{table_id}", response_model=table_schemas.TableOut)
-def update_table(
+        # Emite evento via socket
+        from src.api.admin.socketio import emitters
+        import asyncio
+        asyncio.create_task(
+            emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
+        )
+
+        return None
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ========== ROTAS DE MESAS ==========
+
+@router.post("", response_model=TableOut, status_code=status.HTTP_201_CREATED)
+async def create_table(
+    request: CreateTableRequest,
+    db: GetDBDep,
+    store: GetStoreDep,
+):
+    """Cria uma nova mesa"""
+    service = TableService(db)
+
+    try:
+        table = service.create_table(store.id, request)
+
+        # Emite evento via socket
+        from src.api.admin.socketio import emitters
+        import asyncio
+        asyncio.create_task(
+            emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
+        )
+
+        return table
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch("/{table_id}", response_model=TableOut)
+async def update_table(
     table_id: int,
-    table_data: table_schemas.TableUpdate,
-    store: GetStoreDep,
+    request: UpdateTableRequest,
     db: GetDBDep,
+    store: GetStoreDep,
 ):
-    """Atualiza os dados de uma mesa."""
-    db_table = db.query(models.Tables).filter(models.Tables.id == table_id, models.Tables.store_id == store.id).first()
-    if not db_table:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mesa não encontrada.")
+    """Atualiza informações de uma mesa"""
+    service = TableService(db)
 
-    update_data = table_data.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(db_table, key, value)
+    try:
+        table = service.update_table(table_id, store.id, request)
 
-    db.commit()
-    db.refresh(db_table)
-    # TODO: Emitir evento WebSocket
-    return db_table
+        # Emite evento via socket
+        from src.api.admin.socketio import emitters
+        import asyncio
+        asyncio.create_task(
+            emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
+        )
 
-@router.delete("/tables/{table_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_table(table_id: int, store: GetStoreDep, db: GetDBDep):
-    """Deleta uma mesa."""
-    db_table = db.query(models.Tables).filter(models.Tables.id == table_id, models.Tables.store_id == store.id).first()
-    if not db_table:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mesa não encontrada.")
+        return table
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
-    # Soft delete ou hard delete? Por enquanto, hard delete.
-    db.delete(db_table)
-    db.commit()
-    # TODO: Emitir evento WebSocket
-    return None
 
-# --- Endpoint para Lançar Itens ---
-
-@router.post("/tables/{table_id}/add-item", response_model=table_schemas.TableOut)
-def add_item_to_table(
+@router.delete("/{table_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_table(
     table_id: int,
-    item_data: table_schemas.AddItemToCommandSchema,
-    store: GetStoreDep,
     db: GetDBDep,
+    store: GetStoreDep,
 ):
-    """
-    Adiciona um item a uma mesa. Cria uma comanda se não existir uma ativa.
-    Esta é uma versão profissional e robusta da sua `TableService`.
-    """
-    # 1. Encontrar a mesa e carregar o relacionamento com as comandas
-    table = db.query(models.Tables).options(joinedload(models.Tables.commands))\
-        .filter(models.Tables.id == table_id, models.Tables.store_id == store.id).first()
-    if not table:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mesa não encontrada")
+    """Deleta uma mesa"""
+    service = TableService(db)
 
-    # 2. Encontrar ou criar uma comanda ativa para a mesa
-    command = next((c for c in table.commands if c.status == CommandStatus.ACTIVE), None)
+    try:
+        service.delete_table(table_id, store.id)
 
-    if not command:
-        command = models.Command(store_id=store.id, table_id=table.id, status=CommandStatus.ACTIVE)
-        db.add(command)
-        db.flush()
+        # Emite evento via socket
+        from src.api.admin.socketio import emitters
+        import asyncio
+        asyncio.create_task(
+            emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
+        )
 
-    # 3. Encontrar o produto e validar
-    # Usamos a tabela de link para pegar o preço correto para a categoria do produto!
-    product_link = db.query(models.ProductCategoryLink)\
-        .options(joinedload(models.ProductCategoryLink.product))\
-        .filter(models.ProductCategoryLink.product_id == item_data.product_id)\
-        .first() # Simplificação: pega o primeiro link encontrado. O ideal seria passar a category_id.
+        return None
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    if not product_link or not product_link.product:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Produto não encontrado ou não está em nenhuma categoria.")
 
-    product = product_link.product
-    price = product_link.price # Preço em centavos
+# ========== ROTAS DE ABERTURA/FECHAMENTO ==========
 
-    # 4. Criar o pedido (Order) associado à comanda
-    # Nota: Este pedido é "virtual" até o fechamento da conta.
-    total_price = price * item_data.quantity
-    new_order = models.Order(
-        store_id=store.id,
-        command_id=command.id,
-        table_id=table.id,
-        order_type="in_store",
-        delivery_type="mesa",
-        order_status=OrderStatus.PREPARING, # Já entra em preparação
-        payment_status="pending",
-        total_price=total_price,
-        subtotal_price=total_price,
-        discounted_total_price=total_price,
-        # Preencha campos desnormalizados para evitar joins complexos depois
-        street=store.street,
-        neighborhood=store.neighborhood,
-        city=store.city,
-        sequential_id=0, # Gerar depois
-        public_id=str(uuid.uuid4()) # Gerar um ID público
-    )
-    db.add(new_order)
-    db.flush()
+@router.post("/open", status_code=status.HTTP_200_OK)
+async def open_table(
+    request: OpenTableRequest,
+    db: GetDBDep,
+    store: GetStoreDep,
+):
+    """Abre uma mesa criando uma comanda"""
+    service = TableService(db)
 
-    # 5. Criar o item do pedido (OrderProduct)
-    order_product = models.OrderProduct(
-        order_id=new_order.id,
-        store_id=store.id,
-        product_id=product.id,
-        category_id=product_link.category_id,
-        name=product.name,
-        price=price,
-        original_price=price,
-        quantity=item_data.quantity,
-        note=item_data.notes or ""
-    )
-    db.add(order_product)
+    try:
+        command = service.open_table(store.id, request)
 
-    # 6. Atualizar o status da mesa e comanda
-    if table.status == TableStatus.AVAILABLE:
-        table.status = TableStatus.OCCUPIED
-        table.opened_at = datetime.now(timezone.utc)
+        # Emite evento via socket
+        from src.api.admin.socketio import emitters
+        import asyncio
+        asyncio.create_task(
+            emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
+        )
 
-    db.commit()
-    db.refresh(table)
+        return {"message": "Mesa aberta com sucesso", "command_id": command.id}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    # TODO: Emitir evento WebSocket para atualizar a mesa na UI de todos os clients
-    # Ex: `emit_table_updated(store.id, table_id, table_schema.dump(table))`
 
-    return  #tabletus_code=400, detail=str(e))
+@router.post("/close", status_code=status.HTTP_200_OK)
+async def close_table(
+    request: CloseTableRequest,
+    db: GetDBDep,
+    store: GetStoreDep,
+):
+    """Fecha uma mesa e sua comanda"""
+    service = TableService(db)
+
+    try:
+        table = service.close_table(store.id, request.table_id, request.command_id)
+
+        # Emite evento via socket
+        from src.api.admin.socketio import emitters
+        import asyncio
+        asyncio.create_task(
+            emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
+        )
+
+        return {"message": "Mesa fechada com sucesso"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ========== ROTAS DE ITENS ==========
+
+@router.post("/add-item", status_code=status.HTTP_201_CREATED)
+async def add_item_to_table(
+    request: AddItemToTableRequest,
+    db: GetDBDep,
+    store: GetStoreDep,
+):
+    """Adiciona um item ao pedido de uma mesa"""
+    service = TableService(db)
+
+    try:
+        order = service.add_item_to_table(store.id, request)
+
+        # Emite evento via socket para atualizar a mesa
+        from src.api.admin.socketio import emitters
+        import asyncio
+        asyncio.create_task(
+            emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
+        )
+
+        return {
+            "message": "Item adicionado com sucesso",
+            "order_id": order.id,
+            "total": order.total_price
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/remove-item", status_code=status.HTTP_200_OK)
+async def remove_item_from_table(
+    request: RemoveItemFromTableRequest,
+    db: GetDBDep,
+    store: GetStoreDep,
+):
+    """Remove um item do pedido de uma mesa"""
+    service = TableService(db)
+
+    try:
+        service.remove_item_from_table(store.id, request.order_product_id, request.command_id)
+
+        # Emite evento via socket
+        from src.api.admin.socketio import emitters
+        import asyncio
+        asyncio.create_task(
+            emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
+        )
+
+        return {"message": "Item removido com sucesso"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
