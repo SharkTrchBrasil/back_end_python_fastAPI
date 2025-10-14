@@ -303,13 +303,10 @@ async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = No
     Emite a estrutura completa de salões/mesas/comandas + comandas avulsas
     para todos os admins conectados à sala dessa loja.
     """
-
     logger.info(f"--- 🚀 [DEBUG START] admin_emit_tables_and_commands para store_id={store_id} ---")
 
     try:
         # ===== 1. BUSCA SALÕES COM MESAS E COMANDAS =====
-        logger.info("   [DEBUG] 1. Construindo a query do SQLAlchemy para SALÕES...")
-
         saloons = db.query(models.Saloon).filter(
             models.Saloon.store_id == store_id
         ).options(
@@ -318,23 +315,10 @@ async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = No
             models.Saloon.display_order
         ).all()
 
-        logger.info(f"   [DEBUG] 2. Resultado bruto do banco: {len(saloons)} salões encontrados.")
-
-        # Debug das comandas nas mesas
-        for saloon in saloons:
-            logger.info(f"     - Salão ID {saloon.id} ('{saloon.name}'):")
-            logger.info(f"       - Contém {len(saloon.tables)} mesas.")
-            for table in saloon.tables:
-                active_commands = [c for c in table.commands if c.status == CommandStatus.ACTIVE]
-                logger.info(
-                    f"         - Mesa ID {table.id} ('{table.name}'): Contém {len(active_commands)} comandas ativas.")
-
         # ===== 2. BUSCA COMANDAS AVULSAS (SEM MESA) =====
-        logger.info("   [DEBUG] 3. Buscando comandas AVULSAS (sem mesa)...")
-
         standalone_commands = db.query(models.Command).filter(
             models.Command.store_id == store_id,
-            models.Command.table_id.is_(None),  # ✅ SEM MESA
+            models.Command.table_id.is_(None),
             models.Command.status == CommandStatus.ACTIVE,
         ).options(
             selectinload(models.Command.orders).selectinload(models.Order.products)
@@ -342,54 +326,40 @@ async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = No
             models.Command.created_at.desc()
         ).all()
 
-        logger.info(f"   [DEBUG] 4. Encontradas {len(standalone_commands)} comandas avulsas.")
-        for cmd in standalone_commands:
-            logger.info(
-                f"         - Comanda ID {cmd.id} ('{cmd.customer_name or 'Sem nome'}') - Criada em {cmd.created_at}")
+        logger.info(f"   [DEBUG] Encontradas {len(standalone_commands)} comandas avulsas.")
 
         # ===== 3. SERIALIZA OS DADOS =====
-        logger.info("   [DEBUG] 5. Serializando os dados com Pydantic...")
+        # ✅ CORREÇÃO: Serializa para JSON IMEDIATAMENTE
+        saloons_data = [SaloonOut.model_validate(s).model_dump(mode='json') for s in saloons]
 
-        saloons_data = [SaloonOut.model_validate(s) for s in saloons]
-
-        # ✅ Serializa comandas avulsas com totais calculados
         standalone_commands_data = [
-            CommandOut.from_orm_with_totals(cmd) for cmd in standalone_commands
+            CommandOut.from_orm_with_totals(cmd).model_dump(mode='json')
+            for cmd in standalone_commands
         ]
 
         logger.info(
-            f"   [DEBUG] 6. Dados serializados: {len(saloons_data)} salões e {len(standalone_commands_data)} comandas avulsas.")
+            f"   [DEBUG] Dados serializados: {len(saloons_data)} salões e {len(standalone_commands_data)} comandas.")
 
         # ===== 4. MONTA O PAYLOAD FINAL =====
         payload = {
             "store_id": store_id,
-            "saloons": [s.model_dump() for s in saloons_data],
-            "standalone_commands": [c.model_dump() for c in standalone_commands_data],  # ✅ NOVO
+            "saloons": saloons_data,  # ✅ Já é dict com strings
+            "standalone_commands": standalone_commands_data,  # ✅ Já é dict com strings
         }
 
-        logger.info(
-            f"   [DEBUG] 7. Payload final montado com {len(payload['saloons'])} salões e {len(payload['standalone_commands'])} comandas avulsas.")
-
         # ===== 5. EMITE VIA SOCKET =====
-        room = f"admin_store_{store_id}"
         event_name = "tables_and_commands_updated"
 
-        # ✅ CORREÇÃO: Suporta emissão para SID específico ou room
         if sid:
             await sio.emit(event_name, payload, namespace='/admin', to=sid)
-            logger.info(f"   [DEBUG] Evento '{event_name}' enviado para SID: {sid}")
         else:
-            await sio.emit(event_name, payload, namespace='/admin', room=room)
-            logger.info(f"   [DEBUG] Evento '{event_name}' enviado para sala: {room}")
+            await sio.emit(event_name, payload, namespace='/admin', room=f"admin_store_{store_id}")
 
         logger.info("--- ✅ [DEBUG END] Função concluída com sucesso. ---")
 
     except Exception as e:
         logger.error(f"❌ Erro ao emitir tables_and_commands: {e}", exc_info=True)
         raise
-
-
-
 
 
 
