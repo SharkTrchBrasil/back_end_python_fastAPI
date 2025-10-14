@@ -53,6 +53,8 @@ class CommandOut(BaseModel):
     class Config:
         from_attributes = True
 
+
+
     @classmethod
     def from_orm_with_totals(cls, command):
         """Factory method para criar CommandOut com cálculos"""
@@ -69,6 +71,7 @@ class CommandOut(BaseModel):
         # Status como string
         status_str = command.status.value if hasattr(command.status, 'value') else str(command.status)
 
+
         return cls(
             id=command.id,
             store_id=command.store_id,
@@ -78,13 +81,11 @@ class CommandOut(BaseModel):
             status=status_str,
             attendant_id=command.attendant_id,
             notes=command.notes,
-            created_at=command.created_at,
-            updated_at=command.updated_at,
+            created_at=command.created_at.isoformat() if command.created_at else None,  # ✅ CONVERSÃO
+            updated_at=command.updated_at.isoformat() if command.updated_at else None,  # ✅ CONVERSÃO
             table_name=table_name,
             total_amount=total,
         )
-
-
 
 
 class TableBase(BaseModel):
