@@ -100,11 +100,14 @@ class UpdateTableRequest(BaseModel):
 
 class OpenTableRequest(BaseModel):
     """Schema para abrir uma mesa (criar comanda)"""
-    table_id: int = Field(..., gt=0)
+    table_id: Optional[int] = Field(None, gt=0, description="ID da mesa (opcional para comandas avulsas)")  # ✅ MUDOU
     customer_name: Optional[str] = Field(None, max_length=100, description="Nome do cliente")
     customer_contact: Optional[str] = Field(None, max_length=50, description="Telefone/contato do cliente")
     attendant_id: Optional[int] = Field(None, description="ID do atendente que abriu a mesa")
     notes: Optional[str] = Field(None, max_length=500, description="Observações iniciais")
+
+
+
 
 
 class CloseTableRequest(BaseModel):

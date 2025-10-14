@@ -156,23 +156,28 @@ class TableService:
 
     # ========== ABERTURA E FECHAMENTO DE MESAS ==========
 
+
     def open_table(self, store_id: int, request: OpenTableRequest) -> models.Command:
         """Abre uma mesa criando uma comanda ativa"""
-        table = self.db.query(models.Tables).filter(
-            models.Tables.id == request.table_id,
-            models.Tables.store_id == store_id
-        ).first()
 
-        if not table:
-            raise ValueError("Mesa não encontrada")
+        # ✅ VALIDAÇÃO ATUALIZADA: table_id é opcional
+        table = None
+        if request.table_id is not None:
+            table = self.db.query(models.Tables).filter(
+                models.Tables.id == request.table_id,
+                models.Tables.store_id == store_id
+            ).first()
 
-        if table.status != TableStatus.AVAILABLE:
-            raise ValueError("Esta mesa já está ocupada ou reservada")
+            if not table:
+                raise ValueError("Mesa não encontrada")
 
-        # Cria a comanda
+            if table.status != TableStatus.AVAILABLE:
+                raise ValueError("Esta mesa já está ocupada ou reservada")
+
+        # Cria a comanda (com ou sem mesa)
         command = models.Command(
             store_id=store_id,
-            table_id=request.table_id,
+            table_id=request.table_id,  # ✅ Pode ser None agora
             customer_name=request.customer_name,
             customer_contact=request.customer_contact,
             attendant_id=request.attendant_id,
@@ -181,20 +186,24 @@ class TableService:
         )
         self.db.add(command)
 
-        # Atualiza o status da mesa
-        table.status = TableStatus.OCCUPIED
-        table.opened_at = datetime.now(timezone.utc)
+        # Atualiza o status da mesa (se houver)
+        if table is not None:
+            table.status = TableStatus.OCCUPIED
+            table.opened_at = datetime.now(timezone.utc)
 
         self.db.commit()
         self.db.refresh(command)
 
         # Carrega os relacionamentos necessários para o socket
-        self.db.refresh(table)
-        table = self.db.query(models.Tables).options(
-            selectinload(models.Tables.commands)
-        ).filter(models.Tables.id == table.id).first()
+        if table is not None:
+            self.db.refresh(table)
+            table = self.db.query(models.Tables).options(
+                selectinload(models.Tables.commands)
+            ).filter(models.Tables.id == table.id).first()
 
         return command
+
+
 
     def close_table(self, store_id: int, table_id: int, command_id: int) -> models.Tables:
         """Fecha uma mesa e sua comanda"""
