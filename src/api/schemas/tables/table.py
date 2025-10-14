@@ -1,4 +1,6 @@
 # src/api/schemas/store/table.py
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
@@ -29,6 +31,60 @@ class CommandSchema(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+
+class CommandOut(BaseModel):
+    id: int
+    store_id: int
+    table_id: Optional[int] = None
+    customer_name: Optional[str] = None
+    customer_contact: Optional[str] = None
+    status: str
+    attendant_id: Optional[int] = None
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    # Campos calculados
+    table_name: Optional[str] = None
+    total_amount: int = 0  # Em centavos
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def from_orm_with_totals(cls, command):
+        """Factory method para criar CommandOut com cálculos"""
+
+        # Calcula o total dos pedidos
+        total = 0
+        if hasattr(command, 'orders') and command.orders:
+            for order in command.orders:
+                total += order.discounted_total_price or order.total_price
+
+        # Nome da mesa (se houver)
+        table_name = command.table.name if command.table else None
+
+        # Status como string
+        status_str = command.status.value if hasattr(command.status, 'value') else str(command.status)
+
+        return cls(
+            id=command.id,
+            store_id=command.store_id,
+            table_id=command.table_id,
+            customer_name=command.customer_name,
+            customer_contact=command.customer_contact,
+            status=status_str,
+            attendant_id=command.attendant_id,
+            notes=command.notes,
+            created_at=command.created_at,
+            updated_at=command.updated_at,
+            table_name=table_name,
+            total_amount=total,
+        )
+
+
 
 
 class TableBase(BaseModel):

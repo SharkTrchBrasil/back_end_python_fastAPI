@@ -26,7 +26,7 @@ from src.api.schemas.store.store_payable import PayableResponse
 from src.api.schemas.financial.supplier import SupplierResponse
 from src.api.schemas.store.store_with_role import StoreWithRole
 
-from src.api.schemas.tables.table import TableOut, SaloonOut
+from src.api.schemas.tables.table import TableOut, SaloonOut, CommandOut
 from src.api.admin.services.customer_analytic_service import get_customer_analytics_for_store
 from src.api.admin.services.dashboard_service import get_dashboard_data_for_period
 from src.api.admin.services.product_analytic_services import get_product_analytics_for_store
@@ -36,7 +36,7 @@ from src.api.admin.services.product_analytic_services import get_product_analyti
 from src.api.schemas.orders.order import OrderDetails
 from src.core.database import get_db_manager
 from src.core.models import Order
-from src.core.utils.enums import ProductStatus
+from src.core.utils.enums import ProductStatus, CommandStatus
 from src.socketio_instance import sio
 from src.core import models
 
@@ -299,85 +299,106 @@ async def admin_emit_order_updated_from_obj(order: models.Order):
 
 
 
-
-
-async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = None):
+async def admin_emit_tables_and_commands(db, store_id: int):
     """
-    Busca os salões da loja com suas respectivas mesas e comandas de forma otimizada
-    e emite o payload hierárquico completo para o admin.
+    Emite a estrutura completa de salões/mesas/comandas + comandas avulsas
+    para todos os admins conectados à sala dessa loja.
     """
-    # --- LOG 1: Início da Função ---
-    print(f"\n--- 🚀 [DEBUG START] admin_emit_tables_and_commands para store_id={store_id} ---")
+
+    logger.info(f"--- 🚀 [DEBUG START] admin_emit_tables_and_commands para store_id={store_id} ---")
 
     try:
-        # --- LOG 2: Construindo a Query ---
-        print("   [DEBUG] 1. Construindo a query do SQLAlchemy...")
-        query = db.query(models.Saloon)\
-            .options(
-                selectinload(models.Saloon.tables)
-                .selectinload(models.Tables.commands)
-            )\
-            .filter(models.Saloon.store_id == store_id)\
-            .order_by(models.Saloon.display_order)
+        # ===== 1. BUSCA SALÕES COM MESAS E COMANDAS =====
+        logger.info("   [DEBUG] 1. Construindo a query do SQLAlchemy para SALÕES...")
 
-        # --- LOG 3: Ver a SQL gerada (MUITO ÚTIL) ---
-        # Isso imprimirá a query SQL exata que o SQLAlchemy envia para o banco de dados.
-        # Se a SQL estiver errada, saberemos aqui.
-        print(f"   [DEBUG] 2. SQL Gerada:\n{query.statement.compile(compile_kwargs={'literal_binds': True})}\n")
+        saloons = db.query(models.Saloon).filter(
+            models.Saloon.store_id == store_id
+        ).options(
+            selectinload(models.Saloon.tables).selectinload(models.Tables.commands)
+        ).order_by(
+            models.Saloon.display_order
+        ).all()
 
-        # Executando a query
-        saloons_with_tables = query.all()
+        logger.info(f"   [DEBUG] 2. Resultado bruto do banco: {len(saloons)} salões encontrados.")
 
-        # --- LOG 4: Resultado Bruto da Query ---
-        # Este é o log mais importante. Ele nos dirá se o banco de dados retornou algo.
-        print(f"   [DEBUG] 3. Resultado bruto do banco: {len(saloons_with_tables)} salões encontrados.")
-        if not saloons_with_tables:
-            print("   [DEBUG] ⚠️ A CONSULTA AO BANCO NÃO RETORNOU NENHUM SALÃO. O problema provavelmente está na query ou nos dados do banco.")
-        else:
-            # Se encontrou salões, vamos inspecionar o conteúdo
-            for saloon in saloons_with_tables:
-                print(f"     - Inspecionando Salão ID {saloon.id} ('{saloon.name}'):")
-                print(f"       - Contém {len(saloon.tables)} mesas.")
-                if saloon.tables:
-                    for table in saloon.tables:
-                        print(f"         - Inspecionando Mesa ID {table.id} ('{table.name}'): Contém {len(table.commands)} comandas.")
+        # Debug das comandas nas mesas
+        for saloon in saloons:
+            logger.info(f"     - Salão ID {saloon.id} ('{saloon.name}'):")
+            logger.info(f"       - Contém {len(saloon.tables)} mesas.")
+            for table in saloon.tables:
+                active_commands = [c for c in table.commands if c.status == CommandStatus.ACTIVE]
+                logger.info(
+                    f"         - Mesa ID {table.id} ('{table.name}'): Contém {len(active_commands)} comandas ativas.")
 
-        # --- LOG 5: Serialização ---
-        print("\n   [DEBUG] 4. Serializando os dados com Pydantic (SaloonOut)...")
-        saloons_data = [SaloonOut.model_validate(saloon).model_dump(mode='json') for saloon in saloons_with_tables]
-        print(f"   [DEBUG] 5. Dados serializados com sucesso. {len(saloons_data)} salões no payload.")
+        # ===== 2. BUSCA COMANDAS AVULSAS (SEM MESA) =====
+        logger.info("   [DEBUG] 3. Buscando comandas AVULSAS (sem mesa)...")
 
+        standalone_commands = db.query(models.Command).filter(
+            models.Command.store_id == store_id,
+            models.Command.table_id.is_(None),  # ✅ SEM MESA
+            models.Command.status == CommandStatus.ACTIVE,
+        ).options(
+            selectinload(models.Command.orders).selectinload(models.Order.products)
+        ).order_by(
+            models.Command.created_at.desc()
+        ).all()
 
-        # Montagem do Payload
+        logger.info(f"   [DEBUG] 4. Encontradas {len(standalone_commands)} comandas avulsas.")
+        for cmd in standalone_commands:
+            logger.info(
+                f"         - Comanda ID {cmd.id} ('{cmd.customer_name or 'Sem nome'}') - Criada em {cmd.created_at}")
+
+        # ===== 3. SERIALIZA OS DADOS =====
+        logger.info("   [DEBUG] 5. Serializando os dados com Pydantic...")
+
+        saloons_data = [SaloonOut.model_validate(s) for s in saloons]
+
+        # ✅ Serializa comandas avulsas com totais calculados
+        standalone_commands_data = [
+            CommandOut.from_orm_with_totals(cmd) for cmd in standalone_commands
+        ]
+
+        logger.info(
+            f"   [DEBUG] 6. Dados serializados: {len(saloons_data)} salões e {len(standalone_commands_data)} comandas avulsas.")
+
+        # ===== 4. MONTA O PAYLOAD FINAL =====
         payload = {
             "store_id": store_id,
-            "saloons": saloons_data,
+            "saloons": [s.model_dump() for s in saloons_data],
+            "standalone_commands": [c.model_dump() for c in standalone_commands_data],  # ✅ NOVO
         }
 
-        # --- LOG 6: Payload Final ---
-        # Este log mostra exatamente o que será enviado para o Flutter.
-        print(f"\n   [DEBUG] 6. Payload final a ser enviado ao Flutter:\n{payload}\n")
+        logger.info(
+            f"   [DEBUG] 7. Payload final montado com {len(payload['saloons'])} salões e {len(payload['standalone_commands'])} comandas avulsas.")
+        logger.debug(f"   [DEBUG] 8. Payload completo: {payload}")
 
-        # Emissão
-        print("   [DEBUG] 7. Emitindo evento 'tables_and_commands' via Socket.IO...")
-        if sid:
-            await sio.emit("tables_and_commands", payload, namespace="/admin", to=sid)
-        else:
-            await sio.emit("tables_and_commands", payload, namespace="/admin", room=f"admin_store_{store_id}")
+        # ===== 5. EMITE VIA SOCKET =====
+        room = f"admin_store_{store_id}"
+        logger.info(f"   [DEBUG] 9. Emitindo evento 'tables_and_commands_updated' para a sala '{room}'...")
 
-        print("--- ✅ [DEBUG END] Função concluída com sucesso. ---\n")
+        await sio.emit(
+            "tables_and_commands_updated",
+            payload,
+            room=room,
+            namespace="/admin"
+        )
 
+        logger.info("--- ✅ [DEBUG END] Função concluída com sucesso. ---")
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print(f'❌ Erro CRÍTICO em emit_tables_and_commands: {str(e)}')
-        error_payload = {"store_id": store_id, "saloons": []}
-        if sid:
-            await sio.emit("tables_and_commands", error_payload, namespace="/admin", to=sid)
-        else:
-            await sio.emit("tables_and_commands", error_payload, namespace="/admin", room=f"admin_store_{store_id}")
-        print("--- ❌ [DEBUG END] Função encerrada com erro. ---\n")
+        logger.error(f"❌ Erro ao emitir tables_and_commands: {e}", exc_info=True)
+        raise
+
+
+
+
+
+
+
+
+
+
+
 
 async def emit_new_order_notification(db, store_id: int, order_id: int):
     """
