@@ -8,22 +8,28 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.templating import Jinja2Templates
 from contextlib import asynccontextmanager
 
-# ✅ 1. IMPORTAÇÃO DO AGENDADOR
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from src.api.admin.routes import chatbot_api
 from src.api.admin.webhooks.chatbot import chatbot_message_webhook
 from src.api.scheduler import start_scheduler
-# Imports do seu projeto
 from src.core.database import engine
-from src.core.db_initialization import initialize_roles, seed_chatbot_templates, seed_plans_and_features, seed_segments, \
+from src.core.db_initialization import (
+    initialize_roles,
+    seed_chatbot_templates,
+    seed_plans_and_features,
+    seed_segments,
     seed_payment_methods
+)
 from src.api.admin.events.admin_namespace import AdminNamespace
 from src.api.app.events.totem_namespace import TotemNamespace
 from src.socketio_instance import sio
 from src.api.admin import router as admin_router
 from src.api.app import router as app_router
-from src.api.admin.webhooks.chatbot.chatbot_webhook import router as webhooks_router
+from src.api.admin.webhooks.chatbot.chatbot_webhook import router as chatbot_webhooks_router
+
+# ✅ NOVO IMPORT: Webhook do Pagar.me
+from src.api.admin.webhooks.pagarme_webhook import router as pagarme_webhook_router
 
 
 scheduler = AsyncIOScheduler()
@@ -55,11 +61,9 @@ async def lifespan(app: FastAPI):
         seed_payment_methods(db_session)
         print("Formas de pagamentos verificados.")
 
-
-    # ✅ 3. AGENDAMENTO DE TODOS OS JOBS
+    # ✅ Agendamento de jobs
     print("Agendando tarefas automáticas (cron jobs)...")
-
-    start_scheduler()  # ✅ Inicia o agendador de jobs
+    start_scheduler()
     print("🚀 Agendador iniciado com todos os jobs.")
 
     print("Aplicação pronta.")
@@ -70,8 +74,6 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown()
     print("🛑 Agendador finalizado.")
 
-
-# --- Configuração do FastAPI e Socket.IO (sem alterações) ---
 
 # Registra namespaces ANTES de criar o ASGIApp
 sio.register_namespace(AdminNamespace('/admin'))
@@ -92,10 +94,14 @@ fast_app.add_middleware(
 
 templates = Jinja2Templates(directory="src/templates")
 
+# ✅ ROTAS
 fast_app.include_router(admin_router)
 fast_app.include_router(app_router)
-fast_app.include_router(webhooks_router)
+fast_app.include_router(chatbot_webhooks_router)
 fast_app.include_router(chatbot_message_webhook.router)
+
+# ✅ NOVO: Webhook do Pagar.me
+fast_app.include_router(pagarme_webhook_router)
 
 
 app = socketio.ASGIApp(sio, fast_app)

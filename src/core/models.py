@@ -11,7 +11,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase
 
 from src.core.aws import S3_PUBLIC_BASE_URL
-from src.core.config import config
+
 from src.core.encryption import encryption_service
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
     CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode, CategoryType, FoodTagEnum, AvailabilityTypeEnum, \
@@ -133,38 +133,49 @@ class Store(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
 
-    efi_customer_id: Mapped[str | None] = mapped_column(nullable=True)
+
+
+
+
+    # ✅ ADICIONE ESTES CAMPOS DO PAGAR.ME:
+    pagarme_customer_id: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        index=True,
+        doc="ID do cliente no Pagar.me"
+    )
 
     # ✅ CAMPO CRIPTOGRAFADO (armazena bytes)
-    _efi_payment_token_encrypted: Mapped[bytes | None] = mapped_column(
-        "efi_payment_token",  # Nome da coluna no banco
+    _pagarme_card_id_encrypted: Mapped[bytes | None] = mapped_column(
+        "pagarme_card_id",  # Nome da coluna no banco
         LargeBinary,
         nullable=True,
-        doc="Token de pagamento da Efí (criptografado)"
+        doc="ID do cartão no Pagar.me (criptografado)"
     )
 
     # ✅ PROPERTY QUE DESCRIPTOGRAFA AUTOMATICAMENTE
     @hybrid_property
-    def efi_payment_token(self) -> str | None:
-        """Retorna o token descriptografado"""
-        if not self._efi_payment_token_encrypted:
+    def pagarme_card_id(self) -> str | None:
+        """Retorna o card_id descriptografado"""
+        if not self._pagarme_card_id_encrypted:
             return None
         try:
-            return encryption_service.decrypt(self._efi_payment_token_encrypted)
+            return encryption_service.decrypt(self._pagarme_card_id_encrypted)
         except Exception as e:
-            # Log do erro (não exponha ao usuário)
             import logging
-            logging.error(f"Falha ao descriptografar token da loja {self.id}: {e}")
+            logging.error(f"Falha ao descriptografar card_id da loja {self.id}: {e}")
             return None
 
     # ✅ SETTER QUE CRIPTOGRAFA AUTOMATICAMENTE
-    @efi_payment_token.setter
-    def efi_payment_token(self, value: str | None):
-        """Salva o token criptografado"""
+    @pagarme_card_id.setter
+    def pagarme_card_id(self, value: str | None):
+        """Salva o card_id criptografado"""
         if value is None:
-            self._efi_payment_token_encrypted = None
+            self._pagarme_card_id_encrypted = None
         else:
-            self._efi_payment_token_encrypted = encryption_service.encrypt(value)
+            self._pagarme_card_id_encrypted = encryption_service.encrypt(value)
+
+
 
 
 
@@ -2513,8 +2524,7 @@ class ChatbotConversationMetadata(Base, TimestampMixin):
     store: Mapped["Store"] = relationship()
 
 
-
-
+# ✅ DEPOIS (CORRETO):
 class MonthlyCharge(Base, TimestampMixin):
     __tablename__ = "monthly_charges"
 
@@ -2532,8 +2542,8 @@ class MonthlyCharge(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(default="pending", index=True)
     gateway_transaction_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
-    # ✅ METADATA TIPADO
-    metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # ✅ CORRETO: Renomeado para 'charge_metadata'
+    charge_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # Relacionamentos
     store: Mapped["Store"] = relationship(back_populates="monthly_charges")
@@ -2544,9 +2554,7 @@ class MonthlyCharge(Base, TimestampMixin):
         Index('ix_monthly_charges_status', 'status'),
         Index('ix_monthly_charges_store_period', 'store_id', 'billing_period_start'),
         Index('ix_monthly_charges_gateway_id', 'gateway_transaction_id'),
-        # ✅ NOVO: Índice composto para buscas rápidas
         Index('ix_monthly_charges_gateway_status', 'gateway_transaction_id', 'status'),
-        # ✅ Unicidade para evitar duplicatas
         UniqueConstraint('store_id', 'billing_period_start', 'billing_period_end',
                          name='uq_store_billing_period'),
     )

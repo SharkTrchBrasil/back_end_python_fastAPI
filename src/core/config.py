@@ -24,20 +24,26 @@ class Config(BaseSettings):
     # Email
     RESEND_API_KEY: str
 
-    # Efí Gateway
-    MASTER_CLIENT_ID: str
-    MASTER_CLIENT_SECRET: str
-    MASTER_SANDBOX: bool = False
+    # ✅ PAGAR.ME (NOVO)
+    PAGARME_SECRET_KEY: str
+    PAGARME_PUBLIC_KEY: str
+    PAGARME_WEBHOOK_SECRET: str
+    PAGARME_ENVIRONMENT: str = "test"
+    PAGARME_API_URL: str = "https://api.pagar.me/core/v5"
 
-    # ✅ WEBHOOK TOKEN (Seu próprio secret)
-    WEBHOOK_TOKEN: str
+
+    # ✅ WEBHOOK - Autenticação Básica
+    PAGARME_WEBHOOK_USER: str
+    PAGARME_WEBHOOK_PASSWORD: str
+
+
 
     # Chatbot
     CHATBOT_SERVICE_URL: str
     CHATBOT_WEBHOOK_SECRET: str
     PLATFORM_DOMAIN: str
 
-    # ✅ Criptografia
+    # Criptografia
     ENCRYPTION_KEY: str
 
 

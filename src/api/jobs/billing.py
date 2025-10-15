@@ -24,7 +24,9 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import SQLAlchemyError
 
-from src.api.admin.services.payment import create_one_time_charge
+# ✅ PAGAR.ME IMPORT
+from src.api.admin.services.pagarme_service import pagarme_service, PagarmeError
+
 from src.api.admin.utils.business_days import is_first_business_day
 from src.core import models
 from src.core.database import get_db_manager
@@ -372,9 +374,8 @@ def process_single_store_charge(
                 "charge_id": existing_charge.id,
                 "status": existing_charge.status
             })
-            # ✅ COMMIT do savepoint antes de retornar
             savepoint.commit()
-            return True  # Já processado, não é erro
+            return True
 
         # ✅ 2. PULA SE INICIOU NO MEIO DO PERÍODO
         if subscription.current_period_start.date() >= first_day_of_month:
@@ -383,9 +384,8 @@ def process_single_store_charge(
                 "subscription_start": str(subscription.current_period_start.date()),
                 "billing_period_start": str(first_day_of_month)
             })
-            # ✅ COMMIT do savepoint antes de retornar
             savepoint.commit()
-            return True  # Não é erro, apenas pula
+            return True
 
         # ✅ 3. CALCULA FATURAMENTO
         revenue = get_store_revenue_for_period(
@@ -407,7 +407,6 @@ def process_single_store_charge(
                 "error": str(e),
                 "revenue": float(revenue)
             })
-            # ✅ ROLLBACK do savepoint em caso de erro
             savepoint.rollback()
             return False
 
@@ -424,24 +423,36 @@ def process_single_store_charge(
             "has_benefit": fee_details['has_benefit']
         })
 
-        # ✅ 6. PROCESSA PAGAMENTO (SE HOUVER VALOR)
+        # ✅ 6. PROCESSA PAGAMENTO (SE HOUVER VALOR) - PAGAR.ME
         gateway_transaction_id = None
         charge_status = "no_charge"
 
         if fee_in_cents > 0:
-            if not store.efi_payment_token:
-                logger.warning("store_without_payment_token", extra={
-                    "store_id": store.id
+            if not store.pagarme_customer_id or not store.pagarme_card_id:
+                logger.warning("store_without_payment_method", extra={
+                    "store_id": store.id,
+                    "has_customer_id": bool(store.pagarme_customer_id),
+                    "has_card_id": bool(store.pagarme_card_id)
                 })
                 charge_status = "failed"
             else:
                 try:
-                    charge_response = create_one_time_charge(
-                        payment_token=store.efi_payment_token,
+                    # ✅ PAGAR.ME: Cria cobrança
+                    charge_response = pagarme_service.create_charge(
+                        customer_id=store.pagarme_customer_id,
+                        card_id=store.pagarme_card_id,
                         amount_in_cents=fee_in_cents,
-                        description=f"Mensalidade - {first_day_of_month.strftime('%m/%Y')}"
+                        description=f"Mensalidade - {first_day_of_month.strftime('%m/%Y')}",
+                        store_id=store.id,
+                        metadata={
+                            "billing_period_start": str(first_day_of_month),
+                            "billing_period_end": str(last_day_of_month),
+                            "tier": fee_details['tier'],
+                            "months_active": months_active,
+                            "revenue": float(revenue)
+                        }
                     )
-                    gateway_transaction_id = charge_response.get('charge_id')
+                    gateway_transaction_id = charge_response["id"]
                     charge_status = "pending"
 
                     logger.info("charge_created", extra={
@@ -450,7 +461,7 @@ def process_single_store_charge(
                         "amount_cents": fee_in_cents
                     })
 
-                except Exception as e:
+                except PagarmeError as e:
                     logger.error("charge_creation_failed", extra={
                         "store_id": store.id,
                         "amount_cents": fee_in_cents,
@@ -459,7 +470,17 @@ def process_single_store_charge(
                     }, exc_info=True)
                     charge_status = "failed"
 
+                except Exception as e:
+                    logger.error("charge_creation_unexpected_error", extra={
+                        "store_id": store.id,
+                        "amount_cents": fee_in_cents,
+                        "error": str(e),
+                        "error_type": type(e).__name__
+                    }, exc_info=True)
+                    charge_status = "failed"
+
         # ✅ 7. REGISTRA NO BANCO
+        # ✅ DEPOIS (CORRETO):
         new_charge = models.MonthlyCharge(
             store_id=store.id,
             subscription_id=subscription.id,
@@ -470,7 +491,7 @@ def process_single_store_charge(
             calculated_fee=fee_details['final_fee'],
             status=charge_status,
             gateway_transaction_id=gateway_transaction_id,
-            metadata={
+            charge_metadata={  # ✅ CORRETO
                 'pricing_strategy': 'tiered_revenue_based',
                 'months_partnership': months_active,
                 'base_fee': float(fee_details['base_fee']),
@@ -485,7 +506,7 @@ def process_single_store_charge(
         )
 
         db.add(new_charge)
-        db.flush()  # Garante que o ID é gerado
+        db.flush()
 
         logger.info("charge_saved", extra={
             "store_id": store.id,
@@ -493,12 +514,10 @@ def process_single_store_charge(
             "status": charge_status
         })
 
-        # ✅ COMMIT DO SAVEPOINT - SUCESSO!
         savepoint.commit()
         return True
 
     except SQLAlchemyError as e:
-        # ✅ ROLLBACK do savepoint em caso de erro de banco
         savepoint.rollback()
         logger.error("database_error_processing_charge", extra={
             "store_id": store.id,
@@ -508,7 +527,6 @@ def process_single_store_charge(
         return False
 
     except Exception as e:
-        # ✅ ROLLBACK do savepoint em caso de erro inesperado
         savepoint.rollback()
         logger.error("unexpected_error_processing_charge", extra={
             "store_id": store.id,
@@ -519,34 +537,20 @@ def process_single_store_charge(
         return False
 
 
-
-
-
-
 def generate_monthly_charges():
     """
     ✅ BLINDADO: Job principal de cobrança mensal
-
-    Features:
-    - Validação de data
-    - Processamento em lote com tratamento individual
-    - Logs estruturados
-    - Idempotência garantida
-    - Rollback automático em caso de erro crítico
     """
-
     logger.info("billing_job_started")
 
     today = date.today()
 
-    # ✅ 1. VALIDA DIA ÚTIL
     if not is_first_business_day(today):
         logger.info("billing_job_skipped_not_business_day", extra={
             "today": str(today)
         })
         return
 
-    # ✅ 2. CALCULA PERÍODO
     last_day_of_previous_month = today - timedelta(days=1)
     first_day_of_previous_month = last_day_of_previous_month.replace(day=1)
 
@@ -555,10 +559,8 @@ def generate_monthly_charges():
         "end_date": str(last_day_of_previous_month)
     })
 
-    # ✅ 3. PROCESSA ASSINATURAS
     with get_db_manager() as db:
         try:
-            # Busca assinaturas ativas com eager loading
             active_subscriptions = db.execute(
                 select(models.StoreSubscription)
                 .options(
@@ -574,12 +576,9 @@ def generate_monthly_charges():
                 "total_subscriptions": total
             })
 
-            # Contadores
             success_count = 0
-            skip_count = 0
             error_count = 0
 
-            # ✅ 4. PROCESSA CADA ASSINATURA
             for i, subscription in enumerate(active_subscriptions, 1):
                 logger.info("processing_subscription", extra={
                     "progress": f"{i}/{total}",
@@ -600,15 +599,12 @@ def generate_monthly_charges():
                 else:
                     error_count += 1
 
-            # ✅ 5. COMMIT GLOBAL
             db.commit()
 
-            # ✅ 6. LOG FINAL
             logger.info("billing_job_completed", extra={
                 "total_subscriptions": total,
                 "successful": success_count,
-                "errors": error_count,
-                "skipped": skip_count
+                "errors": error_count
             })
 
         except SQLAlchemyError as e:
@@ -627,14 +623,9 @@ def generate_monthly_charges():
             raise
 
 
-# ✅ FUNÇÃO PARA TESTES MANUAIS
 def test_billing_calculation(store_id: int, test_revenue: float):
     """
     Testa cálculo de cobrança sem processar pagamento
-
-    Uso:
-        from src.api.jobs.billing import test_billing_calculation
-        test_billing_calculation(store_id=1, test_revenue=5000.00)
     """
     with get_db_manager() as db:
         store = db.query(models.Store).filter_by(id=store_id).first()

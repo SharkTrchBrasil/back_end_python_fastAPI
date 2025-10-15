@@ -2,12 +2,11 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Annotated
 
-from src.api.admin.services.payment import create_one_time_charge
+from src.api.admin.services.pagarme_service import pagarme_service, PagarmeError
 from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.admin.utils.proration import calculate_prorated_charge
 from src.core import models
 from src.core.database import GetDBDep
-# ✅ ALTERAÇÃO: Importamos uma dependência mais simples que só pega o usuário
 from src.core.dependencies import GetCurrentUserDep
 from src.api.schemas.subscriptions.store_subscription import CreateStoreSubscription
 
@@ -16,16 +15,15 @@ router = APIRouter(tags=["Subscriptions"], prefix="/stores/{store_id}/subscripti
 
 @router.post("")
 async def create_or_reactivate_subscription(
-        db: GetDBDep,
-        store_id: int,
-        user: GetCurrentUserDep,  # ✅ ALTERAÇÃO: Usamos a dependência mais simples
-        subscription_data: CreateStoreSubscription,
+    db: GetDBDep,
+    store_id: int,
+    user: GetCurrentUserDep,
+    subscription_data: CreateStoreSubscription,
 ):
     """
-    Endpoint robusto que ativa ou reativa uma assinatura.
-    Ele mesmo faz a verificação de permissão para poder lidar com lojas 'expired'.
+    ✅ ATUALIZADO: Ativa/Reativa assinatura usando Pagar.me
     """
-    # 1. Busca a loja e verifica a permissão de 'owner' manualmente
+    # 1. Verifica permissão
     store_access = db.query(models.StoreAccess).filter(
         models.StoreAccess.store_id == store_id,
         models.StoreAccess.user_id == user.id,
@@ -33,46 +31,95 @@ async def create_or_reactivate_subscription(
     ).first()
 
     if not store_access:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso negado a esta loja.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado"
+        )
 
     store = store_access.store
 
-    # 2. Busca a assinatura existente da loja
+    # 2. Busca/Cria assinatura
     subscription = db.query(models.StoreSubscription).filter(
         models.StoreSubscription.store_id == store_id
     ).first()
 
     if not subscription:
-        # Lida com o caso de uma loja muito antiga que nunca teve um registro de assinatura
         main_plan = db.query(models.Plans).filter_by(id=2).first()
         if not main_plan:
-            raise HTTPException(status_code=500, detail="Plano padrão não configurado.")
+            raise HTTPException(status_code=500, detail="Plano não configurado")
 
         subscription = models.StoreSubscription(
-            store=store, plan=main_plan, status="expired",
+            store=store,
+            plan=main_plan,
+            status="expired",
             current_period_start=datetime.now(timezone.utc) - timedelta(days=30),
             current_period_end=datetime.now(timezone.utc),
         )
         db.add(subscription)
         db.flush()
 
-    # 3. Se a assinatura já estiver ativa, apenas atualiza o cartão.
+    # 3. Se já está ativa, apenas atualiza o cartão
     if subscription.status == 'active':
         if subscription_data.card and subscription_data.card.payment_token:
-            store.efi_payment_token = subscription_data.card.payment_token
-            db.commit()
-            return {"status": "success", "message": "Método de pagamento atualizado com sucesso."}
-        else:
-            return {"status": "info", "message": "Sua assinatura já está ativa."}
+            try:
+                # ✅ PAGAR.ME: Adiciona novo cartão
+                if not store.pagarme_customer_id:
+                    # Cria cliente se não existir
+                    customer_response = pagarme_service.create_customer(
+                        email=user.email,
+                        name=store.name,
+                        document=store.cnpj or "00000000000",
+                        phone=store.phone or "0000000000",
+                        store_id=store.id
+                    )
+                    store.pagarme_customer_id = customer_response["id"]
 
-    # 4. Lógica de Ativação / Reativação
+                # Adiciona o cartão
+                card_response = pagarme_service.create_card(
+                    customer_id=store.pagarme_customer_id,
+                    card_token=subscription_data.card.payment_token
+                )
+                store.pagarme_card_id = card_response["id"]
+
+                db.commit()
+                return {
+                    "status": "success",
+                    "message": "Método de pagamento atualizado"
+                }
+
+            except PagarmeError as e:
+                db.rollback()
+                raise HTTPException(status_code=400, detail=str(e))
+
+        return {"status": "info", "message": "Assinatura já ativa"}
+
+    # 4. Ativação/Reativação
     if not subscription_data.card or not subscription_data.card.payment_token:
-        raise HTTPException(status_code=400, detail="Token de pagamento do cartão é obrigatório para ativar.")
-
-    store.efi_payment_token = subscription_data.card.payment_token
+        raise HTTPException(
+            status_code=400,
+            detail="Token do cartão é obrigatório"
+        )
 
     try:
-        # Se houver uma cobrança pendente, tenta quitá-la
+        # ✅ CRIA CLIENTE NO PAGAR.ME (se não existir)
+        if not store.pagarme_customer_id:
+            customer_response = pagarme_service.create_customer(
+                email=user.email,
+                name=store.name,
+                document=store.cnpj or "00000000000",
+                phone=store.phone or "0000000000",
+                store_id=store.id
+            )
+            store.pagarme_customer_id = customer_response["id"]
+
+        # ✅ ADICIONA CARTÃO
+        card_response = pagarme_service.create_card(
+            customer_id=store.pagarme_customer_id,
+            card_token=subscription_data.card.payment_token
+        )
+        store.pagarme_card_id = card_response["id"]
+
+        # ✅ TENTA PAGAR FATURA PENDENTE
         failed_charge = db.query(models.MonthlyCharge).filter(
             models.MonthlyCharge.subscription_id == subscription.id,
             models.MonthlyCharge.status == 'failed'
@@ -80,28 +127,37 @@ async def create_or_reactivate_subscription(
 
         if failed_charge:
             amount_in_cents = int(failed_charge.calculated_fee * 100)
-            description = f"Pagamento da fatura pendente de {failed_charge.billing_period_start.strftime('%m/%Y')}"
-            create_one_time_charge(
-                payment_token=store.efi_payment_token,
-                amount_in_cents=amount_in_cents,
-                description=description
-            )
-            failed_charge.status = "paid"
+            description = f"Fatura pendente {failed_charge.billing_period_start.strftime('%m/%Y')}"
 
-        # ✅ 2. Calcula a cobrança proporcional para o mês atual
+            charge_response = pagarme_service.create_charge(
+                customer_id=store.pagarme_customer_id,
+                card_id=store.pagarme_card_id,
+                amount_in_cents=amount_in_cents,
+                description=description,
+                store_id=store.id,
+                metadata={
+                    "charge_id": str(failed_charge.id),
+                    "type": "overdue_payment"
+                }
+            )
+            failed_charge.gateway_transaction_id = charge_response["id"]
+            failed_charge.status = "pending"
+
+        # ✅ COBRANÇA PROPORCIONAL
         proration_details = calculate_prorated_charge(subscription.plan)
         prorated_amount_cents = proration_details["amount_in_cents"]
 
-        # ✅ 3. Realiza a cobrança proporcional imediata (se houver valor)
         if prorated_amount_cents > 0:
-            print(f"Realizando cobrança proporcional de {prorated_amount_cents} centavos para a loja {store.id}")
-            create_one_time_charge(
-                payment_token=store.efi_payment_token,
+            charge_response = pagarme_service.create_charge(
+                customer_id=store.pagarme_customer_id,
+                card_id=store.pagarme_card_id,
                 amount_in_cents=prorated_amount_cents,
-                description=proration_details["description"]
+                description=proration_details["description"],
+                store_id=store.id,
+                metadata={"type": "prorated_charge"}
             )
 
-        # ✅ 4. Define o novo ciclo de faturamento para o FIM DO MÊS ATUAL
+        # ✅ ATIVA ASSINATURA
         subscription.status = "active"
         subscription.current_period_start = datetime.now(timezone.utc)
         subscription.current_period_end = proration_details["new_period_end_date"]
@@ -109,9 +165,14 @@ async def create_or_reactivate_subscription(
         db.commit()
         await admin_emit_store_updated(db, store.id)
 
-        return {"status": "success", "message": "Assinatura ativada com sucesso!"}
+        return {
+            "status": "success",
+            "message": "Assinatura ativada com sucesso!"
+        }
 
-    except Exception as e:
+    except PagarmeError as e:
         db.rollback()
-        error_detail = getattr(e, 'detail', str(e))
-        raise HTTPException(status_code=400, detail=f"Falha ao processar o pagamento: {error_detail}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Erro ao processar pagamento: {str(e)}"
+        )
