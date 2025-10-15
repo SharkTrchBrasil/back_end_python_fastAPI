@@ -13,7 +13,6 @@ from src.api.schemas.products.rating import RatingsSummaryOut
 from src.api.schemas.store.store_details import StoreDetails
 
 
-
 async def handler_totem_on_connect(self, sid, environ):
     print(f"🔌 [TOTEM] Conexão recebida. SID: {sid}")
     query = parse_qs(environ.get("QUERY_STRING", ""))
@@ -33,6 +32,7 @@ async def handler_totem_on_connect(self, sid, environ):
             store_id = totem_auth.store_id
             print(f"🏪 [CONEXÃO] {sid} autorizado para a loja: {store_id}")
 
+            # Cria sessão do cliente
             customer_session = models.CustomerSession(sid=sid, store_id=store_id, customer_id=None)
             db.add(customer_session)
             db.commit()
@@ -40,10 +40,12 @@ async def handler_totem_on_connect(self, sid, environ):
             await self.enter_room(sid, f"store_{store_id}")
             print(f"🚪 [CONEXÃO] {sid} adicionado à sala da loja {store_id}.")
 
+            # Busca dados da loja
             store = store_crud.get_store_for_customer_view(db=db, store_id=store_id)
             if not store:
                 raise ConnectionRefusedError(f"Loja {store_id} não encontrada.")
 
+            # Ratings dos produtos
             product_ratings = {
                 p.id: get_product_ratings_summary(db, product_id=p.id)
                 for p in store.products
@@ -51,40 +53,29 @@ async def handler_totem_on_connect(self, sid, environ):
             for product in store.products:
                 product.rating = product_ratings.get(product.id)
 
-            # ✅ DEBUG: Captura e analisa o retorno
-            result = SubscriptionService.get_subscription_details(store)
-            print(f"🔍 [DEBUG] get_subscription_details retornou: {result}")
-            print(f"🔍 [DEBUG] Tipo: {type(result)}, Quantidade: {len(result) if isinstance(result, tuple) else 'não é tupla'}")
+            # ✅ CORREÇÃO DEFINITIVA: Acessa o dicionário retornado
+            subscription_details = SubscriptionService.get_subscription_details(store)
 
-            # Desempacota baseado no resultado
-            if isinstance(result, tuple):
-                if len(result) == 4:
-                    subscription_data, is_blocked, warning_message, _ = result
-                elif len(result) == 3:
-                    is_blocked, warning_message, _ = result
-                elif len(result) == 2:
-                    is_blocked, warning_message = result
-                else:
-                    print(f"❌ [DEBUG] Formato inesperado: {len(result)} valores")
-                    is_blocked = True
-                    warning_message = "Erro de formato"
-            else:
-                is_blocked = True
-                warning_message = "Retorno não é tupla"
-
+            is_blocked = subscription_details.get('is_blocked', True)
+            warning_message = subscription_details.get('warning_message', 'Status desconhecido')
             is_operational = not is_blocked
 
             if is_blocked:
-                print(f"⚠️ [TOTEM] Loja {store_id} BLOQUEADA: {warning_message}")
+                print(f"⚠️ [TOTEM] Loja {store_id} está BLOQUEADA: {warning_message}")
+            else:
+                print(f"✅ [TOTEM] Loja {store_id} está OPERACIONAL (Trial: {subscription_details.get('status')})")
 
+            # Monta schema da loja
             store_schema = StoreDetails.model_validate(store)
             store_schema.ratingsSummary = RatingsSummaryOut(
                 **get_store_ratings_summary(db, store_id=store.id)
             )
 
+            # Define status operacional
             if store_schema.store_operation_config:
                 store_schema.store_operation_config.is_operational = is_operational
 
+            # Monta payload inicial
             initial_state_payload = {
                 "store": store_schema,
                 "theme": store.theme,
@@ -92,6 +83,7 @@ async def handler_totem_on_connect(self, sid, environ):
                 "banners": store.banners
             }
 
+            # Envia estado inicial
             await self.emit(
                 "initial_state_loaded",
                 jsonable_encoder(initial_state_payload),
@@ -105,6 +97,7 @@ async def handler_totem_on_connect(self, sid, environ):
             import traceback
             traceback.print_exc()
             raise ConnectionRefusedError(str(e))
+
 
 async def handler_totem_on_disconnect(self, sid):
     print(f"🔌 [TOTEM] Cliente desconectado: {sid}")
