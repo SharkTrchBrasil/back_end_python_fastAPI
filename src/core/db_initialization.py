@@ -76,17 +76,29 @@ def seed_plans_and_features(db: Session):
          'is_addon': False},
         {'feature_key': 'financial_payables', 'name': 'Financeiro: Contas a Pagar',
          'description': 'Controle suas despesas e contas a pagar diretamente pelo sistema.', 'is_addon': False},
+        # ✅ ADICIONAR AS FEATURES QUE ESTAVAM FALTANDO
+        {'feature_key': 'style_guide', 'name': 'Design Personalizável',
+         'description': 'Personalize cores, logo e identidade visual', 'is_addon': False},
+        {'feature_key': 'advanced_reports', 'name': 'Relatórios Avançados',
+         'description': 'Análises detalhadas de vendas e desempenho', 'is_addon': False},
     ]
 
-    # Cria/atualiza features
+    # ✅ CORREÇÃO 1: Armazena os OBJETOS Feature criados
+    created_features = {}
+
     for feature_data in features_data:
         feature = db.query(models.Feature).filter_by(feature_key=feature_data['feature_key']).first()
         if not feature:
             feature = models.Feature(**feature_data)
             db.add(feature)
+            print(f"✅ Feature '{feature_data['name']}' criada.")
         else:
             for key, value in feature_data.items():
                 setattr(feature, key, value)
+            print(f"✅ Feature '{feature_data['name']}' atualizada.")
+
+        # ✅ ARMAZENA O OBJETO (não a string!)
+        created_features[feature_data['feature_key']] = feature
 
     db.flush()
 
@@ -113,26 +125,47 @@ def seed_plans_and_features(db: Session):
 
             'support_type': 'Suporte Parceiro Dedicado via WhatsApp',
 
-            # Features incluídas
-            'included_features': [
+            # ✅ CORREÇÃO 2: Lista de CHAVES (não objetos)
+            'included_features_keys': [
                 'style_guide',
                 'advanced_reports'
             ]
         }
     ]
 
-
-
     for plan_data in plans_data:
+        # ✅ CORREÇÃO 3: Remove as chaves antes de criar o plano
+        included_feature_keys = plan_data.pop('included_features_keys', [])
+
         plan = db.query(models.Plans).filter_by(plan_name=plan_data['plan_name']).first()
+
         if not plan:
             plan = models.Plans(**plan_data)
             db.add(plan)
+            db.flush()  # ✅ Importante: gera o ID do plano
             print(f"✅ Plano '{plan_data['plan_name']}' criado com sucesso!")
         else:
             for key, value in plan_data.items():
                 setattr(plan, key, value)
             print(f"✅ Plano '{plan_data['plan_name']}' atualizado com sucesso!")
+
+        db.flush()
+
+        # ✅ CORREÇÃO 4: Agora cria os relacionamentos PlansFeature
+        # Limpa relacionamentos antigos
+        db.query(models.PlansFeature).filter_by(subscription_plan_id=plan.id).delete()
+
+        # Cria novos relacionamentos
+        for feature_key in included_feature_keys:
+            if feature_key in created_features:
+                feature = created_features[feature_key]
+
+                plan_feature = models.PlansFeature(
+                    subscription_plan_id=plan.id,
+                    feature_id=feature.id
+                )
+                db.add(plan_feature)
+                print(f"   ✅ Feature '{feature.name}' vinculada ao plano.")
 
     db.commit()
 
@@ -142,16 +175,17 @@ def seed_plans_and_features(db: Session):
     print("=" * 60)
     print("TIER 1 - Iniciante (até R$ 2.500)")
     print("  → Taxa fixa: R$ 39,90")
-    print("\nTIER 2 - Crescimento (R$ 2.501 - R$ 20.000)")
+    print("\nTIER 2 - Crescimento (R$ 2.501 - R$ 15.000)")
     print("  → Percentual: 1,8% do faturamento")
     print("  → Mínimo: R$ 45,00")
-    print("\nTIER 3 - Premium (acima de R$ 20.000)")
+    print("\nTIER 3 - Premium (acima de R$ 15.000)")
     print("  → Taxa fixa: R$ 240,00")
     print("\n💎 BENEFÍCIOS:")
     print("  → 1º mês: 100% GRÁTIS")
     print("  → 2º mês: 50% de desconto")
     print("  → 3º mês: 25% de desconto")
     print("=" * 60 + "\n")
+
 
 
 def seed_chatbot_templates(db: Session):
