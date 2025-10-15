@@ -90,7 +90,6 @@ def seed_plans_and_features(db: Session):
 
     db.flush()
 
-    # ✅ ESTRUTURA DE PREÇOS ATUALIZADA
     plans_data = [
         {
             'plan_name': 'Plano Parceiro',
@@ -99,22 +98,30 @@ def seed_plans_and_features(db: Session):
             # ✅ TIER 1: Até R$ 2.500 = Taxa fixa de R$ 39,90
             'minimum_fee': 3990,  # R$ 39,90 em centavos
 
-            # ✅ TIER 2: R$ 2.501 - R$ 20.000 = 1,8% do faturamento
+            # ✅ TIER 2: R$ 2.501 - R$ 15.000 = 1,8% do faturamento
             'revenue_percentage': Decimal('0.018'),  # 1,8%
             'percentage_tier_start': 250000,  # R$ 2.500,00 em centavos
-            'percentage_tier_end': 2000000,  # R$ 20.000,00 em centavos
+            'percentage_tier_end': 1500000,  # R$ 15.000,00 em centavos ✅ AJUSTADO!
 
-            # ✅ TIER 3: Acima de R$ 20.000 = Taxa fixa de R$ 240,00
+            # ✅ TIER 3: Acima de R$ 15.000 = Taxa fixa de R$ 240,00
             'revenue_cap_fee': 24000,  # R$ 240,00 em centavos
 
-            # ✅ BENEFÍCIOS MANTIDOS
+            # ✅ BENEFÍCIOS PROGRESSIVOS
             'first_month_free': True,
             'second_month_discount': Decimal('0.50'),  # 50% de desconto no 2º mês
-            'third_month_discount': Decimal('0.75'),  # 25% de desconto no 3º mês (paga 75% do valor)
+            'third_month_discount': Decimal('0.75'),  # 25% de desconto no 3º mês (paga 75%)
 
             'support_type': 'Suporte Parceiro Dedicado via WhatsApp',
+
+            # Features incluídas
+            'included_features': [
+                'style_guide',
+                'advanced_reports'
+            ]
         }
     ]
+
+
 
     for plan_data in plans_data:
         plan = db.query(models.Plans).filter_by(plan_name=plan_data['plan_name']).first()

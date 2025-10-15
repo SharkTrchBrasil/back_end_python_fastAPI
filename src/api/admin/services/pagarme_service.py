@@ -1,23 +1,12 @@
 """
-Serviço de Integração com Pagar.me
-====================================
-
-Características:
-- ✅ Segurança: Validação de webhooks com HMAC SHA256
-- ✅ Idempotência: Chaves únicas para evitar duplicatas
-- ✅ Resiliência: Retry automático com backoff exponencial
-- ✅ Observabilidade: Logs estruturados
-- ✅ Escalabilidade: Async/await ready
-
-Documentação: https://docs.pagar.me/reference
+Serviço de integração com Pagar.me
+===================================
+Gerencia tokenização de cartões, criação de clientes e cobranças
 """
 
-import hashlib
-import hmac
 import logging
-import time
+import base64
 from typing import Dict, Optional
-from decimal import Decimal
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -28,39 +17,37 @@ from src.core.config import config
 logger = logging.getLogger(__name__)
 
 
-class PagarmeError(Exception):
-    """Exceção base para erros do Pagar.me"""
-    pass
-
-
-class PagarmeAPIError(PagarmeError):
-    """Erro de comunicação com a API"""
-    pass
-
-
-class PagarmeValidationError(PagarmeError):
-    """Erro de validação de dados"""
-    pass
-
-
-class PagarmeWebhookError(PagarmeError):
-    """Erro de validação de webhook"""
-    pass
-
-
 class PagarmeService:
-    """
-    Serviço centralizado para todas as operações com Pagar.me
-    """
-
     def __init__(self):
+        logger.info("═" * 60)
+        logger.info("🔧 [PagarmeService] Inicializando...")
+
         self.secret_key = config.PAGARME_SECRET_KEY
         self.public_key = config.PAGARME_PUBLIC_KEY
-        self.webhook_secret = config.PAGARME_WEBHOOK_SECRET
         self.base_url = config.PAGARME_API_URL
-        self.environment = config.PAGARME_ENVIRONMENT
 
-        # ✅ SESSÃO HTTP COM RETRY AUTOMÁTICO
+        # ✅ LOG 1: Validação de variáveis
+        logger.info(f"📋 [Config] Secret Key: {self.secret_key[:20]}... (tamanho: {len(self.secret_key)})")
+        logger.info(f"📋 [Config] Public Key: {self.public_key}")
+        logger.info(f"📋 [Config] Base URL: {self.base_url}")
+
+        # ✅ VALIDAÇÃO
+        if not self.secret_key:
+            logger.error("❌ PAGARME_SECRET_KEY não está configurada!")
+            raise ValueError("PAGARME_SECRET_KEY não está configurada!")
+
+        if not self.secret_key.startswith('sk_'):
+            logger.error(f"❌ Secret Key inválida! Começa com: {self.secret_key[:5]}")
+            raise ValueError("PAGARME_SECRET_KEY inválida! Deve começar com 'sk_test_' ou 'sk_live_'")
+
+        # ✅ LOG 2: Montagem do header de autenticação
+        credentials = f"{self.secret_key}:"
+        logger.info(f"🔐 [Auth] Credentials (antes do base64): {credentials[:25]}...")
+
+        encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
+        logger.info(f"🔐 [Auth] Credentials (depois do base64): {encoded_credentials[:30]}...")
+
+        # Sessão HTTP com retry
         self.session = requests.Session()
         retry_strategy = Retry(
             total=3,
@@ -72,11 +59,17 @@ class PagarmeService:
         self.session.mount("https://", adapter)
         self.session.mount("http://", adapter)
 
-        # Headers padrão
+        # ✅ LOG 3: Headers configurados
         self.session.headers.update({
-            "Authorization": f"Bearer {self.secret_key}",
-            "Content-Type": "application/json"
+            "Authorization": f"Basic {encoded_credentials}",
+            "Content-Type": "application/json",
+            "Accept": "application/json"
         })
+
+        logger.info(f"📤 [Headers] Authorization: Basic {encoded_credentials[:30]}...")
+        logger.info(f"📤 [Headers] Content-Type: application/json")
+        logger.info("✅ [PagarmeService] Inicializado com sucesso!")
+        logger.info("═" * 60)
 
     def _make_request(
         self,
@@ -85,36 +78,26 @@ class PagarmeService:
         data: Optional[Dict] = None,
         idempotency_key: Optional[str] = None
     ) -> Dict:
-        """
-        ✅ ROBUSTO: Faz requisição HTTP com tratamento completo de erros
+        """Faz requisição HTTP para a API do Pagar.me"""
 
-        Args:
-            method: GET, POST, PUT, DELETE
-            endpoint: Caminho da API (ex: /customers)
-            data: Payload JSON
-            idempotency_key: Chave única para evitar duplicatas
-
-        Returns:
-            Resposta JSON da API
-
-        Raises:
-            PagarmeAPIError: Em caso de erro de comunicação
-        """
         url = f"{self.base_url}{endpoint}"
         headers = {}
 
-        # ✅ IDEMPOTÊNCIA: Previne cobranças duplicadas
         if idempotency_key:
             headers["Idempotency-Key"] = idempotency_key
 
-        try:
-            logger.info("pagarme_request", extra={
-                "method": method,
-                "endpoint": endpoint,
-                "has_data": bool(data),
-                "idempotency_key": idempotency_key
-            })
+        logger.info("─" * 60)
+        logger.info(f"📤 [Request] {method} {url}")
 
+        if data:
+            # Log do payload (mascarando dados sensíveis)
+            safe_data = self._mask_sensitive_data(data)
+            logger.info(f"📦 [Payload] {safe_data}")
+
+        if headers:
+            logger.info(f"📋 [Headers Extras] {headers}")
+
+        try:
             response = self.session.request(
                 method=method,
                 url=url,
@@ -123,35 +106,80 @@ class PagarmeService:
                 timeout=30
             )
 
-            # Log da resposta
-            logger.info("pagarme_response", extra={
-                "status_code": response.status_code,
-                "endpoint": endpoint
-            })
+            logger.info(f"📥 [Response] Status: {response.status_code}")
+            logger.info(f"📥 [Response] Headers: {dict(response.headers)}")
 
-            # ✅ TRATAMENTO DE ERROS
+            # Log da resposta (primeiros 500 caracteres)
+            response_text = response.text[:500]
+            logger.info(f"📥 [Response] Body: {response_text}...")
+
+            # ✅ TRATAMENTO DE ERRO DETALHADO
             if response.status_code >= 400:
-                error_data = response.json() if response.text else {}
+                error_data = {}
+                try:
+                    error_data = response.json()
+                except:
+                    error_data = {"message": response.text}
+
                 error_message = error_data.get("message", "Erro desconhecido")
 
-                logger.error("pagarme_api_error", extra={
-                    "status_code": response.status_code,
-                    "error_message": error_message,
-                    "error_data": error_data
-                })
+                # ✅ LOG ESPECIAL PARA ERRO 401
+                if response.status_code == 401:
+                    logger.error("═" * 60)
+                    logger.error("❌ ERRO 401: CREDENCIAIS INVÁLIDAS!")
+                    logger.error("═" * 60)
+                    logger.error(f"Secret Key usada: {self.secret_key[:20]}...")
+                    logger.error(f"Authorization header: {self.session.headers.get('Authorization')[:50]}...")
+                    logger.error(f"Endpoint tentado: {url}")
+                    logger.error(f"Resposta completa: {response.text}")
+                    logger.error("═" * 60)
+                    logger.error("🔍 VERIFICAÇÕES:")
+                    logger.error("   1. A Secret Key está correta no dashboard Pagar.me?")
+                    logger.error("   2. Você está usando sk_test_ com cartão de teste?")
+                    logger.error("   3. A conta Pagar.me está ativa?")
+                    logger.error("   4. As variáveis de ambiente foram atualizadas?")
+                    logger.error("═" * 60)
 
-                raise PagarmeAPIError(
-                    f"Erro {response.status_code}: {error_message}"
-                )
+                    raise PagarmeError(
+                        "Credenciais do Pagar.me inválidas. "
+                        "Verifique a Secret Key no dashboard e nas variáveis de ambiente."
+                    )
+
+                logger.error(f"❌ Erro {response.status_code}: {error_message}")
+                logger.error(f"❌ Detalhes completos: {error_data}")
+
+                raise PagarmeError(error_message)
+
+            logger.info("✅ Requisição bem-sucedida!")
+            logger.info("─" * 60)
 
             return response.json()
 
         except requests.exceptions.RequestException as e:
-            logger.error("pagarme_connection_error", extra={
-                "error": str(e),
-                "endpoint": endpoint
-            }, exc_info=True)
-            raise PagarmeAPIError(f"Erro de conexão: {e}")
+            logger.error("═" * 60)
+            logger.error(f"❌ ERRO DE CONEXÃO!")
+            logger.error(f"   Tipo: {type(e).__name__}")
+            logger.error(f"   Mensagem: {e}")
+            logger.error(f"   URL tentada: {url}")
+            logger.error("═" * 60)
+            raise PagarmeError(f"Erro de conexão com Pagar.me: {e}")
+
+    def _mask_sensitive_data(self, data: Dict) -> Dict:
+        """Mascara dados sensíveis nos logs"""
+        if not isinstance(data, dict):
+            return data
+
+        masked = data.copy()
+        sensitive_keys = ['cvv', 'number', 'password', 'token']
+
+        for key in masked:
+            if any(sk in key.lower() for sk in sensitive_keys):
+                if isinstance(masked[key], str):
+                    masked[key] = f"{masked[key][:4]}...{masked[key][-4:]}" if len(masked[key]) > 8 else "****"
+            elif isinstance(masked[key], dict):
+                masked[key] = self._mask_sensitive_data(masked[key])
+
+        return masked
 
     def create_customer(
         self,
@@ -161,27 +189,15 @@ class PagarmeService:
         phone: str,
         store_id: int
     ) -> Dict:
-        """
-        ✅ Cria um cliente no Pagar.me
+        """Cria um cliente no Pagar.me"""
 
-        Args:
-            email: Email do cliente
-            name: Nome completo
-            document: CPF/CNPJ sem formatação
-            phone: Telefone com DDD
-            store_id: ID da loja (para idempotência)
+        logger.info("🆕 [Create Customer] Iniciando...")
+        logger.info(f"   Email: {email}")
+        logger.info(f"   Nome: {name}")
+        logger.info(f"   Documento: {document[:3]}...{document[-2:]}")
+        logger.info(f"   Store ID: {store_id}")
 
-        Returns:
-            Dados do cliente criado incluindo customer_id
-        """
-        # ✅ VALIDAÇÃO DE ENTRADA
-        if not email or "@" not in email:
-            raise PagarmeValidationError("Email inválido")
-
-        if not document or len(document) not in [11, 14]:
-            raise PagarmeValidationError("CPF/CNPJ inválido")
-
-        # Remove formatação do documento
+        # Remove caracteres não numéricos do documento
         clean_document = "".join(filter(str.isdigit, document))
 
         payload = {
@@ -197,13 +213,11 @@ class PagarmeService:
                 }
             },
             "metadata": {
-                "store_id": str(store_id),
-                "platform": "menuhub"
+                "store_id": str(store_id)
             }
         }
 
-        # ✅ IDEMPOTÊNCIA: Evita criar cliente duplicado
-        idempotency_key = f"customer-{store_id}-{clean_document}"
+        idempotency_key = f"customer-{clean_document}-{store_id}"
 
         return self._make_request(
             "POST",
@@ -217,18 +231,21 @@ class PagarmeService:
         customer_id: str,
         card_token: str
     ) -> Dict:
-        """
-        ✅ Adiciona um cartão a um cliente
+        """Adiciona um cartão ao cliente"""
 
-        Args:
-            customer_id: ID do cliente no Pagar.me
-            card_token: Token do cartão (gerado no frontend)
+        logger.info("💳 [Create Card] Iniciando...")
+        logger.info(f"   Customer ID: {customer_id}")
+        logger.info(f"   Token: {card_token[:20]}...")
 
-        Returns:
-            Dados do cartão criado incluindo card_id
-        """
         payload = {
-            "token": card_token
+            "token": card_token,
+            "billing_address": {
+                "line_1": "Av. Paulista, 1000",
+                "zip_code": "01310100",
+                "city": "São Paulo",
+                "state": "SP",
+                "country": "BR"
+            }
         }
 
         return self._make_request(
@@ -246,25 +263,13 @@ class PagarmeService:
         store_id: int,
         metadata: Optional[Dict] = None
     ) -> Dict:
-        """
-        ✅ BLINDADO: Cria uma cobrança única no cartão
+        """Cria uma cobrança"""
 
-        Args:
-            customer_id: ID do cliente no Pagar.me
-            card_id: ID do cartão no Pagar.me
-            amount_in_cents: Valor em centavos (ex: 2990 = R$ 29,90)
-            description: Descrição da cobrança
-            store_id: ID da loja
-            metadata: Metadados adicionais
-
-        Returns:
-            Dados da cobrança incluindo charge_id e status
-        """
-        # ✅ VALIDAÇÃO
-        if amount_in_cents < 100:
-            raise PagarmeValidationError(
-                "Valor mínimo é R$ 1,00 (100 centavos)"
-            )
+        logger.info("💰 [Create Charge] Iniciando...")
+        logger.info(f"   Customer ID: {customer_id}")
+        logger.info(f"   Card ID: {card_id}")
+        logger.info(f"   Valor: R$ {amount_in_cents/100:.2f}")
+        logger.info(f"   Descrição: {description}")
 
         payload = {
             "amount": amount_in_cents,
@@ -272,77 +277,28 @@ class PagarmeService:
             "payment_method": "credit_card",
             "credit_card": {
                 "card_id": card_id,
-                "statement_descriptor": "MENUHUB"  # Aparece na fatura
+                "statement_descriptor": "MENUHUB"
             },
             "customer": {
                 "id": customer_id
             },
             "metadata": {
                 "store_id": str(store_id),
-                "platform": "menuhub",
                 **(metadata or {})
             }
         }
 
-        # ✅ IDEMPOTÊNCIA: Previne cobrança duplicada
-        idempotency_key = f"charge-{store_id}-{int(time.time())}"
-
         return self._make_request(
             "POST",
             "/charges",
-            data=payload,
-            idempotency_key=idempotency_key
+            data=payload
         )
 
-    def get_charge(self, charge_id: str) -> Dict:
-        """
-        ✅ Busca detalhes de uma cobrança
 
-        Args:
-            charge_id: ID da cobrança
-
-        Returns:
-            Dados completos da cobrança
-        """
-        return self._make_request("GET", f"/charges/{charge_id}")
-
-    def cancel_charge(self, charge_id: str) -> Dict:
-        """
-        ✅ Cancela/Estorna uma cobrança
-
-        Args:
-            charge_id: ID da cobrança
-
-        Returns:
-            Confirmação do cancelamento
-        """
-        return self._make_request("DELETE", f"/charges/{charge_id}")
-
-    @staticmethod
-    def validate_webhook_signature(
-        payload: bytes,
-        signature: str,
-        webhook_secret: str
-    ) -> bool:
-        """
-        ✅ SEGURANÇA: Valida assinatura HMAC do webhook
-
-        Args:
-            payload: Corpo da requisição (bytes)
-            signature: Header X-Hub-Signature
-            webhook_secret: Secret configurado no Pagar.me
-
-        Returns:
-            True se a assinatura for válida
-        """
-        expected_signature = hmac.new(
-            webhook_secret.encode(),
-            payload,
-            hashlib.sha256
-        ).hexdigest()
-
-        return hmac.compare_digest(signature, expected_signature)
+class PagarmeError(Exception):
+    """Exceção customizada para erros do Pagar.me"""
+    pass
 
 
-# ✅ SINGLETON: Instância única do serviço
+# Singleton
 pagarme_service = PagarmeService()

@@ -2068,21 +2068,90 @@ class Plans(Base, TimestampMixin):
     available: Mapped[bool] = mapped_column(default=True)
     support_type: Mapped[str | None] = mapped_column(nullable=True)
 
-    # ✅ NOSSA ESTRUTURA DE PREÇOS DIFERENCIADA
-    minimum_fee: Mapped[int] = mapped_column(default=2990)  # R$ 29,90
-    revenue_percentage: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal('0.029'))  # 2.9%
-    revenue_cap_fee: Mapped[int | None] = mapped_column(default=19900)  # R$ 199,00
-    percentage_tier_start: Mapped[int | None] = mapped_column(default=110000)  # R$ 1.100,00
-    percentage_tier_end: Mapped[int | None] = mapped_column(default=700000)  # R$ 7.000,00
+    # ═══════════════════════════════════════════════════════════
+    # 💎 ESTRUTURA DE PREÇOS COMPETITIVA (Atualizada 2025-01-15)
+    # ═══════════════════════════════════════════════════════════
 
-    # ✅ NOSSOS DIFERENCIAIS EXCLUSIVOS
-    first_month_free: Mapped[bool] = mapped_column(default=True)
-    second_month_discount: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=Decimal('0.50'))  # 50%
-    third_month_discount: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=Decimal('0.75'))  # 25%
+    # ✅ TIER 1: Até R$ 2.500 = Taxa fixa de R$ 39,90
+    minimum_fee: Mapped[int] = mapped_column(
+        default=3990,
+        nullable=False,
+        doc="Taxa mínima em centavos (R$ 39,90)"
+    )
 
-    # ✅ CORREÇÃO APLICADA AQUI
-    included_features: Mapped[List["PlansFeature"]] = relationship(back_populates="plan")
-    subscriptions: Mapped[List["StoreSubscription"]] = relationship(back_populates="plan")
+    # ✅ TIER 2: R$ 2.501 - R$ 15.000 = 1,8% do faturamento
+    revenue_percentage: Mapped[Decimal] = mapped_column(
+        Numeric(5, 4),
+        default=Decimal('0.018'),
+        nullable=False,
+        doc="Percentual aplicado no Tier 2 (1.8%)"
+    )
+
+    percentage_tier_start: Mapped[int | None] = mapped_column(
+        default=250000,
+        nullable=True,
+        doc="Início do Tier 2 em centavos (R$ 2.500,00)"
+    )
+
+    percentage_tier_end: Mapped[int | None] = mapped_column(
+        default=1500000,
+        nullable=True,
+        doc="Fim do Tier 2 em centavos (R$ 15.000,00)"
+    )
+
+    # ✅ TIER 3: Acima de R$ 15.000 = Taxa fixa de R$ 240,00
+    revenue_cap_fee: Mapped[int | None] = mapped_column(
+        default=24000,
+        nullable=True,
+        doc="Taxa máxima em centavos (R$ 240,00)"
+    )
+
+    # ═══════════════════════════════════════════════════════════
+    # 🎁 BENEFÍCIOS PROGRESSIVOS
+    # ═══════════════════════════════════════════════════════════
+
+    first_month_free: Mapped[bool] = mapped_column(
+        default=True,
+        nullable=False,
+        doc="1º mês grátis (100% de desconto)"
+    )
+
+    second_month_discount: Mapped[Decimal] = mapped_column(
+        Numeric(3, 2),
+        default=Decimal('0.50'),
+        nullable=False,
+        doc="2º mês: 50% de desconto (paga 50%)"
+    )
+
+    third_month_discount: Mapped[Decimal] = mapped_column(
+        Numeric(3, 2),
+        default=Decimal('0.75'),
+        nullable=False,
+        doc="3º mês: 25% de desconto (paga 75%)"
+    )
+
+    # ═══════════════════════════════════════════════════════════
+    # 🔗 RELACIONAMENTOS
+    # ═══════════════════════════════════════════════════════════
+
+    included_features: Mapped[List["PlansFeature"]] = relationship(
+        back_populates="plan",
+        cascade="all, delete-orphan"
+    )
+
+    subscriptions: Mapped[List["StoreSubscription"]] = relationship(
+        back_populates="plan",
+        cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<Plans(id={self.id}, name='{self.plan_name}', "
+            f"tier1=R${self.minimum_fee / 100:.2f}, "
+            f"tier2={self.revenue_percentage * 100:.1f}%, "
+            f"tier3=R${(self.revenue_cap_fee or 0) / 100:.2f})>"
+        )
+
 
 
 class PlansAddon(Base, TimestampMixin):
