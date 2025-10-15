@@ -301,21 +301,23 @@ async def admin_emit_order_updated_from_obj(order: models.Order):
 async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = None):
     """
     Emite a estrutura completa de salões/mesas/comandas + comandas avulsas
-    para todos os admins conectados à sala dessa loja.
     """
-    logger.info(f"--- 🚀 [DEBUG START] admin_emit_tables_and_commands para store_id={store_id} ---")
+    logger.info(f"🚀 [EMIT] Preparando dados de mesas/comandas para loja {store_id}")
 
     try:
-        # ===== 1. BUSCA SALÕES COM MESAS E COMANDAS =====
+        # ===== 1. BUSCA SALÕES COM MESAS E COMANDAS (COM EAGER LOADING) =====
         saloons = db.query(models.Saloon).filter(
             models.Saloon.store_id == store_id
         ).options(
-            selectinload(models.Saloon.tables).selectinload(models.Tables.commands)
+            selectinload(models.Saloon.tables).selectinload(models.Tables.commands).options(
+                selectinload(models.Command.table),  # Para pegar o nome da mesa
+                selectinload(models.Command.orders).selectinload(models.Order.products)
+            )
         ).order_by(
             models.Saloon.display_order
         ).all()
 
-        # ===== 2. BUSCA COMANDAS AVULSAS (SEM MESA) =====
+        # ===== 2. BUSCA COMANDAS AVULSAS =====
         standalone_commands = db.query(models.Command).filter(
             models.Command.store_id == store_id,
             models.Command.table_id.is_(None),
@@ -326,40 +328,69 @@ async def admin_emit_tables_and_commands(db, store_id: int, sid: str | None = No
             models.Command.created_at.desc()
         ).all()
 
-        logger.info(f"   [DEBUG] Encontradas {len(standalone_commands)} comandas avulsas.")
+        # ===== 3. SERIALIZA SALÕES (PROCESSANDO COMANDAS MANUALMENTE) =====
+        saloons_data = []
+        for saloon in saloons:
+            tables_data = []
+            for table in saloon.tables:
+                # ✅ Processa cada comanda com o método correto
+                commands_data = [
+                    CommandOut.from_orm_with_totals(cmd).model_dump(mode='json')
+                    for cmd in table.commands
+                    if cmd.status == CommandStatus.ACTIVE
+                ]
 
-        # ===== 3. SERIALIZA OS DADOS =====
-        # ✅ CORREÇÃO: Serializa para JSON IMEDIATAMENTE
-        saloons_data = [SaloonOut.model_validate(s).model_dump(mode='json') for s in saloons]
+                # Monta o dict da mesa
+                table_dict = {
+                    'id': table.id,
+                    'name': table.name,
+                    'max_capacity': table.max_capacity,
+                    'location_description': table.location_description,
+                    'store_id': table.store_id,
+                    'saloon_id': table.saloon_id,
+                    'status': table.status.value if hasattr(table.status, 'value') else str(table.status),
+                    'commands': commands_data,  # ✅ Comandas processadas
+                }
+                tables_data.append(table_dict)
 
+            # Monta o dict do salão
+            saloon_dict = {
+                'id': saloon.id,
+                'name': saloon.name,
+                'display_order': saloon.display_order,
+                'tables': tables_data,
+            }
+            saloons_data.append(saloon_dict)
+
+        # ===== 4. SERIALIZA COMANDAS AVULSAS =====
         standalone_commands_data = [
             CommandOut.from_orm_with_totals(cmd).model_dump(mode='json')
             for cmd in standalone_commands
         ]
 
-        logger.info(
-            f"   [DEBUG] Dados serializados: {len(saloons_data)} salões e {len(standalone_commands_data)} comandas.")
-
-        # ===== 4. MONTA O PAYLOAD FINAL =====
+        # ===== 5. MONTA PAYLOAD E EMITE =====
         payload = {
             "store_id": store_id,
-            "saloons": saloons_data,  # ✅ Já é dict com strings
-            "standalone_commands": standalone_commands_data,  # ✅ Já é dict com strings
+            "saloons": saloons_data,
+            "standalone_commands": standalone_commands_data,
         }
 
-        # ===== 5. EMITE VIA SOCKET =====
         event_name = "tables_and_commands_updated"
 
         if sid:
             await sio.emit(event_name, payload, namespace='/admin', to=sid)
+            logger.info(f"✅ [EMIT] Dados enviados para SID {sid}")
         else:
             await sio.emit(event_name, payload, namespace='/admin', room=f"admin_store_{store_id}")
+            logger.info(f"✅ [EMIT] Dados enviados para sala admin_store_{store_id}")
 
-        logger.info("--- ✅ [DEBUG END] Função concluída com sucesso. ---")
+        logger.info(f"✅ [EMIT] {len(saloons_data)} salões, {len(standalone_commands_data)} comandas avulsas")
 
     except Exception as e:
         logger.error(f"❌ Erro ao emitir tables_and_commands: {e}", exc_info=True)
         raise
+
+
 
 
 
