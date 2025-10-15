@@ -11,6 +11,8 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase
 
 from src.core.aws import S3_PUBLIC_BASE_URL
+from src.core.config import config
+from src.core.encryption import encryption_service
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
     CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode, CategoryType, FoodTagEnum, AvailabilityTypeEnum, \
     BeverageTagEnum, PricingStrategyType, CategoryTemplateType, OptionGroupType, ProductStatus, ChatbotMessageGroupEnum
@@ -128,13 +130,44 @@ class Store(Base, TimestampMixin):
     orders: Mapped[List["Order"]] = relationship(
         "Order",
         back_populates="store",
-        cascade="all, delete-orphan"  # ✅ JÁ CORRIGIDO (está ok)
+        cascade="all, delete-orphan"
     )
 
     efi_customer_id: Mapped[str | None] = mapped_column(nullable=True)
-    efi_payment_token: Mapped[str | None] = mapped_column(nullable=True)  # IMPORTANTE: Criptografe este campo!
 
-    # CORREÇÃO:
+    # ✅ CAMPO CRIPTOGRAFADO (armazena bytes)
+    _efi_payment_token_encrypted: Mapped[bytes | None] = mapped_column(
+        "efi_payment_token",  # Nome da coluna no banco
+        LargeBinary,
+        nullable=True,
+        doc="Token de pagamento da Efí (criptografado)"
+    )
+
+    # ✅ PROPERTY QUE DESCRIPTOGRAFA AUTOMATICAMENTE
+    @hybrid_property
+    def efi_payment_token(self) -> str | None:
+        """Retorna o token descriptografado"""
+        if not self._efi_payment_token_encrypted:
+            return None
+        try:
+            return encryption_service.decrypt(self._efi_payment_token_encrypted)
+        except Exception as e:
+            # Log do erro (não exponha ao usuário)
+            import logging
+            logging.error(f"Falha ao descriptografar token da loja {self.id}: {e}")
+            return None
+
+    # ✅ SETTER QUE CRIPTOGRAFA AUTOMATICAMENTE
+    @efi_payment_token.setter
+    def efi_payment_token(self, value: str | None):
+        """Salva o token criptografado"""
+        if value is None:
+            self._efi_payment_token_encrypted = None
+        else:
+            self._efi_payment_token_encrypted = encryption_service.encrypt(value)
+
+
+
     monthly_charges: Mapped[list["MonthlyCharge"]] = relationship(
         back_populates="store",
         cascade="all, delete-orphan"  # ✅ ADICIONAR
@@ -2480,7 +2513,8 @@ class ChatbotConversationMetadata(Base, TimestampMixin):
     store: Mapped["Store"] = relationship()
 
 
-# 2. Adicione esta NOVA classe no final do arquivo
+
+
 class MonthlyCharge(Base, TimestampMixin):
     __tablename__ = "monthly_charges"
 
@@ -2488,16 +2522,31 @@ class MonthlyCharge(Base, TimestampMixin):
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), index=True)
     subscription_id: Mapped[int] = mapped_column(ForeignKey("store_subscriptions.id"))
 
-    charge_date: Mapped[date] = mapped_column(Date, doc="Data em que a cobrança foi gerada.")
-    billing_period_start: Mapped[date] = mapped_column(Date, doc="Início do período de faturamento.")
-    billing_period_end: Mapped[date] = mapped_column(Date, doc="Fim do período de faturamento.")
+    charge_date: Mapped[date] = mapped_column(Date)
+    billing_period_start: Mapped[date] = mapped_column(Date)
+    billing_period_end: Mapped[date] = mapped_column(Date)
 
-    total_revenue: Mapped[Decimal] = mapped_column(Numeric(12, 2), doc="Faturamento da loja no período.")
-    calculated_fee: Mapped[Decimal] = mapped_column(Numeric(10, 2), doc="Valor da mensalidade calculado.")
+    total_revenue: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    calculated_fee: Mapped[Decimal] = mapped_column(Numeric(10, 2))
 
-    status: Mapped[str] = mapped_column(default="pending", index=True, doc="Status: pending, paid, failed.")
+    status: Mapped[str] = mapped_column(default="pending", index=True)
     gateway_transaction_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
-    # ✅ CORREÇÃO APLICADA AQUI
+    # ✅ METADATA TIPADO
+    metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+    # Relacionamentos
     store: Mapped["Store"] = relationship(back_populates="monthly_charges")
     subscription: Mapped["StoreSubscription"] = relationship(back_populates="monthly_charges")
+
+    # ✅ ÍNDICES OTIMIZADOS
+    __table_args__ = (
+        Index('ix_monthly_charges_status', 'status'),
+        Index('ix_monthly_charges_store_period', 'store_id', 'billing_period_start'),
+        Index('ix_monthly_charges_gateway_id', 'gateway_transaction_id'),
+        # ✅ NOVO: Índice composto para buscas rápidas
+        Index('ix_monthly_charges_gateway_status', 'gateway_transaction_id', 'status'),
+        # ✅ Unicidade para evitar duplicatas
+        UniqueConstraint('store_id', 'billing_period_start', 'billing_period_end',
+                         name='uq_store_billing_period'),
+    )

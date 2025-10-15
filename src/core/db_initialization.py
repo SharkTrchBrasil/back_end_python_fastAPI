@@ -48,17 +48,13 @@ def initialize_roles(db: Session):
         print("✅ Todas as roles padrão já existem.")
 
 
-
-
-
-
 def seed_plans_and_features(db: Session):
     """
-    Define nossa estrutura de valor único
+    ✅ ATUALIZADO: Define a estrutura de preços justa baseada em faturamento
     """
     print("Iniciando a semeadura da estrutura de Planos e Features...")
 
-    # Features essenciais
+    # Features essenciais (mantidas)
     features_data = [
         {'feature_key': 'review_automation', 'name': 'Automação de Avaliações',
          'description': 'Solicita avaliações dos clientes automaticamente após a entrega.', 'is_addon': False},
@@ -94,22 +90,29 @@ def seed_plans_and_features(db: Session):
 
     db.flush()
 
-    # Nosso plano diferenciado
+    # ✅ ESTRUTURA DE PREÇOS ATUALIZADA
     plans_data = [
         {
             'plan_name': 'Plano Parceiro',
             'available': True,
-            # NOSSO VALOR JUSTO
-            'minimum_fee': 2990,  # R$ 29,90
-            'revenue_percentage': Decimal('0.029'),  # 2.9%
-            'revenue_cap_fee': 19900,  # R$ 199,00
-            'percentage_tier_start': 110000,  # R$ 1.100,00
-            'percentage_tier_end': 700000,  # R$ 7.000,00
-            # NOSSOS DIFERENCIAIS
+
+            # ✅ TIER 1: Até R$ 2.500 = Taxa fixa de R$ 39,90
+            'minimum_fee': 3990,  # R$ 39,90 em centavos
+
+            # ✅ TIER 2: R$ 2.501 - R$ 20.000 = 1,8% do faturamento
+            'revenue_percentage': Decimal('0.018'),  # 1,8%
+            'percentage_tier_start': 250000,  # R$ 2.500,00 em centavos
+            'percentage_tier_end': 2000000,  # R$ 20.000,00 em centavos
+
+            # ✅ TIER 3: Acima de R$ 20.000 = Taxa fixa de R$ 240,00
+            'revenue_cap_fee': 24000,  # R$ 240,00 em centavos
+
+            # ✅ BENEFÍCIOS MANTIDOS
             'first_month_free': True,
-            'second_month_discount': Decimal('0.50'),
-            'third_month_discount': Decimal('0.75'),
-            'support_type': 'Suporte Parceiro Dedicado',
+            'second_month_discount': Decimal('0.50'),  # 50% de desconto no 2º mês
+            'third_month_discount': Decimal('0.75'),  # 25% de desconto no 3º mês (paga 75% do valor)
+
+            'support_type': 'Suporte Parceiro Dedicado via WhatsApp',
         }
     ]
 
@@ -118,12 +121,32 @@ def seed_plans_and_features(db: Session):
         if not plan:
             plan = models.Plans(**plan_data)
             db.add(plan)
+            print(f"✅ Plano '{plan_data['plan_name']}' criado com sucesso!")
         else:
             for key, value in plan_data.items():
                 setattr(plan, key, value)
+            print(f"✅ Plano '{plan_data['plan_name']}' atualizado com sucesso!")
 
     db.commit()
-    print("✅ Estrutura de valor único definida com sucesso!")
+
+    # ✅ EXIBE RESUMO DA ESTRUTURA
+    print("\n" + "=" * 60)
+    print("📊 ESTRUTURA DE PREÇOS CONFIGURADA")
+    print("=" * 60)
+    print("TIER 1 - Iniciante (até R$ 2.500)")
+    print("  → Taxa fixa: R$ 39,90")
+    print("\nTIER 2 - Crescimento (R$ 2.501 - R$ 20.000)")
+    print("  → Percentual: 1,8% do faturamento")
+    print("  → Mínimo: R$ 45,00")
+    print("\nTIER 3 - Premium (acima de R$ 20.000)")
+    print("  → Taxa fixa: R$ 240,00")
+    print("\n💎 BENEFÍCIOS:")
+    print("  → 1º mês: 100% GRÁTIS")
+    print("  → 2º mês: 50% de desconto")
+    print("  → 3º mês: 25% de desconto")
+    print("=" * 60 + "\n")
+
+
 def seed_chatbot_templates(db: Session):
     """
     Verifica e insere os templates de mensagem do chatbot se eles não existirem.
