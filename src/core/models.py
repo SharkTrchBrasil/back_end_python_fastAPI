@@ -1007,45 +1007,7 @@ class StoreTheme(Base, TimestampMixin):
     store: Mapped["Store"] = relationship(back_populates="theme")
 
 
-class StorePixConfig(Base, TimestampMixin):
-    __tablename__ = "store_pix_configs"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), unique=True)
-
-    client_id: Mapped[str] = mapped_column()
-    client_secret: Mapped[str] = mapped_column()
-    pix_key: Mapped[str] = mapped_column()
-    certificate: Mapped[bytes] = mapped_column(LargeBinary)
-
-    hmac_key: Mapped[str] = mapped_column(unique=True)
-
-
-class Charge(Base, TimestampMixin):
-    __tablename__ = "charges"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), nullable=False)
-    tx_id: Mapped[str] = mapped_column()
-    status: Mapped[str] = mapped_column()
-    amount: Mapped[int] = mapped_column()
-    copy_key: Mapped[str] = mapped_column()
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    e2e_id: Mapped[str | None] = mapped_column()
-
-
-class PixDevolution(Base, TimestampMixin):
-    __tablename__ = "pix_devolutions"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), nullable=False)
-    rtr_id: Mapped[str] = mapped_column()
-    status: Mapped[str] = mapped_column()
-    amount: Mapped[int] = mapped_column()
-    e2e_id: Mapped[str] = mapped_column()
-    reason: Mapped[str | None] = mapped_column()
 
 
 class ChatbotMessageTemplate(Base, TimestampMixin):
@@ -1983,23 +1945,6 @@ class TableHistory(Base):
     user: Mapped["User | None"] = relationship()
 
 
-# class OrderProductTicket(Base, TimestampMixin):
-#     __tablename__ = "order_product_tickets"
-#
-#     id: Mapped[int] = mapped_column(primary_key=True)
-#
-#     order_product_id: Mapped[int] = mapped_column(ForeignKey("order_products.id"))
-#     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"))
-#     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
-#
-#     ticket_code: Mapped[str] = mapped_column(unique=True)
-#     status: Mapped[int] = mapped_column()
-#
-#     order_product: Mapped[OrderProduct] = relationship(backref="tickets")
-#
-#
-#
-#
 
 
 class StoreRating(Base, TimestampMixin):
