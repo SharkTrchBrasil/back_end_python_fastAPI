@@ -33,7 +33,6 @@ class CommandSchema(BaseModel):
         from_attributes = True
 
 
-
 class CommandOut(BaseModel):
     id: int
     store_id: int
@@ -50,27 +49,38 @@ class CommandOut(BaseModel):
     table_name: Optional[str] = None
     total_amount: int = 0  # Em centavos
 
+    # ✅ NOVO: Lista de itens da comanda
+    items: List['CommandItemOut'] = []
+
     class Config:
         from_attributes = True
 
-
-
     @classmethod
     def from_orm_with_totals(cls, command):
-        """Factory method para criar CommandOut com cálculos"""
+        """Factory method para criar CommandOut com cálculos e itens"""
 
-        # Calcula o total dos pedidos
+        # Calcula o total e monta os itens
         total = 0
+        items = []
+
         if hasattr(command, 'orders') and command.orders:
             for order in command.orders:
                 total += order.discounted_total_price or order.total_price
 
-        # Nome da mesa (se houver)
+                # ✅ Adiciona os produtos de cada pedido
+                for product in order.products:
+                    items.append({
+                        'order_id': order.id,
+                        'product_id': product.product_id,
+                        'product_name': product.name,
+                        'quantity': product.quantity,
+                        'price': product.price,
+                        'note': product.note,
+                        'image_url': product.image_url,
+                    })
+
         table_name = command.table.name if command.table else None
-
-        # Status como string
         status_str = command.status.value if hasattr(command.status, 'value') else str(command.status)
-
 
         return cls(
             id=command.id,
@@ -81,12 +91,26 @@ class CommandOut(BaseModel):
             status=status_str,
             attendant_id=command.attendant_id,
             notes=command.notes,
-            created_at=command.created_at.isoformat() if command.created_at else None,  # ✅ CONVERSÃO
-            updated_at=command.updated_at.isoformat() if command.updated_at else None,  # ✅ CONVERSÃO
+            created_at=command.created_at.isoformat() if command.created_at else None,
+            updated_at=command.updated_at.isoformat() if command.updated_at else None,
             table_name=table_name,
             total_amount=total,
+            items=items,  # ✅ Inclui os itens
         )
 
+
+# ✅ NOVO: Schema para os itens da comanda
+class CommandItemOut(BaseModel):
+    order_id: int
+    product_id: int
+    product_name: str
+    quantity: int
+    price: int  # Em centavos
+    note: Optional[str] = None
+    image_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 class TableBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=50)
