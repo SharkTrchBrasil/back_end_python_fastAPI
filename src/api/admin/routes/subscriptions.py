@@ -360,23 +360,26 @@ async def create_or_reactivate_subscription(
 
 @router.get("/stores/{store_id}/subscriptions/details")
 async def get_subscription_details(
-    db: GetDBDep,
-    store: GetStoreDep,
-    user: GetCurrentUserDep,
+        db: GetDBDep,
+        store: GetStoreDep,
+        user: GetCurrentUserDep,
 ):
     """
     🎯 Retorna detalhes completos da assinatura ativa.
 
     Inclui:
-    - Dados da assinatura atual
+    - Dados da assinatura atual (calculados pelo serviço)
     - Preview de faturamento
     - Histórico de cobranças
     - Informações do cartão (mascarado)
     """
 
-    subscription = store.active_subscription
+    # ✅ CORREÇÃO: USA O SERVIÇO QUE CALCULA TUDO
+    from src.api.admin.services.subscription_service import SubscriptionService
 
-    if not subscription:
+    subscription_details = SubscriptionService.get_subscription_details(store)
+
+    if not subscription_details:
         raise HTTPException(
             status_code=404,
             detail="Nenhuma assinatura ativa encontrada"
@@ -413,7 +416,6 @@ async def get_subscription_details(
 
         except PagarmeError as e:
             logger.warning(f"⚠️ Erro ao buscar cartão do Pagar.me: {e}")
-            # Fallback: retornar dados genéricos
             card_info = {
                 "masked_number": "************",
                 "brand": "Cartão Cadastrado",
@@ -428,28 +430,14 @@ async def get_subscription_details(
                 "status": "unknown"
             }
 
+    # ✅ RETORNA DADOS CALCULADOS (não do modelo direto)
     return {
-        "subscription": {
-            "id": subscription.id,
-            "status": subscription.status,
-            "is_blocked": subscription.is_blocked,
-            "warning_message": subscription.warning_message,
-            "current_period_start": subscription.current_period_start.isoformat(),
-            "current_period_end": subscription.current_period_end.isoformat(),
-            "plan": {
-                "id": subscription.plan.id,
-                "name": subscription.plan.plan_name,
-                "minimum_fee": subscription.plan.minimum_fee,
-                "revenue_percentage": float(subscription.plan.revenue_percentage),
-                "revenue_cap_fee": subscription.plan.revenue_cap_fee,
-            } if subscription.plan else None,
-        },
+        "subscription": subscription_details,  # ← JÁ VEM COMPLETO DO SERVIÇO
         "billing_preview": billing_preview,
         "billing_history": billing_history,
         "card_info": card_info,
-        "can_cancel": subscription.status in ["active", "trialing"],
+        "can_cancel": subscription_details["status"] in ["active", "trialing"],
     }
-
 
 @router.delete("/stores/{store_id}/subscriptions")
 async def cancel_subscription(
