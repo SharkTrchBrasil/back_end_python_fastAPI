@@ -89,12 +89,11 @@ class GetStore:
 
             store = db_store_access.store
 
-        # ✅✅✅ A CORREÇÃO DEFINITIVA ESTÁ AQUI ✅✅✅
-        # 1. Recebe o dicionário completo retornado pelo serviço.
+        # ✅ CORREÇÃO: VERIFICA SE sub_details NÃO É None ANTES DE USAR .get()
         sub_details = SubscriptionService.get_subscription_details(store)
 
-        # 2. Acessa as chaves 'is_blocked' e 'warning_message' do dicionário.
-        if sub_details.get("is_blocked"):
+        # ✅ Só bloqueia se sub_details existir E estiver bloqueado
+        if sub_details and sub_details.get("is_blocked"):
             raise HTTPException(
                 status_code=403,
                 detail={
@@ -104,7 +103,6 @@ class GetStore:
             )
 
         return store
-
 
 
 get_store = GetStore([Roles.OWNER, Roles.MANAGER])
