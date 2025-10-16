@@ -61,7 +61,6 @@ class Store(BaseModel):
     file_key: Optional[str] = None
     banner_file_key: Optional[str] = None
 
-    # ✅ ADICIONAR: Campos do Pagar.me
     pagarme_customer_id: Optional[str] = None
     pagarme_card_id: Optional[str] = None
 
@@ -108,6 +107,10 @@ class StoreSchema(Store):
     # --- Campos Agregados ---
     rating_average: float = 0.0
     rating_count: int = 0
+
+    pagarme_customer_id: Optional[str] = None
+    pagarme_card_id: Optional[str] = None
+
 
     # --- Relacionamentos ---
     active_subscription: Optional[SubscriptionDetailsSchema] = None
