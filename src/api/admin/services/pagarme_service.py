@@ -267,29 +267,40 @@ class PagarmeService:
             idempotency_key=idempotency_key
         )
 
-
-
-
     def create_card(
-        self,
-        customer_id: str,
-        card_token: str
+            self,
+            customer_id: str,
+            card_token: str,
+            billing_address: Optional[Dict] = None  # ✅ ADICIONAR PARÂMETRO
     ) -> Dict:
-        """Adiciona um cartão ao cliente"""
+        """
+        Adiciona um cartão ao cliente.
+
+        Args:
+            customer_id: ID do customer no Pagar.me
+            card_token: Token do cartão gerado no frontend
+            billing_address: Endereço de cobrança (opcional)
+
+        Returns:
+            Resposta da API com dados do cartão criado
+        """
 
         logger.info("💳 [Create Card] Iniciando...")
         logger.info(f"   Customer ID: {customer_id}")
         logger.info(f"   Token: {card_token[:20]}...")
 
+        # ✅ CORREÇÃO: Usa endereço fornecido ou padrão
+        default_address = {
+            "line_1": "Rua Exemplo, 100",
+            "zip_code": "01310100",
+            "city": "São Paulo",
+            "state": "SP",
+            "country": "BR"
+        }
+
         payload = {
             "token": card_token,
-            "billing_address": {
-                "line_1": "Av. Paulista, 1000",
-                "zip_code": "01310100",
-                "city": "São Paulo",
-                "state": "SP",
-                "country": "BR"
-            }
+            "billing_address": billing_address or default_address
         }
 
         return self._make_request(
@@ -297,6 +308,9 @@ class PagarmeService:
             f"/customers/{customer_id}/cards",
             data=payload
         )
+
+
+
 
     def create_charge(
         self,
