@@ -2,7 +2,7 @@
 from pydantic import BaseModel, Field, computed_field, ConfigDict
 from typing import List, Optional
 
-from src.api.schemas.subscriptions.store_subscription import StoreSubscriptionSchema
+from src.api.schemas.subscriptions.subscription_schemas import SubscriptionDetailsSchema
 from src.core.utils.enums import StoreVerificationStatus
 from src.core.aws import S3_PUBLIC_BASE_URL
 
@@ -107,7 +107,7 @@ class StoreSchema(Store):
     rating_count: int = 0
 
     # --- Relacionamentos ---
-    active_subscription: Optional[StoreSubscriptionSchema] = None
+    active_subscription: Optional[SubscriptionDetailsSchema] = None
 
     @computed_field
     @property
