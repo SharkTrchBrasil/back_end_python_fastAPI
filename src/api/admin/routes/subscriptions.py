@@ -9,9 +9,9 @@ from decimal import Decimal
 from fastapi import APIRouter, HTTPException
 from fastapi.logger import logger
 
-
+from src.api.admin.services.billing_preview_service import BillingPreviewService
+from src.api.admin.services.billing_report_service import BillingReportService
 from src.api.admin.services.pagarme_service import pagarme_service, PagarmeError
-
 from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.admin.utils.proration import calculate_prorated_charge
 from src.api.schemas.subscriptions.store_subscription import CreateStoreSubscription
@@ -34,7 +34,7 @@ router = APIRouter(
 @router.post("/stores/{store_id}/subscriptions")
 async def create_or_reactivate_subscription(
     db: GetDBDep,
-    store: GetStoreDep,  # ✅ CORREÇÃO: Usa GetStoreDep
+    store: GetStoreDep,
     user: GetCurrentUserDep,
     subscription_data: CreateStoreSubscription,
 ):
@@ -201,7 +201,7 @@ async def create_or_reactivate_subscription(
 
             logger.info(f"Customer criado: {store.pagarme_customer_id}")
 
-        # ✅ Adiciona cartão SEM verificação (ambiente de teste)
+        # ✅ Adiciona cartão
         logger.info(f"Adicionando cartão para customer {store.pagarme_customer_id}")
 
         billing_address = {
@@ -213,15 +213,14 @@ async def create_or_reactivate_subscription(
             "country": "BR"
         }
 
-        # Remove campos None
         billing_address = {k: v for k, v in billing_address.items() if v is not None}
 
         try:
             card_response = pagarme_service.create_card(
                 customer_id=store.pagarme_customer_id,
                 card_token=subscription_data.card.payment_token,
-                billing_address=billing_address,
-                verify_card=False  # ✅ DESABILITA VERIFICAÇÃO EM TESTE
+                billing_address=billing_address
+                # verify_card é automático: False em test, True em production
             )
             store.pagarme_card_id = card_response["id"]
             logger.info(f"✅ Cartão adicionado: {store.pagarme_card_id}")
@@ -248,23 +247,6 @@ async def create_or_reactivate_subscription(
                     detail=f"Erro ao processar cartão: {str(card_error)}"
                 )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         # ═══════════════════════════════════════════════════════
         # 5. COBRANÇA PROPORCIONAL
         # ═══════════════════════════════════════════════════════
@@ -288,7 +270,6 @@ async def create_or_reactivate_subscription(
 
             logger.info(f"Cobrança criada: {charge_response['id']}")
 
-            # ✅ Registra cobrança no banco
             monthly_charge = models.MonthlyCharge(
                 store_id=store.id,
                 subscription_id=subscription.id,
@@ -320,7 +301,6 @@ async def create_or_reactivate_subscription(
 
         logger.info(f"✅ Assinatura {subscription.id} ativada com sucesso!")
 
-        # ✅ Notifica via WebSocket
         await admin_emit_store_updated(db, store.id)
 
         return {
@@ -352,3 +332,153 @@ async def create_or_reactivate_subscription(
             status_code=500,
             detail="Erro ao processar assinatura. Tente novamente."
         )
+
+
+@router.get("/stores/{store_id}/subscriptions/details")
+async def get_subscription_details(
+    db: GetDBDep,
+    store: GetStoreDep,
+    user: GetCurrentUserDep,
+):
+    """
+    🎯 Retorna detalhes completos da assinatura ativa.
+
+    Inclui:
+    - Dados da assinatura atual
+    - Preview de faturamento
+    - Histórico de cobranças
+    - Informações do cartão (mascarado)
+    """
+
+    subscription = store.active_subscription
+
+    if not subscription:
+        raise HTTPException(
+            status_code=404,
+            detail="Nenhuma assinatura ativa encontrada"
+        )
+
+    # ✅ Preview de faturamento
+    billing_preview = BillingPreviewService.get_billing_preview(db, store)
+
+    # ✅ Histórico de cobranças (últimos 6 meses)
+    billing_history = BillingReportService.get_store_history(db, store.id, months=6)
+
+    # ✅ Buscar dados REAIS do cartão no Pagar.me
+    card_info = None
+    if store.pagarme_card_id and store.pagarme_customer_id:
+        try:
+            logger.info(f"Buscando informações do cartão {store.pagarme_card_id}")
+
+            card_response = pagarme_service.get_card(
+                customer_id=store.pagarme_customer_id,
+                card_id=store.pagarme_card_id
+            )
+
+            # Monta resposta com dados reais mascarados
+            card_info = {
+                "masked_number": f"************{card_response.get('last_four_digits', '****')}",
+                "brand": card_response.get('brand', 'Desconhecida'),
+                "status": card_response.get('status', 'active'),
+                "holder_name": card_response.get('holder_name'),
+                "exp_month": card_response.get('exp_month'),
+                "exp_year": card_response.get('exp_year'),
+            }
+
+            logger.info(f"✅ Cartão encontrado: {card_info['brand']} {card_info['masked_number']}")
+
+        except PagarmeError as e:
+            logger.warning(f"⚠️ Erro ao buscar cartão do Pagar.me: {e}")
+            # Fallback: retornar dados genéricos
+            card_info = {
+                "masked_number": "************",
+                "brand": "Cartão Cadastrado",
+                "status": "active"
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Erro inesperado ao buscar cartão: {e}")
+            card_info = {
+                "masked_number": "************",
+                "brand": "Erro ao buscar",
+                "status": "unknown"
+            }
+
+    return {
+        "subscription": {
+            "id": subscription.id,
+            "status": subscription.status,
+            "is_blocked": subscription.is_blocked,
+            "warning_message": subscription.warning_message,
+            "current_period_start": subscription.current_period_start.isoformat(),
+            "current_period_end": subscription.current_period_end.isoformat(),
+            "plan": {
+                "id": subscription.plan.id,
+                "name": subscription.plan.plan_name,
+                "minimum_fee": subscription.plan.minimum_fee,
+                "revenue_percentage": float(subscription.plan.revenue_percentage),
+                "revenue_cap_fee": subscription.plan.revenue_cap_fee,
+            } if subscription.plan else None,
+        },
+        "billing_preview": billing_preview,
+        "billing_history": billing_history,
+        "card_info": card_info,
+        "can_cancel": subscription.status in ["active", "trialing"],
+    }
+
+
+@router.delete("/stores/{store_id}/subscriptions")
+async def cancel_subscription(
+    db: GetDBDep,
+    store: GetStoreDep,
+    user: GetCurrentUserDep,
+):
+    """
+    ⚠️ Cancela a assinatura da loja.
+
+    - Muda status para "canceled"
+    - Mantém acesso até o fim do período pago
+    - Bloqueia renovação automática
+    """
+
+    subscription = store.active_subscription
+
+    if not subscription:
+        raise HTTPException(
+            status_code=404,
+            detail="Nenhuma assinatura ativa encontrada"
+        )
+
+    # Não pode cancelar se já está cancelada
+    if subscription.status == "canceled":
+        raise HTTPException(
+            status_code=400,
+            detail="Esta assinatura já foi cancelada"
+        )
+
+    # ✅ Cancela no Pagar.me (se houver ID de assinatura recorrente)
+    if subscription.gateway_subscription_id:
+        try:
+            logger.info(f"Cancelando assinatura {subscription.gateway_subscription_id} no Pagar.me")
+            # pagarme_service.cancel_subscription(subscription.gateway_subscription_id)
+            # TODO: Implementar quando houver assinaturas recorrentes
+            pass
+        except Exception as e:
+            logger.error(f"Erro ao cancelar no Pagar.me: {e}")
+            # Não bloqueia o cancelamento local
+
+    # ✅ Atualiza status no banco
+    subscription.status = "canceled"
+    subscription.canceled_at = datetime.now(timezone.utc)
+
+    db.commit()
+
+    logger.info(f"✅ Assinatura {subscription.id} cancelada pelo usuário {user.id}")
+
+    await admin_emit_store_updated(db, store.id)
+
+    return {
+        "status": "success",
+        "message": "Assinatura cancelada com sucesso",
+        "access_until": subscription.current_period_end.isoformat()
+    }

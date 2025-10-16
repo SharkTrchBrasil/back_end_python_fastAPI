@@ -27,7 +27,6 @@ class PagarmeService:
         self.base_url = config.PAGARME_API_URL
         self.environment = config.PAGARME_ENVIRONMENT
 
-        # ✅ CORREÇÃO: Usa apenas PAGARME_ENVIRONMENT (não depende do prefixo)
         self.is_test_mode = self.environment.lower() in ["test", "testing", "development", "dev"]
 
         logger.info(f"📋 [Config] Secret Key: {self.secret_key[:10]}...{self.secret_key[-4:]} (tamanho: {len(self.secret_key)})")
@@ -36,7 +35,6 @@ class PagarmeService:
         logger.info(f"🔧 [Config] Ambiente: {self.environment.upper()}")
         logger.info(f"🔧 [Config] Modo Teste: {self.is_test_mode}")
 
-        # ✅ VALIDAÇÃO SIMPLIFICADA (remove verificação de prefixo)
         if not self.secret_key:
             logger.error("❌ PAGARME_SECRET_KEY não está configurada!")
             raise ValueError("PAGARME_SECRET_KEY não está configurada!")
@@ -45,14 +43,12 @@ class PagarmeService:
             logger.error(f"❌ Secret Key inválida! Deve começar com 'sk_'")
             raise ValueError("PAGARME_SECRET_KEY inválida! Deve começar com 'sk_'")
 
-        # ✅ Montagem do header de autenticação
         credentials = f"{self.secret_key}:"
         logger.info(f"🔐 [Auth] Credentials (antes do base64): {credentials[:15]}...")
 
         encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
         logger.info(f"🔐 [Auth] Credentials (depois do base64): {encoded_credentials[:30]}...")
 
-        # Sessão HTTP com retry
         self.session = requests.Session()
         retry_strategy = Retry(
             total=3,
@@ -64,7 +60,6 @@ class PagarmeService:
         self.session.mount("https://", adapter)
         self.session.mount("http://", adapter)
 
-        # ✅ Headers configurados
         self.session.headers.update({
             "Authorization": f"Basic {encoded_credentials}",
             "Content-Type": "application/json",
@@ -294,16 +289,13 @@ class PagarmeService:
         logger.info(f"   Customer ID: {customer_id}")
         logger.info(f"   Token: {card_token[:20]}...")
 
-        # ✅ LÓGICA: Usa PAGARME_ENVIRONMENT para decidir
         if verify_card is None:
-            # False em test, True em production
             verify_card = not self.is_test_mode
 
         logger.info(f"   Ambiente: {self.environment.upper()}")
         logger.info(f"   Modo Teste: {self.is_test_mode}")
         logger.info(f"   Verificar cartão: {verify_card}")
 
-        # ✅ Endereço padrão se não fornecido
         if not billing_address:
             billing_address = {
                 "line_1": "Rua Exemplo, 100",
@@ -313,13 +305,11 @@ class PagarmeService:
                 "country": "BR"
             }
 
-        # Remove campos None
         billing_address = {k: v for k, v in billing_address.items() if v is not None}
 
         logger.info(f"   Endereço: {billing_address.get('line_1')}")
         logger.info(f"   Cidade/Estado: {billing_address.get('city')}/{billing_address.get('state')}")
 
-        # ✅ Monta payload com verify_card
         payload = {
             "token": card_token,
             "billing_address": billing_address,
@@ -332,6 +322,34 @@ class PagarmeService:
             "POST",
             f"/customers/{customer_id}/cards",
             data=payload
+        )
+
+    def get_card(
+        self,
+        customer_id: str,
+        card_id: str
+    ) -> Dict:
+        """
+        Busca informações de um cartão específico.
+
+        Args:
+            customer_id: ID do customer no Pagar.me
+            card_id: ID do cartão
+
+        Returns:
+            Dados do cartão (mascarados pela API)
+
+        Raises:
+            PagarmeError: Se houver erro na busca
+        """
+
+        logger.info("💳 [Get Card] Iniciando...")
+        logger.info(f"   Customer ID: {customer_id}")
+        logger.info(f"   Card ID: {card_id}")
+
+        return self._make_request(
+            "GET",
+            f"/customers/{customer_id}/cards/{card_id}"
         )
 
     def create_charge(

@@ -61,6 +61,9 @@ class Store(BaseModel):
     file_key: Optional[str] = None
     banner_file_key: Optional[str] = None
 
+    # ✅ ADICIONAR: Campos do Pagar.me
+    pagarme_customer_id: Optional[str] = None
+    pagarme_card_id: Optional[str] = None
 
 # --- ✅ Schema para Criação via Wizard (Corrigido e Completo) ---
 class StoreCreate(BaseModel):
