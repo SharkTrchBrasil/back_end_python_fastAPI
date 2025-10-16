@@ -6,11 +6,11 @@ Rotas para gerenciamento de assinaturas
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 
-from fastapi import HTTPException
+from fastapi import APIRouter, HTTPException
 from fastapi.logger import logger
 from starlette import status
 
-from src.api.admin import router
+# ✅ CORREÇÃO: Importa apenas o que é necessário
 from src.api.admin.services import pagarme_service
 from src.api.admin.services.pagarme_service import PagarmeError
 from src.api.admin.socketio.emitters import admin_emit_store_updated
@@ -27,13 +27,19 @@ from src.core.utils.validators import (
     validate_email
 )
 
+# ✅ CORREÇÃO: Cria o router LOCALMENTE
+router = APIRouter(
+    tags=["Subscriptions"],
+    prefix="/stores/{store_id}/subscriptions"
+)
 
-@router.post("/stores/{store_id}/subscriptions")
+
+@router.post("")
 async def create_or_reactivate_subscription(
-        db: GetDBDep,
-        store_id: int,
-        user: GetCurrentUserDep,
-        subscription_data: CreateStoreSubscription,
+    db: GetDBDep,
+    store_id: int,
+    user: GetCurrentUserDep,
+    subscription_data: CreateStoreSubscription,
 ):
     """
     ✅ Cria ou reativa uma assinatura de loja.
@@ -261,7 +267,7 @@ async def create_or_reactivate_subscription(
                 charge_date=datetime.now(timezone.utc).date(),
                 billing_period_start=proration_details.get("period_start", datetime.now(timezone.utc)).date(),
                 billing_period_end=proration_details.get("period_end", subscription.current_period_end).date(),
-                total_revenue=Decimal("0"),  # Cobrança proporcional não tem receita associada
+                total_revenue=Decimal("0"),
                 calculated_fee=Decimal(str(prorated_amount_cents / 100)),
                 status="pending",
                 gateway_transaction_id=charge_response["id"],
