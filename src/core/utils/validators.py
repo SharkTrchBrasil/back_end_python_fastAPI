@@ -5,6 +5,8 @@ Fornece funções de validação para CPF, CNPJ, telefone e CEP.
 """
 
 import re
+from decimal import Decimal
+from typing import List
 
 
 def validate_cpf(cpf: str) -> bool:
@@ -186,3 +188,76 @@ def validate_email(email: str) -> bool:
     # Regex simples mas eficaz para validação de email
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return bool(re.match(pattern, email))
+
+
+
+
+
+def validate_plan_configuration(
+        minimum_fee: int,
+        revenue_percentage: Decimal,
+        percentage_tier_start: int,
+        percentage_tier_end: int,
+        revenue_cap_fee: int | None,
+        plan_name: str
+) -> List[str]:
+    """
+    Valida configuração de um plano de assinatura.
+
+    Args:
+        minimum_fee: Taxa mínima em centavos
+        revenue_percentage: Percentual (ex: 0.018 para 1.8%)
+        percentage_tier_start: Início do Tier 2 em centavos
+        percentage_tier_end: Fim do Tier 2 em centavos
+        revenue_cap_fee: Taxa máxima em centavos
+        plan_name: Nome do plano
+
+    Returns:
+        Lista de erros (vazia se válido)
+
+    Examples:
+        >>> errors = validate_plan_configuration(
+        ...     minimum_fee=3990,
+        ...     revenue_percentage=Decimal('0.018'),
+        ...     percentage_tier_start=250000,
+        ...     percentage_tier_end=1500000,
+        ...     revenue_cap_fee=24000,
+        ...     plan_name='Plano Parceiro'
+        ... )
+        >>> len(errors)
+        0
+    """
+    errors = []
+
+    # 1. ✅ VALIDAÇÃO: Taxa mínima
+    if minimum_fee <= 0:
+        errors.append("Taxa mínima deve ser maior que zero")
+    elif minimum_fee < 100:  # Menos de R$ 1,00
+        errors.append("Taxa mínima muito baixa (mínimo: R$ 1,00)")
+
+    # 2. ✅ VALIDAÇÃO: Percentual
+    if not (Decimal('0') < revenue_percentage < Decimal('1')):
+        errors.append("Percentual deve estar entre 0 e 1 (ex: 1.8% = 0.018)")
+    elif revenue_percentage > Decimal('0.1'):  # Mais de 10%
+        errors.append("Percentual muito alto (máximo recomendado: 10%)")
+
+    # 3. ✅ VALIDAÇÃO: Faixas de faturamento
+    if percentage_tier_start >= percentage_tier_end:
+        errors.append("Início do Tier 2 deve ser menor que o fim")
+    elif percentage_tier_start <= 0:
+        errors.append("Início do Tier 2 deve ser maior que zero")
+
+    # 4. ✅ VALIDAÇÃO: Teto de cobrança
+    if revenue_cap_fee:
+        if revenue_cap_fee < minimum_fee:
+            errors.append("Taxa máxima não pode ser menor que a taxa mínima")
+        elif revenue_cap_fee > 10000000:  # Mais de R$ 100.000
+            errors.append("Taxa máxima muito alta (máximo: R$ 100.000)")
+
+    # 5. ✅ VALIDAÇÃO: Nome do plano
+    if not plan_name or len(plan_name.strip()) == 0:
+        errors.append("Nome do plano é obrigatório")
+    elif len(plan_name) > 100:
+        errors.append("Nome do plano muito longo (máximo: 100 caracteres)")
+
+    return errors
