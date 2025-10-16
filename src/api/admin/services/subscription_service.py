@@ -102,13 +102,19 @@ class SubscriptionService:
         addons_payload = [SubscribedAddonSchema.model_validate(addon).model_dump() for addon in
                           subscription_db.subscribed_addons]
 
+        # ✅ ADICIONE ESTA VERIFICAÇÃO SIMPLES
+        has_payment_method = (
+            store.pagarme_customer_id is not None and
+            store.pagarme_card_id is not None  # ← A property descriptografa automaticamente!
+        )
+
         return {
             "plan": plan_payload,
             "status": dynamic_status,
             "is_blocked": is_blocked,
             "warning_message": warning_message,
             "subscribed_addons": addons_payload,
-            # Mantendo os campos do schema StoreSubscription para consistência
+            "has_payment_method": has_payment_method,
             "id": subscription_db.id,
             "current_period_start": subscription_db.current_period_start,
             "current_period_end": subscription_db.current_period_end,

@@ -22,7 +22,8 @@ class SubscriptionDetailsSchema(BaseModel):
     status: str  # O status dinâmico (active, trialing, warning, past_due, etc.)
     is_blocked: bool  # A fonte da verdade para bloqueio de UI
     warning_message: str | None  # A mensagem a ser exibida
-
+    # ✅ NOVO CAMPO BOOLEANO
+    has_payment_method: bool  # ← SIMPLES E DIRETO!
     # Relações aninhadas
     plan: PlanSchema | None
     subscribed_addons: list[SubscribedAddonSchema]
