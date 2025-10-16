@@ -359,6 +359,15 @@ def process_single_store_charge(
         })
         return False
 
+    # ✅ VALIDAÇÃO CRÍTICA: NÃO COBRAR ASSINATURAS CANCELADAS
+    if subscription.status == "canceled":
+        logger.info("subscription_canceled_skipping", extra={
+            "subscription_id": subscription.id,
+            "store_id": store.id,
+            "canceled_at": subscription.canceled_at.isoformat() if subscription.canceled_at else None
+        })
+        return True
+
     # ✅ CRIA SAVEPOINT (transaction isolada para esta loja)
     savepoint = db.begin_nested()
 
@@ -377,8 +386,8 @@ def process_single_store_charge(
             savepoint.commit()
             return True
 
-        # ✅ 2. PULA SE INICIOU NO MEIO DO PERÍODO
-        if subscription.current_period_start.date() >= first_day_of_month:
+        # ✅ 2. VALIDAÇÃO CORRIGIDA: Pula se iniciou DEPOIS do início do período
+        if subscription.current_period_start.date() > first_day_of_month:
             logger.info("subscription_started_mid_period", extra={
                 "store_id": store.id,
                 "subscription_start": str(subscription.current_period_start.date()),
@@ -387,12 +396,21 @@ def process_single_store_charge(
             savepoint.commit()
             return True
 
-        # ✅ 3. CALCULA FATURAMENTO
+        # ✅ 3. VALIDAÇÃO ADICIONAL: Verifica se período atual já cobriu esse mês
+        if subscription.current_period_end and subscription.current_period_end.date() < first_day_of_month:
+            logger.warning("subscription_period_mismatch", extra={
+                "store_id": store.id,
+                "current_period_end": str(subscription.current_period_end.date()),
+                "billing_period_start": str(first_day_of_month)
+            })
+            # Pode ser assinatura expirada/pausada
+
+        # ✅ 4. CALCULA FATURAMENTO
         revenue = get_store_revenue_for_period(
             db, store.id, first_day_of_month, last_day_of_month
         )
 
-        # ✅ 4. CALCULA TAXA
+        # ✅ 5. CALCULA TAXA
         months_active = calculate_months_active(subscription, today)
 
         try:
@@ -412,7 +430,7 @@ def process_single_store_charge(
 
         fee_in_cents = int(fee_details['final_fee'] * 100)
 
-        # ✅ 5. LOG DETALHADO
+        # ✅ 6. LOG DETALHADO
         logger.info("billing_calculated", extra={
             "store_id": store.id,
             "store_name": store.name,
@@ -423,7 +441,7 @@ def process_single_store_charge(
             "has_benefit": fee_details['has_benefit']
         })
 
-        # ✅ 6. PROCESSA PAGAMENTO (SE HOUVER VALOR) - PAGAR.ME
+        # ✅ 7. PROCESSA PAGAMENTO (SE HOUVER VALOR)
         gateway_transaction_id = None
         charge_status = "no_charge"
 
@@ -442,14 +460,13 @@ def process_single_store_charge(
                         customer_id=store.pagarme_customer_id,
                         card_id=store.pagarme_card_id,
                         amount_in_cents=fee_in_cents,
-                        description=f"Mensalidade - {first_day_of_month.strftime('%m/%Y')}",
+                        description=f"Mensalidade {store.name} - {first_day_of_month.strftime('%m/%Y')}",
                         store_id=store.id,
                         metadata={
-                            "billing_period_start": str(first_day_of_month),
-                            "billing_period_end": str(last_day_of_month),
+                            "type": "monthly_charge",
+                            "billing_period": f"{first_day_of_month} to {last_day_of_month}",
                             "tier": fee_details['tier'],
-                            "months_active": months_active,
-                            "revenue": float(revenue)
+                            "months_active": months_active
                         }
                     )
                     gateway_transaction_id = charge_response["id"]
@@ -479,8 +496,7 @@ def process_single_store_charge(
                     }, exc_info=True)
                     charge_status = "failed"
 
-        # ✅ 7. REGISTRA NO BANCO
-        # ✅ DEPOIS (CORRETO):
+        # ✅ 8. REGISTRA NO BANCO
         new_charge = models.MonthlyCharge(
             store_id=store.id,
             subscription_id=subscription.id,
@@ -491,7 +507,7 @@ def process_single_store_charge(
             calculated_fee=fee_details['final_fee'],
             status=charge_status,
             gateway_transaction_id=gateway_transaction_id,
-            charge_metadata={  # ✅ CORRETO
+            charge_metadata={
                 'pricing_strategy': 'tiered_revenue_based',
                 'months_partnership': months_active,
                 'base_fee': float(fee_details['base_fee']),
@@ -507,6 +523,19 @@ def process_single_store_charge(
 
         db.add(new_charge)
         db.flush()
+
+        # ✅ 9. ATUALIZA PERÍODO DA ASSINATURA (CRÍTICO!)
+        next_period_start = last_day_of_month + timedelta(days=1)
+        next_period_end = (next_period_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+
+        subscription.current_period_start = next_period_start
+        subscription.current_period_end = next_period_end
+
+        logger.info("subscription_period_updated", extra={
+            "subscription_id": subscription.id,
+            "new_period_start": str(next_period_start),
+            "new_period_end": str(next_period_end)
+        })
 
         logger.info("charge_saved", extra={
             "store_id": store.id,
@@ -561,13 +590,17 @@ def generate_monthly_charges():
 
     with get_db_manager() as db:
         try:
+            # ✅ CORREÇÃO CRÍTICA: Exclui assinaturas canceladas
             active_subscriptions = db.execute(
                 select(models.StoreSubscription)
                 .options(
                     selectinload(models.StoreSubscription.plan),
                     selectinload(models.StoreSubscription.store)
                 )
-                .where(models.StoreSubscription.status == 'active')
+                .where(
+                    models.StoreSubscription.status.in_(['active', 'trialing']),
+                    models.StoreSubscription.status != 'canceled'  # ✅ BLOQUEIA CANCELADAS
+                )
             ).scalars().all()
 
             total = len(active_subscriptions)
@@ -621,6 +654,9 @@ def generate_monthly_charges():
                 "error_type": type(e).__name__
             }, exc_info=True)
             raise
+
+
+
 
 
 def test_billing_calculation(store_id: int, test_revenue: float):
