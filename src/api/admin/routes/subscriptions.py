@@ -6,11 +6,10 @@ Rotas para gerenciamento de assinaturas
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.logger import logger
 from starlette import status
 
-# ✅ CORREÇÃO: Importa apenas o que é necessário
 from src.api.admin.services import pagarme_service
 from src.api.admin.services.pagarme_service import PagarmeError
 from src.api.admin.socketio.emitters import admin_emit_store_updated
@@ -18,7 +17,7 @@ from src.api.admin.utils.proration import calculate_prorated_charge
 from src.api.schemas.subscriptions.store_subscription import CreateStoreSubscription
 from src.core import models
 from src.core.database import GetDBDep
-from src.core.dependencies import GetCurrentUserDep
+from src.core.dependencies import GetCurrentUserDep, GetStoreDep
 from src.core.utils.validators import (
     validate_cpf,
     validate_cnpj,
@@ -27,68 +26,44 @@ from src.core.utils.validators import (
     validate_email
 )
 
-# ✅ CORREÇÃO: Cria o router LOCALMENTE
 router = APIRouter(
-    tags=["Subscriptions"],
-    prefix="/stores/{store_id}/subscriptions"
+    tags=["Subscriptions"]
 )
 
 
-@router.post("")
+@router.post("/stores/{store_id}/subscriptions")
 async def create_or_reactivate_subscription(
     db: GetDBDep,
-    store_id: int,
+    store: GetStoreDep,  # ✅ CORREÇÃO: Usa GetStoreDep
     user: GetCurrentUserDep,
     subscription_data: CreateStoreSubscription,
 ):
     """
     ✅ Cria ou reativa uma assinatura de loja.
 
-    Fluxo:
-    1. Valida permissões (apenas owner)
-    2. Valida dados da loja (CPF/CNPJ, endereço, telefone)
-    3. Cria customer no Pagar.me (se não existir)
-    4. Adiciona cartão ao customer
-    5. Cria cobrança proporcional (se aplicável)
-    6. Ativa assinatura
-    7. Registra cobrança no banco
+    O GetStoreDep já valida:
+    - Se a loja existe
+    - Se o usuário tem acesso à loja
+    - Se o usuário tem permissão adequada
 
     Args:
-        store_id: ID da loja
-        user: Usuário autenticado (owner)
+        db: Sessão do banco de dados
+        store: Loja (já validada pelo GetStoreDep)
+        user: Usuário autenticado
         subscription_data: Dados do cartão tokenizado
 
     Returns:
         Dados da assinatura ativada
 
     Raises:
-        403: Usuário não tem permissão
         400: Dados inválidos ou incompletos
         500: Erro no processamento
     """
 
-    # ═══════════════════════════════════════════════════════════
-    # 1. VALIDAÇÃO DE PERMISSÕES
-    # ═══════════════════════════════════════════════════════════
-
-    store_access = db.query(models.StoreAccess).filter(
-        models.StoreAccess.store_id == store_id,
-        models.StoreAccess.user_id == user.id,
-        models.StoreAccess.role.has(machine_name='owner')
-    ).first()
-
-    if not store_access:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Você não tem permissão para ativar a assinatura desta loja"
-        )
-
-    store = store_access.store
-
-    logger.info(f"Iniciando criação de assinatura para loja {store.id} pelo usuário {user.id}")
+    logger.info(f"✅ Iniciando criação de assinatura para loja {store.id} pelo usuário {user.id}")
 
     # ═══════════════════════════════════════════════════════════
-    # 2. VALIDAÇÃO COMPLETA DOS DADOS DA LOJA
+    # 1. VALIDAÇÃO DOS DADOS DA LOJA
     # ═══════════════════════════════════════════════════════════
 
     missing_data = []
@@ -165,11 +140,11 @@ async def create_or_reactivate_subscription(
         raise HTTPException(status_code=400, detail=error_detail)
 
     # ═══════════════════════════════════════════════════════════
-    # 3. BUSCA OU CRIA ASSINATURA
+    # 2. BUSCA OU CRIA ASSINATURA
     # ═══════════════════════════════════════════════════════════
 
     subscription = db.query(models.StoreSubscription).filter(
-        models.StoreSubscription.store_id == store_id
+        models.StoreSubscription.store_id == store.id
     ).first()
 
     if not subscription:
@@ -197,7 +172,7 @@ async def create_or_reactivate_subscription(
         logger.info(f"Nova assinatura criada: ID {subscription.id}")
 
     # ═══════════════════════════════════════════════════════════
-    # 4. VALIDAÇÃO DO TOKEN DO CARTÃO
+    # 3. VALIDAÇÃO DO TOKEN DO CARTÃO
     # ═══════════════════════════════════════════════════════════
 
     if not subscription_data.card or not subscription_data.card.payment_token:
@@ -208,7 +183,7 @@ async def create_or_reactivate_subscription(
 
     try:
         # ═══════════════════════════════════════════════════════
-        # 5. INTEGRAÇÃO COM PAGAR.ME
+        # 4. INTEGRAÇÃO COM PAGAR.ME
         # ═══════════════════════════════════════════════════════
 
         # ✅ Cria customer se não existir
@@ -238,7 +213,7 @@ async def create_or_reactivate_subscription(
         logger.info(f"Cartão adicionado: {store.pagarme_card_id}")
 
         # ═══════════════════════════════════════════════════════
-        # 6. COBRANÇA PROPORCIONAL
+        # 5. COBRANÇA PROPORCIONAL
         # ═══════════════════════════════════════════════════════
 
         proration_details = calculate_prorated_charge(subscription.plan)
@@ -281,7 +256,7 @@ async def create_or_reactivate_subscription(
             logger.info(f"MonthlyCharge registrado: {charge_response['id']}")
 
         # ═══════════════════════════════════════════════════════
-        # 7. ATIVA ASSINATURA
+        # 6. ATIVA ASSINATURA
         # ═══════════════════════════════════════════════════════
 
         subscription.status = "active"
@@ -290,7 +265,7 @@ async def create_or_reactivate_subscription(
 
         db.commit()
 
-        logger.info(f"Assinatura {subscription.id} ativada com sucesso")
+        logger.info(f"✅ Assinatura {subscription.id} ativada com sucesso!")
 
         # ✅ Notifica via WebSocket
         await admin_emit_store_updated(db, store.id)
