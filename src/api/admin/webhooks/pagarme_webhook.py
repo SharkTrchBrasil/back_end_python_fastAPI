@@ -2,6 +2,7 @@
 Webhook do Pagar.me com Autenticação Básica
 ===========================================
 """
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Response, Request, status, HTTPException, Depends
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -50,26 +51,14 @@ def verify_webhook_auth(credentials: HTTPBasicCredentials = Depends(security)) -
 
 @router.post("/pagarme")
 async def pagarme_webhook_handler(
-    request: Request,
-    db: GetDBDep,
-    authenticated: bool = Depends(verify_webhook_auth)
+        request: Request,
+        db: GetDBDep,
+        authenticated: bool = Depends(verify_webhook_auth)
 ):
     """
-    ✅ WEBHOOK SEGURO - Pagar.me com Autenticação Básica
-
-    Endpoint: POST /webhook/pagarme
-
-    Segurança:
-    1. HTTP Basic Authentication (usuário + senha)
-    2. Logs estruturados para auditoria
-    3. Idempotência (mesmo evento não é processado 2x)
-
-    Headers Esperados:
-    - Authorization: Basic <base64(username:password)>
-    - Content-Type: application/json
+    ✅ WEBHOOK SEGURO - Pagar.me com Autenticação e Idempotência
     """
 
-    # ✅ LOG INICIAL
     logger.info("pagarme_webhook_received", extra={
         "url": str(request.url),
         "method": request.method,
@@ -77,7 +66,10 @@ async def pagarme_webhook_handler(
         "authenticated": authenticated
     })
 
-    # ✅ 1. CAPTURA O PAYLOAD
+    # ═══════════════════════════════════════════════════════════
+    # 1. CAPTURA O PAYLOAD
+    # ═══════════════════════════════════════════════════════════
+
     try:
         body = await request.body()
         body_str = body.decode('utf-8')
@@ -93,30 +85,55 @@ async def pagarme_webhook_handler(
         }, exc_info=True)
         return Response(status_code=status.HTTP_200_OK)
 
-    # ✅ 2. PROCESSA O EVENTO
+    # ═══════════════════════════════════════════════════════════
+    # 2. PARSE DO EVENTO
+    # ═══════════════════════════════════════════════════════════
+
     try:
         event_data = json.loads(body_str)
+        event_id = event_data.get("id")  # ✅ ID único do evento
         event_type = event_data.get("type")
         charge_data = event_data.get("data")
 
-        if not charge_data:
-            logger.warning("pagarme_webhook_no_charge_data", extra={
-                "event_type": event_type
+        if not charge_data or not event_id:
+            logger.warning("pagarme_webhook_incomplete_data", extra={
+                "event_type": event_type,
+                "has_charge_data": bool(charge_data),
+                "has_event_id": bool(event_id)
             })
             return Response(status_code=status.HTTP_200_OK)
 
         charge_id = charge_data.get("id")
         charge_status = charge_data.get("status")
-        charge_metadata = charge_data.get("metadata", {})
 
         logger.info("pagarme_webhook_processing", extra={
+            "event_id": event_id,
             "event_type": event_type,
             "charge_id": charge_id,
-            "charge_status": charge_status,
-            "metadata": charge_metadata
+            "charge_status": charge_status
         })
 
-        # ✅ 3. BUSCA A COBRANÇA NO BANCO
+        # ═══════════════════════════════════════════════════════
+        # 3. VERIFICAÇÃO DE IDEMPOTÊNCIA
+        # ═══════════════════════════════════════════════════════
+
+        processed_event = db.query(models.ProcessedWebhookEvent).filter_by(
+            event_id=event_id,
+            event_type=event_type
+        ).first()
+
+        if processed_event:
+            logger.info("pagarme_webhook_already_processed", extra={
+                "event_id": event_id,
+                "event_type": event_type,
+                "processed_at": processed_event.processed_at.isoformat()
+            })
+            return Response(status_code=status.HTTP_200_OK)
+
+        # ═══════════════════════════════════════════════════════
+        # 4. BUSCA A COBRANÇA NO BANCO
+        # ═══════════════════════════════════════════════════════
+
         db_charge = db.query(models.MonthlyCharge).filter_by(
             gateway_transaction_id=str(charge_id)
         ).first()
@@ -126,6 +143,17 @@ async def pagarme_webhook_handler(
                 "charge_id": charge_id,
                 "event_type": event_type
             })
+
+            # ✅ Mesmo assim, registra como processado
+            new_event = models.ProcessedWebhookEvent(
+                event_id=event_id,
+                event_type=event_type,
+                payload=event_data,
+                processed_at=datetime.now(timezone.utc)
+            )
+            db.add(new_event)
+            db.commit()
+
             return Response(status_code=status.HTTP_200_OK)
 
         if not db_charge.subscription:
@@ -138,7 +166,10 @@ async def pagarme_webhook_handler(
         old_status = db_charge.status
         old_subscription_status = db_charge.subscription.status
 
-        # ✅ 4. ATUALIZA STATUS CONFORME O EVENTO
+        # ═══════════════════════════════════════════════════════
+        # 5. ATUALIZA STATUS CONFORME O EVENTO
+        # ═══════════════════════════════════════════════════════
+
         if event_type == "charge.paid":
             db_charge.status = "paid"
 
@@ -171,12 +202,36 @@ async def pagarme_webhook_handler(
                 "event_type": event_type,
                 "charge_id": charge_id
             })
+
+            # ✅ Registra como processado mesmo se ignorado
+            new_event = models.ProcessedWebhookEvent(
+                event_id=event_id,
+                event_type=event_type,
+                payload=event_data,
+                processed_at=datetime.now(timezone.utc)
+            )
+            db.add(new_event)
+            db.commit()
+
             return Response(status_code=status.HTTP_200_OK)
 
-        # ✅ 5. SALVA NO BANCO
+        # ═══════════════════════════════════════════════════════
+        # 6. REGISTRA EVENTO COMO PROCESSADO
+        # ═══════════════════════════════════════════════════════
+
+        new_event = models.ProcessedWebhookEvent(
+            event_id=event_id,
+            event_type=event_type,
+            payload=event_data,
+            processed_at=datetime.now(timezone.utc)
+        )
+        db.add(new_event)
+
+        # ✅ SALVA TUDO NO BANCO
         db.commit()
 
         logger.info("pagarme_webhook_processed_successfully", extra={
+            "event_id": event_id,
             "charge_id": db_charge.id,
             "store_id": db_charge.store_id,
             "event_type": event_type,

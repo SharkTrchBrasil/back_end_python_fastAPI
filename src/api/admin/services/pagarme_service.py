@@ -182,14 +182,29 @@ class PagarmeService:
         return masked
 
     def create_customer(
-        self,
-        email: str,
-        name: str,
-        document: str,
-        phone: str,
-        store_id: int
+            self,
+            email: str,
+            name: str,
+            document: str,
+            phone: str,
+            store_id: int
     ) -> Dict:
-        """Cria um cliente no Pagar.me"""
+        """
+        Cria um cliente no Pagar.me.
+
+        Args:
+            email: Email do cliente
+            name: Nome do cliente
+            document: CPF ou CNPJ (com ou sem formatação)
+            phone: Telefone (com ou sem formatação)
+            store_id: ID da loja para metadata
+
+        Returns:
+            Resposta da API do Pagar.me com dados do customer criado
+
+        Raises:
+            PagarmeError: Se houver erro na criação
+        """
 
         logger.info("🆕 [Create Customer] Iniciando...")
         logger.info(f"   Email: {email}")
@@ -197,19 +212,45 @@ class PagarmeService:
         logger.info(f"   Documento: {document[:3]}...{document[-2:]}")
         logger.info(f"   Store ID: {store_id}")
 
-        # Remove caracteres não numéricos do documento
+        # ✅ LIMPA DOCUMENTO
         clean_document = "".join(filter(str.isdigit, document))
 
+        if len(clean_document) not in [11, 14]:
+            raise PagarmeError(
+                f"Documento inválido: deve ter 11 (CPF) ou 14 (CNPJ) dígitos. "
+                f"Recebido: {len(clean_document)} dígitos"
+            )
+
+        # ✅ LIMPA E VALIDA TELEFONE
+        clean_phone = "".join(filter(str.isdigit, phone))
+
+        # Remove código do país se presente (55)
+        if clean_phone.startswith('55') and len(clean_phone) > 11:
+            clean_phone = clean_phone[2:]
+
+        # Valida tamanho mínimo
+        if len(clean_phone) < 10:
+            raise PagarmeError(
+                f"Telefone inválido: deve ter no mínimo 10 dígitos. "
+                f"Recebido: {phone} ({len(clean_phone)} dígitos)"
+            )
+
+        # Extrai DDD e número
+        area_code = clean_phone[:2]
+        number = clean_phone[2:]
+
+        logger.info(f"   Telefone processado: ({area_code}) {number}")
+
         payload = {
-            "name": name,
-            "email": email,
+            "name": name[:100],  # ✅ Limita tamanho do nome
+            "email": email[:100],  # ✅ Limita tamanho do email
             "document": clean_document,
             "type": "individual" if len(clean_document) == 11 else "company",
             "phones": {
                 "mobile_phone": {
                     "country_code": "55",
-                    "area_code": phone[:2] if len(phone) >= 10 else "00",
-                    "number": phone[2:] if len(phone) >= 10 else phone
+                    "area_code": area_code,
+                    "number": number
                 }
             },
             "metadata": {
@@ -225,6 +266,9 @@ class PagarmeService:
             data=payload,
             idempotency_key=idempotency_key
         )
+
+
+
 
     def create_card(
         self,

@@ -2572,3 +2572,61 @@ class MonthlyCharge(Base, TimestampMixin):
         UniqueConstraint('store_id', 'billing_period_start', 'billing_period_end',
                          name='uq_store_billing_period'),
     )
+
+
+class ProcessedWebhookEvent(Base, TimestampMixin):
+    """
+    Registra eventos de webhook já processados para garantir idempotência.
+
+    Evita que o mesmo evento seja processado múltiplas vezes caso
+    o webhook seja chamado mais de uma vez com o mesmo payload.
+    """
+    __tablename__ = "processed_webhook_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    # ID único do evento fornecido pelo gateway
+    event_id: Mapped[str] = mapped_column(
+        String(100),
+        unique=True,
+        index=True,
+        nullable=False,
+        doc="ID único do evento fornecido pelo gateway de pagamento"
+    )
+
+    # Tipo do evento (charge.paid, charge.refunded, etc)
+    event_type: Mapped[str] = mapped_column(
+        String(50),
+        index=True,
+        nullable=False,
+        doc="Tipo do evento (ex: charge.paid, charge.refunded)"
+    )
+
+    # Payload completo do evento (para auditoria)
+    payload: Mapped[dict | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        doc="Payload completo do webhook (para auditoria)"
+    )
+
+    # Quando foi processado
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        doc="Momento em que o evento foi processado"
+    )
+
+    # ✅ Índice composto para busca rápida
+    __table_args__ = (
+        Index('ix_processed_events_lookup', 'event_id', 'event_type'),
+        Index('ix_processed_events_date', 'processed_at'),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<ProcessedWebhookEvent(id={self.id}, "
+            f"event_id='{self.event_id}', "
+            f"event_type='{self.event_type}', "
+            f"processed_at={self.processed_at})>"
+        )
