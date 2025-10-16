@@ -1,10 +1,12 @@
 # src/api/admin/services/subscription_service.py
 
 from datetime import datetime, timedelta, timezone
-
 from src.api.schemas.subscriptions.plans import PlanSchema
 from src.api.schemas.subscriptions.plans_addon import SubscribedAddonSchema
-from src.core import models  # Supondo que seus modelos SQLAlchemy/ORM estejam aqui
+from src.core import models
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class SubscriptionService:
@@ -14,52 +16,46 @@ class SubscriptionService:
     """
 
     @staticmethod
-    def get_subscription_details(store: models.Store) -> dict:
+    def get_subscription_details(store: models.Store) -> dict | None:
         """
-        Retorna um dicionário único e inequívoco representando o estado da
-        assinatura da loja. O frontend deve usar esses dados como fonte da verdade.
+        Retorna um dicionário representando o estado da assinatura.
 
-        Este método calcula um 'status dinâmico' e um booleano 'is_blocked'
-        que o frontend deve consumir diretamente, sem recalcular.
+        Returns:
+            dict | None: Detalhes da assinatura ou None se não houver assinatura
         """
         subscription_db = store.active_subscription
 
+        # ✅ SEM ASSINATURA → RETORNA None
         if not subscription_db or not subscription_db.plan:
-            return {
-                "plan": None,
-                "status": "inactive",
-                "is_blocked": True,
-                "warning_message": "Nenhuma assinatura encontrada. Por favor, assine um plano para continuar.",
-                "subscribed_addons": []
-            }
+            logger.info(f"[Subscription] Loja {store.id} não possui assinatura ativa.")
+            return None
 
         # --- Lógica de Cálculo de Status ---
         plan = subscription_db.plan
         now = datetime.now(timezone.utc)
 
-        # Garante que a data do banco de dados seja "aware" (com fuso horário)
+        # Garante que a data seja "aware"
         end_date = subscription_db.current_period_end
         if end_date and end_date.tzinfo is None:
             end_date = end_date.replace(tzinfo=timezone.utc)
 
-        # Inicializa os valores padrão
+        # Valores padrão
         dynamic_status = subscription_db.status
         is_blocked = False
         warning_message = None
 
+        # ✅ LÓGICA DE STATUS (mantida como está)
         if subscription_db.status == 'trialing':
             remaining_days = (end_date - now).days if end_date else -1
             if remaining_days >= 0:
-                # O +1 é para uma contagem mais amigável (ex: "termina em 1 dia" em vez de "0 dias")
                 warning_message = f"Seu teste gratuito termina em {remaining_days + 1} dia(s)."
             else:
-                # O trial acabou, mas o status ainda não foi atualizado pelo webhook/job
                 dynamic_status = 'expired'
                 is_blocked = True
                 warning_message = "Seu período de teste terminou. Adicione um método de pagamento para continuar."
 
-        elif subscription_db.status == 'past_due' or subscription_db.status == 'unpaid':
-            dynamic_status = 'past_due'  # Unifica os status de falha de pagamento
+        elif subscription_db.status in ['past_due', 'unpaid']:
+            dynamic_status = 'past_due'
             is_blocked = True
             warning_message = "Falha no pagamento. Atualize seus dados para reativar o acesso."
 
@@ -69,7 +65,6 @@ class SubscriptionService:
             warning_message = f"Sua assinatura foi cancelada. Ela permanecerá ativa até {end_date.strftime('%d/%m/%Y')}."
 
         elif subscription_db.status == 'active':
-            # Lógica para assinaturas ativas que podem expirar ou entrar em warning
             grace_period_end = end_date + timedelta(days=3) if end_date else now
 
             if now > grace_period_end:
@@ -77,46 +72,49 @@ class SubscriptionService:
                 is_blocked = True
                 warning_message = "Sua assinatura expirou. Renove para continuar o acesso."
             elif end_date and now > end_date:
-                # Está dentro do período de carência
                 dynamic_status = "past_due"
-                is_blocked = True  # Bloqueia durante a carência até o pagamento ser confirmado
+                is_blocked = True
                 warning_message = f"Seu pagamento está pendente. Regularize até {grace_period_end.strftime('%d/%m/%Y')} para evitar o cancelamento."
             elif end_date and (end_date - now).days <= 3:
-                # Entrando no período de aviso
                 remaining_days = (end_date - now).days
                 dynamic_status = "warning"
-                is_blocked = False  # Ainda não está bloqueado
+                is_blocked = False
                 warning_message = f"Atenção: sua assinatura vence em {remaining_days + 1} dia(s)."
             else:
-                # Tudo certo, assinatura ativa e longe de vencer.
                 dynamic_status = "active"
                 is_blocked = False
 
-        else:  # Status desconhecido
+        else:
             is_blocked = True
             warning_message = "O status da sua assinatura é desconhecido. Contate o suporte."
 
-        # --- Montagem do Payload Final ---
-        # Usando os schemas Pydantic para garantir a consistência do contrato da API
-        plan_payload = PlanSchema.model_validate(plan).model_dump()
-        addons_payload = [SubscribedAddonSchema.model_validate(addon).model_dump() for addon in
-                          subscription_db.subscribed_addons]
-
-        # ✅ ADICIONE ESTA VERIFICAÇÃO SIMPLES
-        has_payment_method = (
-            store.pagarme_customer_id is not None and
-            store.pagarme_card_id is not None  # ← A property descriptografa automaticamente!
+        # ✅ VERIFICA SE TEM MÉTODO DE PAGAMENTO
+        has_payment_method = bool(
+            store.pagarme_customer_id and
+            store.pagarme_card_id  # A @hybrid_property descriptografa automaticamente
         )
 
+        # ✅ LOG DETALHADO PARA DEBUG
+        logger.info("═" * 60)
+        logger.info(f"💳 [Subscription] Loja {store.id}:")
+        logger.info(f"   - Status DB: {subscription_db.status}")
+        logger.info(f"   - Status Calculado: {dynamic_status}")
+        logger.info(f"   - Is Blocked: {is_blocked}")
+        logger.info(f"   - Customer ID: {store.pagarme_customer_id}")
+        logger.info(f"   - Card ID: {'✅ Presente' if store.pagarme_card_id else '❌ Ausente'}")
+        logger.info(f"   - Has Payment Method: {has_payment_method}")
+        logger.info("═" * 60)
+
+        # ✅ MONTA O PAYLOAD COMPLETO
         return {
-            "plan": plan_payload,
-            "status": dynamic_status,
-            "is_blocked": is_blocked,
-            "warning_message": warning_message,
-            "subscribed_addons": addons_payload,
-            "has_payment_method": has_payment_method,
             "id": subscription_db.id,
             "current_period_start": subscription_db.current_period_start,
             "current_period_end": subscription_db.current_period_end,
             "gateway_subscription_id": subscription_db.gateway_subscription_id,
+            "status": dynamic_status,
+            "is_blocked": is_blocked,
+            "warning_message": warning_message,
+            "has_payment_method": has_payment_method,  # ✅ CAMPO CRÍTICO!
+            "plan": plan,  # O Pydantic validará depois
+            "subscribed_addons": subscription_db.subscribed_addons,  # O Pydantic validará depois
         }
