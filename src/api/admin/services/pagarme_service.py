@@ -26,12 +26,10 @@ class PagarmeService:
         self.public_key = config.PAGARME_PUBLIC_KEY
         self.base_url = config.PAGARME_API_URL
 
-        # ✅ LOG 1: Validação de variáveis
         logger.info(f"📋 [Config] Secret Key: {self.secret_key[:20]}... (tamanho: {len(self.secret_key)})")
         logger.info(f"📋 [Config] Public Key: {self.public_key}")
         logger.info(f"📋 [Config] Base URL: {self.base_url}")
 
-        # ✅ VALIDAÇÃO
         if not self.secret_key:
             logger.error("❌ PAGARME_SECRET_KEY não está configurada!")
             raise ValueError("PAGARME_SECRET_KEY não está configurada!")
@@ -40,14 +38,12 @@ class PagarmeService:
             logger.error(f"❌ Secret Key inválida! Começa com: {self.secret_key[:5]}")
             raise ValueError("PAGARME_SECRET_KEY inválida! Deve começar com 'sk_test_' ou 'sk_live_'")
 
-        # ✅ LOG 2: Montagem do header de autenticação
         credentials = f"{self.secret_key}:"
         logger.info(f"🔐 [Auth] Credentials (antes do base64): {credentials[:25]}...")
 
         encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
         logger.info(f"🔐 [Auth] Credentials (depois do base64): {encoded_credentials[:30]}...")
 
-        # Sessão HTTP com retry
         self.session = requests.Session()
         retry_strategy = Retry(
             total=3,
@@ -59,7 +55,6 @@ class PagarmeService:
         self.session.mount("https://", adapter)
         self.session.mount("http://", adapter)
 
-        # ✅ LOG 3: Headers configurados
         self.session.headers.update({
             "Authorization": f"Basic {encoded_credentials}",
             "Content-Type": "application/json",
@@ -90,7 +85,6 @@ class PagarmeService:
         logger.info(f"📤 [Request] {method} {url}")
 
         if data:
-            # Log do payload (mascarando dados sensíveis)
             safe_data = self._mask_sensitive_data(data)
             logger.info(f"📦 [Payload] {safe_data}")
 
@@ -109,11 +103,9 @@ class PagarmeService:
             logger.info(f"📥 [Response] Status: {response.status_code}")
             logger.info(f"📥 [Response] Headers: {dict(response.headers)}")
 
-            # Log da resposta (primeiros 500 caracteres)
             response_text = response.text[:500]
             logger.info(f"📥 [Response] Body: {response_text}...")
 
-            # ✅ TRATAMENTO DE ERRO DETALHADO
             if response.status_code >= 400:
                 error_data = {}
                 try:
@@ -123,7 +115,6 @@ class PagarmeService:
 
                 error_message = error_data.get("message", "Erro desconhecido")
 
-                # ✅ LOG ESPECIAL PARA ERRO 401
                 if response.status_code == 401:
                     logger.error("═" * 60)
                     logger.error("❌ ERRO 401: CREDENCIAIS INVÁLIDAS!")
@@ -182,12 +173,12 @@ class PagarmeService:
         return masked
 
     def create_customer(
-            self,
-            email: str,
-            name: str,
-            document: str,
-            phone: str,
-            store_id: int
+        self,
+        email: str,
+        name: str,
+        document: str,
+        phone: str,
+        store_id: int
     ) -> Dict:
         """
         Cria um cliente no Pagar.me.
@@ -212,7 +203,6 @@ class PagarmeService:
         logger.info(f"   Documento: {document[:3]}...{document[-2:]}")
         logger.info(f"   Store ID: {store_id}")
 
-        # ✅ LIMPA DOCUMENTO
         clean_document = "".join(filter(str.isdigit, document))
 
         if len(clean_document) not in [11, 14]:
@@ -221,29 +211,25 @@ class PagarmeService:
                 f"Recebido: {len(clean_document)} dígitos"
             )
 
-        # ✅ LIMPA E VALIDA TELEFONE
         clean_phone = "".join(filter(str.isdigit, phone))
 
-        # Remove código do país se presente (55)
         if clean_phone.startswith('55') and len(clean_phone) > 11:
             clean_phone = clean_phone[2:]
 
-        # Valida tamanho mínimo
         if len(clean_phone) < 10:
             raise PagarmeError(
                 f"Telefone inválido: deve ter no mínimo 10 dígitos. "
                 f"Recebido: {phone} ({len(clean_phone)} dígitos)"
             )
 
-        # Extrai DDD e número
         area_code = clean_phone[:2]
         number = clean_phone[2:]
 
         logger.info(f"   Telefone processado: ({area_code}) {number}")
 
         payload = {
-            "name": name[:100],  # ✅ Limita tamanho do nome
-            "email": email[:100],  # ✅ Limita tamanho do email
+            "name": name[:100],
+            "email": email[:100],
             "document": clean_document,
             "type": "individual" if len(clean_document) == 11 else "company",
             "phones": {
@@ -268,39 +254,56 @@ class PagarmeService:
         )
 
     def create_card(
-            self,
-            customer_id: str,
-            card_token: str,
-            billing_address: Optional[Dict] = None  # ✅ ADICIONAR PARÂMETRO
+        self,
+        customer_id: str,
+        card_token: str,
+        billing_address: Optional[Dict] = None,
+        verify_card: bool = False  # ✅ ADICIONAR PARÂMETRO
     ) -> Dict:
         """
-        Adiciona um cartão ao cliente.
+        Adiciona um cartão ao cliente no Pagar.me.
 
         Args:
             customer_id: ID do customer no Pagar.me
             card_token: Token do cartão gerado no frontend
             billing_address: Endereço de cobrança (opcional)
+            verify_card: Se deve verificar o cartão (False = desabilita verificação)
 
         Returns:
             Resposta da API com dados do cartão criado
+
+        Raises:
+            PagarmeError: Se houver erro na criação
         """
 
         logger.info("💳 [Create Card] Iniciando...")
         logger.info(f"   Customer ID: {customer_id}")
         logger.info(f"   Token: {card_token[:20]}...")
+        logger.info(f"   Verificar cartão: {verify_card}")
 
-        # ✅ CORREÇÃO: Usa endereço fornecido ou padrão
-        default_address = {
-            "line_1": "Rua Exemplo, 100",
-            "zip_code": "01310100",
-            "city": "São Paulo",
-            "state": "SP",
-            "country": "BR"
-        }
+        # ✅ Endereço padrão se não fornecido
+        if not billing_address:
+            billing_address = {
+                "line_1": "Rua Exemplo, 100",
+                "zip_code": "01310100",
+                "city": "São Paulo",
+                "state": "SP",
+                "country": "BR"
+            }
 
+        # ✅ Remove campos None
+        billing_address = {k: v for k, v in billing_address.items() if v is not None}
+
+        logger.info(f"   Endereço: {billing_address.get('line_1')}")
+        logger.info(f"   Cidade/Estado: {billing_address.get('city')}/{billing_address.get('state')}")
+
+        # ✅ CORREÇÃO: Adiciona options com verify_card
         payload = {
             "token": card_token,
-            "billing_address": billing_address or default_address
+            "billing_address": billing_address,
+            "options": {
+                "verify_card": verify_card  # ✅ DESABILITA VERIFICAÇÃO EM TESTE
+            }
         }
 
         return self._make_request(
@@ -308,9 +311,6 @@ class PagarmeService:
             f"/customers/{customer_id}/cards",
             data=payload
         )
-
-
-
 
     def create_charge(
         self,

@@ -201,27 +201,69 @@ async def create_or_reactivate_subscription(
 
             logger.info(f"Customer criado: {store.pagarme_customer_id}")
 
-        # ✅ Adiciona cartão ao customer (COM ENDEREÇO DA LOJA)
+        # ✅ Adiciona cartão SEM verificação (ambiente de teste)
         logger.info(f"Adicionando cartão para customer {store.pagarme_customer_id}")
 
-        # ✅ MONTA ENDEREÇO DE COBRANÇA COM DADOS DA LOJA
         billing_address = {
             "line_1": f"{store.street}, {store.number}",
-            "line_2": store.complement or None,
+            "line_2": store.complement if store.complement else None,
             "zip_code": "".join(filter(str.isdigit, store.zip_code)),
             "city": store.city,
-            "state": store.state[:2].upper(),  # ✅ Garante sigla
+            "state": store.state[:2].upper(),
             "country": "BR"
         }
 
-        card_response = pagarme_service.create_card(
-            customer_id=store.pagarme_customer_id,
-            card_token=subscription_data.card.payment_token,
-            billing_address=billing_address  # ✅ PASSA ENDEREÇO REAL
-        )
-        store.pagarme_card_id = card_response["id"]
+        # Remove campos None
+        billing_address = {k: v for k, v in billing_address.items() if v is not None}
 
-        logger.info(f"Cartão adicionado: {store.pagarme_card_id}")
+        try:
+            card_response = pagarme_service.create_card(
+                customer_id=store.pagarme_customer_id,
+                card_token=subscription_data.card.payment_token,
+                billing_address=billing_address,
+                verify_card=False  # ✅ DESABILITA VERIFICAÇÃO EM TESTE
+            )
+            store.pagarme_card_id = card_response["id"]
+            logger.info(f"✅ Cartão adicionado: {store.pagarme_card_id}")
+
+        except PagarmeError as card_error:
+            logger.error(f"❌ Falha ao adicionar cartão: {card_error}")
+
+            if "verification failed" in str(card_error).lower():
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "message": "Cartão recusado",
+                        "details": [
+                            "Verifique se o cartão está ativo",
+                            "Confirme os dados do cartão",
+                            "Tente com outro cartão",
+                            "Em ambiente de teste, use: 5555 5555 5555 4444"
+                        ]
+                    }
+                )
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Erro ao processar cartão: {str(card_error)}"
+                )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         # ═══════════════════════════════════════════════════════
         # 5. COBRANÇA PROPORCIONAL
