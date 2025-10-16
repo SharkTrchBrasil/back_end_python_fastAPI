@@ -6,12 +6,12 @@ Rotas para gerenciamento de assinaturas
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from fastapi.logger import logger
-from starlette import status
 
-from src.api.admin.services import pagarme_service
-from src.api.admin.services.pagarme_service import PagarmeError
+
+from src.api.admin.services.pagarme_service import pagarme_service, PagarmeError
+
 from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.admin.utils.proration import calculate_prorated_charge
 from src.api.schemas.subscriptions.store_subscription import CreateStoreSubscription
