@@ -25,25 +25,34 @@ class PagarmeService:
         self.secret_key = config.PAGARME_SECRET_KEY
         self.public_key = config.PAGARME_PUBLIC_KEY
         self.base_url = config.PAGARME_API_URL
+        self.environment = config.PAGARME_ENVIRONMENT
 
-        logger.info(f"📋 [Config] Secret Key: {self.secret_key[:20]}... (tamanho: {len(self.secret_key)})")
+        # ✅ CORREÇÃO: Usa apenas PAGARME_ENVIRONMENT (não depende do prefixo)
+        self.is_test_mode = self.environment.lower() in ["test", "testing", "development", "dev"]
+
+        logger.info(f"📋 [Config] Secret Key: {self.secret_key[:10]}...{self.secret_key[-4:]} (tamanho: {len(self.secret_key)})")
         logger.info(f"📋 [Config] Public Key: {self.public_key}")
         logger.info(f"📋 [Config] Base URL: {self.base_url}")
+        logger.info(f"🔧 [Config] Ambiente: {self.environment.upper()}")
+        logger.info(f"🔧 [Config] Modo Teste: {self.is_test_mode}")
 
+        # ✅ VALIDAÇÃO SIMPLIFICADA (remove verificação de prefixo)
         if not self.secret_key:
             logger.error("❌ PAGARME_SECRET_KEY não está configurada!")
             raise ValueError("PAGARME_SECRET_KEY não está configurada!")
 
         if not self.secret_key.startswith('sk_'):
-            logger.error(f"❌ Secret Key inválida! Começa com: {self.secret_key[:5]}")
-            raise ValueError("PAGARME_SECRET_KEY inválida! Deve começar com 'sk_test_' ou 'sk_live_'")
+            logger.error(f"❌ Secret Key inválida! Deve começar com 'sk_'")
+            raise ValueError("PAGARME_SECRET_KEY inválida! Deve começar com 'sk_'")
 
+        # ✅ Montagem do header de autenticação
         credentials = f"{self.secret_key}:"
-        logger.info(f"🔐 [Auth] Credentials (antes do base64): {credentials[:25]}...")
+        logger.info(f"🔐 [Auth] Credentials (antes do base64): {credentials[:15]}...")
 
         encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
         logger.info(f"🔐 [Auth] Credentials (depois do base64): {encoded_credentials[:30]}...")
 
+        # Sessão HTTP com retry
         self.session = requests.Session()
         retry_strategy = Retry(
             total=3,
@@ -55,6 +64,7 @@ class PagarmeService:
         self.session.mount("https://", adapter)
         self.session.mount("http://", adapter)
 
+        # ✅ Headers configurados
         self.session.headers.update({
             "Authorization": f"Basic {encoded_credentials}",
             "Content-Type": "application/json",
@@ -119,21 +129,22 @@ class PagarmeService:
                     logger.error("═" * 60)
                     logger.error("❌ ERRO 401: CREDENCIAIS INVÁLIDAS!")
                     logger.error("═" * 60)
-                    logger.error(f"Secret Key usada: {self.secret_key[:20]}...")
+                    logger.error(f"Secret Key usada: {self.secret_key[:10]}...{self.secret_key[-4:]}")
+                    logger.error(f"Ambiente configurado: {self.environment}")
                     logger.error(f"Authorization header: {self.session.headers.get('Authorization')[:50]}...")
                     logger.error(f"Endpoint tentado: {url}")
                     logger.error(f"Resposta completa: {response.text}")
                     logger.error("═" * 60)
                     logger.error("🔍 VERIFICAÇÕES:")
                     logger.error("   1. A Secret Key está correta no dashboard Pagar.me?")
-                    logger.error("   2. Você está usando sk_test_ com cartão de teste?")
+                    logger.error("   2. O ambiente (test/production) está correto?")
                     logger.error("   3. A conta Pagar.me está ativa?")
                     logger.error("   4. As variáveis de ambiente foram atualizadas?")
                     logger.error("═" * 60)
 
                     raise PagarmeError(
                         "Credenciais do Pagar.me inválidas. "
-                        "Verifique a Secret Key no dashboard e nas variáveis de ambiente."
+                        "Verifique a Secret Key e o ambiente no dashboard e nas variáveis de ambiente."
                     )
 
                 logger.error(f"❌ Erro {response.status_code}: {error_message}")
@@ -258,7 +269,7 @@ class PagarmeService:
         customer_id: str,
         card_token: str,
         billing_address: Optional[Dict] = None,
-        verify_card: bool = False  # ✅ ADICIONAR PARÂMETRO
+        verify_card: Optional[bool] = None
     ) -> Dict:
         """
         Adiciona um cartão ao cliente no Pagar.me.
@@ -267,7 +278,10 @@ class PagarmeService:
             customer_id: ID do customer no Pagar.me
             card_token: Token do cartão gerado no frontend
             billing_address: Endereço de cobrança (opcional)
-            verify_card: Se deve verificar o cartão (False = desabilita verificação)
+            verify_card: Se deve verificar o cartão
+                        - None (padrão): False em test, True em production
+                        - True: Sempre verifica
+                        - False: Nunca verifica
 
         Returns:
             Resposta da API com dados do cartão criado
@@ -279,6 +293,14 @@ class PagarmeService:
         logger.info("💳 [Create Card] Iniciando...")
         logger.info(f"   Customer ID: {customer_id}")
         logger.info(f"   Token: {card_token[:20]}...")
+
+        # ✅ LÓGICA: Usa PAGARME_ENVIRONMENT para decidir
+        if verify_card is None:
+            # False em test, True em production
+            verify_card = not self.is_test_mode
+
+        logger.info(f"   Ambiente: {self.environment.upper()}")
+        logger.info(f"   Modo Teste: {self.is_test_mode}")
         logger.info(f"   Verificar cartão: {verify_card}")
 
         # ✅ Endereço padrão se não fornecido
@@ -291,18 +313,18 @@ class PagarmeService:
                 "country": "BR"
             }
 
-        # ✅ Remove campos None
+        # Remove campos None
         billing_address = {k: v for k, v in billing_address.items() if v is not None}
 
         logger.info(f"   Endereço: {billing_address.get('line_1')}")
         logger.info(f"   Cidade/Estado: {billing_address.get('city')}/{billing_address.get('state')}")
 
-        # ✅ CORREÇÃO: Adiciona options com verify_card
+        # ✅ Monta payload com verify_card
         payload = {
             "token": card_token,
             "billing_address": billing_address,
             "options": {
-                "verify_card": verify_card  # ✅ DESABILITA VERIFICAÇÃO EM TESTE
+                "verify_card": verify_card
             }
         }
 
