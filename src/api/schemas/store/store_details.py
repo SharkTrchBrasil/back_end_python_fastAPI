@@ -7,7 +7,7 @@ from src.api.schemas.chatbot.chatbot_config import StoreChatbotMessageSchema, St
 from src.api.schemas.financial.billing_preview import BillingPreviewSchema
 from src.api.schemas.products.category import Category
 from src.api.schemas.store.scheduled_pauses import ScheduledPauseOut
-from src.api.schemas.subscriptions.store_subscription import StoreSubscriptionSchema
+
 from src.api.schemas.financial.coupon import CouponOut
 # ✅ Importe os schemas corretos
 from src.api.schemas.financial.payment_method import PaymentMethodGroupOut, PlatformPaymentMethodOut, \
