@@ -259,30 +259,17 @@ class PagarmeService:
             idempotency_key=idempotency_key
         )
 
+
+
     def create_card(
-        self,
-        customer_id: str,
-        card_token: str,
-        billing_address: Optional[Dict] = None,
-        verify_card: Optional[bool] = None
+            self,
+            customer_id: str,
+            card_token: str,
+            billing_address: Optional[Dict] = None,
+            verify_card: Optional[bool] = None
     ) -> Dict:
         """
         Adiciona um cartão ao cliente no Pagar.me.
-
-        Args:
-            customer_id: ID do customer no Pagar.me
-            card_token: Token do cartão gerado no frontend
-            billing_address: Endereço de cobrança (opcional)
-            verify_card: Se deve verificar o cartão
-                        - None (padrão): False em test, True em production
-                        - True: Sempre verifica
-                        - False: Nunca verifica
-
-        Returns:
-            Resposta da API com dados do cartão criado
-
-        Raises:
-            PagarmeError: Se houver erro na criação
         """
 
         logger.info("💳 [Create Card] Iniciando...")
@@ -318,11 +305,33 @@ class PagarmeService:
             }
         }
 
-        return self._make_request(
+        # ✅ FAZ A REQUISIÇÃO
+        response = self._make_request(
             "POST",
             f"/customers/{customer_id}/cards",
             data=payload
         )
+
+        # ✅ ADICIONE ESTES LOGS EXTRAS
+        logger.info("═" * 60)
+        logger.info("✅ [Create Card] RESPOSTA COMPLETA DO PAGAR.ME:")
+        logger.info("═" * 60)
+        logger.info(f"   Tipo: {type(response)}")
+        logger.info(f"   Chaves: {list(response.keys())}")
+        logger.info(f"   ID do Cartão: {response.get('id')}")
+        logger.info(f"   Status: {response.get('status')}")
+        logger.info(f"   Last 4 Digits: {response.get('last_four_digits')}")
+        logger.info(f"   Brand: {response.get('brand')}")
+        logger.info(f"   Resposta Completa: {response}")
+        logger.info("═" * 60)
+
+        return response
+
+
+
+
+
+
 
     def get_card(
         self,

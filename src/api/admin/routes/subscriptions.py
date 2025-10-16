@@ -220,10 +220,34 @@ async def create_or_reactivate_subscription(
                 customer_id=store.pagarme_customer_id,
                 card_token=subscription_data.card.payment_token,
                 billing_address=billing_address
-                # verify_card é automático: False em test, True em production
             )
-            store.pagarme_card_id = card_response["id"]
-            logger.info(f"✅ Cartão adicionado: {store.pagarme_card_id}")
+
+            # ✅ ADICIONE ESTE LOG CRÍTICO
+            logger.info("═" * 60)
+            logger.info("✅ [Subscription] CARD RESPONSE RECEBIDA:")
+            logger.info("═" * 60)
+            logger.info(f"   Tipo: {type(card_response)}")
+            logger.info(f"   Chaves disponíveis: {list(card_response.keys())}")
+            logger.info(f"   Campo 'id': {card_response.get('id')}")
+            logger.info(f"   Resposta completa: {card_response}")
+            logger.info("═" * 60)
+
+            # ✅ VALIDAÇÃO ANTES DE SALVAR
+            card_id = card_response.get("id")
+
+            if not card_id:
+                logger.error("❌ Resposta do Pagar.me NÃO contém 'id' do cartão!")
+                logger.error(f"   Resposta: {card_response}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Erro ao processar cartão: ID não retornado pelo Pagar.me"
+                )
+
+            # ✅ SALVA NO BANCO (O SETTER CRIPTOGRAFA AUTOMATICAMENTE)
+            store.pagarme_card_id = card_id
+
+            logger.info(f"✅ Card ID salvo no banco: {card_id}")
+            logger.info(f"✅ Valor criptografado (bytes): {len(store._pagarme_card_id_encrypted or b'')} bytes")
 
         except PagarmeError as card_error:
             logger.error(f"❌ Falha ao adicionar cartão: {card_error}")
