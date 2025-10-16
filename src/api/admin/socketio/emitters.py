@@ -46,43 +46,62 @@ from sqlalchemy.orm import selectinload
 from src.api.schemas.products.variant import Variant
 
 
-
 async def admin_emit_store_updated(db, store_id: int):
     """
-    Busca os dados da loja, valida com o schema StoreDetails (que computa os campos
-    necessários) e emite o payload completo e correto para o cliente.
+    Busca os dados da loja, valida com o schema StoreDetails e emite.
     """
     try:
+        logger.info(f"Emitindo atualização da loja {store_id}...")
 
         store_model = store_crud.get_store_base_details(db=db, store_id=store_id)
         if not store_model:
-            print(f"⚠️ [Socket] Loja {store_id} não encontrada para emitir 'store_details_updated'.")
+            logger.warning(f"⚠️ [Socket] Loja {store_id} não encontrada.")
             return
 
+        # ✅ SOLUÇÃO: LER A PROPERTY ANTES DE VALIDAR
+        logger.info("═" * 60)
+        logger.info("🔍 [Socket Emit] LENDO PROPERTY ANTES DA SERIALIZAÇÃO:")
+        logger.info("═" * 60)
+        logger.info(f"   Store ID: {store_model.id}")
+        logger.info(f"   Customer ID: {store_model.pagarme_customer_id}")
+        logger.info(f"   Card ID (criptografado - bytes): {len(store_model._pagarme_card_id_encrypted or b'')} bytes")
 
+        # ✅ FORÇA A LEITURA DA PROPERTY
+        card_id_descriptografado = store_model.pagarme_card_id
+        logger.info(f"   Card ID (via property): {card_id_descriptografado}")
+        logger.info("═" * 60)
+
+        # ✅ ADICIONA AO BILLING PREVIEW
         billing_preview_data = BillingPreviewService.get_billing_preview(db, store_model)
         setattr(store_model, 'billing_preview', billing_preview_data)
 
+        # ✅ ADICIONA O CARD ID COMO ATRIBUTO TEMPORÁRIO
+        # Isso força o Pydantic a ler o valor já descriptografado
+        setattr(store_model, '_descriptografado_pagarme_card_id', card_id_descriptografado)
 
+        # Valida com o schema
         store_details_schema = StoreDetails.model_validate(store_model)
 
+        # ✅ CORRIGE O PAYLOAD MANUALMENTE SE NECESSÁRIO
         store_payload = store_details_schema.model_dump(mode='json', by_alias=True)
 
-        payload = {
-            "store": store_payload
-        }
+        # ✅ GARANTE QUE O CARD_ID ESTEJA NO PAYLOAD
+        store_payload['pagarme_card_id'] = card_id_descriptografado
 
-        # 5. Emite o evento.
+        logger.info("═" * 60)
+        logger.info("🔍 [Socket Emit] PAYLOAD FINAL:")
+        logger.info("═" * 60)
+        logger.info(f"   Customer ID: {store_payload.get('pagarme_customer_id')}")
+        logger.info(f"   Card ID: {store_payload.get('pagarme_card_id')}")
+        logger.info("═" * 60)
+
+        payload = {"store": store_payload}
+
         await sio.emit('store_details_updated', payload, namespace='/admin', room=f"admin_store_{store_id}")
-        print(f"✅ [Socket] Dados detalhados da loja {store_id} (com subscription calculada) enviados.")
+        logger.info(f"✅ [Socket] Dados da loja {store_id} enviados com card_id: {card_id_descriptografado}")
 
     except Exception as e:
-        print(f'❌ Erro CRÍTICO ao emitir store_details_updated: {e}')
-        import traceback
-        traceback.print_exc()
-
-
-
+        logger.error(f'❌ Erro ao emitir store_details_updated: {e}', exc_info=True)
 
 
 async def admin_emit_dashboard_data_updated(db, store_id: int, sid: str | None = None):

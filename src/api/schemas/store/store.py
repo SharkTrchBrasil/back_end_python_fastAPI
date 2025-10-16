@@ -62,7 +62,7 @@ class Store(BaseModel):
     banner_file_key: Optional[str] = None
 
     pagarme_customer_id: Optional[str] = None
-    pagarme_card_id: Optional[str] = None
+
 
 # --- ✅ Schema para Criação via Wizard (Corrigido e Completo) ---
 class StoreCreate(BaseModel):
@@ -107,9 +107,6 @@ class StoreSchema(Store):
     # --- Campos Agregados ---
     rating_average: float = 0.0
     rating_count: int = 0
-
-    pagarme_customer_id: Optional[str] = None
-    pagarme_card_id: Optional[str] = None
 
 
     # --- Relacionamentos ---
