@@ -565,7 +565,6 @@ def process_single_store_charge(
         }, exc_info=True)
         return False
 
-
 def generate_monthly_charges():
     """
     ✅ BLINDADO: Job principal de cobrança mensal
@@ -590,7 +589,7 @@ def generate_monthly_charges():
 
     with get_db_manager() as db:
         try:
-            # ✅ CORREÇÃO CRÍTICA: Exclui assinaturas canceladas
+            # ✅ CORREÇÃO: Busca apenas assinaturas ativas ou em trial
             active_subscriptions = db.execute(
                 select(models.StoreSubscription)
                 .options(
@@ -598,8 +597,8 @@ def generate_monthly_charges():
                     selectinload(models.StoreSubscription.store)
                 )
                 .where(
-                    models.StoreSubscription.status.in_(['active', 'trialing']),
-                    models.StoreSubscription.status != 'canceled'  # ✅ BLOQUEIA CANCELADAS
+                    models.StoreSubscription.status.in_(['active', 'trialing'])
+                    # ✅ Removido condição redundante
                 )
             ).scalars().all()
 
@@ -654,7 +653,6 @@ def generate_monthly_charges():
                 "error_type": type(e).__name__
             }, exc_info=True)
             raise
-
 
 
 
