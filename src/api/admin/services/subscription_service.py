@@ -15,17 +15,16 @@ class SubscriptionService:
     da assinatura de uma loja para ser enviado ao frontend.
     """
 
+
+
     @staticmethod
     def get_subscription_details(store: models.Store) -> dict | None:
         """
         Retorna um dicionário representando o estado da assinatura.
-
-        Returns:
-            dict | None: Detalhes da assinatura ou None se não houver assinatura
         """
         subscription_db = store.active_subscription
 
-        # ✅ SEM ASSINATURA → RETORNA None
+        # ✅ CORREÇÃO: Se não tem assinatura, retorna None
         if not subscription_db or not subscription_db.plan:
             logger.info(f"[Subscription] Loja {store.id} não possui assinatura ativa.")
             return None
@@ -34,18 +33,21 @@ class SubscriptionService:
         plan = subscription_db.plan
         now = datetime.now(timezone.utc)
 
-        # Garante que a data seja "aware"
         end_date = subscription_db.current_period_end
         if end_date and end_date.tzinfo is None:
             end_date = end_date.replace(tzinfo=timezone.utc)
 
-        # Valores padrão
         dynamic_status = subscription_db.status
         is_blocked = False
         warning_message = None
 
-        # ✅ LÓGICA DE STATUS (mantida como está)
-        if subscription_db.status == 'trialing':
+        # ✅ CORREÇÃO: ADICIONAR TRATAMENTO PARA STATUS CANCELED
+        if subscription_db.status == 'canceled':
+            dynamic_status = 'canceled'
+            is_blocked = True
+            warning_message = f"Sua assinatura foi cancelada. Ela permanecerá ativa até {end_date.strftime('%d/%m/%Y')}." if end_date else "Sua assinatura foi cancelada."
+
+        elif subscription_db.status == 'trialing':
             remaining_days = (end_date - now).days if end_date else -1
             if remaining_days >= 0:
                 warning_message = f"Seu teste gratuito termina em {remaining_days + 1} dia(s)."
@@ -58,11 +60,6 @@ class SubscriptionService:
             dynamic_status = 'past_due'
             is_blocked = True
             warning_message = "Falha no pagamento. Atualize seus dados para reativar o acesso."
-
-        elif subscription_db.status == 'canceled':
-            dynamic_status = 'canceled'
-            is_blocked = True
-            warning_message = f"Sua assinatura foi cancelada. Ela permanecerá ativa até {end_date.strftime('%d/%m/%Y')}."
 
         elif subscription_db.status == 'active':
             grace_period_end = end_date + timedelta(days=3) if end_date else now
@@ -91,10 +88,10 @@ class SubscriptionService:
         # ✅ VERIFICA SE TEM MÉTODO DE PAGAMENTO
         has_payment_method = bool(
             store.pagarme_customer_id and
-            store.pagarme_card_id  # A @hybrid_property descriptografa automaticamente
+            store.pagarme_card_id
         )
 
-        # ✅ LOG DETALHADO PARA DEBUG
+        # ✅ LOG DETALHADO
         logger.info("═" * 60)
         logger.info(f"💳 [Subscription] Loja {store.id}:")
         logger.info(f"   - Status DB: {subscription_db.status}")
@@ -105,7 +102,7 @@ class SubscriptionService:
         logger.info(f"   - Has Payment Method: {has_payment_method}")
         logger.info("═" * 60)
 
-        # ✅ MONTA O PAYLOAD COMPLETO
+        # ✅ RETORNA SEMPRE (mesmo se cancelada)
         return {
             "id": subscription_db.id,
             "current_period_start": subscription_db.current_period_start,
@@ -114,7 +111,7 @@ class SubscriptionService:
             "status": dynamic_status,
             "is_blocked": is_blocked,
             "warning_message": warning_message,
-            "has_payment_method": has_payment_method,  # ✅ CAMPO CRÍTICO!
-            "plan": plan,  # O Pydantic validará depois
-            "subscribed_addons": subscription_db.subscribed_addons,  # O Pydantic validará depois
+            "has_payment_method": has_payment_method,
+            "plan": plan,
+            "subscribed_addons": subscription_db.subscribed_addons,
         }
