@@ -271,27 +271,52 @@ async def clone_store(
     return new_access
 
 
+
+
 @router.get("", response_model=list[StoreWithRole])
 def list_stores(db: GetDBDep, user: GetCurrentUserDep):
     """Retorna todas as lojas acessíveis pelo usuário."""
+    # Busca os objetos de acesso ao banco
     db_store_accesses = db.query(models.StoreAccess).filter(
         models.StoreAccess.user == user
     ).all()
 
-    # ✅ CORREÇÃO: Preenche o active_subscription com o cálculo dinâmico
+    result = []
+
+    # ✅ CORREÇÃO: Converte para dicionário e injeta os dados calculados
+    # antes da validação do Pydantic.
     for access in db_store_accesses:
-        # Pega os detalhes calculados da subscrição
-        subscription_details = SubscriptionService.get_subscription_details(
+
+        # 1. Calcula os detalhes dinâmicos da subscrição
+        subscription_details_dict = SubscriptionService.get_subscription_details(
             store=access.store,
-            db=db  # Passa o banco de dados
+            db=db
         )
-        # Injeta os detalhes calculados no objeto Store antes da validação
-        if subscription_details:
-            access.store.active_subscription = subscription_details
 
-    return [StoreWithRole.model_validate(access) for access in db_store_accesses]
+        # 2. Converte o objeto ORM Store (access.store) para um dicionário
+        # O Pydantic irá mapear este dicionário para o StoreDetails/StoreSchema
+        store_data = access.store.__dict__.copy()
 
+        # 3. INJEÇÃO: Adiciona o campo calculado no dicionário da loja
+        # Aqui atribuímos a uma chave de dicionário Python, o que é permitido.
+        if subscription_details_dict is not None:
+            store_data['active_subscription'] = subscription_details_dict
 
+        # 4. Monta o dicionário final para StoreWithRole
+        access_data = {
+            # O campo 'store' agora é o dicionário modificado
+            'store': store_data,
+            # Para os outros campos, Pydantic lida bem com os objetos ORM (se usar from_attributes=True)
+            'role': access.role,
+            # Campos do StoreAccess
+            'store_id': access.store_id,
+            'user_id': access.user_id,
+        }
+
+        # 5. Valida o dicionário modificado contra o schema Pydantic
+        result.append(StoreWithRole.model_validate(access_data))
+
+    return result
 
 
 
