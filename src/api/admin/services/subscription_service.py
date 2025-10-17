@@ -21,8 +21,9 @@ from typing import Optional, Dict, Any
 from decimal import Decimal
 import logging
 
+from src.api.schemas.subscriptions.plans import PlanSchema
 from src.core import models
-from src.api.schemas.subscriptions.subscription_schemas import Plans
+
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +152,7 @@ class SubscriptionService:
                 "is_blocked": is_blocked,
                 "warning_message": warning_message,
                 "has_payment_method": has_payment_method,
-                "plan": Plans.model_validate(subscription_db.plan) if subscription_db.plan else None,
+                "plan": PlanSchema.model_validate(subscription_db.plan) if subscription_db.plan else None,
                 "subscribed_addons": subscription_db.subscribed_addons,
             }
 
