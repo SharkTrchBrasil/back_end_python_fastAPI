@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response, UploadF
 from sqlalchemy import func
 
 from src.api.admin.services.cloning_service import clone_store_data
+from src.api.admin.services.subscription_service import SubscriptionService
 from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_stores_list_update
 from src.api.app.socketio.socketio_emitters import emit_store_updated
 from src.api.schemas.auth.store_access import StoreAccess
@@ -277,7 +278,21 @@ def list_stores(db: GetDBDep, user: GetCurrentUserDep):
         models.StoreAccess.user == user
     ).all()
 
+    # ✅ CORREÇÃO: Preenche o active_subscription com o cálculo dinâmico
+    for access in db_store_accesses:
+        # Pega os detalhes calculados da subscrição
+        subscription_details = SubscriptionService.get_subscription_details(
+            store=access.store,
+            db=db  # Passa o banco de dados
+        )
+        # Injeta os detalhes calculados no objeto Store antes da validação
+        if subscription_details:
+            access.store.active_subscription = subscription_details
+
     return [StoreWithRole.model_validate(access) for access in db_store_accesses]
+
+
+
 
 
 @router.get("/{store_id}", response_model=StoreDetails)
