@@ -25,7 +25,7 @@ from src.api.admin.services.billing_preview_service import BillingPreviewService
 from src.api.schemas.subscriptions.plans import PlanSchema
 from src.api.schemas.subscriptions.subscription_schemas import CardInfoSchema, BillingHistoryItemSchema
 from src.core import models
-
+from src.core.database import GetDBDep
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,10 @@ logger = logging.getLogger(__name__)
 class SubscriptionService:
 
     @staticmethod
-    def get_subscription_details(store: models.Store) -> Optional[Dict[str, Any]]:
+    def get_subscription_details(
+        store: models.Store,
+        db: GetDBDep,
+    ) -> Optional[Dict[str, Any]]:
         """
         ✅ VERSÃO COMPLETA: Retorna TODOS os dados da assinatura
         """
@@ -91,7 +94,7 @@ class SubscriptionService:
 
             # Billing Preview
             billing_preview = BillingPreviewService.get_billing_preview(
-                db=None,
+                db=db,
                 store=store
             )
 
