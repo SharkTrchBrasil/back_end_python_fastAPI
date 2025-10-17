@@ -133,7 +133,32 @@ class Store(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
 
+    subscriptions: Mapped[list["StoreSubscription"]] = relationship(
+        "StoreSubscription",
+        back_populates="store",
+        lazy="select",
+        cascade="all, delete-orphan",
+        order_by="desc(StoreSubscription.created_at)"  # ✅ Mais recente primeiro
+    )
 
+    @hybrid_property
+    def active_subscription(self) -> Optional["StoreSubscription"]:
+        """
+        ✅ CORRIGIDO: Retorna apenas assinatura ATIVA ou EM TRIAL
+        """
+        active_statuses = {'active', 'trialing'}
+        for sub in self.subscriptions:
+            if sub.status in active_statuses:
+                return sub
+        return None
+
+    @hybrid_property
+    def latest_subscription(self) -> Optional["StoreSubscription"]:
+        """
+        ✅ NOVO: Retorna a assinatura mais recente (qualquer status)
+        Útil para acessar histórico de assinatura cancelada
+        """
+        return self.subscriptions[0] if self.subscriptions else None
 
 
 
@@ -224,13 +249,6 @@ class Store(Base, TimestampMixin):
         cascade="all, delete-orphan"  # ✅ ADICIONAR
     )
 
-    subscriptions: Mapped[list["StoreSubscription"]] = relationship(
-        "StoreSubscription",
-        back_populates="store",
-        lazy="select",
-        cascade="all, delete-orphan"  # ✅ ADICIONAR
-    )
-
 
 
     accesses: Mapped[List["StoreAccess"]] = relationship(
@@ -289,24 +307,6 @@ class Store(Base, TimestampMixin):
     receivable_categories: Mapped[list["ReceivableCategory"]] = relationship(back_populates="store",
                                                                              cascade="all, delete-orphan")
 
-    @hybrid_property
-    def active_subscription(self) -> Optional["StoreSubscription"]:  # <- Use a string aqui também
-        """
-        Retorna a primeira assinatura ativa ou em cobrança encontrada para esta loja.
-        """
-        active_statuses = {'active', 'new_charge', 'trialing'}
-        for sub in self.subscriptions:
-            if sub.status in active_statuses:
-                return sub
-        return None
-
-    @active_subscription.expression
-    def active_subscription(cls):
-
-        return select(StoreSubscription).where(
-            StoreSubscription.store_id == cls.id,
-            StoreSubscription.status.in_(['active', 'new_charge', 'trialing'])
-        ).correlate_except(StoreSubscription).as_scalar()
 
 
 class User(Base, TimestampMixin):

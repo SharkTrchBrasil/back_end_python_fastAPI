@@ -1,10 +1,22 @@
+# src/api/admin/routes/subscriptions.py
 """
 Rotas para gerenciamento de assinaturas
 ========================================
+
+ENDPOINTS:
+- POST   /stores/{id}/subscriptions          → Cria nova assinatura
+- POST   /stores/{id}/subscriptions/reactivate → Reativa assinatura cancelada
+- GET    /stores/{id}/subscriptions/details   → Detalhes completos
+- PATCH  /stores/{id}/subscriptions/card      → Atualiza cartão
+- DELETE /stores/{id}/subscriptions           → Cancela assinatura
+
+Autor: Sistema de Billing
+Última atualização: 2025-01-17
 """
 
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.logger import logger
@@ -32,33 +44,36 @@ router = APIRouter(
 )
 
 
+# ═══════════════════════════════════════════════════════════════
+# 1. CRIAR NOVA ASSINATURA
+# ═══════════════════════════════════════════════════════════════
+
+
+
 @router.post("/stores/{store_id}/subscriptions")
 async def create_or_reactivate_subscription(
-    db: GetDBDep,
-    store: GetStoreDep,
-    user: GetCurrentUserDep,
-    subscription_data: CreateStoreSubscription,
+        db: GetDBDep,
+        store: GetStoreDep,
+        user: GetCurrentUserDep,
+        subscription_data: CreateStoreSubscription,
 ):
     """
-    ✅ Cria ou reativa uma assinatura de loja.
+    ✅ Cria nova assinatura para loja
 
-    O GetStoreDep já valida:
-    - Se a loja existe
-    - Se o usuário tem acesso à loja
-    - Se o usuário tem permissão adequada
+    ⚠️ IMPORTANTE: Se a loja já tem assinatura cancelada com dias pagos,
+                   use o endpoint /reactivate ao invés deste.
 
-    Args:
-        db: Sessão do banco de dados
-        store: Loja (já validada pelo GetStoreDep)
-        user: Usuário autenticado
-        subscription_data: Dados do cartão tokenizado
+    Validações:
+    - Dados cadastrais completos
+    - Token de cartão válido
+    - Plano disponível
 
-    Returns:
-        Dados da assinatura ativada
-
-    Raises:
-        400: Dados inválidos ou incompletos
-        500: Erro no processamento
+    Processo:
+    1. Valida dados da loja
+    2. Cria/atualiza customer no Pagar.me
+    3. Adiciona cartão
+    4. Cobra valor proporcional (ou R$ 0 se 1º mês grátis)
+    5. Ativa assinatura com período de 30 dias
     """
 
     logger.info(f"✅ Iniciando criação de assinatura para loja {store.id} pelo usuário {user.id}")
@@ -103,16 +118,12 @@ async def create_or_reactivate_subscription(
     # ✅ VALIDAÇÃO DE ENDEREÇO COMPLETO
     if not store.street:
         missing_data.append("Rua")
-
     if not store.number:
         missing_data.append("Número")
-
     if not store.neighborhood:
         missing_data.append("Bairro")
-
     if not store.city:
         missing_data.append("Cidade")
-
     if not store.state:
         missing_data.append("Estado")
     elif len(store.state) != 2:
@@ -137,18 +148,62 @@ async def create_or_reactivate_subscription(
             error_detail["invalid_fields"] = invalid_data
 
         logger.warning(f"Dados inválidos para loja {store.id}: {error_detail}")
-
         raise HTTPException(status_code=400, detail=error_detail)
 
     # ═══════════════════════════════════════════════════════════
-    # 2. BUSCA OU CRIA ASSINATURA
+    # 2. VERIFICA SE JÁ TEM ASSINATURA
     # ═══════════════════════════════════════════════════════════
 
-    subscription = db.query(models.StoreSubscription).filter(
+    existing_subscription = db.query(models.StoreSubscription).filter(
         models.StoreSubscription.store_id == store.id
-    ).first()
+    ).order_by(models.StoreSubscription.id.desc()).first()
 
-    if not subscription:
+    # ✅ SE TEM ASSINATURA CANCELADA COM DIAS PAGOS, REDIRECIONA
+    if existing_subscription and existing_subscription.status == 'canceled':
+        now = datetime.now(timezone.utc)
+        end_date = existing_subscription.current_period_end
+
+        if end_date and end_date.tzinfo is None:
+            end_date = end_date.replace(tzinfo=timezone.utc)
+
+        if end_date and now < end_date:
+            days_remaining = (end_date - now).days
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "subscription_cancelled_with_remaining_days",
+                    "message": (
+                        f"Você ainda tem {days_remaining} dias pagos até {end_date.strftime('%d/%m/%Y')}. "
+                        f"Use o endpoint /reactivate para reativar sem cobrança adicional."
+                    ),
+                    "days_remaining": days_remaining,
+                    "access_until": end_date.isoformat(),
+                    "action_required": "POST /stores/{store_id}/subscriptions/reactivate"
+                }
+            )
+
+    # ✅ SE TEM ASSINATURA ATIVA, RETORNA ERRO
+    if existing_subscription and existing_subscription.status in ['active', 'trialing']:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "subscription_already_active",
+                "message": "Loja já possui assinatura ativa",
+                "subscription_id": existing_subscription.id,
+                "status": existing_subscription.status
+            }
+        )
+
+    # ═══════════════════════════════════════════════════════════
+    # 3. BUSCA OU CRIA ASSINATURA
+    # ═══════════════════════════════════════════════════════════
+
+    if existing_subscription and existing_subscription.status == 'expired':
+        # Reusa assinatura expirada
+        subscription = existing_subscription
+        logger.info(f"Reutilizando assinatura expirada: ID {subscription.id}")
+    else:
+        # Cria nova
         main_plan = db.query(models.Plans).filter_by(
             plan_name='Plano Parceiro'
         ).first()
@@ -173,7 +228,7 @@ async def create_or_reactivate_subscription(
         logger.info(f"Nova assinatura criada: ID {subscription.id}")
 
     # ═══════════════════════════════════════════════════════════
-    # 3. VALIDAÇÃO DO TOKEN DO CARTÃO
+    # 4. VALIDAÇÃO DO TOKEN DO CARTÃO
     # ═══════════════════════════════════════════════════════════
 
     if not subscription_data.card or not subscription_data.card.payment_token:
@@ -184,7 +239,7 @@ async def create_or_reactivate_subscription(
 
     try:
         # ═══════════════════════════════════════════════════════
-        # 4. INTEGRAÇÃO COM PAGAR.ME
+        # 5. INTEGRAÇÃO COM PAGAR.ME
         # ═══════════════════════════════════════════════════════
 
         # ✅ Cria customer se não existir
@@ -223,32 +278,17 @@ async def create_or_reactivate_subscription(
                 billing_address=billing_address
             )
 
-            # ✅ ADICIONE ESTE LOG CRÍTICO
-            logger.info("═" * 60)
-            logger.info("✅ [Subscription] CARD RESPONSE RECEBIDA:")
-            logger.info("═" * 60)
-            logger.info(f"   Tipo: {type(card_response)}")
-            logger.info(f"   Chaves disponíveis: {list(card_response.keys())}")
-            logger.info(f"   Campo 'id': {card_response.get('id')}")
-            logger.info(f"   Resposta completa: {card_response}")
-            logger.info("═" * 60)
-
-            # ✅ VALIDAÇÃO ANTES DE SALVAR
             card_id = card_response.get("id")
 
             if not card_id:
                 logger.error("❌ Resposta do Pagar.me NÃO contém 'id' do cartão!")
-                logger.error(f"   Resposta: {card_response}")
                 raise HTTPException(
                     status_code=500,
                     detail="Erro ao processar cartão: ID não retornado pelo Pagar.me"
                 )
 
-            # ✅ SALVA NO BANCO (O SETTER CRIPTOGRAFA AUTOMATICAMENTE)
             store.pagarme_card_id = card_id
-
-            logger.info(f"✅ Card ID salvo no banco: {card_id}")
-            logger.info(f"✅ Valor criptografado (bytes): {len(store._pagarme_card_id_encrypted or b'')} bytes")
+            logger.info(f"✅ Card ID salvo: {card_id}")
 
         except PagarmeError as card_error:
             logger.error(f"❌ Falha ao adicionar cartão: {card_error}")
@@ -273,11 +313,18 @@ async def create_or_reactivate_subscription(
                 )
 
         # ═══════════════════════════════════════════════════════
-        # 5. COBRANÇA PROPORCIONAL
+        # 6. COBRANÇA PROPORCIONAL (CORRIGIDA!)
         # ═══════════════════════════════════════════════════════
 
         proration_details = calculate_prorated_charge(subscription.plan)
         prorated_amount_cents = proration_details["amount_in_cents"]
+
+        logger.info("═" * 60)
+        logger.info("💰 [Subscription] Processando cobrança inicial")
+        logger.info(
+            f"   Período: {proration_details['period_start'].date()} → {proration_details['period_end'].date()}")
+        logger.info(f"   Valor: R$ {prorated_amount_cents / 100:.2f}")
+        logger.info("═" * 60)
 
         monthly_charge = None
 
@@ -299,8 +346,8 @@ async def create_or_reactivate_subscription(
                 store_id=store.id,
                 subscription_id=subscription.id,
                 charge_date=datetime.now(timezone.utc).date(),
-                billing_period_start=proration_details.get("period_start", datetime.now(timezone.utc)).date(),
-                billing_period_end=proration_details.get("period_end", subscription.current_period_end).date(),
+                billing_period_start=proration_details["period_start"].date(),
+                billing_period_end=proration_details["period_end"].date(),
                 total_revenue=Decimal("0"),
                 calculated_fee=Decimal(str(prorated_amount_cents / 100)),
                 status="pending",
@@ -311,16 +358,29 @@ async def create_or_reactivate_subscription(
                 }
             )
             db.add(monthly_charge)
-
-            logger.info(f"MonthlyCharge registrado: {charge_response['id']}")
+        else:
+            logger.info("🎁 1º mês GRÁTIS - Nenhuma cobrança criada")
 
         # ═══════════════════════════════════════════════════════
-        # 6. ATIVA ASSINATURA
+        # 7. ATIVA ASSINATURA (CORRIGIDA!)
         # ═══════════════════════════════════════════════════════
 
         subscription.status = "active"
         subscription.current_period_start = datetime.now(timezone.utc)
+
+        # ✅ CORREÇÃO CRÍTICA: Usa a data retornada por proration
+        # (Que agora é SEMPRE 30 dias, não até o fim do mês)
         subscription.current_period_end = proration_details["new_period_end_date"]
+
+        subscription.canceled_at = None
+
+        logger.info("═" * 60)
+        logger.info("✅ [Subscription] Assinatura ativada!")
+        logger.info(f"   Status: active")
+        logger.info(
+            f"   Período: {subscription.current_period_start.date()} → {subscription.current_period_end.date()}")
+        logger.info(f"   Próxima cobrança: {subscription.current_period_end.date() + timedelta(days=1)}")
+        logger.info("═" * 60)
 
         db.commit()
 
@@ -336,14 +396,14 @@ async def create_or_reactivate_subscription(
                 "status": subscription.status,
                 "current_period_start": subscription.current_period_start.isoformat(),
                 "current_period_end": subscription.current_period_end.isoformat(),
-                "charge_id": monthly_charge.id if monthly_charge else None
+                "charge_id": monthly_charge.id if monthly_charge else None,
+                "charged_amount": prorated_amount_cents / 100 if monthly_charge else 0
             }
         }
 
     except PagarmeError as e:
         db.rollback()
         logger.error(f"Erro Pagar.me: {e}")
-
         raise HTTPException(
             status_code=400,
             detail=f"Erro ao processar pagamento: {str(e)}"
@@ -352,30 +412,169 @@ async def create_or_reactivate_subscription(
     except Exception as e:
         db.rollback()
         logger.error(f"Erro inesperado: {e}", exc_info=True)
-
         raise HTTPException(
             status_code=500,
             detail="Erro ao processar assinatura. Tente novamente."
         )
 
 
-@router.get("/stores/{store_id}/subscriptions/details")
-async def get_subscription_details(
-        db: GetDBDep,
-        store: GetStoreDep,
-        user: GetCurrentUserDep,
+
+
+
+
+# ═══════════════════════════════════════════════════════════════
+# 2. REATIVAR ASSINATURA CANCELADA
+# ═══════════════════════════════════════════════════════════════
+
+@router.post("/stores/{store_id}/subscriptions/reactivate")
+async def reactivate_subscription(
+    db: GetDBDep,
+    store: GetStoreDep,
+    user: GetCurrentUserDep,
+    card_data: Optional[CreateStoreSubscription] = None
 ):
     """
-    🎯 Retorna detalhes completos da assinatura ativa.
+    ✅ REATIVA assinatura cancelada de forma inteligente
+
+    CENÁRIOS:
+    1. Cancelada + Ainda tem dias pagos → Reativa SEM cobrar
+    2. Cancelada + Expirada → Exige novo cartão e cobra proporcional
+
+    USO NO FRONTEND:
+    - Botão "Reativar Assinatura" (aparece quando status = canceled)
+    - Se ainda tem dias pagos: Reativa direto
+    - Se expirou: Pede cartão novamente
+    """
+
+    logger.info(f"🔄 Tentativa de reativação para loja {store.id}")
+
+    # Busca última assinatura
+    subscription = db.query(models.StoreSubscription).filter(
+        models.StoreSubscription.store_id == store.id
+    ).order_by(models.StoreSubscription.id.desc()).first()
+
+    if not subscription:
+        raise HTTPException(404, "Nenhuma assinatura encontrada")
+
+    now = datetime.now(timezone.utc)
+
+    # ═══════════════════════════════════════════════════════════
+    # CENÁRIO 1: CANCELADA MAS AINDA TEM DIAS PAGOS
+    # ═══════════════════════════════════════════════════════════
+
+    if subscription.status == 'canceled':
+        end_date = subscription.current_period_end
+
+        if end_date and end_date.tzinfo is None:
+            end_date = end_date.replace(tzinfo=timezone.utc)
+
+        # ✅ AINDA TEM ACESSO (dias pagos restantes)
+        if end_date and now < end_date:
+            days_remaining = (end_date - now).days
+
+            logger.info(f"🔄 Reativando assinatura {subscription.id} com {days_remaining} dias já pagos")
+
+            # ✅ REATIVA A MESMA ASSINATURA (não cria nova)
+            subscription.status = 'active'
+            subscription.canceled_at = None
+
+            # ✅ Reabre loja
+            operation_config = db.query(models.StoreOperationConfig).filter_by(
+                store_id=store.id
+            ).first()
+
+            if operation_config:
+                operation_config.is_store_open = True
+                logger.info(f"  🔓 Loja reaberta")
+
+            # ⚠️ CHATBOT: NÃO reconecta automaticamente (precisa QR Code)
+            chatbot_config = db.query(models.StoreChatbotConfig).filter_by(
+                store_id=store.id
+            ).first()
+
+            if chatbot_config:
+                chatbot_config.is_active = True
+                logger.info(f"  🤖 Chatbot marcado como ativo (precisa reconectar)")
+
+            db.commit()
+
+            await admin_emit_store_updated(db, store.id)
+            await emit_store_updated(db, store.id)
+
+            return {
+                "status": "reactivated",
+                "message": (
+                    f"✅ Assinatura reativada com sucesso! "
+                    f"Você ainda tinha {days_remaining} dias pagos. "
+                    f"Não foi feita nenhuma nova cobrança. "
+                    f"Seu acesso vai até {end_date.strftime('%d/%m/%Y')}. "
+                    f"\n\n⚠️ ATENÇÃO: Reconecte o chatbot no painel para voltar a receber pedidos."
+                ),
+                "subscription_id": subscription.id,
+                "access_until": end_date.isoformat(),
+                "days_remaining": days_remaining,
+                "charged": False,
+                "charge_amount": 0,
+                "actions_required": [
+                    "Reconectar chatbot (QR Code)"
+                ]
+            }
+
+    # ═══════════════════════════════════════════════════════════
+    # CENÁRIO 2: EXPIRADA OU NUNCA TEVE → EXIGE NOVO CARTÃO
+    # ═══════════════════════════════════════════════════════════
+
+    if subscription.status in ['canceled', 'expired']:
+        logger.info(f"🆕 Reativação de assinatura expirada (precisa de cartão)")
+
+        # Valida cartão
+        if not card_data or not card_data.card or not card_data.card.payment_token:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "card_required",
+                    "message": "Token do cartão é obrigatório para reativar assinatura expirada",
+                    "hint": "Use o mesmo fluxo de criação de assinatura"
+                }
+            )
+
+        # ✅ REDIRECIONA PARA CRIAÇÃO (mesmo fluxo)
+        return await create_or_reactivate_subscription(db, store, user, card_data)
+
+    # ═══════════════════════════════════════════════════════════
+    # ASSINATURA JÁ ESTÁ ATIVA
+    # ═══════════════════════════════════════════════════════════
+
+    raise HTTPException(
+        status_code=400,
+        detail={
+            "error": "subscription_already_active",
+            "message": "Assinatura já está ativa",
+            "status": subscription.status
+        }
+    )
+
+
+# ═══════════════════════════════════════════════════════════════
+# 3. DETALHES DA ASSINATURA
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/stores/{store_id}/subscriptions/details")
+async def get_subscription_details(
+    db: GetDBDep,
+    store: GetStoreDep,
+    user: GetCurrentUserDep,
+):
+    """
+    🎯 Retorna detalhes completos da assinatura
 
     Inclui:
-    - Dados da assinatura atual (calculados pelo serviço)
+    - Dados da assinatura (status calculado)
     - Preview de faturamento
     - Histórico de cobranças
     - Informações do cartão (mascarado)
     """
 
-    # ✅ CORREÇÃO: USA O SERVIÇO QUE CALCULA TUDO
     from src.api.admin.services.subscription_service import SubscriptionService
 
     subscription_details = SubscriptionService.get_subscription_details(store)
@@ -383,27 +582,24 @@ async def get_subscription_details(
     if not subscription_details:
         raise HTTPException(
             status_code=404,
-            detail="Nenhuma assinatura ativa encontrada"
+            detail="Nenhuma assinatura encontrada"
         )
 
     # ✅ Preview de faturamento
     billing_preview = BillingPreviewService.get_billing_preview(db, store)
 
-    # ✅ Histórico de cobranças (últimos 6 meses)
+    # ✅ Histórico de cobranças
     billing_history = BillingReportService.get_store_history(db, store.id, months=6)
 
-    # ✅ Buscar dados REAIS do cartão no Pagar.me
+    # ✅ Dados do cartão
     card_info = None
     if store.pagarme_card_id and store.pagarme_customer_id:
         try:
-            logger.info(f"Buscando informações do cartão {store.pagarme_card_id}")
-
             card_response = pagarme_service.get_card(
                 customer_id=store.pagarme_customer_id,
                 card_id=store.pagarme_card_id
             )
 
-            # Monta resposta com dados reais mascarados
             card_info = {
                 "masked_number": f"************{card_response.get('last_four_digits', '****')}",
                 "brand": card_response.get('brand', 'Desconhecida'),
@@ -412,46 +608,37 @@ async def get_subscription_details(
                 "exp_month": card_response.get('exp_month'),
                 "exp_year": card_response.get('exp_year'),
             }
-
-            logger.info(f"✅ Cartão encontrado: {card_info['brand']} {card_info['masked_number']}")
-
-        except PagarmeError as e:
-            logger.warning(f"⚠️ Erro ao buscar cartão do Pagar.me: {e}")
+        except Exception as e:
+            logger.warning(f"⚠️ Erro ao buscar cartão: {e}")
             card_info = {
                 "masked_number": "************",
                 "brand": "Cartão Cadastrado",
                 "status": "active"
             }
 
-        except Exception as e:
-            logger.error(f"❌ Erro inesperado ao buscar cartão: {e}")
-            card_info = {
-                "masked_number": "************",
-                "brand": "Erro ao buscar",
-                "status": "unknown"
-            }
-
-    # ✅ RETORNA DADOS CALCULADOS (não do modelo direto)
     return {
-        "subscription": subscription_details,  # ← JÁ VEM COMPLETO DO SERVIÇO
+        "subscription": subscription_details,
         "billing_preview": billing_preview,
         "billing_history": billing_history,
         "card_info": card_info,
         "can_cancel": subscription_details["status"] in ["active", "trialing"],
+        "can_reactivate": subscription_details["status"] == "canceled",
     }
 
 
-
+# ═══════════════════════════════════════════════════════════════
+# 4. ATUALIZAR CARTÃO
+# ═══════════════════════════════════════════════════════════════
 
 @router.patch("/stores/{store_id}/subscriptions/card")
 async def update_subscription_card(
-        db: GetDBDep,
-        store: GetStoreDep,
-        user: GetCurrentUserDep,
-        card_data: CreateStoreSubscription,
+    db: GetDBDep,
+    store: GetStoreDep,
+    user: GetCurrentUserDep,
+    card_data: CreateStoreSubscription,
 ):
     """
-    ✅ Atualiza o cartão de crédito da assinatura.
+    ✅ Atualiza o cartão de crédito da assinatura
 
     - Substitui o cartão antigo
     - Mantém a assinatura ativa
@@ -472,14 +659,12 @@ async def update_subscription_card(
         )
 
     try:
-        # ✅ Valida dados do cartão
         if not card_data.card or not card_data.card.payment_token:
             raise HTTPException(
                 status_code=400,
                 detail="Token do cartão é obrigatório"
             )
 
-        # ✅ Adiciona novo cartão no Pagar.me
         billing_address = {
             "line_1": f"{store.street}, {store.number}",
             "zip_code": "".join(filter(str.isdigit, store.zip_code)),
@@ -496,7 +681,6 @@ async def update_subscription_card(
 
         logger.info(f"✅ Novo cartão criado: {card_response['id']}")
 
-        # ✅ Atualiza o card_id no banco
         old_card_id = store.pagarme_card_id
         store.pagarme_card_id = card_response["id"]
 
@@ -531,58 +715,135 @@ async def update_subscription_card(
         )
 
 
-
-
+# ═══════════════════════════════════════════════════════════════
+# 5. CANCELAR ASSINATURA
+# ═══════════════════════════════════════════════════════════════
 
 @router.delete("/stores/{store_id}/subscriptions")
 async def cancel_subscription(
-        db: GetDBDep,
-        store: GetStoreDep,
-        user: GetCurrentUserDep,
+    db: GetDBDep,
+    store: GetStoreDep,
+    user: GetCurrentUserDep,
 ):
     """
-    ⚠️ Cancela a assinatura E desconecta o chatbot.
+    ⚠️ Cancela a assinatura
+
+    ✅ VERSÃO ATUALIZADA:
+    - NÃO desconecta chatbot imediatamente
+    - NÃO fecha loja imediatamente
+    - Mantém tudo funcionando até o fim do período pago
+    - Job automático fecha tudo no último dia (00:05 UTC)
     """
 
-    subscription = store.active_subscription
+    subscription = db.query(models.StoreSubscription).filter(
+        models.StoreSubscription.store_id == store.id
+    ).order_by(models.StoreSubscription.id.desc()).first()
 
     if not subscription:
-        raise HTTPException(status_code=404, detail="Nenhuma assinatura ativa")
+        logger.error(f"Loja {store.id} não possui nenhuma assinatura")
+        raise HTTPException(
+            status_code=404,
+            detail="Nenhuma assinatura encontrada para esta loja"
+        )
+
+    # ═══════════════════════════════════════════════════════════
+    # SE JÁ ESTÁ CANCELADA
+    # ═══════════════════════════════════════════════════════════
 
     if subscription.status == "canceled":
-        raise HTTPException(status_code=400, detail="Assinatura já cancelada")
+        logger.info(f"⚠️ Assinatura {subscription.id} já estava cancelada")
 
-    # ✅ 1. Cancela assinatura
+        now = datetime.now(timezone.utc)
+        end_date = subscription.current_period_end
+
+        if end_date and end_date.tzinfo is None:
+            end_date = end_date.replace(tzinfo=timezone.utc)
+
+        has_access = end_date and now < end_date
+        days_remaining = (end_date - now).days if has_access else 0
+
+        return {
+            "status": "already_canceled",
+            "message": (
+                f"Esta assinatura já foi cancelada em {subscription.canceled_at.strftime('%d/%m/%Y %H:%M')}. "
+                f"{'Você ainda tem acesso até ' + end_date.strftime('%d/%m/%Y') + f' ({days_remaining} dias restantes).' if has_access else 'O acesso já expirou.'}"
+            ),
+            "canceled_at": subscription.canceled_at.isoformat(),
+            "access_until": end_date.isoformat() if end_date else None,
+            "has_access": has_access,
+            "days_remaining": days_remaining
+        }
+
+    # ═══════════════════════════════════════════════════════════
+    # VALIDA SE PODE CANCELAR
+    # ═══════════════════════════════════════════════════════════
+
+    if subscription.status not in ['active', 'trialing']:
+        logger.error(f"Tentativa de cancelar assinatura com status '{subscription.status}'")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Não é possível cancelar assinatura com status '{subscription.status}'."
+        )
+
+    # ═══════════════════════════════════════════════════════════
+    # PROCESSA CANCELAMENTO (SEM FECHAR NADA!)
+    # ═══════════════════════════════════════════════════════════
+
+    old_status = subscription.status
     subscription.status = "canceled"
     subscription.canceled_at = datetime.now(timezone.utc)
 
-    # ✅ 2. Desconecta chatbot
-    chatbot_config = db.query(models.StoreChatbotConfig).filter_by(
-        store_id=store.id
-    ).first()
+    logger.info(f"📝 Cancelando assinatura {subscription.id}: {old_status} → canceled")
 
-    if chatbot_config:
-        chatbot_config.is_connected = False
-        chatbot_config.is_active = False
-        logger.info(f"🤖 Chatbot desconectado para loja {store.id}")
-
-    # ✅ 3. Fecha a loja
-    operation_config = db.query(models.StoreOperationConfig).filter_by(
-        store_id=store.id
-    ).first()
-
-    if operation_config:
-        operation_config.is_store_open = False
-        logger.info(f"🔒 Loja {store.id} fechada automaticamente")
+    # ✅ NÃO DESCONECTA CHATBOT AQUI
+    # ✅ NÃO FECHA LOJA AQUI
 
     db.commit()
 
-    logger.info(f"✅ Assinatura {subscription.id} cancelada com sucesso")
+    now = datetime.now(timezone.utc)
+    end_date = subscription.current_period_end
 
-    await admin_emit_store_updated(db, store.id)
-    await emit_store_updated(db, store.id)
+    if end_date and end_date.tzinfo is None:
+        end_date = end_date.replace(tzinfo=timezone.utc)
+
+    days_remaining = (end_date - now).days if end_date and now < end_date else 0
+
+    logger.info(f"✅ Assinatura {subscription.id} cancelada. Acesso até {end_date.strftime('%d/%m/%Y')}")
+
+    try:
+        await admin_emit_store_updated(db, store.id)
+    except Exception as e:
+        logger.error(f"❌ Erro ao emitir evento admin: {e}", exc_info=True)
+
+    try:
+        await emit_store_updated(db, store.id)
+    except Exception as e:
+        logger.error(f"❌ Erro ao emitir evento app: {e}", exc_info=True)
+
     return {
         "status": "success",
-        "message": "Assinatura cancelada. A loja foi fechada e o chatbot desconectado.",
-        "access_until": subscription.current_period_end.isoformat()
+        "message": (
+            f"✅ Assinatura cancelada com sucesso!\n\n"
+            f"📅 Você manterá acesso COMPLETO até {end_date.strftime('%d/%m/%Y')} ({days_remaining} dias restantes).\n\n"
+            f"Isso inclui:\n"
+            f"• Chatbot ativo e recebendo pedidos\n"
+            f"• Loja aberta para clientes\n"
+            f"• Acesso total ao painel admin\n\n"
+            f"⏰ No dia {end_date.strftime('%d/%m/%Y')} às 00:05 UTC, o sistema irá automaticamente:\n"
+            f"• Desconectar o chatbot\n"
+            f"• Fechar a loja\n"
+            f"• Bloquear o acesso ao painel\n\n"
+            f"💡 Você pode reativar a qualquer momento antes dessa data."
+        ),
+        "canceled_at": subscription.canceled_at.isoformat(),
+        "access_until": end_date.isoformat() if end_date else None,
+        "days_remaining": days_remaining,
+        "chatbot_active_until": end_date.isoformat() if end_date else None,
+        "store_open_until": end_date.isoformat() if end_date else None,
+        "actions_taken": [
+            "Assinatura marcada como cancelada",
+            f"Chatbot permanecerá ativo até {end_date.strftime('%d/%m/%Y')}",
+            f"Loja permanecerá aberta até {end_date.strftime('%d/%m/%Y')}",
+            "Sistema fechará automaticamente no último dia"
+        ]
     }

@@ -1,6 +1,8 @@
 # src/api/schemas/subscriptions/subscription_schemas.py
 
 from datetime import datetime
+from typing import Optional
+
 from pydantic import BaseModel, ConfigDict
 from .plans import PlanSchema
 from .plans_addon import SubscribedAddonSchema
@@ -17,7 +19,8 @@ class SubscriptionDetailsSchema(BaseModel):
     current_period_start: datetime
     current_period_end: datetime
     gateway_subscription_id: str | None
-
+    status: str  # ✅ Aceita: active, trialing, canceled, expired, past_due
+    canceled_at: Optional[datetime] = None  # ✅ ADICIONA CAMPO
     # Campos calculados pelo SubscriptionService
     status: str  # O status dinâmico (active, trialing, warning, past_due, etc.)
     is_blocked: bool  # A fonte da verdade para bloqueio de UI

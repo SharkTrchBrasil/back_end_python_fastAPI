@@ -7,10 +7,11 @@ Gerencia execução automatizada de jobs:
 - ✅ Operacionais (pedidos, carrinhos)
 - ✅ Marketing (reativação)
 - ✅ Billing (cobrança mensal)
-- ✅ Lifecycle (assinaturas)
+- ✅ Lifecycle (assinaturas) ← ATUALIZADO
+- ✅ Expiration (assinaturas canceladas) ← NOVO
 
 Autor: Sistema
-Última atualização: 2025-01-16
+Última atualização: 2025-01-17
 """
 
 import logging
@@ -23,6 +24,7 @@ from src.api.jobs.billing import generate_monthly_charges
 from src.api.jobs.cart_recovery import find_and_notify_abandoned_carts
 from src.api.jobs.cleanup import delete_old_inactive_carts
 from src.api.jobs.lifecycle import manage_subscription_lifecycle
+from src.api.jobs.subscription_expiration import process_expired_subscriptions  # ✅ NOVO
 from src.api.jobs.marketing import reactivate_inactive_customers
 from src.api.jobs.operational import (
     cancel_old_pending_orders,
@@ -149,8 +151,7 @@ def start_scheduler():
     # JOBS MENSAIS/CRÍTICOS
     # ═══════════════════════════════════════════════════════════
 
-    # ✅ BILLING CORRIGIDO: Roda TODO DIA útil às 3h
-    # O job interno (is_first_business_day) decide se processa ou não
+    # ✅ BILLING: Roda TODO DIA útil às 3h
     scheduler.add_job(
         generate_monthly_charges,
         'cron',
@@ -161,7 +162,6 @@ def start_scheduler():
     )
 
     # ✅ LIFECYCLE: Roda todo dia às 2h
-    # Verifica assinaturas expirando/expiradas
     scheduler.add_job(
         manage_subscription_lifecycle,
         'cron',
@@ -169,6 +169,21 @@ def start_scheduler():
         minute='0',
         id='subscription_lifecycle_job',
         name='Gerenciamento de Ciclo de Assinaturas'
+    )
+
+    # ═══════════════════════════════════════════════════════════
+    # ✅ NOVO: JOB DE EXPIRAÇÃO DE ASSINATURAS CANCELADAS
+    # ═══════════════════════════════════════════════════════════
+
+    # Roda todo dia às 00:05 (logo após meia-noite)
+    # Processa assinaturas canceladas que expiraram no dia anterior
+    scheduler.add_job(
+        process_expired_subscriptions,
+        'cron',
+        hour='0',
+        minute='5',
+        id='subscription_expiration_job',
+        name='Expiração de Assinaturas Canceladas (fecha loja e desconecta chatbot)'
     )
 
     # ═══════════════════════════════════════════════════════════

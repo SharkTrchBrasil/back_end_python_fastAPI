@@ -1,87 +1,111 @@
-# Arquivo: src/api/admin/utils/proration.py
+# src/api/admin/utils/proration.py
 
-import calendar
-from datetime import date, datetime, timezone
+"""
+Cálculo de Cobrança Proporcional
+=================================
+
+✅ VERSÃO CORRIGIDA: Evita cobrança duplicada
+
+ANTES (❌):
+- Cliente assina dia 15/11
+- Cobra proporcional até 30/11 (15 dias)
+- Próxima cobrança: 15/12 ❌ DUPLICA!
+
+DEPOIS (✅):
+- Cliente assina dia 15/11
+- Cobra valor completo (1º mês grátis se configurado)
+- Período: 15/11 até 15/12 (30 dias)
+- Próxima cobrança: 15/12 ✅ CORRETO!
+
+Autor: Sistema de Billing
+Última atualização: 2025-01-17
+"""
+
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from dateutil.relativedelta import relativedelta
+from typing import Dict
+import logging
 
 from src.core import models
 
+logger = logging.getLogger(__name__)
 
-def calculate_prorated_charge(plan: models.Plans) -> dict:
+
+def calculate_prorated_charge(plan: models.Plans) -> Dict:
     """
-    Calcula o valor proporcional da taxa para ativação no meio do mês.
+    ✅ CORRIGIDO: Calcula primeira cobrança com período de 30 dias
 
-    Regras:
-    - Se o plano tem first_month_free: retorna R$ 0
-    - Caso contrário: calcula proporcionalmente aos dias restantes
+    REGRA DE NEGÓCIO:
+    - Cliente paga pelo MÊS COMPLETO na assinatura
+    - Se 1º mês grátis: amount = 0, mas período = 30 dias
+    - Se não grátis: amount = taxa mínima, período = 30 dias
+
+    Isso garante que o JOB mensal só cobre APÓS 30 dias,
+    evitando duplicatas.
+
+    Args:
+        plan: Plano de assinatura
 
     Returns:
-        dict com:
-            - amount_in_cents: Valor em centavos
-            - description: Descrição da cobrança
-            - new_period_end_date: Fim do período atual
-            - period_start: Início do período (hoje)
-            - period_end: Fim do período
+        Dict com:
+        - amount_in_cents: Valor a cobrar (int)
+        - period_start: Data de início do período (datetime)
+        - period_end: Data de fim do período (datetime)
+        - new_period_end_date: Próxima data de renovação (datetime)
+        - description: Descrição da cobrança (str)
     """
-    today = datetime.now(timezone.utc)
-    today_date = today.date()
+
+    logger.info("═" * 60)
+    logger.info("💰 [Proration] Calculando primeira cobrança")
+    logger.info("═" * 60)
+
+    now = datetime.now(timezone.utc)
 
     # ═══════════════════════════════════════════════════════════
-    # CENÁRIO 1: PRIMEIRO MÊS GRÁTIS
+    # ✅ CORREÇÃO CRÍTICA: Período de 30 DIAS (não até fim do mês)
+    # ═══════════════════════════════════════════════════════════
+
+    period_start = now
+    period_end = now + timedelta(days=30)
+
+    logger.info(f"📅 Período: {period_start.date()} até {period_end.date()}")
+    logger.info(f"📊 Dias no ciclo: 30 dias")
+
+    # ═══════════════════════════════════════════════════════════
+    # ✅ BENEFÍCIO: 1º MÊS GRÁTIS
     # ═══════════════════════════════════════════════════════════
 
     if plan.first_month_free:
-        # Próximo período começa no primeiro dia do próximo mês
-        next_month_start = (today + relativedelta(months=1)).replace(day=1)
-        next_month_end = next_month_start + relativedelta(months=1) - relativedelta(days=1)
+        amount_in_cents = 0
+        description = "🎉 1º mês GRÁTIS - Bem-vindo ao MenuHub!"
 
-        return {
-            "amount_in_cents": 0,
-            "description": "🎁 Primeiro mês por nossa conta!",
-            "new_period_end_date": next_month_end,
-            "period_start": today,
-            "period_end": next_month_end
-        }
+        logger.info("🎁 1º mês GRÁTIS aplicado!")
+        logger.info(f"💳 Valor a cobrar: R$ 0,00")
+
+    else:
+        # Cobra taxa mínima do plano
+        amount_in_cents = plan.minimum_fee  # Ex: 3990 = R$ 39,90
+        description = f"Primeira mensalidade - {now.strftime('%d/%m/%Y')}"
+
+        logger.info(f"💳 Valor a cobrar: R$ {amount_in_cents / 100:.2f}")
 
     # ═══════════════════════════════════════════════════════════
-    # CENÁRIO 2: COBRANÇA PROPORCIONAL
+    # ✅ RETORNO ESTRUTURADO
     # ═══════════════════════════════════════════════════════════
 
-    # Calcula dias no mês
-    _, total_days_in_month = calendar.monthrange(today_date.year, today_date.month)
-
-    # Dias restantes (incluindo hoje)
-    remaining_days = total_days_in_month - today_date.day + 1
-
-    # Se ativar no último dia do mês
-    if remaining_days <= 0:
-        next_month_start = (today + relativedelta(months=1)).replace(day=1)
-        next_month_end = next_month_start + relativedelta(months=1) - relativedelta(days=1)
-
-        return {
-            "amount_in_cents": 0,
-            "description": "Ativação no final do mês",
-            "new_period_end_date": next_month_end,
-            "period_start": today,
-            "period_end": next_month_end
-        }
-
-    # Calcula valor proporcional
-    minimum_fee_cents = plan.minimum_fee
-    prorated_fee = (Decimal(minimum_fee_cents) / total_days_in_month) * remaining_days
-    prorated_fee_cents = int(prorated_fee)
-
-    # Último dia do mês atual
-    last_day_of_month = date(today_date.year, today_date.month, total_days_in_month)
-
-    description = f"Assinatura Proporcional - {remaining_days} dias de {today_date.strftime('%B')}"
-
-    return {
-        "amount_in_cents": prorated_fee_cents,
-        "description": description,
-        "new_period_end_date": last_day_of_month,
-        "period_start": today,  # ✅ ADICIONADO
-        "period_end": datetime.combine(last_day_of_month, datetime.max.time()).replace(tzinfo=timezone.utc)
-        # ✅ ADICIONADO
+    result = {
+        "amount_in_cents": amount_in_cents,
+        "period_start": period_start,
+        "period_end": period_end,
+        "new_period_end_date": period_end,  # ← Próxima renovação
+        "description": description
     }
+
+    logger.info("─" * 60)
+    logger.info("✅ Cálculo concluído:")
+    logger.info(f"   Período: {period_start.date()} → {period_end.date()}")
+    logger.info(f"   Valor: R$ {amount_in_cents / 100:.2f}")
+    logger.info(f"   Próxima cobrança: {period_end.date()}")
+    logger.info("═" * 60)
+
+    return result

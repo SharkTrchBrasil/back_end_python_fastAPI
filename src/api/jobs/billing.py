@@ -19,6 +19,8 @@ from datetime import date, timedelta, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Dict, Optional
 import logging
+from src.api.admin.services.billing_strategy import BillingStrategy
+
 
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session, selectinload
@@ -336,6 +338,8 @@ def check_duplicate_charge(
         return None
 
 
+# src/api/jobs/billing.py
+
 def process_single_store_charge(
         db: Session,
         subscription: models.StoreSubscription,
@@ -344,11 +348,19 @@ def process_single_store_charge(
         today: date
 ) -> bool:
     """
-    ✅ ROBUSTO: Processa cobrança de uma única loja com transaction isolada
+    ✅ VERSÃO BLINDADA: Processa cobrança com validações rigorosas
+
+    NÃO COBRA:
+    - Assinaturas canceladas
+    - Assinaturas que iniciaram depois do período
+    - Assinaturas já cobradas no período
+    - Assinaturas sem método de pagamento (marca como failed)
 
     Returns:
-        True se processou com sucesso, False caso contrário
+        True se processou com sucesso (ou pulou corretamente)
+        False se houve erro crítico
     """
+
     store = subscription.store
 
     if not store or not subscription.plan:
@@ -359,20 +371,30 @@ def process_single_store_charge(
         })
         return False
 
-    # ✅ VALIDAÇÃO CRÍTICA: NÃO COBRAR ASSINATURAS CANCELADAS
+    # ═══════════════════════════════════════════════════════════
+    # ✅ VALIDAÇÃO 1: NÃO COBRAR CANCELADAS
+    # ═══════════════════════════════════════════════════════════
+
     if subscription.status == "canceled":
         logger.info("subscription_canceled_skipping", extra={
             "subscription_id": subscription.id,
             "store_id": store.id,
-            "canceled_at": subscription.canceled_at.isoformat() if subscription.canceled_at else None
+            "canceled_at": subscription.canceled_at.isoformat() if subscription.canceled_at else None,
+            "period_end": subscription.current_period_end.isoformat()
         })
-        return True
+        return True  # ← Retorna sucesso (não é erro, só não processa)
 
-    # ✅ CRIA SAVEPOINT (transaction isolada para esta loja)
+    # ═══════════════════════════════════════════════════════════
+    # ✅ CRIA SAVEPOINT (TRANSAÇÃO ISOLADA)
+    # ═══════════════════════════════════════════════════════════
+
     savepoint = db.begin_nested()
 
     try:
-        # ✅ 1. VERIFICA DUPLICATA (IDEMPOTÊNCIA)
+        # ═══════════════════════════════════════════════════════════
+        # ✅ VALIDAÇÃO 2: VERIFICA DUPLICATA (IDEMPOTÊNCIA)
+        # ═══════════════════════════════════════════════════════════
+
         existing_charge = check_duplicate_charge(
             db, store.id, first_day_of_month, last_day_of_month
         )
@@ -386,31 +408,45 @@ def process_single_store_charge(
             savepoint.commit()
             return True
 
-        # ✅ 2. VALIDAÇÃO CORRIGIDA: Pula se iniciou DEPOIS do início do período
-        if subscription.current_period_start.date() > first_day_of_month:
-            logger.info("subscription_started_mid_period", extra={
+        # ═══════════════════════════════════════════════════════════
+        # ✅ VALIDAÇÃO 3: VERIFICA SE ASSINATURA COBRIA ESSE PERÍODO
+        # ═══════════════════════════════════════════════════════════
+
+        subscription_start = subscription.current_period_start.date()
+        subscription_end = subscription.current_period_end.date()
+
+        # Se a assinatura começou DEPOIS do fim do período de cobrança, pula
+        if subscription_start > last_day_of_month:
+            logger.info("subscription_started_after_billing_period", extra={
                 "store_id": store.id,
-                "subscription_start": str(subscription.current_period_start.date()),
+                "subscription_start": str(subscription_start),
+                "billing_period_end": str(last_day_of_month)
+            })
+            savepoint.commit()
+            return True
+
+        # Se a assinatura terminou ANTES do início do período de cobrança, pula
+        if subscription_end < first_day_of_month:
+            logger.info("subscription_ended_before_billing_period", extra={
+                "store_id": store.id,
+                "subscription_end": str(subscription_end),
                 "billing_period_start": str(first_day_of_month)
             })
             savepoint.commit()
             return True
 
-        # ✅ 3. VALIDAÇÃO ADICIONAL: Verifica se período atual já cobriu esse mês
-        if subscription.current_period_end and subscription.current_period_end.date() < first_day_of_month:
-            logger.warning("subscription_period_mismatch", extra={
-                "store_id": store.id,
-                "current_period_end": str(subscription.current_period_end.date()),
-                "billing_period_start": str(first_day_of_month)
-            })
-            # Pode ser assinatura expirada/pausada
+        # ═══════════════════════════════════════════════════════════
+        # ✅ 4. CALCULA FATURAMENTO DO PERÍODO
+        # ═══════════════════════════════════════════════════════════
 
-        # ✅ 4. CALCULA FATURAMENTO
         revenue = get_store_revenue_for_period(
             db, store.id, first_day_of_month, last_day_of_month
         )
 
-        # ✅ 5. CALCULA TAXA
+        # ═══════════════════════════════════════════════════════════
+        # ✅ 5. CALCULA TAXA (COM BENEFÍCIOS PROGRESSIVOS)
+        # ═══════════════════════════════════════════════════════════
+
         months_active = calculate_months_active(subscription, today)
 
         try:
@@ -430,7 +466,10 @@ def process_single_store_charge(
 
         fee_in_cents = int(fee_details['final_fee'] * 100)
 
-        # ✅ 6. LOG DETALHADO
+        # ═══════════════════════════════════════════════════════════
+        # ✅ 6. LOG DETALHADO DA COBRANÇA CALCULADA
+        # ═══════════════════════════════════════════════════════════
+
         logger.info("billing_calculated", extra={
             "store_id": store.id,
             "store_name": store.name,
@@ -441,11 +480,15 @@ def process_single_store_charge(
             "has_benefit": fee_details['has_benefit']
         })
 
+        # ═══════════════════════════════════════════════════════════
         # ✅ 7. PROCESSA PAGAMENTO (SE HOUVER VALOR)
+        # ═══════════════════════════════════════════════════════════
+
         gateway_transaction_id = None
         charge_status = "no_charge"
 
         if fee_in_cents > 0:
+            # Valida se tem método de pagamento cadastrado
             if not store.pagarme_customer_id or not store.pagarme_card_id:
                 logger.warning("store_without_payment_method", extra={
                     "store_id": store.id,
@@ -469,6 +512,7 @@ def process_single_store_charge(
                             "months_active": months_active
                         }
                     )
+
                     gateway_transaction_id = charge_response["id"]
                     charge_status = "pending"
 
@@ -496,7 +540,10 @@ def process_single_store_charge(
                     }, exc_info=True)
                     charge_status = "failed"
 
-        # ✅ 8. REGISTRA NO BANCO
+        # ═══════════════════════════════════════════════════════════
+        # ✅ 8. REGISTRA NO BANCO (SEMPRE, MESMO SE NÃO COBROU)
+        # ═══════════════════════════════════════════════════════════
+
         new_charge = models.MonthlyCharge(
             store_id=store.id,
             subscription_id=subscription.id,
@@ -524,7 +571,10 @@ def process_single_store_charge(
         db.add(new_charge)
         db.flush()
 
+        # ═══════════════════════════════════════════════════════════
         # ✅ 9. ATUALIZA PERÍODO DA ASSINATURA (CRÍTICO!)
+        # ═══════════════════════════════════════════════════════════
+
         next_period_start = last_day_of_month + timedelta(days=1)
         next_period_end = (next_period_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
 
@@ -542,6 +592,10 @@ def process_single_store_charge(
             "charge_id": new_charge.id,
             "status": charge_status
         })
+
+        # ═══════════════════════════════════════════════════════════
+        # ✅ 10. COMMIT DA TRANSAÇÃO
+        # ═══════════════════════════════════════════════════════════
 
         savepoint.commit()
         return True
@@ -565,138 +619,106 @@ def process_single_store_charge(
         }, exc_info=True)
         return False
 
+
+
+
 def generate_monthly_charges():
     """
-    ✅ BLINDADO: Job principal de cobrança mensal
+    ✅ VERSÃO HÍBRIDA: Processa cobranças baseada na estratégia
+
+    COMPORTAMENTO:
+    - Roda TODO DIA às 03:00 UTC
+    - Verifica quais lojas devem ser cobradas HOJE
+    - Usa BillingStrategy para decidir data de cobrança
     """
-    logger.info("billing_job_started")
 
     today = date.today()
 
-    if not is_first_business_day(today):
-        logger.info("billing_job_skipped_not_business_day", extra={
-            "today": str(today)
-        })
-        return
-
-    last_day_of_previous_month = today - timedelta(days=1)
-    first_day_of_previous_month = last_day_of_previous_month.replace(day=1)
-
-    logger.info("billing_period_calculated", extra={
-        "start_date": str(first_day_of_previous_month),
-        "end_date": str(last_day_of_previous_month)
-    })
+    logger.info("═" * 60)
+    logger.info(f"🔍 [Billing Job] Verificando cobranças para {today}")
+    logger.info("═" * 60)
 
     with get_db_manager() as db:
         try:
-            # ✅ CORREÇÃO: Busca apenas assinaturas ativas ou em trial
+            # ═══════════════════════════════════════════════════════════
+            # 1. BUSCA TODAS AS ASSINATURAS ATIVAS
+            # ═══════════════════════════════════════════════════════════
+
             active_subscriptions = db.execute(
                 select(models.StoreSubscription)
-                .options(
-                    selectinload(models.StoreSubscription.plan),
-                    selectinload(models.StoreSubscription.store)
-                )
+                .options(selectinload(models.StoreSubscription.store))
                 .where(
-                    models.StoreSubscription.status.in_(['active', 'trialing'])
-                    # ✅ Removido condição redundante
+                    models.StoreSubscription.status == 'active'
                 )
             ).scalars().all()
 
-            total = len(active_subscriptions)
+            logger.info(f"📋 Encontradas {len(active_subscriptions)} assinaturas ativas")
 
-            logger.info("subscriptions_loaded", extra={
-                "total_subscriptions": total
-            })
+            # ═══════════════════════════════════════════════════════════
+            # 2. FILTRA QUAIS DEVEM SER COBRADAS HOJE
+            # ═══════════════════════════════════════════════════════════
+
+            subscriptions_to_charge = []
+
+            for sub in active_subscriptions:
+                # ✅ NOVA LÓGICA: Usa estratégia híbrida
+                next_billing_date = BillingStrategy.get_billing_date(sub, db)
+
+                # Se a data de cobrança é HOJE, adiciona na lista
+                if next_billing_date.date() == today:
+                    subscriptions_to_charge.append(sub)
+                    logger.info(
+                        f"  ✅ Loja {sub.store.id} ({sub.store.name}) "
+                        f"será cobrada hoje (estratégia: "
+                        f"{'Aniversário' if next_billing_date.day != 1 else 'Dia 1º'})"
+                    )
+
+            logger.info(f"💳 {len(subscriptions_to_charge)} lojas para cobrar hoje")
+
+            # ═══════════════════════════════════════════════════════════
+            # 3. PROCESSA COBRANÇAS
+            # ═══════════════════════════════════════════════════════════
 
             success_count = 0
             error_count = 0
 
-            for i, subscription in enumerate(active_subscriptions, 1):
-                logger.info("processing_subscription", extra={
-                    "progress": f"{i}/{total}",
-                    "subscription_id": subscription.id,
-                    "store_id": subscription.store.id if subscription.store else None
-                })
+            for subscription in subscriptions_to_charge:
+                try:
+                    result = process_single_store_charge(
+                        db=db,
+                        subscription=subscription,
+                        first_day_of_month=_get_billing_period_start(subscription),
+                        last_day_of_month=_get_billing_period_end(subscription),
+                        today=today
+                    )
 
-                success = process_single_store_charge(
-                    db,
-                    subscription,
-                    first_day_of_previous_month,
-                    last_day_of_previous_month,
-                    today
-                )
+                    if result:
+                        success_count += 1
+                    else:
+                        error_count += 1
 
-                if success:
-                    success_count += 1
-                else:
+                except Exception as e:
+                    logger.error(f"Erro ao processar loja {subscription.store_id}: {e}")
                     error_count += 1
 
             db.commit()
 
-            logger.info("billing_job_completed", extra={
-                "total_subscriptions": total,
-                "successful": success_count,
-                "errors": error_count
-            })
-
-        except SQLAlchemyError as e:
-            db.rollback()
-            logger.error("billing_job_failed_database", extra={
-                "error": str(e)
-            }, exc_info=True)
-            raise
+            logger.info("═" * 60)
+            logger.info(f"✅ Job concluído: {success_count} sucesso, {error_count} erros")
+            logger.info("═" * 60)
 
         except Exception as e:
             db.rollback()
-            logger.error("billing_job_failed_unexpected", extra={
-                "error": str(e),
-                "error_type": type(e).__name__
-            }, exc_info=True)
+            logger.error(f"❌ Erro crítico no job: {e}", exc_info=True)
             raise
 
 
+def _get_billing_period_start(subscription: models.StoreSubscription) -> date:
+    """Retorna início do período de cobrança"""
+    return subscription.current_period_start.date()
 
 
-def test_billing_calculation(store_id: int, test_revenue: float):
-    """
-    Testa cálculo de cobrança sem processar pagamento
-    """
-    with get_db_manager() as db:
-        store = db.query(models.Store).filter_by(id=store_id).first()
-        if not store:
-            print(f"❌ Loja {store_id} não encontrada")
-            return
+def _get_billing_period_end(subscription: models.StoreSubscription) -> date:
+    """Retorna fim do período de cobrança"""
+    return subscription.current_period_end.date()
 
-        subscription = store.active_subscription
-        if not subscription:
-            print(f"❌ Loja {store_id} sem assinatura ativa")
-            return
-
-        revenue = Decimal(str(test_revenue))
-        months_active = calculate_months_active(subscription, date.today())
-
-        try:
-            fee_details = calculate_platform_fee(
-                revenue,
-                subscription.plan,
-                months_active
-            )
-
-            print("\n" + "=" * 60)
-            print(f"🏪 LOJA: {store.name} (ID: {store.id})")
-            print("=" * 60)
-            print(f"📊 Faturamento: R$ {revenue:,.2f}")
-            print(f"📅 Meses ativos: {months_active}")
-            print(f"\n{fee_details['message']}")
-            print(f"\n💰 Taxa Base: R$ {fee_details['base_fee']:,.2f}")
-            print(f"💰 Taxa Final: R$ {fee_details['final_fee']:,.2f}")
-            print(f"📈 Taxa Efetiva: {fee_details['effective_rate']:.2f}%")
-            print(f"🎯 Tier: {fee_details['tier']} - {fee_details['fee_type']}")
-
-            if fee_details['has_benefit']:
-                print(f"🎁 Desconto: {fee_details['discount_percentage']:.0f}%")
-
-            print("=" * 60 + "\n")
-
-        except Exception as e:
-            print(f"❌ Erro: {e}")
