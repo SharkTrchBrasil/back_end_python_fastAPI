@@ -2038,22 +2038,35 @@ class PlansFeature(Base, TimestampMixin):
     feature: Mapped["Feature"] = relationship(back_populates="plan_associations")
 
 
+# src/core/models.py
+
 class StoreSubscription(Base, TimestampMixin):
     __tablename__ = "store_subscriptions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"))
     subscription_plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+
     store: Mapped["Store"] = relationship(back_populates="subscriptions")
-    status: Mapped[str] = mapped_column(index=True)  # ex: "active", "past_due", "canceled"
+
+    status: Mapped[str] = mapped_column(index=True)  # "active", "past_due", "canceled"
+
     current_period_start: Mapped[datetime] = mapped_column()
     current_period_end: Mapped[datetime] = mapped_column(index=True)
-    gateway_subscription_id: Mapped[str | None] = mapped_column(nullable=True)  # Preço do plano em CENTAVOS
-    # Relacionamento com o plano principal assinado
+
+    # ✅ ADICIONE ESTE CAMPO AQUI
+    canceled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+        doc="Data/hora em que a assinatura foi cancelada"
+    )
+
+    gateway_subscription_id: Mapped[str | None] = mapped_column(nullable=True)
+
+    # Relacionamentos
     plan: Mapped["Plans"] = relationship(back_populates="subscriptions")
-    # ✅ ADIÇÃO
     monthly_charges: Mapped[list["MonthlyCharge"]] = relationship(back_populates="subscription")
-    # NOVO: Relacionamento para ver todos os add-ons contratados nesta assinatura
     subscribed_addons: Mapped[list["PlansAddon"]] = relationship(
         back_populates="store_subscription",
         cascade="all, delete-orphan"
