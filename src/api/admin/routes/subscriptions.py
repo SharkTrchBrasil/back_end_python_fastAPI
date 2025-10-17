@@ -14,6 +14,7 @@ from src.api.admin.services.billing_report_service import BillingReportService
 from src.api.admin.services.pagarme_service import pagarme_service, PagarmeError
 from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.admin.utils.proration import calculate_prorated_charge
+from src.api.app.socketio.socketio_emitters import emit_store_updated
 from src.api.schemas.subscriptions.store_subscription import CreateStoreSubscription
 from src.core import models
 from src.core.database import GetDBDep
@@ -503,8 +504,8 @@ async def update_subscription_card(
 
         logger.info(f"✅ Cartão atualizado: {old_card_id} → {card_response['id']}")
 
-        # ✅ Notifica via Socket.IO
         await admin_emit_store_updated(db, store.id)
+        await emit_store_updated(db, store.id)
 
         return {
             "status": "success",
@@ -579,7 +580,7 @@ async def cancel_subscription(
     logger.info(f"✅ Assinatura {subscription.id} cancelada com sucesso")
 
     await admin_emit_store_updated(db, store.id)
-
+    await emit_store_updated(db, store.id)
     return {
         "status": "success",
         "message": "Assinatura cancelada. A loja foi fechada e o chatbot desconectado.",
