@@ -719,131 +719,189 @@ async def update_subscription_card(
 # 5. CANCELAR ASSINATURA
 # ═══════════════════════════════════════════════════════════════
 
+
+
+# ═══════════════════════════════════════════════════════════════
+# 5. CANCELAR ASSINATURA (VERSÃO FINAL BLINDADA)
+# ═══════════════════════════════════════════════════════════════
+
 @router.delete("/stores/{store_id}/subscriptions")
 async def cancel_subscription(
-    db: GetDBDep,
-    store: GetStoreDep,
-    user: GetCurrentUserDep,
+        db: GetDBDep,
+        store: GetStoreDep,
+        user: GetCurrentUserDep,
 ):
     """
     ⚠️ Cancela a assinatura
 
-    ✅ VERSÃO ATUALIZADA:
+    ✅ VERSÃO FINAL BLINDADA:
+    - Trata canceled_at NULL
+    - Trata datas sem timezone
+    - Valida todos os status possíveis
+    - Logs detalhados
+    - Mensagens amigáveis
+
+    COMPORTAMENTO:
     - NÃO desconecta chatbot imediatamente
     - NÃO fecha loja imediatamente
     - Mantém tudo funcionando até o fim do período pago
     - Job automático fecha tudo no último dia (00:05 UTC)
     """
 
-    subscription = db.query(models.StoreSubscription).filter(
-        models.StoreSubscription.store_id == store.id
-    ).order_by(models.StoreSubscription.id.desc()).first()
+    try:
+        # ═══════════════════════════════════════════════════════════
+        # 1. BUSCA ASSINATURA
+        # ═══════════════════════════════════════════════════════════
 
-    if not subscription:
-        logger.error(f"Loja {store.id} não possui nenhuma assinatura")
-        raise HTTPException(
-            status_code=404,
-            detail="Nenhuma assinatura encontrada para esta loja"
-        )
+        subscription = db.query(models.StoreSubscription).filter(
+            models.StoreSubscription.store_id == store.id
+        ).order_by(models.StoreSubscription.id.desc()).first()
 
-    # ═══════════════════════════════════════════════════════════
-    # SE JÁ ESTÁ CANCELADA
-    # ═══════════════════════════════════════════════════════════
+        if not subscription:
+            logger.error(f"Loja {store.id} não possui nenhuma assinatura")
+            raise HTTPException(
+                status_code=404,
+                detail="Nenhuma assinatura encontrada para esta loja"
+            )
 
-    if subscription.status == "canceled":
-        logger.info(f"⚠️ Assinatura {subscription.id} já estava cancelada")
+        # ═══════════════════════════════════════════════════════════
+        # 2. NORMALIZA DADOS
+        # ═══════════════════════════════════════════════════════════
 
         now = datetime.now(timezone.utc)
         end_date = subscription.current_period_end
 
+        # ✅ Garante timezone
         if end_date and end_date.tzinfo is None:
             end_date = end_date.replace(tzinfo=timezone.utc)
 
         has_access = end_date and now < end_date
         days_remaining = (end_date - now).days if has_access else 0
 
+        # ═══════════════════════════════════════════════════════════
+        # 3. SE JÁ ESTÁ CANCELADA
+        # ═══════════════════════════════════════════════════════════
+
+        if subscription.status == "canceled":
+            logger.info(f"⚠️ Assinatura {subscription.id} já estava cancelada")
+
+            # ✅ Formata data de cancelamento (TRATA NULL)
+            if subscription.canceled_at:
+                try:
+                    if subscription.canceled_at.tzinfo is None:
+                        canceled_at_aware = subscription.canceled_at.replace(tzinfo=timezone.utc)
+                    else:
+                        canceled_at_aware = subscription.canceled_at
+                    canceled_at_str = canceled_at_aware.strftime('%d/%m/%Y %H:%M')
+                    canceled_at_iso = canceled_at_aware.isoformat()
+                except Exception as e:
+                    logger.warning(f"Erro ao formatar canceled_at: {e}")
+                    canceled_at_str = "uma data anterior"
+                    canceled_at_iso = None
+            else:
+                canceled_at_str = "uma data anterior"
+                canceled_at_iso = None
+
+            return {
+                "status": "already_canceled",
+                "message": (
+                    f"Esta assinatura já foi cancelada em {canceled_at_str}. "
+                    f"{'Você ainda tem acesso até ' + end_date.strftime('%d/%m/%Y') + f' ({days_remaining} dias restantes).' if has_access else 'O acesso já expirou.'}"
+                ),
+                "canceled_at": canceled_at_iso,
+                "access_until": end_date.isoformat() if end_date else None,
+                "has_access": has_access,
+                "days_remaining": days_remaining
+            }
+
+        # ═══════════════════════════════════════════════════════════
+        # 4. VALIDA SE PODE CANCELAR
+        # ═══════════════════════════════════════════════════════════
+
+        if subscription.status not in ['active', 'trialing']:
+            logger.error(f"Tentativa de cancelar assinatura com status '{subscription.status}'")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Não é possível cancelar assinatura com status '{subscription.status}'."
+            )
+
+        # ═══════════════════════════════════════════════════════════
+        # 5. PROCESSA CANCELAMENTO
+        # ═══════════════════════════════════════════════════════════
+
+        old_status = subscription.status
+        subscription.status = "canceled"
+        subscription.canceled_at = datetime.now(timezone.utc)  # ✅ SEMPRE PREENCHE!
+
+        logger.info(f"📝 Cancelando assinatura {subscription.id}: {old_status} → canceled")
+        logger.info(f"   Cancelada em: {subscription.canceled_at.isoformat()}")
+        logger.info(f"   Acesso até: {end_date.isoformat() if end_date else 'N/A'}")
+        logger.info(f"   Dias restantes: {days_remaining}")
+
+        # ✅ NÃO DESCONECTA CHATBOT AQUI
+        # ✅ NÃO FECHA LOJA AQUI
+
+        db.commit()
+
+        logger.info(f"✅ Assinatura {subscription.id} cancelada com sucesso!")
+
+        # ═══════════════════════════════════════════════════════════
+        # 6. EMITE EVENTOS
+        # ═══════════════════════════════════════════════════════════
+
+        try:
+            await admin_emit_store_updated(db, store.id)
+        except Exception as e:
+            logger.error(f"❌ Erro ao emitir evento admin: {e}", exc_info=True)
+
+        try:
+            await emit_store_updated(db, store.id)
+        except Exception as e:
+            logger.error(f"❌ Erro ao emitir evento app: {e}", exc_info=True)
+
+        # ═══════════════════════════════════════════════════════════
+        # 7. RETORNA RESPOSTA DETALHADA
+        # ═══════════════════════════════════════════════════════════
+
+        end_date_str = end_date.strftime('%d/%m/%Y') if end_date else "desconhecida"
+
         return {
-            "status": "already_canceled",
+            "status": "success",
             "message": (
-                f"Esta assinatura já foi cancelada em {subscription.canceled_at.strftime('%d/%m/%Y %H:%M')}. "
-                f"{'Você ainda tem acesso até ' + end_date.strftime('%d/%m/%Y') + f' ({days_remaining} dias restantes).' if has_access else 'O acesso já expirou.'}"
+                f"✅ Assinatura cancelada com sucesso!\n\n"
+                f"📅 Você manterá acesso COMPLETO até {end_date_str} ({days_remaining} dias restantes).\n\n"
+                f"Isso inclui:\n"
+                f"• Chatbot ativo e recebendo pedidos\n"
+                f"• Loja aberta para clientes\n"
+                f"• Acesso total ao painel admin\n\n"
+                f"⏰ No dia {end_date_str} às 00:05 UTC, o sistema irá automaticamente:\n"
+                f"• Desconectar o chatbot\n"
+                f"• Fechar a loja\n"
+                f"• Bloquear o acesso ao painel\n\n"
+                f"💡 Você pode reativar a qualquer momento antes dessa data."
             ),
             "canceled_at": subscription.canceled_at.isoformat(),
             "access_until": end_date.isoformat() if end_date else None,
-            "has_access": has_access,
-            "days_remaining": days_remaining
+            "days_remaining": days_remaining,
+            "chatbot_active_until": end_date.isoformat() if end_date else None,
+            "store_open_until": end_date.isoformat() if end_date else None,
+            "actions_taken": [
+                "Assinatura marcada como cancelada",
+                f"Chatbot permanecerá ativo até {end_date_str}",
+                f"Loja permanecerá aberta até {end_date_str}",
+                "Sistema fechará automaticamente no último dia"
+            ]
         }
 
-    # ═══════════════════════════════════════════════════════════
-    # VALIDA SE PODE CANCELAR
-    # ═══════════════════════════════════════════════════════════
+    except HTTPException:
+        # ✅ Re-levanta erros HTTP (400, 404, etc)
+        raise
 
-    if subscription.status not in ['active', 'trialing']:
-        logger.error(f"Tentativa de cancelar assinatura com status '{subscription.status}'")
+    except Exception as e:
+        # ✅ Captura erros inesperados
+        logger.error(f"❌ Erro crítico ao cancelar assinatura: {e}", exc_info=True)
+        db.rollback()
         raise HTTPException(
-            status_code=400,
-            detail=f"Não é possível cancelar assinatura com status '{subscription.status}'."
+            status_code=500,
+            detail="Erro interno ao processar cancelamento. Tente novamente ou contate o suporte."
         )
-
-    # ═══════════════════════════════════════════════════════════
-    # PROCESSA CANCELAMENTO (SEM FECHAR NADA!)
-    # ═══════════════════════════════════════════════════════════
-
-    old_status = subscription.status
-    subscription.status = "canceled"
-    subscription.canceled_at = datetime.now(timezone.utc)
-
-    logger.info(f"📝 Cancelando assinatura {subscription.id}: {old_status} → canceled")
-
-    # ✅ NÃO DESCONECTA CHATBOT AQUI
-    # ✅ NÃO FECHA LOJA AQUI
-
-    db.commit()
-
-    now = datetime.now(timezone.utc)
-    end_date = subscription.current_period_end
-
-    if end_date and end_date.tzinfo is None:
-        end_date = end_date.replace(tzinfo=timezone.utc)
-
-    days_remaining = (end_date - now).days if end_date and now < end_date else 0
-
-    logger.info(f"✅ Assinatura {subscription.id} cancelada. Acesso até {end_date.strftime('%d/%m/%Y')}")
-
-    try:
-        await admin_emit_store_updated(db, store.id)
-    except Exception as e:
-        logger.error(f"❌ Erro ao emitir evento admin: {e}", exc_info=True)
-
-    try:
-        await emit_store_updated(db, store.id)
-    except Exception as e:
-        logger.error(f"❌ Erro ao emitir evento app: {e}", exc_info=True)
-
-    return {
-        "status": "success",
-        "message": (
-            f"✅ Assinatura cancelada com sucesso!\n\n"
-            f"📅 Você manterá acesso COMPLETO até {end_date.strftime('%d/%m/%Y')} ({days_remaining} dias restantes).\n\n"
-            f"Isso inclui:\n"
-            f"• Chatbot ativo e recebendo pedidos\n"
-            f"• Loja aberta para clientes\n"
-            f"• Acesso total ao painel admin\n\n"
-            f"⏰ No dia {end_date.strftime('%d/%m/%Y')} às 00:05 UTC, o sistema irá automaticamente:\n"
-            f"• Desconectar o chatbot\n"
-            f"• Fechar a loja\n"
-            f"• Bloquear o acesso ao painel\n\n"
-            f"💡 Você pode reativar a qualquer momento antes dessa data."
-        ),
-        "canceled_at": subscription.canceled_at.isoformat(),
-        "access_until": end_date.isoformat() if end_date else None,
-        "days_remaining": days_remaining,
-        "chatbot_active_until": end_date.isoformat() if end_date else None,
-        "store_open_until": end_date.isoformat() if end_date else None,
-        "actions_taken": [
-            "Assinatura marcada como cancelada",
-            f"Chatbot permanecerá ativo até {end_date.strftime('%d/%m/%Y')}",
-            f"Loja permanecerá aberta até {end_date.strftime('%d/%m/%Y')}",
-            "Sistema fechará automaticamente no último dia"
-        ]
-    }

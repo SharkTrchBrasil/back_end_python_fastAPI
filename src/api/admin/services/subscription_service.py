@@ -1,9 +1,28 @@
 # src/api/admin/services/subscription_service.py
+"""
+Serviço de Gerenciamento de Assinaturas
+========================================
 
-from datetime import datetime, date, timezone
+Consolida e calcula o estado dinâmico da assinatura de uma loja.
+
+✅ VERSÃO FINAL BLINDADA:
+- Trata canceled_at NULL
+- Trata datas sem timezone
+- Trata todos os status possíveis
+- Logs detalhados
+- Tratamento de erros robusto
+
+Autor: Sistema de Billing
+Última atualização: 2025-01-17
+"""
+
+from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
-from src.core import models
+from decimal import Decimal
 import logging
+
+from src.core import models
+from src.api.schemas.subscriptions.subscription_schemas import Plans
 
 logger = logging.getLogger(__name__)
 
@@ -13,165 +32,275 @@ class SubscriptionService:
     Serviço responsável por consolidar e calcular o estado dinâmico
     da assinatura de uma loja para ser enviado ao frontend.
 
-    ✅ VERSÃO BLINDADA - Retorna dados mesmo se cancelada
+    ✅ BLINDADO: Funciona em TODOS os cenários
     """
 
     @staticmethod
     def get_subscription_details(store: models.Store) -> Optional[Dict[str, Any]]:
         """
-        ✅ CORRIGIDO: Retorna detalhes de QUALQUER assinatura (ativa, trial, canceled, expired)
+        ✅ Retorna detalhes da assinatura com status calculado dinamicamente
 
-        Só retorna None se a loja NUNCA teve assinatura.
+        Retorna None apenas se a loja NUNCA teve assinatura.
+        Para lojas com histórico de assinatura (mesmo canceladas), retorna dados completos.
+
+        Args:
+            store: Modelo da loja com relacionamento 'subscriptions' carregado
+
+        Returns:
+            Dict com detalhes da assinatura ou None se não houver histórico
         """
 
-        # ✅ MUDANÇA CRÍTICA: Busca QUALQUER assinatura, não apenas ativa
-        subscription_db = store.subscriptions[0] if store.subscriptions else None
+        try:
+            # ═══════════════════════════════════════════════════════════
+            # 1. BUSCA ASSINATURA (MAIS RECENTE)
+            # ═══════════════════════════════════════════════════════════
 
-        if not subscription_db:
-            logger.info(f"[Subscription] Loja {store.id} não possui nenhuma assinatura (nem histórico).")
-            return None
+            subscription_db = (
+                store.subscriptions[0]
+                if store.subscriptions
+                else None
+            )
 
-        if not subscription_db.plan:
-            logger.warning(f"[Subscription] Loja {store.id} tem assinatura sem plano vinculado!")
-            return None
+            if not subscription_db:
+                logger.info(f"[Subscription] Loja {store.id}: Sem histórico de assinatura")
+                return None
 
-        # --- Lógica de Cálculo de Status ---
-        now = datetime.now(timezone.utc)
-        end_date = subscription_db.current_period_end
+            if not subscription_db.plan:
+                logger.warning(f"[Subscription] Loja {store.id}: Assinatura sem plano vinculado!")
+                return None
 
-        if end_date and end_date.tzinfo is None:
-            end_date = end_date.replace(tzinfo=timezone.utc)
+            # ═══════════════════════════════════════════════════════════
+            # 2. NORMALIZA DADOS
+            # ═══════════════════════════════════════════════════════════
 
-        dynamic_status = subscription_db.status
-        is_blocked = False
-        warning_message = None
+            now = datetime.now(timezone.utc)
+            status = subscription_db.status.lower()
+            end_date = subscription_db.current_period_end
 
-        # ═══════════════════════════════════════════════════════════
-        # 🔴 TRATAMENTO DE ASSINATURA CANCELADA
-        # ═══════════════════════════════════════════════════════════
+            # ✅ Garante timezone
+            if end_date and end_date.tzinfo is None:
+                end_date = end_date.replace(tzinfo=timezone.utc)
 
-        if subscription_db.status == 'canceled':
-            # Verifica se ainda está dentro do período pago
-            if end_date and now < end_date:
-                # ✅ CANCELADA MAS AINDA TEM ACESSO
-                dynamic_status = 'canceled'
-                is_blocked = False  # Mantém acesso até o fim
-                days_remaining = (end_date - now).days
-                warning_message = (
-                    f"Sua assinatura foi cancelada em {subscription_db.canceled_at.strftime('%d/%m/%Y')}. "
-                    f"Você ainda tem acesso até {end_date.strftime('%d/%m/%Y')} ({days_remaining} dias restantes)."
+            # ✅ Calcula dias restantes
+            days_remaining = (
+                (end_date - now).days
+                if end_date and now < end_date
+                else 0
+            )
+
+            # ═══════════════════════════════════════════════════════════
+            # 3. CALCULA STATUS DINÂMICO E BLOQUEIO
+            # ═══════════════════════════════════════════════════════════
+
+            dynamic_status, is_blocked, warning_message = (
+                SubscriptionService._calculate_status(
+                    status=status,
+                    canceled_at=subscription_db.canceled_at,
+                    end_date=end_date,
+                    days_remaining=days_remaining,
+                    now=now
                 )
-                logger.info(
-                    f"[Subscription] Loja {store.id}: Cancelada mas com {days_remaining} dias de acesso restantes")
+            )
+
+            # ═══════════════════════════════════════════════════════════
+            # 4. VERIFICA MÉTODO DE PAGAMENTO
+            # ═══════════════════════════════════════════════════════════
+
+            has_payment_method = bool(
+                store.pagarme_customer_id and
+                store.pagarme_card_id
+            )
+
+            # ═══════════════════════════════════════════════════════════
+            # 5. LOG DETALHADO
+            # ═══════════════════════════════════════════════════════════
+
+            logger.info("═" * 60)
+            logger.info(f"💳 [Subscription] Loja {store.id}:")
+            logger.info(f"   Status DB: {subscription_db.status}")
+            logger.info(f"   Status Calculado: {dynamic_status}")
+            logger.info(f"   Bloqueada: {is_blocked}")
+
+            # ✅ Trata canceled_at NULL
+            if subscription_db.canceled_at:
+                try:
+                    canceled_at_str = subscription_db.canceled_at.strftime('%d/%m/%Y %H:%M')
+                except:
+                    canceled_at_str = "data inválida"
             else:
-                # ❌ CANCELADA E JÁ EXPIROU
-                dynamic_status = 'expired'
-                is_blocked = True
-                warning_message = (
-                    f"Sua assinatura foi cancelada em {subscription_db.canceled_at.strftime('%d/%m/%Y')} "
-                    f"e expirou em {end_date.strftime('%d/%m/%Y') if end_date else 'data desconhecida'}. "
-                    f"Renove para continuar usando o sistema."
+                canceled_at_str = "N/A"
+
+            logger.info(f"   Cancelada em: {canceled_at_str}")
+            logger.info(
+                f"   Período: {subscription_db.current_period_start.date()} → {end_date.date() if end_date else 'N/A'}")
+            logger.info(f"   Dias restantes: {days_remaining}")
+            logger.info(f"   Método pagamento: {has_payment_method}")
+            logger.info("═" * 60)
+
+            # ═══════════════════════════════════════════════════════════
+            # 6. MONTA RESPOSTA
+            # ═══════════════════════════════════════════════════════════
+
+            return {
+                "id": subscription_db.id,
+                "current_period_start": subscription_db.current_period_start,
+                "current_period_end": subscription_db.current_period_end,
+                "canceled_at": subscription_db.canceled_at,
+                "gateway_subscription_id": subscription_db.gateway_subscription_id,
+                "status": dynamic_status,
+                "is_blocked": is_blocked,
+                "warning_message": warning_message,
+                "has_payment_method": has_payment_method,
+                "plan": Plans.model_validate(subscription_db.plan) if subscription_db.plan else None,
+                "subscribed_addons": subscription_db.subscribed_addons,
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Erro ao calcular detalhes da assinatura: {e}", exc_info=True)
+            # ✅ FALLBACK: Retorna dados básicos mesmo com erro
+            return {
+                "id": subscription_db.id if 'subscription_db' in locals() else None,
+                "status": "error",
+                "is_blocked": True,
+                "warning_message": "Erro ao processar assinatura. Contate o suporte.",
+                "has_payment_method": False,
+                "plan": None,
+                "subscribed_addons": [],
+            }
+
+    @staticmethod
+    def _calculate_status(
+            status: str,
+            canceled_at: Optional[datetime],
+            end_date: Optional[datetime],
+            days_remaining: int,
+            now: datetime
+    ) -> tuple[str, bool, Optional[str]]:
+        """
+        ✅ Calcula status dinâmico, bloqueio e mensagem de aviso
+
+        Returns:
+            Tupla (dynamic_status, is_blocked, warning_message)
+        """
+
+        # ═══════════════════════════════════════════════════════════
+        # CASO 1: CANCELADA
+        # ═══════════════════════════════════════════════════════════
+
+        if status == 'canceled':
+            # ✅ Formata data de cancelamento (trata NULL)
+            if canceled_at:
+                try:
+                    if canceled_at.tzinfo is None:
+                        canceled_at = canceled_at.replace(tzinfo=timezone.utc)
+                    canceled_date_str = canceled_at.strftime('%d/%m/%Y')
+                except Exception as e:
+                    logger.warning(f"Erro ao formatar canceled_at: {e}")
+                    canceled_date_str = "uma data anterior"
+            else:
+                canceled_date_str = "uma data anterior"
+
+            # ✅ Verifica se ainda tem acesso
+            if days_remaining > 0:
+                return (
+                    'canceled',
+                    False,  # NÃO bloqueia enquanto tiver dias pagos
+                    (
+                        f"Sua assinatura foi cancelada em {canceled_date_str}. "
+                        f"Você manterá acesso até {end_date.strftime('%d/%m/%Y')} "
+                        f"({days_remaining} dias restantes)."
+                    )
                 )
-                logger.info(f"[Subscription] Loja {store.id}: Cancelada e expirada")
+            else:
+                return (
+                    'expired',
+                    True,  # Bloqueia após expirar
+                    (
+                        f"Sua assinatura foi cancelada em {canceled_date_str} e expirou. "
+                        f"Reative para continuar usando a plataforma."
+                    )
+                )
 
         # ═══════════════════════════════════════════════════════════
-        # 🟡 TRATAMENTO DE TRIAL
+        # CASO 2: TRIAL
         # ═══════════════════════════════════════════════════════════
 
-        elif subscription_db.status == 'trialing':
-            if end_date:
-                remaining_days = (end_date - now).days
-                if remaining_days >= 0:
-                    warning_message = f"Seu teste gratuito termina em {remaining_days + 1} dia(s)."
-                else:
-                    dynamic_status = 'expired'
-                    is_blocked = True
-                    warning_message = "Seu período de teste terminou. Adicione um método de pagamento para continuar."
+        elif status == 'trialing':
+            if days_remaining > 0:
+                return (
+                    'trialing',
+                    False,
+                    f"Você está no período de teste. Restam {days_remaining} dias."
+                )
+            else:
+                return (
+                    'expired',
+                    True,
+                    "Seu período de teste terminou. Adicione um método de pagamento para continuar."
+                )
 
         # ═══════════════════════════════════════════════════════════
-        # 🔴 TRATAMENTO DE PAGAMENTO PENDENTE
+        # CASO 3: ATIVA
         # ═══════════════════════════════════════════════════════════
 
-        elif subscription_db.status in ['past_due', 'unpaid']:
-            dynamic_status = 'past_due'
-            is_blocked = True
-            warning_message = "Falha no pagamento. Atualize seus dados para reativar o acesso."
-
-        # ═══════════════════════════════════════════════════════════
-        # 🟢 TRATAMENTO DE ATIVA
-        # ═══════════════════════════════════════════════════════════
-
-        elif subscription_db.status == 'active':
+        elif status == 'active':
             if not end_date:
-                logger.warning(f"[Subscription] Loja {store.id}: Status 'active' mas sem data de término!")
-                dynamic_status = 'active'
-                is_blocked = False
-            else:
-                grace_period_end = end_date + timedelta(days=3)
+                logger.warning("Status 'active' mas sem data de término!")
+                return ('active', False, None)
 
-                if now > grace_period_end:
-                    dynamic_status = "expired"
-                    is_blocked = True
-                    warning_message = "Sua assinatura expirou. Renove para continuar o acesso."
-                elif now > end_date:
-                    dynamic_status = "past_due"
-                    is_blocked = True
-                    warning_message = f"Seu pagamento está pendente. Regularize até {grace_period_end.strftime('%d/%m/%Y')} para evitar o cancelamento."
-                elif (end_date - now).days <= 3:
-                    remaining_days = (end_date - now).days
-                    dynamic_status = "warning"
-                    is_blocked = False
-                    warning_message = f"Atenção: sua assinatura vence em {remaining_days + 1} dia(s)."
-                else:
-                    dynamic_status = "active"
-                    is_blocked = False
+            grace_period_end = end_date + timedelta(days=3)
+
+            if now > grace_period_end:
+                return (
+                    'expired',
+                    True,
+                    "Sua assinatura expirou. Renove para continuar o acesso."
+                )
+            elif now > end_date:
+                return (
+                    'past_due',
+                    True,
+                    f"Seu pagamento está pendente. Regularize até {grace_period_end.strftime('%d/%m/%Y')} para evitar o cancelamento."
+                )
+            elif days_remaining <= 3:
+                return (
+                    'warning',
+                    False,
+                    f"Atenção: sua assinatura vence em {days_remaining + 1} dia(s)."
+                )
+            else:
+                return ('active', False, None)
 
         # ═══════════════════════════════════════════════════════════
-        # ⚫ TRATAMENTO DE STATUS DESCONHECIDO
+        # CASO 4: PAGAMENTO PENDENTE
+        # ═══════════════════════════════════════════════════════════
+
+        elif status in ['past_due', 'unpaid']:
+            return (
+                'past_due',
+                True,
+                "Falha no pagamento. Atualize seus dados para reativar o acesso."
+            )
+
+        # ═══════════════════════════════════════════════════════════
+        # CASO 5: EXPIRADA
+        # ═══════════════════════════════════════════════════════════
+
+        elif status == 'expired':
+            return (
+                'expired',
+                True,
+                "Sua assinatura expirou. Adicione um método de pagamento para reativar."
+            )
+
+        # ═══════════════════════════════════════════════════════════
+        # CASO 6: STATUS DESCONHECIDO
         # ═══════════════════════════════════════════════════════════
 
         else:
-            is_blocked = True
-            warning_message = "O status da sua assinatura é desconhecido. Contate o suporte."
-
-        # ═══════════════════════════════════════════════════════════
-        # 💳 VERIFICA MÉTODO DE PAGAMENTO
-        # ═══════════════════════════════════════════════════════════
-
-        has_payment_method = bool(
-            store.pagarme_customer_id and
-            store.pagarme_card_id
-        )
-
-        # ═══════════════════════════════════════════════════════════
-        # 📊 LOG DETALHADO
-        # ═══════════════════════════════════════════════════════════
-
-        logger.info("═" * 60)
-        logger.info(f"💳 [Subscription] Loja {store.id}:")
-        logger.info(f"   - Status DB: {subscription_db.status}")
-        logger.info(f"   - Status Calculado: {dynamic_status}")
-        logger.info(f"   - Is Blocked: {is_blocked}")
-        logger.info(f"   - Cancelada em: {subscription_db.canceled_at if subscription_db.canceled_at else 'N/A'}")
-        logger.info(
-            f"   - Período: {subscription_db.current_period_start.date()} até {end_date.date() if end_date else 'N/A'}")
-        logger.info(f"   - Has Payment Method: {has_payment_method}")
-        logger.info("═" * 60)
-
-        # ═══════════════════════════════════════════════════════════
-        # 📤 RETORNA DADOS COMPLETOS
-        # ═══════════════════════════════════════════════════════════
-
-        return {
-            "id": subscription_db.id,
-            "current_period_start": subscription_db.current_period_start,
-            "current_period_end": subscription_db.current_period_end,
-            "canceled_at": subscription_db.canceled_at,  # ✅ ADICIONA DATA DE CANCELAMENTO
-            "gateway_subscription_id": subscription_db.gateway_subscription_id,
-            "status": dynamic_status,
-            "is_blocked": is_blocked,
-            "warning_message": warning_message,
-            "has_payment_method": has_payment_method,
-            "plan": subscription_db.plan,
-            "subscribed_addons": subscription_db.subscribed_addons,
-        }
+            logger.warning(f"Status desconhecido: {status}")
+            return (
+                status,
+                True,
+                "Status da assinatura desconhecido. Entre em contato com o suporte."
+            )
