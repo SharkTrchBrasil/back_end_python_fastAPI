@@ -471,31 +471,49 @@ async def update_subscription_card(
         )
 
     try:
-        # ✅ 1. Adiciona novo cartão
+        # ✅ Valida dados do cartão
+        if not card_data.card or not card_data.card.payment_token:
+            raise HTTPException(
+                status_code=400,
+                detail="Token do cartão é obrigatório"
+            )
+
+        # ✅ Adiciona novo cartão no Pagar.me
+        billing_address = {
+            "line_1": f"{store.street}, {store.number}",
+            "zip_code": "".join(filter(str.isdigit, store.zip_code)),
+            "city": store.city,
+            "state": store.state[:2].upper(),
+            "country": "BR"
+        }
+
         card_response = pagarme_service.create_card(
             customer_id=store.pagarme_customer_id,
             card_token=card_data.card.payment_token,
-            billing_address={
-                "line_1": f"{store.street}, {store.number}",
-                "zip_code": "".join(filter(str.isdigit, store.zip_code)),
-                "city": store.city,
-                "state": store.state[:2].upper(),
-                "country": "BR"
-            }
+            billing_address=billing_address
         )
 
-        # ✅ 2. Salva novo card_id
+        logger.info(f"✅ Novo cartão criado: {card_response['id']}")
+
+        # ✅ Atualiza o card_id no banco
+        old_card_id = store.pagarme_card_id
         store.pagarme_card_id = card_response["id"]
 
         db.commit()
 
-        logger.info(f"✅ Cartão atualizado com sucesso para loja {store.id}")
+        logger.info(f"✅ Cartão atualizado: {old_card_id} → {card_response['id']}")
 
+        # ✅ Notifica via Socket.IO
         await admin_emit_store_updated(db, store.id)
 
         return {
             "status": "success",
-            "message": "Cartão atualizado com sucesso!"
+            "message": "Cartão atualizado com sucesso!",
+            "card": {
+                "id": card_response["id"],
+                "last_four_digits": card_response.get("last_four_digits"),
+                "brand": card_response.get("brand")
+            }
         }
 
     except PagarmeError as e:
@@ -503,8 +521,17 @@ async def update_subscription_card(
         logger.error(f"❌ Erro Pagar.me: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Erro inesperado: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Erro ao atualizar cartão. Tente novamente."
+        )
 
-# src/api/admin/routes/subscriptions.py (atualizar método)
+
+
+
 
 @router.delete("/stores/{store_id}/subscriptions")
 async def cancel_subscription(
