@@ -81,6 +81,12 @@ def get_store_base_details(db, store_id: int) -> models.Store | None:
 
             joinedload(models.Store.chatbot_config),
 
+
+            selectinload(models.Store.subscriptions)
+            .joinedload(models.StoreSubscription.plan)
+            .joinedload(models.Plans.included_features)
+            .joinedload(models.PlanFeatureAssociation.feature),
+
             noload(models.Store.products),
             noload(models.Store.categories),
             noload(models.Store.variants),
@@ -90,4 +96,12 @@ def get_store_base_details(db, store_id: int) -> models.Store | None:
         .filter(models.Store.id == store_id)
         .first()
     )
+
+    # ✅ LOG PARA DEBUG
+    if store and store.subscriptions:
+        print(f"✅ [CRUD] Loja {store_id} tem {len(store.subscriptions)} subscription(s)")
+        print(f"   Status: {store.subscriptions[0].status if store.subscriptions else 'N/A'}")
+    else:
+        print(f"⚠️ [CRUD] Loja {store_id} SEM subscriptions carregadas!")
+
     return store

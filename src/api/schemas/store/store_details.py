@@ -37,17 +37,30 @@ class StoreDetails(StoreSchema):
     chatbot_config: Optional[StoreChatbotConfigSchema] = None
     payment_activations: list[models.StorePaymentMethodActivation] = Field(default=[], exclude=True)
     billing_preview: Optional[BillingPreviewSchema] = Field(default=None)
-    active_subscription: SubscriptionDetailsSchema | None
+
+
+    # ✅ CAMPO QUE ARMAZENA A SUBSCRIPTION CALCULADA
+    active_subscription: SubscriptionDetailsSchema | None = None
 
     @model_validator(mode='before')
     @classmethod
     def populate_subscription_details(cls, data):
         """
-        Calcula os detalhes da assinatura ANTES do Pydantic criar o modelo.
+        ✅ CALCULA os detalhes da assinatura ANTES do Pydantic criar o modelo.
         """
         if isinstance(data, models.Store):
+            # ✅ LOG PARA DEBUG
+            print(f"🔍 [SCHEMA] Validando loja ID {data.id}")
+            print(f"   Subscriptions disponíveis: {len(data.subscriptions) if data.subscriptions else 0}")
+
             # ✅ CALCULA OS DETALHES DA ASSINATURA
             subscription_details_dict = SubscriptionService.get_subscription_details(data)
+
+            # ✅ LOG DO RESULTADO
+            if subscription_details_dict:
+                print(f"   ✅ Subscription calculada: status={subscription_details_dict.get('status')}")
+            else:
+                print(f"   ⚠️ Nenhuma subscription retornada pelo service")
 
             # ✅ CONVERTE PARA DICT
             store_dict = {
@@ -62,6 +75,8 @@ class StoreDetails(StoreSchema):
             return store_dict
 
         return data
+
+
 
     @computed_field(return_type=list[PaymentMethodGroupOut])
     @property

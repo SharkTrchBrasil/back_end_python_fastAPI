@@ -46,40 +46,69 @@ from sqlalchemy.orm import selectinload
 from src.api.schemas.products.variant import Variant
 
 
+# src/api/admin/socketio/emitters.py
 
 async def admin_emit_store_updated(db, store_id: int):
     """
-    Busca os dados da loja, valida com o schema StoreDetails (que computa os campos
-    necessários) e emite o payload completo e correto para o cliente.
+    ✅ VERSÃO CORRIGIDA: Garante que a subscription sempre seja enviada
     """
     try:
-
+        # 1. Busca a loja (agora COM subscriptions carregadas)
         store_model = store_crud.get_store_base_details(db=db, store_id=store_id)
+
         if not store_model:
-            print(f"⚠️ [Socket] Loja {store_id} não encontrada para emitir 'store_details_updated'.")
+            print(f"⚠️ [Socket] Loja {store_id} não encontrada")
             return
 
+        # ✅ LOG CRÍTICO
+        print(f"📡 [Socket] Preparando payload para loja {store_id}")
+        if store_model.subscriptions:
+            print(f"   Subscriptions na model: {len(store_model.subscriptions)}")
+            print(f"   Status: {store_model.subscriptions[0].status}")
+        else:
+            print(f"   ⚠️ SEM subscriptions na model!")
 
+        # 2. Adiciona billing preview
         billing_preview_data = BillingPreviewService.get_billing_preview(db, store_model)
         setattr(store_model, 'billing_preview', billing_preview_data)
 
-
+        # 3. Valida com o schema (que CALCULA a subscription)
         store_details_schema = StoreDetails.model_validate(store_model)
 
+        # ✅ LOG DO SCHEMA VALIDADO
+        print(f"   Subscription no schema: {store_details_schema.active_subscription is not None}")
+        if store_details_schema.active_subscription:
+            print(f"   Status no schema: {store_details_schema.active_subscription.status}")
+
+        # 4. Converte para JSON
         store_payload = store_details_schema.model_dump(mode='json', by_alias=True)
 
+        # ✅ LOG DO PAYLOAD FINAL
+        print(f"   'active_subscription' no payload: {'active_subscription' in store_payload}")
+        if 'active_subscription' in store_payload and store_payload['active_subscription']:
+            print(f"   Status no payload: {store_payload['active_subscription']['status']}")
+
+        # 5. Monta payload final
         payload = {
             "store": store_payload
         }
 
-        # 5. Emite o evento.
-        await sio.emit('store_details_updated', payload, namespace='/admin', room=f"admin_store_{store_id}")
-        print(f"✅ [Socket] Dados detalhados da loja {store_id} (com subscription calculada) enviados.")
+        # 6. Emite
+        await sio.emit(
+            'store_details_updated',
+            payload,
+            namespace='/admin',
+            room=f"admin_store_{store_id}"
+        )
+
+        print(f"✅ [Socket] Payload enviado para loja {store_id}")
 
     except Exception as e:
         print(f'❌ Erro CRÍTICO ao emitir store_details_updated: {e}')
         import traceback
         traceback.print_exc()
+
+
 
 
 
