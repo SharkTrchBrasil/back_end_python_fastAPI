@@ -80,6 +80,8 @@ def get_store_base_details(db, store_id: int) -> models.Store | None:
             selectinload(models.Store.chatbot_messages).joinedload(models.StoreChatbotMessage.template),
 
             joinedload(models.Store.chatbot_config),
+    
+            selectinload(models.Store.monthly_charges).joinedload(models.MonthlyCharge.subscription),
 
             selectinload(models.Store.subscriptions)
             .joinedload(models.StoreSubscription.plan)
