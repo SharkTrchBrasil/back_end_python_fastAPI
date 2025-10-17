@@ -439,21 +439,30 @@ async def get_subscription_details(
         "can_cancel": subscription_details["status"] in ["active", "trialing"],
     }
 
-@router.delete("/stores/{store_id}/subscriptions")
-async def cancel_subscription(
-    db: GetDBDep,
-    store: GetStoreDep,
-    user: GetCurrentUserDep,
+
+
+
+@router.patch("/stores/{store_id}/subscriptions/card")
+async def update_subscription_card(
+        db: GetDBDep,
+        store: GetStoreDep,
+        user: GetCurrentUserDep,
+        card_data: CreateStoreSubscription,
 ):
     """
-    ⚠️ Cancela a assinatura da loja.
+    ✅ Atualiza o cartão de crédito da assinatura.
 
-    - Muda status para "canceled"
-    - Mantém acesso até o fim do período pago
-    - Bloqueia renovação automática
+    - Substitui o cartão antigo
+    - Mantém a assinatura ativa
+    - Não cria cobrança (só atualiza o meio de pagamento)
     """
 
-    subscription = store.active_subscription
+    logger.info(f"📝 Atualizando cartão para loja {store.id}...")
+
+    subscription = db.query(models.StoreSubscription).filter(
+        models.StoreSubscription.store_id == store.id,
+        models.StoreSubscription.status.in_(['active', 'trialing'])
+    ).first()
 
     if not subscription:
         raise HTTPException(
@@ -461,36 +470,91 @@ async def cancel_subscription(
             detail="Nenhuma assinatura ativa encontrada"
         )
 
-    # Não pode cancelar se já está cancelada
-    if subscription.status == "canceled":
-        raise HTTPException(
-            status_code=400,
-            detail="Esta assinatura já foi cancelada"
+    try:
+        # ✅ 1. Adiciona novo cartão
+        card_response = pagarme_service.create_card(
+            customer_id=store.pagarme_customer_id,
+            card_token=card_data.card.payment_token,
+            billing_address={
+                "line_1": f"{store.street}, {store.number}",
+                "zip_code": "".join(filter(str.isdigit, store.zip_code)),
+                "city": store.city,
+                "state": store.state[:2].upper(),
+                "country": "BR"
+            }
         )
 
-    # ✅ Cancela no Pagar.me (se houver ID de assinatura recorrente)
-    if subscription.gateway_subscription_id:
-        try:
-            logger.info(f"Cancelando assinatura {subscription.gateway_subscription_id} no Pagar.me")
-            # pagarme_service.cancel_subscription(subscription.gateway_subscription_id)
-            # TODO: Implementar quando houver assinaturas recorrentes
-            pass
-        except Exception as e:
-            logger.error(f"Erro ao cancelar no Pagar.me: {e}")
-            # Não bloqueia o cancelamento local
+        # ✅ 2. Salva novo card_id
+        store.pagarme_card_id = card_response["id"]
 
-    # ✅ Atualiza status no banco
+        db.commit()
+
+        logger.info(f"✅ Cartão atualizado com sucesso para loja {store.id}")
+
+        await admin_emit_store_updated(db, store.id)
+
+        return {
+            "status": "success",
+            "message": "Cartão atualizado com sucesso!"
+        }
+
+    except PagarmeError as e:
+        db.rollback()
+        logger.error(f"❌ Erro Pagar.me: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# src/api/admin/routes/subscriptions.py (atualizar método)
+
+@router.delete("/stores/{store_id}/subscriptions")
+async def cancel_subscription(
+        db: GetDBDep,
+        store: GetStoreDep,
+        user: GetCurrentUserDep,
+):
+    """
+    ⚠️ Cancela a assinatura E desconecta o chatbot.
+    """
+
+    subscription = store.active_subscription
+
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Nenhuma assinatura ativa")
+
+    if subscription.status == "canceled":
+        raise HTTPException(status_code=400, detail="Assinatura já cancelada")
+
+    # ✅ 1. Cancela assinatura
     subscription.status = "canceled"
     subscription.canceled_at = datetime.now(timezone.utc)
 
+    # ✅ 2. Desconecta chatbot
+    chatbot_config = db.query(models.StoreChatbotConfig).filter_by(
+        store_id=store.id
+    ).first()
+
+    if chatbot_config:
+        chatbot_config.is_connected = False
+        chatbot_config.is_active = False
+        logger.info(f"🤖 Chatbot desconectado para loja {store.id}")
+
+    # ✅ 3. Fecha a loja
+    operation_config = db.query(models.StoreOperationConfig).filter_by(
+        store_id=store.id
+    ).first()
+
+    if operation_config:
+        operation_config.is_store_open = False
+        logger.info(f"🔒 Loja {store.id} fechada automaticamente")
+
     db.commit()
 
-    logger.info(f"✅ Assinatura {subscription.id} cancelada pelo usuário {user.id}")
+    logger.info(f"✅ Assinatura {subscription.id} cancelada com sucesso")
 
     await admin_emit_store_updated(db, store.id)
 
     return {
         "status": "success",
-        "message": "Assinatura cancelada com sucesso",
+        "message": "Assinatura cancelada. A loja foi fechada e o chatbot desconectado.",
         "access_until": subscription.current_period_end.isoformat()
     }
