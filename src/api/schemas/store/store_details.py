@@ -38,50 +38,18 @@ class StoreDetails(StoreSchema):
     payment_activations: list[models.StorePaymentMethodActivation] = Field(default=[], exclude=True)
     billing_preview: Optional[BillingPreviewSchema] = Field(default=None)
 
-
-    # ✅ CAMPO QUE ARMAZENA A SUBSCRIPTION CALCULADA
+    # ✅ O campo continua aqui, mas será populado EXTERNAMENTE
     active_subscription: SubscriptionDetailsSchema | None = None
 
-    @model_validator(mode='before')
-    @classmethod
-    def populate_subscription_details(cls, data):
-        """
-        ✅ CALCULA os detalhes da assinatura ANTES do Pydantic criar o modelo.
-        """
-        if isinstance(data, models.Store):
-            # ✅ LOG PARA DEBUG
-            print(f"🔍 [SCHEMA] Validando loja ID {data.id}")
-            print(f"   Subscriptions disponíveis: {len(data.subscriptions) if data.subscriptions else 0}")
-
-            # ✅ CALCULA OS DETALHES DA ASSINATURA
-            subscription_details_dict = SubscriptionService.get_subscription_details(data)
-
-            # ✅ LOG DO RESULTADO
-            if subscription_details_dict:
-                print(f"   ✅ Subscription calculada: status={subscription_details_dict.get('status')}")
-            else:
-                print(f"   ⚠️ Nenhuma subscription retornada pelo service")
-
-            # ✅ CONVERTE PARA DICT
-            store_dict = {
-                key: getattr(data, key)
-                for key in cls.model_fields.keys()
-                if hasattr(data, key) and key != 'active_subscription'
-            }
-
-            # ✅ ADICIONA A ASSINATURA CALCULADA
-            store_dict['active_subscription'] = subscription_details_dict
-
-            return store_dict
-
-        return data
-
-
+    # ❌ REMOVIDO O @model_validator 'populate_subscription_details'
+    # Esta lógica será movida para o emissor do Socket.IO,
+    # que tem acesso à sessão do banco de dados.
 
     @computed_field(return_type=list[PaymentMethodGroupOut])
     @property
     def payment_method_groups(self) -> list[PaymentMethodGroupOut]:
         """Constrói a estrutura hierárquica de métodos de pagamento."""
+        # ... (código existente permanece igual)
         if not self.payment_activations:
             return []
 

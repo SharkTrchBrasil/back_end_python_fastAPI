@@ -9,6 +9,7 @@ from src.api.admin.services.billing_preview_service import BillingPreviewService
 from src.api.admin.services.holiday_service import HolidayService
 from src.api.admin.services.insights_service import InsightsService
 from src.api.admin.services.payable_service import payable_service
+from src.api.admin.services.subscription_service import SubscriptionService
 
 from src.api.crud import store_crud
 from src.api.schemas.chatbot.chatbot_config import StoreChatbotConfigSchema
@@ -46,54 +47,47 @@ from sqlalchemy.orm import selectinload
 from src.api.schemas.products.variant import Variant
 
 
-# src/api/admin/socketio/emitters.py
-
 async def admin_emit_store_updated(db, store_id: int):
     """
-    ✅ VERSÃO CORRIGIDA: Garante que a subscription sempre seja enviada
+    ✅ VERSÃO ROBUSTA: Orquestra a busca de dados e o cálculo da assinatura
+    antes de enviar via socket.
     """
     try:
-        # 1. Busca a loja (agora COM subscriptions carregadas)
+        # 1. Busca a loja com as relações necessárias (como já fazia)
         store_model = store_crud.get_store_base_details(db=db, store_id=store_id)
 
         if not store_model:
             print(f"⚠️ [Socket] Loja {store_id} não encontrada")
             return
 
-        # ✅ LOG CRÍTICO
-        print(f"📡 [Socket] Preparando payload para loja {store_id}")
-        if store_model.subscriptions:
-            print(f"   Subscriptions na model: {len(store_model.subscriptions)}")
-            print(f"   Status: {store_model.subscriptions[0].status}")
+        # 2. ✅ PONTO CENTRAL DA SOLUÇÃO: CALCULA OS DADOS DINÂMICOS AQUI
+        # Chama o serviço, passando a loja e a sessão do DB.
+        subscription_details_dict = SubscriptionService.get_subscription_details(
+            store=store_model,
+            db=db
+        )
+
+        # 3. ✅ ANEXA OS DADOS CALCULADOS AO OBJETO ANTES DA VALIDAÇÃO
+        # O Pydantic irá encontrar este atributo ao validar.
+        setattr(store_model, 'active_subscription', subscription_details_dict)
+
+        # Adicional: Adiciona também o billing_preview que era calculado no serviço
+        if subscription_details_dict:
+            setattr(store_model, 'billing_preview', subscription_details_dict.get('billing_preview'))
         else:
-            print(f"   ⚠️ SEM subscriptions na model!")
+            setattr(store_model, 'billing_preview', None)
 
-        # 2. Adiciona billing preview
-        billing_preview_data = BillingPreviewService.get_billing_preview(db, store_model)
-        setattr(store_model, 'billing_preview', billing_preview_data)
-
-        # 3. Valida com o schema (que CALCULA a subscription)
+        # 4. VALIDA o objeto completo com o schema limpo
+        # O schema agora apenas valida a estrutura, sem fazer I/O.
         store_details_schema = StoreDetails.model_validate(store_model)
 
-        # ✅ LOG DO SCHEMA VALIDADO
-        print(f"   Subscription no schema: {store_details_schema.active_subscription is not None}")
-        if store_details_schema.active_subscription:
-            print(f"   Status no schema: {store_details_schema.active_subscription.status}")
-
-        # 4. Converte para JSON
+        # 5. Converte para JSON e emite (como já fazia)
         store_payload = store_details_schema.model_dump(mode='json', by_alias=True)
 
-        # ✅ LOG DO PAYLOAD FINAL
-        print(f"   'active_subscription' no payload: {'active_subscription' in store_payload}")
-        if 'active_subscription' in store_payload and store_payload['active_subscription']:
-            print(f"   Status no payload: {store_payload['active_subscription']['status']}")
-
-        # 5. Monta payload final
         payload = {
             "store": store_payload
         }
 
-        # 6. Emite
         await sio.emit(
             'store_details_updated',
             payload,
@@ -101,14 +95,12 @@ async def admin_emit_store_updated(db, store_id: int):
             room=f"admin_store_{store_id}"
         )
 
-        print(f"✅ [Socket] Payload enviado para loja {store_id}")
+        print(f"✅ [Socket] Payload ROBUSTO enviado para loja {store_id}")
 
     except Exception as e:
         print(f'❌ Erro CRÍTICO ao emitir store_details_updated: {e}')
         import traceback
         traceback.print_exc()
-
-
 
 
 

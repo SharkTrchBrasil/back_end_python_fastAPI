@@ -24,6 +24,7 @@ from fastapi.logger import logger
 from src.api.admin.services.billing_preview_service import BillingPreviewService
 from src.api.admin.services.billing_report_service import BillingReportService
 from src.api.admin.services.pagarme_service import pagarme_service, PagarmeError
+from src.api.admin.services.subscription_service import SubscriptionService
 from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.admin.utils.proration import calculate_prorated_charge
 from src.api.app.socketio.socketio_emitters import emit_store_updated
@@ -559,6 +560,7 @@ async def reactivate_subscription(
 # 3. DETALHES DA ASSINATURA
 # ═══════════════════════════════════════════════════════════════
 
+
 @router.get("/stores/{store_id}/subscriptions/details")
 async def get_subscription_details(
     db: GetDBDep,
@@ -566,18 +568,10 @@ async def get_subscription_details(
     user: GetCurrentUserDep,
 ):
     """
-    🎯 Retorna detalhes completos da assinatura
-
-    Inclui:
-    - Dados da assinatura (status calculado)
-    - Preview de faturamento
-    - Histórico de cobranças
-    - Informações do cartão (mascarado)
+    🎯 Retorna detalhes completos da assinatura (Versão Refatorada)
     """
-
-    from src.api.admin.services.subscription_service import SubscriptionService
-
-    subscription_details = SubscriptionService.get_subscription_details(store)
+    # O serviço agora é a ÚNICA fonte da verdade.
+    subscription_details = SubscriptionService.get_subscription_details(store=store, db=db)
 
     if not subscription_details:
         raise HTTPException(
@@ -585,46 +579,8 @@ async def get_subscription_details(
             detail="Nenhuma assinatura encontrada"
         )
 
-    # ✅ Preview de faturamento
-    billing_preview = BillingPreviewService.get_billing_preview(db, store)
-
-    # ✅ Histórico de cobranças
-    billing_history = BillingReportService.get_store_history(db, store.id, months=6)
-
-    # ✅ Dados do cartão
-    card_info = None
-    if store.pagarme_card_id and store.pagarme_customer_id:
-        try:
-            card_response = pagarme_service.get_card(
-                customer_id=store.pagarme_customer_id,
-                card_id=store.pagarme_card_id
-            )
-
-            card_info = {
-                "masked_number": f"************{card_response.get('last_four_digits', '****')}",
-                "brand": card_response.get('brand', 'Desconhecida'),
-                "status": card_response.get('status', 'active'),
-                "holder_name": card_response.get('holder_name'),
-                "exp_month": card_response.get('exp_month'),
-                "exp_year": card_response.get('exp_year'),
-            }
-        except Exception as e:
-            logger.warning(f"⚠️ Erro ao buscar cartão: {e}")
-            card_info = {
-                "masked_number": "************",
-                "brand": "Cartão Cadastrado",
-                "status": "active"
-            }
-
-    return {
-        "subscription": subscription_details,
-        "billing_preview": billing_preview,
-        "billing_history": billing_history,
-        "card_info": card_info,
-        "can_cancel": subscription_details["status"] in ["active", "trialing"],
-        "can_reactivate": subscription_details["status"] == "canceled",
-    }
-
+    # Simplesmente retorne o que o serviço calculou.
+    return subscription_details
 
 # ═══════════════════════════════════════════════════════════════
 # 4. ATUALIZAR CARTÃO
