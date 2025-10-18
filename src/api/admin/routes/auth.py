@@ -1,8 +1,9 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Body
+import jwt
+from fastapi import APIRouter, Depends, HTTPException, Body, Header
 from fastapi.security import OAuth2PasswordRequestForm
 from starlette import status
 from starlette.requests import Request
@@ -11,32 +12,41 @@ from src.api.schemas.auth.auth import TokenResponse
 from src.api.admin.utils.auth import authenticate_user
 from src.api.schemas.auth.auth_totem import TotemAuthorizationResponse, AuthenticateByUrlRequest, TotemCheckTokenResponse
 from src.core import models
+from src.core.config import config
 from src.core.database import GetDBDep
 from src.core.dependencies import GetCurrentUserDep
 from src.api.schemas.auth.user import ChangePasswordData
 from src.core.models import TotemAuthorization
 from src.core.rate_limit.rate_limit import RATE_LIMITS, limiter, logger
-# ✅ Funções de criação de token importadas
-from src.core.security import create_access_token, create_refresh_token, verify_refresh_token, get_password_hash
+
+from src.core.security.security import (
+    create_access_token,
+    create_refresh_token,
+    verify_refresh_token,
+    get_password_hash,  # ✅ ADICIONAR
+    ALGORITHM,
+    SECRET_KEY
+)
+
+from src.core.security.token_blacklist import TokenBlacklist
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 @router.post("/login", response_model=TokenResponse)
-
-@limiter.limit(RATE_LIMITS["login"])  # ✅ Máximo 5 tentativas/minuto
+@limiter.limit(RATE_LIMITS["login"])
 async def login_for_access_token(
-        request: Request,  # ✅ Adicionar este parâmetro
+        request: Request,
         db: GetDBDep,
         form_data: OAuth2PasswordRequestForm = Depends(),
 ):
-    # ✅ Log de tentativa de login (segurança)
-    logger.info(f"🔐 Tentativa de login: {form_data.username}")
-
-    user: models.User | None = authenticate_user(email=form_data.username, password=form_data.password, db=db)
+    user: models.User | None = authenticate_user(
+        email=form_data.username,
+        password=form_data.password,
+        db=db
+    )
 
     if not user:
-        # ✅ Log de falha
         logger.warning(f"⚠️ Login falhou: {form_data.username}")
         raise HTTPException(status_code=401, detail="Incorrect email or password")
 
@@ -46,57 +56,148 @@ async def login_for_access_token(
     if not user.is_active:
         raise HTTPException(status_code=401, detail="Inactive account")
 
-    access_token = create_access_token(data={"sub": user.email})
-    refresh_token = create_refresh_token(data={"sub": user.email})
+    # ✅ GERA JTIs ÚNICOS
+    access_jti = str(uuid.uuid4())
+    refresh_jti = str(uuid.uuid4())
 
-    return {"access_token": access_token, "token_type": "bearer", "refresh_token": refresh_token}
+    # ✅ CRIA TOKENS COM JTI
+    access_token = create_access_token(
+        data={"sub": user.email},
+        jti=access_jti
+    )
+    refresh_token = create_refresh_token(
+        data={"sub": user.email},
+        jti=refresh_jti
+    )
+
+    # ✅ REGISTRA TOKENS ATIVOS NO REDIS
+    TokenBlacklist.store_user_token(
+        user.email,
+        access_jti,
+        config.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    )
+    TokenBlacklist.store_user_token(
+        user.email,
+        refresh_jti,
+        config.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
+    )
+
+    logger.info(f"✅ Login bem-sucedido: {user.email}")
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "refresh_token": refresh_token
+    }
 
 
-
+# src/api/admin/routes/auth.py
 
 @router.post("/refresh", response_model=TokenResponse)
-@limiter.limit("10/minute")  # ✅ Limite para refresh
+@limiter.limit("10/minute")
 async def refresh_access_token(
-    request: Request,  # ✅ Adicionar
-    refresh_token: Annotated[str, Body(..., embed=True)],
-    db: GetDBDep
+        request: Request,
+        refresh_token: Annotated[str, Body(..., embed=True)],
+        db: GetDBDep
 ):
+    # ✅ VALIDA E VERIFICA BLACKLIST
+    payload = verify_refresh_token(refresh_token)
 
-    email = verify_refresh_token(refresh_token)
-    if not email:
-        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+    if not payload:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired refresh token"
+        )
 
-    # Verifica se o usuário ainda existe e está ativo no banco de dados
-    user = db.query(models.User).filter(models.User.email == email, models.User.is_active == True).first()
+    email = payload.get("sub")
+    old_jti = payload.get("jti")
+
+    # Verifica se usuário ainda existe e está ativo
+    user = db.query(models.User).filter(
+        models.User.email == email,
+        models.User.is_active == True
+    ).first()
+
     if not user:
         raise HTTPException(status_code=401, detail="User not found or inactive")
 
-    # ✅ Cria um NOVO access token
-    new_access_token = create_access_token(data={"sub": email})
-    # ✅ Cria um NOVO refresh token (Rotação)
-    new_refresh_token = create_refresh_token(data={"sub": email})
+    # ✅ REVOGA O REFRESH TOKEN ANTIGO
+    if old_jti:
+        exp = payload.get("exp")
+        now = datetime.now(timezone.utc).timestamp()
+        ttl_seconds = int(exp - now) if exp else config.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
 
-    # Retorna o novo par de tokens
-    return {"access_token": new_access_token, "token_type": "bearer", "refresh_token": new_refresh_token}
+        if ttl_seconds > 0:
+            TokenBlacklist.add_token(old_jti, ttl_seconds)
+            logger.info(f"✅ Refresh token antigo revogado: {old_jti[:8]}...")
+
+    # ✅ CRIA NOVOS TOKENS COM NOVOS JTIs
+    new_access_jti = str(uuid.uuid4())
+    new_refresh_jti = str(uuid.uuid4())
+
+    new_access_token = create_access_token(data={"sub": email}, jti=new_access_jti)
+    new_refresh_token = create_refresh_token(data={"sub": email}, jti=new_refresh_jti)
+
+    # ✅ REGISTRA NOVOS TOKENS
+    TokenBlacklist.store_user_token(
+        email,
+        new_access_jti,
+        config.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    )
+    TokenBlacklist.store_user_token(
+        email,
+        new_refresh_jti,
+        config.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
+    )
+
+    return {
+        "access_token": new_access_token,
+        "token_type": "bearer",
+        "refresh_token": new_refresh_token
+    }
+
+
+
 
 
 @router.post("/change-password")
-@limiter.limit(RATE_LIMITS["password_reset"])  # ✅ 3/hora
+@limiter.limit(RATE_LIMITS["password_reset"])
 async def change_password(
-    request: Request,  # ✅ Adicionar
-    change_password_data: ChangePasswordData,
-    db: GetDBDep,
-    current_user: GetCurrentUserDep,
+        request: Request,
+        change_password_data: ChangePasswordData,
+        db: GetDBDep,
+        current_user: GetCurrentUserDep,
 ):
-    user = authenticate_user(email=current_user.email, password=change_password_data.old_password, db=db)
+    # Valida senha antiga
+    user = authenticate_user(
+        email=current_user.email,
+        password=change_password_data.old_password,
+        db=db
+    )
     if not user:
-        raise HTTPException(status_code=401)
+        raise HTTPException(status_code=401, detail="Senha atual incorreta")
 
+    # Atualiza senha
     user.hashed_password = get_password_hash(change_password_data.new_password)
     db.commit()
 
+    # ✅ REVOGA TODOS OS TOKENS APÓS TROCAR SENHA
+    TokenBlacklist.revoke_all_user_tokens(current_user.email)
 
-# ... (O resto do seu arquivo auth.py permanece igual)
+    logger.warning(f"🔐 Senha alterada e todos tokens revogados: {current_user.email}")
+
+    return {
+        "message": "Senha alterada com sucesso. "
+                   "Você foi desconectado de todos os dispositivos. "
+                   "Faça login novamente."
+    }
+
+
+
+
+
+
+
 @router.post("/subdomain", response_model=TotemAuthorizationResponse)
 def authenticate_by_url(
     db: GetDBDep,
@@ -139,3 +240,73 @@ def check_token(
         raise HTTPException(status_code=404)
 
     return auth
+
+
+
+
+@router.post("/logout")
+@limiter.limit("10/minute")
+async def logout(
+        request: Request,
+        current_user: GetCurrentUserDep,
+        authorization: str = Header(...)
+):
+    """
+    ✅ ENDPOINT DE LOGOUT SEGURO
+
+    Revoga o token atual imediatamente.
+    """
+    try:
+        # Extrai token do header
+        token = authorization.split(" ")[1] if " " in authorization else authorization
+
+        # Decodifica para pegar JTI
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_signature": False})
+        jti = payload.get("jti")
+        exp = payload.get("exp")
+
+        if jti and exp:
+            # Calcula TTL até expiração natural
+            now = datetime.now(timezone.utc).timestamp()
+            ttl_seconds = int(exp - now)
+
+            if ttl_seconds > 0:
+                # ✅ ADICIONA À BLACKLIST
+                TokenBlacklist.add_token(jti, ttl_seconds)
+                logger.info(f"✅ Token revogado com sucesso: {jti[:8]}...")
+            else:
+                logger.warning(f"⚠️ Token já expirado: {jti[:8]}...")
+
+        return {"message": "Logout realizado com sucesso"}
+
+    except Exception as e:
+        logger.error(f"❌ Erro no logout: {e}")
+        # Retorna sucesso mesmo em erro (segurança)
+        return {"message": "Logout realizado com sucesso"}
+
+
+@router.post("/logout-all")
+@limiter.limit("3/hour")  # Limite baixo (operação sensível)
+async def logout_all_devices(
+        request: Request,
+        current_user: GetCurrentUserDep
+):
+    """
+    ✅ LOGOUT GLOBAL - Revoga TODOS os tokens do usuário
+
+    Útil quando:
+    - Usuário troca senha
+    - Detecta acesso não autorizado
+    - Quer desconectar todos dispositivos
+    """
+    try:
+        # ✅ REVOGA TODOS OS TOKENS
+        TokenBlacklist.revoke_all_user_tokens(current_user.email)
+
+        logger.warning(f"🚨 Logout global executado: {current_user.email}")
+
+        return {"message": "Todos os dispositivos foram desconectados com sucesso"}
+
+    except Exception as e:
+        logger.error(f"❌ Erro no logout global: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao desconectar dispositivos")

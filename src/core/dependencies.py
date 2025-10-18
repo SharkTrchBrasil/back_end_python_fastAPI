@@ -6,18 +6,21 @@ from sqlalchemy.orm import Session, joinedload
 
 from src.api.admin.services.subscription_service import SubscriptionService
 from src.core import models
-
 from src.core.database import GetDBDep
-
-
-from src.core.security import verify_access_token, oauth2_scheme
+from src.core.security.security import verify_access_token, oauth2_scheme
 from src.core.utils.enums import Roles
 
 
 def get_user_from_token(token: str, db: Session):
-    email = verify_access_token(token)
-    if not email:
+    """✅ VERSÃO ATUALIZADA: Compatível com novo verify_access_token"""
+    payload = verify_access_token(token)
+
+    if not payload:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+    email = payload.get("sub")
+    if not email:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
 
     user = db.query(models.User).filter(models.User.email == email).first()
 
@@ -28,29 +31,51 @@ def get_user_from_token(token: str, db: Session):
 
 
 def get_current_user(
-        db: GetDBDep, token: Annotated[str, Depends(oauth2_scheme)]
+        db: GetDBDep,
+        token: Annotated[str, Depends(oauth2_scheme)]
 ):
-    return get_user_from_token(token, db)
+    """✅ VERSÃO SEGURA: Usa nova função verify_access_token com blacklist"""
+    payload = verify_access_token(token)
+
+    if not payload:
+        raise HTTPException(
+            status_code=401,
+            detail="Token inválido ou revogado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    email = payload.get("sub")
+    if not email:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+
+    user = db.query(models.User).filter(models.User.email == email).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    if not user.is_active:
+        raise HTTPException(status_code=401, detail="Inactive user")
+
+    return user
 
 
 def get_optional_user(db: GetDBDep, authorization: Annotated[str | None, Header()] = None):
-    token = authorization
-    if not token:
+    """✅ ATUALIZADO: Compatível com nova função verify_access_token"""
+    if not authorization:
         return None
+
     try:
-        token_type, _, token_value = token.partition(" ")
+        token_type, _, token_value = authorization.partition(" ")
         if token_type.lower() != "bearer" or not token_value:
             return None
 
         return get_user_from_token(db=db, token=token_value)
-    except Exception as e:
+    except Exception:
         return None
 
 
 GetCurrentUserDep = Annotated[models.User, Depends(get_current_user)]
 GetOptionalUserDep = Annotated[models.User | None, Depends(get_optional_user)]
-
-
 
 
 class GetStore:
@@ -89,10 +114,8 @@ class GetStore:
 
             store = db_store_access.store
 
-        # ✅ CORREÇÃO: VERIFICA SE sub_details NÃO É None ANTES DE USAR .get()
         sub_details = SubscriptionService.get_subscription_details(store, db)
 
-        # ✅ Só bloqueia se sub_details existir E estiver bloqueado
         if sub_details and sub_details.get("is_blocked"):
             raise HTTPException(
                 status_code=403,
@@ -109,11 +132,10 @@ get_store = GetStore([Roles.OWNER, Roles.MANAGER])
 GetStoreDep = Annotated[models.Store, Depends(get_store)]
 
 
-
 def get_product(
-    db: GetDBDep,
-    store: GetStoreDep,
-    product_id: int,
+        db: GetDBDep,
+        store: GetStoreDep,
+        product_id: int,
 ):
     db_product = db.query(models.Product).filter(
         models.Product.id == product_id,
@@ -123,8 +145,8 @@ def get_product(
         raise HTTPException(status_code=404, detail="Product not found")
     return db_product
 
-GetProductDep = Annotated[models.Product, Depends(get_product)]
 
+GetProductDep = Annotated[models.Product, Depends(get_product)]
 
 
 def get_variant_template(db: GetDBDep, store_id: int, variant_id: int):
@@ -136,7 +158,9 @@ def get_variant_template(db: GetDBDep, store_id: int, variant_id: int):
         raise HTTPException(status_code=404, detail="Variant template not found")
     return db_variant
 
+
 GetVariantDep = Annotated[models.Variant, Depends(get_variant_template)]
+
 
 def get_variant_option(db: GetDBDep, variant: GetVariantDep, option_id: int):
     option = db.query(models.VariantOption).filter(
@@ -147,12 +171,13 @@ def get_variant_option(db: GetDBDep, variant: GetVariantDep, option_id: int):
         raise HTTPException(status_code=404, detail="Option not found")
     return option
 
+
 GetVariantOptionDep = Annotated[models.VariantOption, Depends(get_variant_option)]
 
 
 def get_store_from_token(
-    db: GetDBDep,
-    token: Annotated[str | None, Header(alias="Totem-Token")] = None
+        db: GetDBDep,
+        token: Annotated[str | None, Header(alias="Totem-Token")] = None
 ) -> models.Store:
     if not token:
         raise HTTPException(status_code=401, detail="Missing Totem token")
@@ -171,11 +196,16 @@ def get_store_from_token(
 GetStoreFromTotemTokenDep = Annotated[models.Store, Depends(get_store_from_token)]
 
 
-
 def get_customer_from_token(token: str, db: Session) -> models.Customer:
-    email = verify_access_token(token)
-    if not email:
+    """✅ ATUALIZADO: Compatível com nova função verify_access_token"""
+    payload = verify_access_token(token)
+
+    if not payload:
         raise HTTPException(status_code=401, detail="Token de cliente inválido ou expirado")
+
+    email = payload.get("sub")
+    if not email:
+        raise HTTPException(status_code=401, detail="Token payload inválido")
 
     customer = db.query(models.Customer).filter(models.Customer.email == email).first()
 
@@ -186,7 +216,8 @@ def get_customer_from_token(token: str, db: Session) -> models.Customer:
 
 
 def get_current_customer(
-        db: GetDBDep, token: Annotated[str, Depends(oauth2_scheme)]
+        db: GetDBDep,
+        token: Annotated[str, Depends(oauth2_scheme)]
 ) -> models.Customer:
     return get_customer_from_token(token, db)
 
