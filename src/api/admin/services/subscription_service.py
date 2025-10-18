@@ -1,20 +1,4 @@
 # src/api/admin/services/subscription_service.py
-"""
-Serviço de Gerenciamento de Assinaturas
-========================================
-
-Consolida e calcula o estado dinâmico da assinatura de uma loja.
-
-✅ VERSÃO FINAL BLINDADA:
-- Trata canceled_at NULL
-- Trata datas sem timezone
-- Trata todos os status possíveis
-- Logs detalhados
-- Tratamento de erros robusto
-
-Autor: Sistema de Billing
-Última atualização: 2025-01-17
-"""
 
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List
@@ -30,16 +14,15 @@ from src.core.database import GetDBDep
 logger = logging.getLogger(__name__)
 
 
-# ✅ SUBSTITUA O MÉTODO get_subscription_details COMPLETO
 class SubscriptionService:
 
     @staticmethod
     def get_subscription_details(
-        store: models.Store,
-        db: GetDBDep,
+            store: models.Store,
+            db: GetDBDep,
     ) -> Optional[Dict[str, Any]]:
         """
-        ✅ VERSÃO COMPLETA: Retorna TODOS os dados da assinatura
+        ✅ Retorna TODOS os dados da assinatura
         """
         try:
             subscription_db = (
@@ -56,10 +39,7 @@ class SubscriptionService:
                 logger.warning(f"[Subscription] Loja {store.id}: Assinatura sem plano!")
                 return None
 
-            # ═══════════════════════════════════════════════════════════
-            # 1. CALCULA STATUS DINÂMICO (código existente mantido)
-            # ═══════════════════════════════════════════════════════════
-
+            # Calcula status dinâmico (código existente mantido)
             now = datetime.now(timezone.utc)
             status = subscription_db.status.lower()
             end_date = subscription_db.current_period_end
@@ -88,10 +68,6 @@ class SubscriptionService:
                 store.pagarme_card_id
             )
 
-            # ═══════════════════════════════════════════════════════════
-            # 2. ✅ BUSCA DADOS COMPLETOS (NOVO)
-            # ═══════════════════════════════════════════════════════════
-
             # Billing Preview
             billing_preview = BillingPreviewService.get_billing_preview(
                 db=db,
@@ -113,10 +89,6 @@ class SubscriptionService:
                     subscription_db.current_period_end > now
             )
 
-            # ═══════════════════════════════════════════════════════════
-            # 3. LOG DETALHADO (código existente mantido)
-            # ═══════════════════════════════════════════════════════════
-
             logger.info("═" * 60)
             logger.info(f"💳 [Subscription] Loja {store.id}:")
             logger.info(f"   Status DB: {subscription_db.status}")
@@ -125,15 +97,7 @@ class SubscriptionService:
             logger.info(
                 f"   Período: {subscription_db.current_period_start.date()} → {end_date.date() if end_date else 'N/A'}")
             logger.info(f"   Dias restantes: {days_remaining}")
-            logger.info(f"   Método pagamento: {has_payment_method}")
-            logger.info(f"   Billing Preview: {billing_preview is not None}")
-            logger.info(f"   Card Info: {card_info is not None}")
-            logger.info(f"   Billing History: {len(billing_history)} items")
             logger.info("═" * 60)
-
-            # ═══════════════════════════════════════════════════════════
-            # 4. ✅ RETORNA DADOS COMPLETOS
-            # ═══════════════════════════════════════════════════════════
 
             return {
                 "id": subscription_db.id,
@@ -147,7 +111,6 @@ class SubscriptionService:
                 "has_payment_method": has_payment_method,
                 "plan": PlanSchema.model_validate(subscription_db.plan),
                 "subscribed_addons": subscription_db.subscribed_addons,
-                # ✅ CAMPOS NOVOS
                 "billing_preview": billing_preview,
                 "card_info": card_info,
                 "billing_history": billing_history,
@@ -159,18 +122,52 @@ class SubscriptionService:
             logger.error(f"❌ Erro ao calcular detalhes da assinatura: {e}", exc_info=True)
             return None
 
-    # ✅ ADICIONE ESTES MÉTODOS AUXILIARES NO FINAL DA CLASSE
+    # ✅ NOVO MÉTODO: Retorna Store enriquecida como dicionário
+    @staticmethod
+    def get_store_dict_with_subscription(
+            store: models.Store,
+            db: GetDBDep
+    ) -> Dict[str, Any]:
+        """
+        ✅ Converte Store ORM para dicionário enriquecido com assinatura.
 
+        Este é o método que você deve usar nos emissores e rotas.
+
+        Args:
+            store: Objeto ORM da loja
+            db: Sessão do banco de dados
+
+        Returns:
+            Dicionário completo pronto para validação Pydantic
+        """
+        # 1. Converte ORM para dict
+        store_dict = store.__dict__.copy()
+
+        # Remove metadados do SQLAlchemy
+        store_dict.pop('_sa_instance_state', None)
+
+        # 2. Calcula e injeta assinatura
+        subscription_details = SubscriptionService.get_subscription_details(
+            store=store,
+            db=db
+        )
+
+        store_dict['active_subscription'] = subscription_details
+
+        if subscription_details:
+            store_dict['billing_preview'] = subscription_details.get('billing_preview')
+        else:
+            store_dict['billing_preview'] = None
+
+        return store_dict
+
+    # Métodos auxiliares (mantidos como estavam)
     @staticmethod
     def _get_card_info(store: models.Store) -> CardInfoSchema | None:
-        """
-        ✅ Busca informações do cartão
-        TODO: Integrar com Pagar.me quando necessário
-        """
+        """Busca informações do cartão"""
         if not store.pagarme_card_id:
             return None
 
-        # Mock por enquanto (você pode integrar com Pagar.me depois)
         return CardInfoSchema(
             masked_number="************4444",
             brand="Mastercard",
@@ -182,9 +179,7 @@ class SubscriptionService:
 
     @staticmethod
     def _get_billing_history(store: models.Store) -> List[BillingHistoryItemSchema]:
-        """
-        ✅ Busca histórico de cobranças
-        """
+        """Busca histórico de cobranças"""
         history = []
 
         for charge in store.monthly_charges:
@@ -196,9 +191,7 @@ class SubscriptionService:
                 charge_date=charge.charge_date,
             ))
 
-        # Ordena do mais recente para o mais antigo
         history.sort(key=lambda x: x.charge_date, reverse=True)
-
         return history
 
     @staticmethod
@@ -209,19 +202,10 @@ class SubscriptionService:
             days_remaining: int,
             now: datetime
     ) -> tuple[str, bool, Optional[str]]:
-        """
-        ✅ Calcula status dinâmico, bloqueio e mensagem de aviso
+        """Calcula status dinâmico, bloqueio e mensagem de aviso"""
 
-        Returns:
-            Tupla (dynamic_status, is_blocked, warning_message)
-        """
-
-        # ═══════════════════════════════════════════════════════════
-        # CASO 1: CANCELADA
-        # ═══════════════════════════════════════════════════════════
-
+        # (código existente mantido)
         if status == 'canceled':
-            # ✅ Formata data de cancelamento (trata NULL)
             if canceled_at:
                 try:
                     if canceled_at.tzinfo is None:
@@ -233,11 +217,10 @@ class SubscriptionService:
             else:
                 canceled_date_str = "uma data anterior"
 
-            # ✅ Verifica se ainda tem acesso
             if days_remaining > 0:
                 return (
                     'canceled',
-                    False,  # NÃO bloqueia enquanto tiver dias pagos
+                    False,
                     (
                         f"Sua assinatura foi cancelada em {canceled_date_str}. "
                         f"Você manterá acesso até {end_date.strftime('%d/%m/%Y')} "
@@ -247,16 +230,12 @@ class SubscriptionService:
             else:
                 return (
                     'expired',
-                    True,  # Bloqueia após expirar
+                    True,
                     (
                         f"Sua assinatura foi cancelada em {canceled_date_str} e expirou. "
                         f"Reative para continuar usando a plataforma."
                     )
                 )
-
-        # ═══════════════════════════════════════════════════════════
-        # CASO 2: TRIAL
-        # ═══════════════════════════════════════════════════════════
 
         elif status == 'trialing':
             if days_remaining > 0:
@@ -271,10 +250,6 @@ class SubscriptionService:
                     True,
                     "Seu período de teste terminou. Adicione um método de pagamento para continuar."
                 )
-
-        # ═══════════════════════════════════════════════════════════
-        # CASO 3: ATIVA
-        # ═══════════════════════════════════════════════════════════
 
         elif status == 'active':
             if not end_date:
@@ -304,10 +279,6 @@ class SubscriptionService:
             else:
                 return ('active', False, None)
 
-        # ═══════════════════════════════════════════════════════════
-        # CASO 4: PAGAMENTO PENDENTE
-        # ═══════════════════════════════════════════════════════════
-
         elif status in ['past_due', 'unpaid']:
             return (
                 'past_due',
@@ -315,20 +286,12 @@ class SubscriptionService:
                 "Falha no pagamento. Atualize seus dados para reativar o acesso."
             )
 
-        # ═══════════════════════════════════════════════════════════
-        # CASO 5: EXPIRADA
-        # ═══════════════════════════════════════════════════════════
-
         elif status == 'expired':
             return (
                 'expired',
                 True,
                 "Sua assinatura expirou. Adicione um método de pagamento para reativar."
             )
-
-        # ═══════════════════════════════════════════════════════════
-        # CASO 6: STATUS DESCONHECIDO
-        # ═══════════════════════════════════════════════════════════
 
         else:
             logger.warning(f"Status desconhecido: {status}")

@@ -9,7 +9,6 @@ from src.api.admin.services.billing_preview_service import BillingPreviewService
 from src.api.admin.services.holiday_service import HolidayService
 from src.api.admin.services.insights_service import InsightsService
 from src.api.admin.services.payable_service import payable_service
-from src.api.admin.services.store_transformer_service import StoreTransformerService
 from src.api.admin.services.subscription_service import SubscriptionService
 
 from src.api.crud import store_crud
@@ -48,31 +47,30 @@ from sqlalchemy.orm import selectinload
 from src.api.schemas.products.variant import Variant
 
 
+
+
 async def admin_emit_store_updated(db, store_id: int):
-    """
-    ✅ VERSÃO FINAL: Usa transformer que retorna schema validado
-    """
+    """✅ VERSÃO SIMPLES E DIRETA"""
     try:
-        # 1. Busca a loja
         store_model = store_crud.get_store_base_details(db=db, store_id=store_id)
 
         if not store_model:
             logger.warning(f"⚠️ Loja {store_id} não encontrada")
             return
 
-        # 2. ✅ ENRIQUECE E VALIDA (retorna StoreDetails já validado)
-        store_schema = StoreTransformerService.enrich_store_with_subscription(
+        # ✅ USA O MÉTODO DO SubscriptionService
+        store_dict = SubscriptionService.get_store_dict_with_subscription(
             store=store_model,
             db=db
         )
 
-        # 3. Converte para JSON
-        store_payload = store_schema.model_dump(mode='json', by_alias=True)
+        # Valida com Pydantic
+        store_schema = StoreDetails.model_validate(store_dict)
 
-        # 4. Emite
+        # Emite
         await sio.emit(
             'store_details_updated',
-            {"store": store_payload},
+            {"store": store_schema.model_dump(mode='json', by_alias=True)},
             namespace='/admin',
             room=f"admin_store_{store_id}"
         )
@@ -81,8 +79,6 @@ async def admin_emit_store_updated(db, store_id: int):
 
     except Exception as e:
         logger.error(f'❌ Erro ao emitir store_details_updated: {e}', exc_info=True)
-
-
 
 
 

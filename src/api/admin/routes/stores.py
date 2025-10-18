@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response, UploadF
 from sqlalchemy import func
 
 from src.api.admin.services.cloning_service import clone_store_data
-from src.api.admin.services.store_transformer_service import StoreTransformerService
+
 from src.api.admin.services.subscription_service import SubscriptionService
 from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_stores_list_update
 from src.api.app.socketio.socketio_emitters import emit_store_updated
@@ -272,6 +272,8 @@ async def clone_store(
     return new_access
 
 
+
+
 @router.get("", response_model=list[StoreWithRole])
 def list_stores(db: GetDBDep, user: GetCurrentUserDep):
     """Retorna todas as lojas acessíveis pelo usuário."""
@@ -283,14 +285,24 @@ def list_stores(db: GetDBDep, user: GetCurrentUserDep):
     result = []
 
     for access in db_store_accesses:
-        # ✅ RETORNA SCHEMA JÁ VALIDADO
-        store_with_role = StoreTransformerService.enrich_store_access_with_role(
-            store_access=access,
+        # ✅ USA O SubscriptionService
+        store_dict = SubscriptionService.get_store_dict_with_subscription(
+            store=access.store,
             db=db
         )
-        result.append(store_with_role)
+
+        # Monta o dict final
+        access_dict = {
+            'store': store_dict,
+            'role': access.role,
+            'store_id': access.store_id,
+            'user_id': access.user_id,
+        }
+
+        result.append(StoreWithRole.model_validate(access_dict))
 
     return result
+
 
 
 @router.get("/{store_id}", response_model=StoreDetails)

@@ -2,7 +2,7 @@ from urllib.parse import parse_qs
 
 from src.api.admin.services.store_access_service import StoreAccessService
 from src.api.admin.services.store_session_service import SessionService
-from src.api.admin.services.store_transformer_service import StoreTransformerService
+
 from src.api.admin.services.subscription_service import SubscriptionService  # ← NOVO
 
 from src.api.schemas.store.store_with_role import StoreWithRole
@@ -88,11 +88,20 @@ async def handle_admin_connect(self, sid, environ):
 
             stores_list_payload = []
             for access in accessible_store_accesses:
-                # ✅ RETORNA SCHEMA JÁ VALIDADO
-                store_with_role = StoreTransformerService.enrich_store_access_with_role(
-                    store_access=access,
+                # ✅ USA O SubscriptionService
+                store_dict = SubscriptionService.get_store_dict_with_subscription(
+                    store=access.store,
                     db=db
                 )
+
+                access_dict = {
+                    'store': store_dict,
+                    'role': access.role,
+                    'store_id': access.store_id,
+                    'user_id': access.user_id,
+                }
+
+                store_with_role = StoreWithRole.model_validate(access_dict)
                 stores_list_payload.append(store_with_role.model_dump(mode='json'))
 
             await self.emit("admin_stores_list", {"stores": stores_list_payload}, to=sid)
