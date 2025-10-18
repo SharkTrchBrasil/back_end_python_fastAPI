@@ -635,6 +635,11 @@ class Product(Base, TimestampMixin):
         return None
 
 
+
+    __table_args__ = (
+        Index('idx_products_store_active', 'store_id', 'status'),
+    )
+
 class ProductCategoryLink(Base):
     __tablename__ = "product_category_links"
 
@@ -665,6 +670,12 @@ class ProductCategoryLink(Base):
     product: Mapped["Product"] = relationship(back_populates="category_links")
     category: Mapped["Category"] = relationship(back_populates="product_links")
 
+
+
+
+    __table_args__ = (
+        Index('idx_product_category_link_category', 'category_id', 'product_id'),
+    )
 
 class ProductImage(Base, TimestampMixin):
     __tablename__ = "product_images"
@@ -956,6 +967,10 @@ class StoreSession(Base):
     store = relationship("Store")
 
 
+    __table_args__ = (
+        Index('idx_sessions_user_type', 'user_id', 'client_type'),
+        Index('idx_sessions_store', 'store_id'),
+    )
 
 class CustomerSession(Base, TimestampMixin):
     __tablename__ = "customer_sessions"
@@ -971,6 +986,12 @@ class CustomerSession(Base, TimestampMixin):
     # Relacionamentos para facilitar o acesso
     customer: Mapped[Optional["Customer"]] = relationship()
     store: Mapped["Store"] = relationship()
+
+    # ✅ ADICIONAR:
+    __table_args__ = (
+        Index('idx_customer_sessions_store', 'store_id'),
+        Index('idx_customer_sessions_customer', 'customer_id'),
+    )
 
 
 
@@ -1480,20 +1501,20 @@ class CashierTransaction(Base, TimestampMixin):
     user: Mapped["User"] = relationship("User")
 
 
-# payment_method: Mapped["StorePaymentMethods"] = relationship("StorePaymentMethods")
 
 
 class Customer(Base):
     __tablename__ = "customers"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(150), unique=True, nullable=False)
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     photo: Mapped[str | None] = mapped_column(nullable=True)
 
     customer_addresses: Mapped[list["Address"]] = relationship("Address", back_populates="customer",
-                                                               cascade="all, delete-orphan")
+                                                              cascade="all, delete-orphan")
 
     store_ratings: Mapped[List["StoreRating"]] = relationship(back_populates="customer")
     product_ratings: Mapped[List["ProductRating"]] = relationship(back_populates="customer")
@@ -1506,6 +1527,10 @@ class Customer(Base):
 
     # ✅ CORREÇÃO: Adiciona o back_populates
     receivables: Mapped[list["StoreReceivable"]] = relationship(back_populates="customer")
+
+
+
+
 
 
 class StoreCustomer(Base, TimestampMixin):
@@ -1527,6 +1552,7 @@ class StoreCustomer(Base, TimestampMixin):
         index=True,
         doc="Timestamp da última tentativa de envio de mensagem de reativação."
     )
+
 
 
 class Address(Base):
@@ -1702,11 +1728,12 @@ class Order(Base, TimestampMixin):
     def is_printed(self) -> bool:
         return len(self.print_logs) > 0
 
+    # ✅ ADICIONAR ESTAS LINHAS NO FINAL:
     __table_args__ = (
-        # Este índice é um "super-índice" para a combinação mais comum de filtros
-        Index('ix_orders_store_id_created_at', 'store_id', 'created_at'),
+        Index('idx_orders_store_status', 'store_id', 'order_status'),
+        Index('idx_orders_store_created', 'store_id', 'created_at'),
+        Index('idx_orders_store_customer', 'store_id', 'customer_id'),
     )
-
 
 class OrderProduct(Base, TimestampMixin):
     __tablename__ = "order_products"
@@ -1835,11 +1862,6 @@ class Saloon(Base, TimestampMixin):
 
 class Tables(Base, TimestampMixin):
     __tablename__ = "tables"
-    __table_args__ = (
-        CheckConstraint("max_capacity > 0", name="check_max_capacity_positive"),
-        Index("idx_table_store", "store_id", "status"),
-        UniqueConstraint('saloon_id', 'name', name='uq_saloon_table_name'),  # ✅ Garante nome único da mesa por salão
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
@@ -1875,11 +1897,20 @@ class Tables(Base, TimestampMixin):
     history: Mapped[list["TableHistory"]] = relationship(back_populates="table")
 
 
+
+    __table_args__ = (
+        CheckConstraint("max_capacity > 0", name="check_max_capacity_positive"),  # ✅ JÁ EXISTE
+        Index("idx_table_store", "store_id", "status"),  # ✅ JÁ EXISTE (linha 1840)
+        Index('idx_tables_store_saloon', 'store_id', 'saloon_id'),  # ✅ ADICIONAR
+        UniqueConstraint('saloon_id', 'name', name='uq_saloon_table_name'),  # ✅ JÁ EXISTE
+    )
+
+
+
 class Command(Base, TimestampMixin):
     __tablename__ = "commands"
-    __table_args__ = (
-        Index("idx_command_store", "store_id", "status"),
-    )
+
+
 
     id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"))
@@ -1900,6 +1931,15 @@ class Command(Base, TimestampMixin):
 
     orders: Mapped[list["Order"]] = relationship(back_populates="command")
     attendant: Mapped["User | None"] = relationship()
+
+
+
+    __table_args__ = (
+        Index("idx_command_store", "store_id", "status"),
+        Index('idx_commands_store_status', 'store_id', 'status'),
+        Index('idx_commands_table', 'table_id'),
+    )
+
 
 
 class OrderPartialPayment(Base, TimestampMixin):
@@ -2071,6 +2111,13 @@ class StoreSubscription(Base, TimestampMixin):
         back_populates="store_subscription",
         cascade="all, delete-orphan"
     )
+
+
+    __table_args__ = (
+        Index('idx_subscriptions_store_status', 'store_id', 'status'),
+    )
+
+
 
 
 class Plans(Base, TimestampMixin):
@@ -2375,8 +2422,12 @@ class CartItem(Base, TimestampMixin):
 
     # ✅ --- CAMPO FINGERPRINT ADICIONADO --- ✅
     fingerprint: Mapped[str] = mapped_column(index=True,
+
                                              doc="Hash único da configuração do item (produto + variantes) para evitar duplicatas.")
 
+    __table_args__ = (
+        Index('idx_cart_items_cart', 'cart_id'),
+    )
 
 class CartItemVariant(Base, TimestampMixin):
     __tablename__ = "cart_item_variants"
@@ -2582,6 +2633,8 @@ class MonthlyCharge(Base, TimestampMixin):
         Index('ix_monthly_charges_store_period', 'store_id', 'billing_period_start'),
         Index('ix_monthly_charges_gateway_id', 'gateway_transaction_id'),
         Index('ix_monthly_charges_gateway_status', 'gateway_transaction_id', 'status'),
+        Index('idx_charges_store_status', 'store_id', 'status'),
+        Index('idx_charges_transaction', 'gateway_transaction_id'),
         UniqueConstraint('store_id', 'billing_period_start', 'billing_period_end',
                          name='uq_store_billing_period'),
     )

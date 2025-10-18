@@ -341,11 +341,11 @@ def record_product_view(product: GetProductDep, store: GetStoreDep, db: GetDBDep
 
 
 @router.get("/minimal", response_model=list[dict])
-def get_minimal_products(store_id: int, db: GetDBDep):
-    products = db.query(models.Product).filter(models.Product.store_id == store_id).all()
+def get_minimal_products(store: GetStoreDep, db: GetDBDep):  # ✅ ADICIONADO GetStoreDep
+    products = db.query(models.Product).filter(
+        models.Product.store_id == store.id  # ✅ USA store validado
+    ).all()
     return [{"id": p.id, "name": p.name} for p in products]
-
-
 
 @router.get("", response_model=List[ProductOut])
 def get_products(db: GetDBDep, store: GetStoreDep, skip: int = 0, limit: int = 100):

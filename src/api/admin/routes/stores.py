@@ -642,13 +642,14 @@ def delete_store_access(
     db.commit()
 
 
-@router.get(
-    "/check-url/{url_slug}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Verificar disponibilidade de URL"
-)
-def check_url_availability(url_slug: str, db: GetDBDep):
-    """Verifica se uma URL de loja está disponível."""
+@router.get("/check-url/{url_slug}", ...)
+def check_url_availability(
+        url_slug: str,
+        db: GetDBDep,
+        current_user: GetCurrentUserDep  # ✅ REQUER AUTENTICAÇÃO
+):
+    """Verifica disponibilidade de URL (requer autenticação)."""
+
     existing_store = db.query(models.Store).filter(
         func.lower(models.Store.url_slug) == url_slug.lower()
     ).first()
