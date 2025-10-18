@@ -1,8 +1,10 @@
-from typing import List
+import math
+from typing import List, Optional
 from fastapi import APIRouter, Form, UploadFile, File, HTTPException
 
 from pydantic import ValidationError
 from sqlalchemy import func
+from sqlalchemy.orm import Query
 
 from starlette import status
 
@@ -340,12 +342,44 @@ def record_product_view(product: GetProductDep, store: GetStoreDep, db: GetDBDep
     return
 
 
-@router.get("/minimal", response_model=list[dict])
-def get_minimal_products(store: GetStoreDep, db: GetDBDep):  # ✅ ADICIONADO GetStoreDep
-    products = db.query(models.Product).filter(
-        models.Product.store_id == store.id  # ✅ USA store validado
-    ).all()
-    return [{"id": p.id, "name": p.name} for p in products]
+# src/api/admin/routes/products.py (Linha 343-348)
+
+@router.get("/minimal", response_model=dict)
+def get_minimal_products(
+        store: GetStoreDep,
+        db: GetDBDep,
+        search: Optional[str] = Query(None, description="Busca por nome"),
+        page: int = Query(1, ge=1),
+        size: int = Query(50, ge=1, le=200),
+):
+    """
+    ✅ VERSÃO CORRIGIDA: Lista produtos mínimos com paginação
+    """
+    query = db.query(models.Product.id, models.Product.name).filter(
+        models.Product.store_id == store.id,
+        models.Product.status != ProductStatus.ARCHIVED
+    )
+
+    # Filtro de busca (opcional)
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(models.Product.name.ilike(search_pattern))
+
+    # Conta total
+    total = query.count()
+
+    # Paginação
+    products = query.offset((page - 1) * size).limit(size).all()
+
+    return {
+        "items": [{"id": p.id, "name": p.name} for p in products],
+        "total": total,
+        "page": page,
+        "size": size,
+        "pages": math.ceil(total / size)
+    }
+
+
 
 @router.get("", response_model=List[ProductOut])
 def get_products(db: GetDBDep, store: GetStoreDep, skip: int = 0, limit: int = 100):
@@ -357,6 +391,45 @@ def get_products(db: GetDBDep, store: GetStoreDep, skip: int = 0, limit: int = 1
         limit=limit
     )
     return products
+
+
+
+
+@router.get("/search", response_model=dict)
+def search_products_lightweight(
+        store: GetStoreDep,
+        db: GetDBDep,
+        q: str = Query(..., min_length=2, description="Termo de busca"),
+        limit: int = Query(20, ge=1, le=50),
+):
+    """
+    ✅ ENDPOINT LEVE: Busca rápida para autocomplete
+    """
+    search_pattern = f"%{q}%"
+
+    products = db.query(
+        models.Product.id,
+        models.Product.name,
+        models.Product.status
+    ).filter(
+        models.Product.store_id == store.id,
+        models.Product.name.ilike(search_pattern),
+        models.Product.status != ProductStatus.ARCHIVED
+    ).limit(limit).all()
+
+    return {
+        "items": [
+            {
+                "id": p.id,
+                "name": p.name,
+                "status": p.status.value
+            }
+            for p in products
+        ],
+        "count": len(products)
+    }
+
+
 
 
 @router.get("/{product_id}", response_model=ProductOut)

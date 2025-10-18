@@ -1,7 +1,7 @@
 # Em src/api/admin/logic/customer_analytic_logic.py
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict
 from sqlalchemy import text
 from sqlalchemy.orm import Session  # ✅ Usamos a Session síncrona
@@ -14,35 +14,41 @@ from src.api.schemas.analytics.analytic_customer_schema import (
 
 
 
-def _fetch_customer_data_from_db(db: Session, store_id: int) -> List[Dict]:
+def _fetch_customer_data_from_db(
+    db: Session,
+    store_id: int,
+    limit: int = 1000  # ✅ ADICIONAR LIMITE
+) -> List[Dict]:
     """
-    Esta função contém APENAS a lógica de banco de dados.
-    Ela é síncrona.
+    ✅ VERSÃO CORRIGIDA: Com limite e ordenação
     """
-    # ✅ QUERY CORRIGIDA PARA USAR A TABELA 'customers'
     query = f"""
     SELECT
-        c.id AS customer_id,   -- MUDOU AQUI (de u.id para c.id)
-        c.name,                -- MUDOU AQUI (de u.name para c.name)
+        c.id AS customer_id,
+        c.name,
         COUNT(o.id) AS order_count,
         SUM(o.discounted_total_price) AS total_spent,
         MAX(DATE(o.created_at)) AS last_order_date,
         MIN(DATE(o.created_at)) AS first_order_date
     FROM
-        customers c            -- MUDOU AQUI (de users u para customers c)
+        customers c
     JOIN
-        orders o ON c.id = o.customer_id  -- MUDOU AQUI (de u.id para c.id)
+        orders o ON c.id = o.customer_id
     WHERE
         o.store_id = :store_id
-        AND o.order_status = 'delivered' -- Boa prática: Analisar apenas pedidos concluídos
+        AND o.order_status = 'delivered'
+        AND o.customer_id IS NOT NULL
     GROUP BY
-        c.id, c.name;          -- MUDOU AQUI (de u.id, u.name para c.id, c.name)
+        c.id, c.name
+    ORDER BY
+        total_spent DESC  -- ✅ Pega os melhores clientes
+    LIMIT :limit;  -- ✅ ADICIONAR LIMITE
     """
-    # Usamos parâmetros nomeados para segurança
-    result = db.execute(text(query), {"store_id": store_id})
+    result = db.execute(
+        text(query),
+        {"store_id": store_id, "limit": limit}
+    )
     return [dict(row) for row in result.mappings()]
-
-
 
 async def get_customer_analytics_for_store(db: Session, store_id: int,
                                            period_in_days: int = 30) -> CustomerAnalyticsResponse:
@@ -84,7 +90,6 @@ async def get_customer_analytics_for_store(db: Session, store_id: int,
     )
 
 
-# Em src/api/admin/logic/customer_analytic_logic.py
 
 def _perform_rfm_segmentation(customer_data: List[Dict], today: datetime) -> List[RfmSegment]:
     if not customer_data:

@@ -52,31 +52,37 @@ def update_link_availability(
 
 
 
-
-
-def get_all_products_for_store(db, store_id: int, skip: int = 0, limit: int = 100):
+def get_all_products_for_store(
+        db,
+        store_id: int,
+        skip: int = 0,
+        limit: int = 50,  # ✅ REDUZIR de 100 para 50
+        load_relationships: bool = True  # ✅ NOVO: controla carregamento
+):
     """
-    Busca todos os produtos de uma loja que NÃO estão arquivados.
-    Carrega os relacionamentos necessários para a exibição no painel de admin.
+    ✅ VERSÃO OTIMIZADA: Carrega produtos com controle de relacionamentos
     """
-    return db.query(models.Product).options(
-        selectinload(models.Product.gallery_images),
-        selectinload(models.Product.category_links).selectinload(models.ProductCategoryLink.category),
-        selectinload(models.Product.default_options),
-        selectinload(models.Product.variant_links)
-            .selectinload(models.ProductVariantLink.variant)
-            .selectinload(models.Variant.options)
-            .selectinload(models.VariantOption.linked_product),
-        selectinload(models.Product.prices).selectinload(models.FlavorPrice.size_option),
-    ).filter(
+    query = db.query(models.Product)
+
+    # ✅ SÓ CARREGA RELACIONAMENTOS SE NECESSÁRIO
+    if load_relationships:
+        query = query.options(
+            selectinload(models.Product.gallery_images),
+            selectinload(models.Product.category_links)
+            .selectinload(models.ProductCategoryLink.category),
+            # ✅ REMOVIDO: default_options (raramente usado)
+            # ✅ SIMPLIFICADO: variant_links (carrega apenas o mínimo)
+            selectinload(models.Product.variant_links)
+            .selectinload(models.ProductVariantLink.variant),
+            # ✅ REMOVIDO: prices detalhados (pode ser carregado sob demanda)
+        )
+
+    return query.filter(
         models.Product.store_id == store_id,
-        # Filtro crucial para esconder os arquivados
         models.Product.status != ProductStatus.ARCHIVED
     ).order_by(
         models.Product.priority
     ).offset(skip).limit(limit).all()
-
-
 
 
 def update_product_category_link(

@@ -1,12 +1,14 @@
-# src/api/admin/routers/performance_router.py
+# src/api/admin/routes/performance_router.py
+
 import math
 from typing import Optional
 from datetime import date, datetime, time
 
 from fastapi import APIRouter, Query, HTTPException
-from sqlalchemy import cast, String
+from sqlalchemy import cast, String, func, or_, exists, select, and_
+from sqlalchemy.orm import aliased
 
-#from src.api.admin.services.pdf_service import create_performance_pdf
+from src.api.admin.utils.input_sanitizer import sanitize_search_input
 from src.api.schemas.orders.order import OrderDetails
 from src.api.schemas.shared.pagination import PaginatedResponse
 from src.core import models
@@ -14,6 +16,7 @@ from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 from src.api.schemas.analytics.performance import StorePerformanceSchema, TodaySummarySchema
 from src.api.admin.services.performance_service import get_store_performance_for_date, get_today_summary
+
 
 router = APIRouter(
     prefix="/stores/{store_id}/performance",
@@ -23,15 +26,13 @@ router = APIRouter(
 
 @router.get("", response_model=StorePerformanceSchema)
 def get_performance_data(
-    db: GetDBDep,
-    store: GetStoreDep,
-
-    start_date: date = Query(..., description="Data de início do período no formato YYYY-MM-DD"),
-    end_date: date = Query(..., description="Data de fim do período no formato YYYY-MM-DD"),
+        db: GetDBDep,
+        store: GetStoreDep,
+        start_date: date = Query(..., description="Data de início do período no formato YYYY-MM-DD"),
+        end_date: date = Query(..., description="Data de fim do período no formato YYYY-MM-DD"),
 ):
     """Resumo de desempenho da loja em uma data específica"""
     try:
-        # ✅ ALTERADO: Passamos o período para o serviço
         performance_data = get_store_performance_for_date(db, store.id, start_date, end_date)
         return performance_data
     except Exception as e:
@@ -41,43 +42,104 @@ def get_performance_data(
 
 @router.get("/list-by-date", response_model=PaginatedResponse[OrderDetails])
 def list_orders_by_date(
-    db: GetDBDep,
-    store: GetStoreDep,
-
-    start_date: date = Query(..., description="Data de início do período"),
-    end_date: date = Query(..., description="Data de fim do período"),
-    search: Optional[str] = Query(None, description="Busca por nome ou ID do pedido"),
-    status: Optional[str] = Query(None, description="Filtra por status do pedido"),
-    sort_by: str = Query("created_at", description="Campo para ordenação"),
-    sort_order: str = Query("desc", description="Ordem 'asc' ou 'desc'"),
-    page: int = Query(1, ge=1),
-    size: int = Query(10, ge=1, le=100),
+        db: GetDBDep,
+        store: GetStoreDep,
+        start_date: date = Query(..., description="Data de início do período"),
+        end_date: date = Query(..., description="Data de fim do período"),
+        search: Optional[str] = Query(None, description="Busca por nome, ID do pedido ou mesa"),
+        order_type: Optional[str] = Query(None, description="Filtra por tipo: delivery, table, pickup"),  # ✅ NOVO
+        status: Optional[str] = Query(None, description="Filtra por status do pedido"),
+        sort_by: str = Query("created_at", description="Campo para ordenação"),
+        sort_order: str = Query("desc", description="Ordem 'asc' ou 'desc'"),
+        page: int = Query(1, ge=1),
+        size: int = Query(10, ge=1, le=100),
 ):
-
+    """
+    ✅ VERSÃO CORRIGIDA: Lista pedidos de TODOS os tipos (delivery, mesa, pickup)
+    """
     start_of_period = datetime.combine(start_date, time.min)
     end_of_period = datetime.combine(end_date, time.max)
 
-    # A query agora usa o período correto
+    # Base query
     query = db.query(models.Order).filter(
         models.Order.store_id == store.id,
         models.Order.created_at.between(start_of_period, end_of_period)
     )
 
+    # ✅ FILTRO POR TIPO DE PEDIDO
+    if order_type:
+        valid_types = ['delivery', 'table', 'pickup', 'cardapio_digital']
+        if order_type not in valid_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tipo de pedido inválido. Valores permitidos: {valid_types}"
+            )
+        query = query.filter(models.Order.order_type == order_type)
+
+    # ✅ BUSCA SEGURA - TRATA CUSTOMER_NAME NULL
     if search:
-        search_term = f"%{search}%"
-        query = query.filter(
-            (models.Order.customer_name.ilike(search_term)) |
-            (cast(models.Order.public_id, String).ilike(search_term))
+        # Sanitiza input contra SQL Injection
+        search_clean = sanitize_search_input(search)
+        search_pattern = f"%{search_clean}%"
+
+        # Cria subquery para buscar nome da mesa
+        table_subquery = exists(
+            select(1).where(
+                and_(
+                    models.Tables.id == models.Order.table_id,
+                    models.Tables.name.ilike(search_pattern)
+                )
+            )
         )
 
+        query = query.filter(
+            or_(
+                # ✅ Usa coalesce para tratar NULL
+                func.coalesce(models.Order.customer_name, '').ilike(search_pattern),
+                # Busca por ID público
+                cast(models.Order.public_id, String).ilike(search_pattern),
+                # ✅ Busca por nome da mesa
+                table_subquery
+            )
+        )
+
+    # ✅ FILTRO POR STATUS (com whitelist)
     if status:
+        valid_statuses = [
+            'pending', 'confirmed', 'preparing', 'ready',
+            'in_delivery', 'delivered', 'cancelled'
+        ]
+        if status not in valid_statuses:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Status inválido. Valores permitidos: {valid_statuses}"
+            )
         query = query.filter(models.Order.order_status == status)
 
+    # Total de itens
     total_items = query.count()
 
-    order_column = getattr(models.Order, sort_by, models.Order.created_at)
-    query = query.order_by(order_column.desc() if sort_order == "desc" else order_column.asc())
+    # ✅ ORDENAÇÃO SEGURA (whitelist)
+    valid_sort_fields = ['created_at', 'public_id', 'customer_name', 'total_price', 'order_type']
+    if sort_by not in valid_sort_fields:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Campo de ordenação inválido. Valores permitidos: {valid_sort_fields}"
+        )
 
+    order_column = getattr(models.Order, sort_by, models.Order.created_at)
+
+    if sort_order not in ['asc', 'desc']:
+        raise HTTPException(
+            status_code=400,
+            detail="Ordem inválida. Valores permitidos: 'asc' ou 'desc'"
+        )
+
+    query = query.order_by(
+        order_column.desc() if sort_order == "desc" else order_column.asc()
+    )
+
+    # Paginação
     items = query.offset((page - 1) * size).limit(size).all()
 
     return PaginatedResponse(
@@ -89,48 +151,13 @@ def list_orders_by_date(
     )
 
 
-# ✅ ADICIONE ESTE NOVO ENDPOINT
 @router.get(
     "/today-summary",
     response_model=TodaySummarySchema,
     summary="Obtém um resumo rápido das vendas do dia de operação atual"
 )
 def get_today_summary_data(
-    db: GetDBDep,
-    store: GetStoreDep,
-    # current_user...
+        db: GetDBDep,
+        store: GetStoreDep,
 ):
     return get_today_summary(db, store.id)
-
-
-
-# @router.get(
-#     "/export/pdf",
-#     summary="Exporta o resumo de desempenho do período em PDF"
-# )
-# def export_performance_pdf(
-#         db: GetDBDep,
-#         store: GetStoreDep,
-#         start_date: date = Query(...),
-#         end_date: date = Query(...),
-#         # current_user...
-# ):
-#     # 1. Busca os dados de performance
-#     performance_data = get_store_performance_for_date(db, store.id, start_date, end_date)
-#
-#     # 2. Gera o PDF usando o serviço
-#     pdf_bytes = create_performance_pdf(
-#         store_name=store.name,
-#         start_date=start_date.strftime("%d/%m/%Y"),
-#         end_date=end_date.strftime("%d/%m/%Y"),
-#         performance_data=performance_data
-#     )
-#
-#     # 3. Retorna o arquivo PDF
-#     return Response(
-#         content=pdf_bytes,
-#         media_type="application/pdf",
-#         headers={
-#             "Content-Disposition": f"attachment; filename=desempenho_{store.url_slug}_{start_date}_a_{end_date}.pdf"
-#         }
-#     )
