@@ -1,8 +1,8 @@
-
 from urllib.parse import parse_qs
 
 from src.api.admin.services.store_access_service import StoreAccessService
 from src.api.admin.services.store_session_service import SessionService
+from src.api.admin.services.subscription_service import SubscriptionService  # ← NOVO
 
 from src.api.schemas.store.store_with_role import StoreWithRole
 
@@ -89,7 +89,29 @@ async def handle_admin_connect(self, sid, environ):
             if accessible_store_accesses:
                 print(f"🔧 Serializando {len(accessible_store_accesses)} loja(s)...")
                 for access in accessible_store_accesses:
-                    store_with_role = StoreWithRole.model_validate(access)
+                    # ✅ CORREÇÃO: Calcula dados da subscrição ANTES de validar
+                    subscription_details_dict = SubscriptionService.get_subscription_details(
+                        store=access.store,
+                        db=db
+                    )
+
+                    # ✅ Converte o objeto ORM para dicionário
+                    store_data = access.store.__dict__.copy()
+
+                    # ✅ Injeta dados calculados
+                    if subscription_details_dict is not None:
+                        store_data['active_subscription'] = subscription_details_dict
+
+                    # ✅ Monta dicionário final para validação
+                    access_data = {
+                        'store': store_data,
+                        'role': access.role,
+                        'store_id': access.store_id,
+                        'user_id': access.user_id,
+                    }
+
+                    # ✅ Valida contra schema Pydantic
+                    store_with_role = StoreWithRole.model_validate(access_data)
                     stores_list_payload.append(store_with_role.model_dump(mode='json'))
 
             await self.emit("admin_stores_list", {"stores": stores_list_payload}, to=sid)
@@ -117,7 +139,7 @@ async def handle_admin_connect(self, sid, environ):
                 ip_address=ip_address
             )
 
-            print(f"🏁 Conexão do admin {admin_id} (SID: {sid}) finalizada. Dispositivo: {device_name} ({platform})")
+            print(f"🎯 Conexão do admin {admin_id} (SID: {sid}) finalizada. Dispositivo: {device_name} ({platform})")
 
         except Exception as e:
             db.rollback()
@@ -136,7 +158,7 @@ async def handle_admin_disconnect(self, sid):
                 db.commit()
                 print(f"✅ Session removida para sid {sid}")
             else:
-                print(f"ℹ️  Nenhuma session encontrada para SID {sid}")
+                print(f"ℹ️ Nenhuma session encontrada para SID {sid}")
 
             self.environ.pop(sid, None)
             print(f"✅ Environ limpo para SID {sid}")
