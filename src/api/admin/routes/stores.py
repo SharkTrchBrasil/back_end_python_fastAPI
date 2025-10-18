@@ -34,9 +34,9 @@ router = APIRouter(prefix="/stores", tags=["Stores"])
 ALLOWED_ROLES_FOR_CREATION = ['manager', 'cashier', 'waiter', 'stock_manager']
 
 @router.post("", response_model=StoreWithRole)
-@limiter.limit(RATE_LIMITS["write"])  # ✅ 30/minuto
+@limiter.limit(RATE_LIMITS["write"])
 async def create_store(
-        request: Request,  # ✅ Adicionar
+        request: Request,
 
         db: GetDBDep,
         user: GetCurrentUserDep,
