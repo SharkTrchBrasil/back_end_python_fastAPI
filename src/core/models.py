@@ -1554,6 +1554,11 @@ class StoreCustomer(Base, TimestampMixin):
     )
 
 
+    # ✅ ADICIONAR ESTE BLOCO AQUI:
+    __table_args__ = (
+        Index('idx_store_customers_store_last_order', 'store_id', 'last_order_at'),
+    )
+
 
 class Address(Base):
     __tablename__ = "customer_addresses"
