@@ -145,5 +145,44 @@ class CacheManager:
         return self.client.get_stats()
 
 
+
+    def invalidate_store_orders(self, store_id: int) -> int:
+        """
+        ✅ Invalida cache de pedidos de uma loja
+
+        Invalida:
+        - Lista de pedidos ativos (Socket.IO)
+        - Lista paginada de pedidos
+        - Detalhes individuais de pedidos
+        """
+        pattern = self.keys.admin_orders_pattern(store_id)
+        total = self.client.delete_pattern(pattern)
+
+        logger.info(f"🗑️ Invalidado cache de pedidos da loja {store_id}: {total} chaves")
+        return total
+
+    def on_order_status_change(self, store_id: int, order_id: int):
+        """
+        ✅ Trigger quando status de pedido muda
+
+        Chamado quando:
+        - Admin muda status via Socket.IO
+        - Pedido criado
+        - Pedido cancelado
+        - Pedido entregue
+        """
+        # Invalida apenas o necessário
+        keys_to_delete = [
+            self.keys.admin_orders_active(store_id),
+            self.keys.admin_order_details(store_id, order_id),
+        ]
+
+        # Também invalida lista paginada (todas as páginas)
+        self.client.delete_pattern(f"admin:{store_id}:orders:list:*")
+
+        total = self.client.delete(*keys_to_delete)
+        logger.info(f"🗑️ Invalidado cache de pedido {order_id} (loja {store_id}): {total} chaves")
+
+
 # ✅ INSTÂNCIA GLOBAL
 cache_manager = CacheManager()

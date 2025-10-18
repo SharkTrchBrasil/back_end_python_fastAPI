@@ -15,6 +15,7 @@ from src.core import models
 from src.api.admin.socketio.emitters import (
     admin_emit_order_updated_from_obj, admin_emit_new_print_jobs
 )
+from src.core.cache.cache_manager import logger
 from src.core.database import get_db_manager
 from src.core.utils.enums import OrderStatus
 
@@ -81,7 +82,11 @@ async def handle_update_order_status(self, sid, data):
 
             db.refresh(order, attribute_names=['customer', 'store'])
 
+            # ✅ ADICIONAR: Invalida cache de pedidos ativos
+            cache_manager.client.delete(f"admin:{order.store_id}:orders:active")
+            cache_manager.client.delete(f"admin:{order.store_id}:order:{order.id}:details")
 
+            logger.info(f"🗑️ Cache invalidado para store {order.store_id} após mudança de status")
 
             # --- DEBUG: VERIFICANDO DADOS ANTES DE NOTIFICAR ---
             print("\n--- DEBUG: VERIFICANDO DADOS ANTES DE NOTIFICAR ---")

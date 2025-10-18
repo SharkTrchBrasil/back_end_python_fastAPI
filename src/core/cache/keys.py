@@ -122,3 +122,33 @@ class CacheKeys:
     def analytics_pattern(store_id: int) -> str:
         """Pattern para invalidar todos analytics"""
         return f"analytics:{store_id}:*"
+
+    # ═══════════════════════════════════════════════════════════
+    # ORDERS (ADMIN) - TEMPO REAL
+    # ═══════════════════════════════════════════════════════════
+
+    @staticmethod
+    def admin_orders_active(store_id: int) -> str:
+        """Lista de pedidos ativos (para Socket.IO)"""
+        return f"admin:{store_id}:orders:active"
+
+    @staticmethod
+    def admin_order_details(store_id: int, order_id: int) -> str:
+        """Detalhes de um pedido específico"""
+        return f"admin:{store_id}:order:{order_id}:details"
+
+    @staticmethod
+    def admin_orders_list(
+            store_id: int,
+            page: int,
+            size: int,
+            status: Optional[str] = None
+    ) -> str:
+        """Lista paginada de pedidos"""
+        status_key = status or "all"
+        return f"admin:{store_id}:orders:list:{page}:{size}:{status_key}"
+
+    @staticmethod
+    def admin_orders_pattern(store_id: int) -> str:
+        """Pattern para invalidar TODOS pedidos de uma loja"""
+        return f"admin:{store_id}:orders:*"

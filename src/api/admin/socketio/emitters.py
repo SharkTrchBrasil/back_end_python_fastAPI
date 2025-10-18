@@ -35,6 +35,7 @@ from src.api.admin.services.product_analytic_services import get_product_analyti
 
 
 from src.api.schemas.orders.order import OrderDetails
+from src.core.cache import redis_client
 from src.core.database import get_db_manager
 from src.core.models import Order
 from src.core.utils.enums import ProductStatus, CommandStatus
@@ -222,54 +223,70 @@ async def admin_emit_financials_updated(db, store_id: int, sid: str | None = Non
 
 
 async def admin_emit_orders_initial(db, store_id: int, sid: Optional[str] = None):
+    """
+    ✅ OTIMIZADO COM CACHE: Lista inicial de pedidos ativos
+
+    Cache Strategy:
+    - TTL: 15 segundos
+    - Key: admin:{store_id}:orders:active
+    - Invalidação: Quando status de pedido muda
+    """
     try:
-        # Define os status de pedidos que são considerados "ativos" e precisam de atenção do admin.
-        active_order_statuses = ['pending', 'preparing', 'ready', 'on_route']
+        # ✅ TENTA BUSCAR DO CACHE PRIMEIRO
+        cache_key = f"admin:{store_id}:orders:active"
+        cached_data = redis_client.get(cache_key)
 
-        orders = (
-            db.query(models.Order)
-            .options(
+        if cached_data:
+            logger.debug(f"✅ CACHE HIT: {cache_key}")
+            payload = cached_data
+        else:
+            logger.debug(f"❌ CACHE MISS: {cache_key}")
 
-                selectinload(models.Order.print_logs),
+            # Busca do banco (código existente)
+            active_order_statuses = ['pending', 'preparing', 'ready', 'on_route']
 
-                # Mantém os carregamentos que você já tinha
-                selectinload(models.Order.products)
-                .selectinload(models.OrderProduct.variants)
-                .selectinload(models.OrderVariant.options)
+            orders = (
+                db.query(models.Order)
+                .options(
+                    selectinload(models.Order.print_logs),
+                    selectinload(models.Order.products)
+                    .selectinload(models.OrderProduct.variants)
+                    .selectinload(models.OrderVariant.options)
+                )
+                .filter(
+                    models.Order.store_id == store_id,
+                    models.Order.order_status.in_(active_order_statuses)
+                )
+                .all()
             )
-            .filter(
-                models.Order.store_id == store_id,
-                models.Order.order_status.in_(active_order_statuses)  # ✨ Filtra por status ativos
-            )
-            .all()
-        )
 
-        orders_data = []
+            orders_data = []
 
-        for order in orders:
-            # Busca o total de pedidos do cliente na loja
-            store_customer = db.query(models.StoreCustomer).filter_by(
-                store_id=store_id,
-                customer_id=order.customer_id
-            ).first()
+            for order in orders:
+                store_customer = db.query(models.StoreCustomer).filter_by(
+                    store_id=store_id,
+                    customer_id=order.customer_id
+                ).first()
 
-            # Assumindo que seu Pydantic model 'OrderDetails' já foi atualizado
-            # para incluir o campo 'print_logs'. A validação fará o trabalho.
-            order_dict = OrderDetails.model_validate(order).model_dump(mode='json')
-            order_dict["customer_order_count"] = store_customer.total_orders if store_customer else 1
+                order_dict = OrderDetails.model_validate(order).model_dump(mode='json')
+                order_dict["customer_order_count"] = store_customer.total_orders if store_customer else 1
 
-            orders_data.append(order_dict)
+                orders_data.append(order_dict)
 
-        payload = {
-            "store_id": store_id,
-            "orders": orders_data
-        }
+            payload = {
+                "store_id": store_id,
+                "orders": orders_data
+            }
 
+            # ✅ ARMAZENA NO CACHE (15 segundos)
+            redis_client.set(cache_key, payload, ttl=15)
+
+        # Emite para o cliente
         if sid:
             await sio.emit("orders_initial", payload, namespace='/admin', to=sid)
         else:
-            # Emite para a room da loja, alcançando todos os admins conectados a essa loja.
             await sio.emit("orders_initial", payload, namespace='/admin', room=f"admin_store_{store_id}")
+
 
     except Exception as e:
         # Loga o erro detalhadamente para depuração no servidor
