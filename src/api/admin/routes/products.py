@@ -434,6 +434,7 @@ async def toggle_product_availability_in_category(
 async def archive_product(
     store: GetStoreDep,
     db: GetDBDep,
+
     db_product: GetProductDep
 ):
     """
@@ -452,52 +453,7 @@ async def archive_product(
 
 
 
-# Em seu arquivo de rotas de produtos
 
-# @router.post("/bulk-delete", status_code=204)
-# async def bulk_delete_products(
-#     store: GetStoreDep,
-#     db: GetDBDep,
-#     payload: BulkDeletePayload,
-# ):
-#     """
-#     Remove uma lista de produtos. A exclusão em cascata é gerenciada
-#     pelo banco de dados através da configuração ON DELETE CASCADE.
-#     """
-#     if not payload.product_ids:
-#         return
-#
-#     # 1. Busca os produtos para pegar os file_keys antes de deletar.
-#     products_to_delete = db.query(models.Product).filter(
-#         models.Product.store_id == store.id,
-#         models.Product.id.in_(payload.product_ids)
-#     ).all()
-#
-#     if not products_to_delete:
-#         return
-#
-#     file_keys_to_delete = [p.file_key for p in products_to_delete if p.file_key]
-#     valid_product_ids = [p.id for p in products_to_delete]
-#
-#     # 2. Executa UM ÚNICO comando de exclusão em massa. O banco cuida do resto.
-#     db.query(models.Product).filter(models.Product.id.in_(valid_product_ids)).delete(synchronize_session=False)
-#
-#     # 3. Commita a transação.
-#     db.commit()
-#
-#     # 4. Apaga os arquivos do S3.
-#     for key in file_keys_to_delete:
-#         try:
-#             delete_file(key)
-#         except Exception as e:
-#             print(f"Alerta: Falha ao deletar o arquivo {key} do S3. Erro: {e}")
-#
-#     # 5. Notifica a UI.
-#     await emit_updates_products(db, store.id)
-#     return
-
-
-# ✅ ADICIONE A NOVA ROTA PARA ARQUIVAR EM MASSA
 @router.post("/bulk-archive", status_code=status.HTTP_204_NO_CONTENT)
 async def bulk_archive_products(
     store: GetStoreDep,

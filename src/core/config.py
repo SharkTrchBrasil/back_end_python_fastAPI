@@ -12,7 +12,7 @@ Características:
 - ✅ Ambiente configurável (dev/test/prod)
 
 Autor: PDVix Team
-Última atualização: 2025-01-16
+Última atualização: 2025-01-18
 """
 
 from pathlib import Path
@@ -39,10 +39,10 @@ class Config(BaseSettings):
     ENVIRONMENT: str = "development"  # development, test, production
     DEBUG: bool = False
 
-    # ✅ ADICIONAR ESTAS LINHAS - Redis para Rate Limiting
+    # ✅ Redis para Rate Limiting (BUG #2)
     REDIS_URL: Optional[str] = None
 
-    # ✅ Configurações de Rate Limiting
+    # ✅ Configurações de Rate Limiting (BUG #2)
     RATE_LIMIT_ENABLED: bool = True
     RATE_LIMIT_STORAGE_URL: Optional[str] = None  # Usa Redis se disponível, senão memória
 
@@ -105,20 +105,14 @@ class Config(BaseSettings):
     ENCRYPTION_KEY: str
 
     # ═══════════════════════════════════════════════════════════
-    # CORS (NOVO)
-    # ═══════════════════════════════════════════════════════════
-
-    ALLOWED_ORIGINS: str = "*"  # Separado por vírgula: "https://app.com,https://admin.com"
-
-    # ═══════════════════════════════════════════════════════════
-    # SERVIDOR (NOVO)
+    # SERVIDOR
     # ═══════════════════════════════════════════════════════════
 
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
     # ═══════════════════════════════════════════════════════════
-    # LOGGING (NOVO)
+    # LOGGING
     # ═══════════════════════════════════════════════════════════
 
     LOG_LEVEL: str = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
@@ -141,13 +135,6 @@ class Config(BaseSettings):
     def is_test(self) -> bool:
         """Verifica se está em teste"""
         return self.ENVIRONMENT.lower() == "test"
-
-    @property
-    def allowed_origins_list(self) -> list[str]:
-        """Retorna lista de origens permitidas para CORS"""
-        if self.ALLOWED_ORIGINS == "*":
-            return ["*"]
-        return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
 
     @property
     def pagarme_is_production(self) -> bool:
@@ -232,6 +219,5 @@ if not config.is_production:
     print(f"Debug: {config.DEBUG}")
     print(f"Database: {config.get_database_url(hide_password=True)}")
     print(f"Pagar.me Environment: {config.PAGARME_ENVIRONMENT}")
-    print(f"CORS Origins: {config.allowed_origins_list}")
     print(f"Log Level: {config.LOG_LEVEL}")
     print("=" * 60)
