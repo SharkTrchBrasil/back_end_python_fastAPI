@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 import socketio
 import uvicorn
 from fastapi import FastAPI
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy.orm import Session
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
@@ -28,6 +29,7 @@ from src.core.db_initialization import (
 )
 from src.api.admin.events.admin_namespace import AdminNamespace
 from src.api.app.events.totem_namespace import TotemNamespace
+from src.core.rate_limit.rate_limit import limiter, rate_limit_exceeded_handler, check_redis_connection
 from src.socketio_instance import sio
 from src.api.admin import router as admin_router
 from src.api.app import router as app_router
@@ -99,6 +101,30 @@ fast_app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+# ==========================================
+# 🛡️ RATE LIMITING - PROTEÇÃO CONTRA DDoS
+# ==========================================
+
+# Adiciona o limiter ao app
+fast_app.state.limiter = limiter
+
+# Registra handler de erro customizado
+fast_app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+# Verifica conexão com Redis
+if config.REDIS_URL:
+    redis_ok = check_redis_connection()
+    if redis_ok:
+        logger.info("✅ Rate Limiting configurado com Redis (persistente)")
+    else:
+        logger.warning("⚠️ Redis não acessível - Rate Limiting usando memória")
+else:
+    logger.warning("⚠️ Rate Limiting usando memória (não recomendado em produção)")
+
+logger.info(f"✅ Rate Limiting ativo: {config.RATE_LIMIT_ENABLED}")
+
+
+
 
 # ==========================================
 # 🔒 CONFIGURAÇÃO SEGURA DE CORS - MenuHub

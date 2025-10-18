@@ -1,9 +1,8 @@
 """
-Webhook do Pagar.me com Autenticação Básica
-===========================================
+Webhook do Pagar.me com Autenticação Básica e Rate Limiting
+============================================================
 """
 from datetime import datetime, timezone
-
 from fastapi import APIRouter, Response, Request, status, HTTPException, Depends
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 import logging
@@ -13,11 +12,12 @@ import secrets
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.config import config
+from src.core.rate_limit.rate_limit import RATE_LIMITS, limiter
 
 router = APIRouter(tags=["Webhooks - Pagar.me"], prefix="/webhook")
 logger = logging.getLogger(__name__)
 
-# ✅ Configuração de autenticação básica
+# Configuração de autenticação básica
 security = HTTPBasic()
 
 
@@ -50,19 +50,23 @@ def verify_webhook_auth(credentials: HTTPBasicCredentials = Depends(security)) -
 
 
 @router.post("/pagarme")
+@limiter.limit(RATE_LIMITS["webhook"])  # ✅ ADICIONAR: 1000/hora
 async def pagarme_webhook_handler(
-        request: Request,
+        request: Request,  # ✅ Obrigatório para rate limiting
         db: GetDBDep,
         authenticated: bool = Depends(verify_webhook_auth)
 ):
     """
-    ✅ WEBHOOK SEGURO - Pagar.me com Autenticação e Idempotência
+    ✅ WEBHOOK SEGURO - Pagar.me com:
+    - Autenticação básica
+    - Rate limiting (1000 requisições/hora)
+    - Idempotência (não processa eventos duplicados)
     """
 
     logger.info("pagarme_webhook_received", extra={
         "url": str(request.url),
         "method": request.method,
-        "client_ip": request.client.host,
+        "client_ip": request.client.host if request.client else "unknown",
         "authenticated": authenticated
     })
 
@@ -91,7 +95,7 @@ async def pagarme_webhook_handler(
 
     try:
         event_data = json.loads(body_str)
-        event_id = event_data.get("id")  # ✅ ID único do evento
+        event_id = event_data.get("id")  # ID único do evento
         event_type = event_data.get("type")
         charge_data = event_data.get("data")
 
@@ -144,7 +148,7 @@ async def pagarme_webhook_handler(
                 "event_type": event_type
             })
 
-            # ✅ Mesmo assim, registra como processado
+            # Registra como processado mesmo se não encontrar
             new_event = models.ProcessedWebhookEvent(
                 event_id=event_id,
                 event_type=event_type,
@@ -203,7 +207,7 @@ async def pagarme_webhook_handler(
                 "charge_id": charge_id
             })
 
-            # ✅ Registra como processado mesmo se ignorado
+            # Registra como processado mesmo se ignorado
             new_event = models.ProcessedWebhookEvent(
                 event_id=event_id,
                 event_type=event_type,
@@ -227,7 +231,7 @@ async def pagarme_webhook_handler(
         )
         db.add(new_event)
 
-        # ✅ SALVA TUDO NO BANCO
+        # Salva tudo no banco
         db.commit()
 
         logger.info("pagarme_webhook_processed_successfully", extra={
@@ -265,5 +269,6 @@ async def pagarme_webhook_health():
         "status": "healthy",
         "webhook": "pagarme",
         "version": "1.0.0",
-        "auth": "basic"
+        "auth": "basic",
+        "rate_limit": RATE_LIMITS["webhook"]
     }

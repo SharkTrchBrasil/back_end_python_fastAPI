@@ -7,6 +7,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response, UploadFile, Form, File
 from sqlalchemy import func
+from starlette.requests import Request
 
 from src.api.admin.services.cloning_service import clone_store_data
 
@@ -15,7 +16,7 @@ from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit
 from src.api.app.socketio.socketio_emitters import emit_store_updated
 from src.api.schemas.auth.store_access import StoreAccess
 from src.api.schemas.auth.user import CreateStoreUserRequest, GrantStoreAccessRequest
-from src.api.schemas.store.store import Store
+from src.api.schemas.store.store import Store, StoreSchema
 from src.api.schemas.store.store_details import StoreDetails
 from src.api.schemas.store.store_with_role import StoreWithRole
 from src.core import models
@@ -23,6 +24,7 @@ from src.core.aws import delete_file, upload_single_file
 from src.core.database import GetDBDep
 from src.core.defaults.delivery_methods import default_delivery_settings
 from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetStore
+from src.core.rate_limit.rate_limit import RATE_LIMITS, limiter
 from src.core.security import get_password_hash
 from src.core.utils.enums import StoreVerificationStatus, Roles
 from src.core.utils.referral import generate_unique_referral_code
@@ -31,9 +33,11 @@ router = APIRouter(prefix="/stores", tags=["Stores"])
 
 ALLOWED_ROLES_FOR_CREATION = ['manager', 'cashier', 'waiter', 'stock_manager']
 
-
 @router.post("", response_model=StoreWithRole)
+@limiter.limit(RATE_LIMITS["write"])  # ✅ 30/minuto
 async def create_store(
+        request: Request,  # ✅ Adicionar
+
         db: GetDBDep,
         user: GetCurrentUserDep,
         name: str = Form(...),

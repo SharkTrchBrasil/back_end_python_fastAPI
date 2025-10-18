@@ -39,6 +39,13 @@ class Config(BaseSettings):
     ENVIRONMENT: str = "development"  # development, test, production
     DEBUG: bool = False
 
+    # ✅ ADICIONAR ESTAS LINHAS - Redis para Rate Limiting
+    REDIS_URL: Optional[str] = None
+
+    # ✅ Configurações de Rate Limiting
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_STORAGE_URL: Optional[str] = None  # Usa Redis se disponível, senão memória
+
     # ═══════════════════════════════════════════════════════════
     # DATABASE
     # ═══════════════════════════════════════════════════════════

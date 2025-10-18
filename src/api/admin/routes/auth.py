@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi.security import OAuth2PasswordRequestForm
 from starlette import status
+from starlette.requests import Request
 
 from src.api.schemas.auth.auth import TokenResponse
 from src.api.admin.utils.auth import authenticate_user
@@ -14,18 +15,29 @@ from src.core.database import GetDBDep
 from src.core.dependencies import GetCurrentUserDep
 from src.api.schemas.auth.user import ChangePasswordData
 from src.core.models import TotemAuthorization
+from src.core.rate_limit.rate_limit import RATE_LIMITS, limiter, logger
 # ✅ Funções de criação de token importadas
 from src.core.security import create_access_token, create_refresh_token, verify_refresh_token, get_password_hash
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
+
 @router.post("/login", response_model=TokenResponse)
-def login_for_access_token(
-     db: GetDBDep,
-     form_data: OAuth2PasswordRequestForm = Depends(),
+
+@limiter.limit(RATE_LIMITS["login"])  # ✅ Máximo 5 tentativas/minuto
+async def login_for_access_token(
+        request: Request,  # ✅ Adicionar este parâmetro
+        db: GetDBDep,
+        form_data: OAuth2PasswordRequestForm = Depends(),
 ):
+    # ✅ Log de tentativa de login (segurança)
+    logger.info(f"🔐 Tentativa de login: {form_data.username}")
+
     user: models.User | None = authenticate_user(email=form_data.username, password=form_data.password, db=db)
+
     if not user:
+        # ✅ Log de falha
+        logger.warning(f"⚠️ Login falhou: {form_data.username}")
         raise HTTPException(status_code=401, detail="Incorrect email or password")
 
     if not user.is_email_verified:
@@ -40,9 +52,16 @@ def login_for_access_token(
     return {"access_token": access_token, "token_type": "bearer", "refresh_token": refresh_token}
 
 
-# ✨ PENTE FINO: Endpoint /refresh com Rotação de Token ✨
+
+
 @router.post("/refresh", response_model=TokenResponse)
-def refresh_access_token(refresh_token: Annotated[str, Body(..., embed=True)], db: GetDBDep):
+@limiter.limit("10/minute")  # ✅ Limite para refresh
+async def refresh_access_token(
+    request: Request,  # ✅ Adicionar
+    refresh_token: Annotated[str, Body(..., embed=True)],
+    db: GetDBDep
+):
+
     email = verify_refresh_token(refresh_token)
     if not email:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
@@ -62,7 +81,9 @@ def refresh_access_token(refresh_token: Annotated[str, Body(..., embed=True)], d
 
 
 @router.post("/change-password")
-def change_password(
+@limiter.limit(RATE_LIMITS["password_reset"])  # ✅ 3/hora
+async def change_password(
+    request: Request,  # ✅ Adicionar
     change_password_data: ChangePasswordData,
     db: GetDBDep,
     current_user: GetCurrentUserDep,
