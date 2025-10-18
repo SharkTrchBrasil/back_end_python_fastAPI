@@ -54,7 +54,7 @@ async def handler_totem_on_connect(self, sid, environ):
                 product.rating = product_ratings.get(product.id)
 
             # ✅ CORREÇÃO DEFINITIVA: Acessa o dicionário retornado
-            subscription_details = SubscriptionService.get_subscription_details(store)
+            subscription_details = SubscriptionService.get_subscription_details(store, db)
 
             is_blocked = subscription_details.get('is_blocked', True)
             warning_message = subscription_details.get('warning_message', 'Status desconhecido')

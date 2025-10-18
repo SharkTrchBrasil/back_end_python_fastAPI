@@ -90,7 +90,7 @@ class GetStore:
             store = db_store_access.store
 
         # ✅ CORREÇÃO: VERIFICA SE sub_details NÃO É None ANTES DE USAR .get()
-        sub_details = SubscriptionService.get_subscription_details(store)
+        sub_details = SubscriptionService.get_subscription_details(store, db)
 
         # ✅ Só bloqueia se sub_details existir E estiver bloqueado
         if sub_details and sub_details.get("is_blocked"):
