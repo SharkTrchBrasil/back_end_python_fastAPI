@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from src.api import crud
-from src.api.admin.utils.emit_updates import emit_updates_products
+from src.api.admin.socketio.emitters import emit_updates_products
+
 from src.api.crud import crud_product
 from src.api.schemas.products.product_category_link import ProductCategoryLinkOut, ProductCategoryLinkUpdate
 from src.core.database import GetDBDep

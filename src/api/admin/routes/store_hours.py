@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException, Response, Body
 import logging  # Use o logging para depuração
 
-from src.api.admin.utils.emit_updates import emit_store_updates
+from src.api.admin.socketio.emitters import emit_store_updates
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 from src.core.models import StoreHours as StoreHoursModel

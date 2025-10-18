@@ -9,7 +9,8 @@ from sqlalchemy.orm import Query
 from starlette import status
 
 from src.api.admin.routes import product_category_link
-from src.api.admin.utils.emit_updates import emit_updates_products
+from src.api.admin.socketio.emitters import emit_updates_products
+
 from src.api.crud import crud_product
 
 from src.api.schemas.products.bulk_actions import BulkDeletePayload, BulkStatusUpdatePayload, BulkCategoryUpdatePayload

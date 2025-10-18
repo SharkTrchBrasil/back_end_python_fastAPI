@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File
-from src.api.admin.utils.emit_updates import emit_updates_products
+
+from src.api.admin.socketio.emitters import emit_updates_products
 from src.api.crud import crud_category, crud_option
 from src.api.schemas.products.category import (
     CategoryCreate, Category, OptionGroup, OptionGroupCreate,
