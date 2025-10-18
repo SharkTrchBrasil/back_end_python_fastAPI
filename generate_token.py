@@ -1,5 +1,7 @@
 from datetime import timedelta
-from src.core.security import create_access_token
+
+from src.core.security.security import create_access_token
+
 
 def generate_long_lived_token():
     # IMPORTANTE: Coloque aqui o email/identificador do seu usuário de serviço

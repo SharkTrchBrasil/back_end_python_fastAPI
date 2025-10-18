@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import extract, desc, func
 from decimal import Decimal
 from typing import Dict, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from src.core import models
 

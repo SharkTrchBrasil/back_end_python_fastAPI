@@ -25,7 +25,8 @@ from src.core.database import GetDBDep
 from src.core.defaults.delivery_methods import default_delivery_settings
 from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetStore
 from src.core.rate_limit.rate_limit import RATE_LIMITS, limiter
-from src.core.security import get_password_hash
+from src.core.security.security import get_password_hash
+
 from src.core.utils.enums import StoreVerificationStatus, Roles
 from src.core.utils.referral import generate_unique_referral_code
 

@@ -6,7 +6,7 @@ from src.api.schemas.auth.resend_code import ResendCodeRequest
 from src.api.admin.utils.email_service import send_verification_email
 from src.core.database import GetDBDep # Supondo que esse seja o nome correto do dependente
 from src.core.models import User
-from src.core.security import generate_verification_code
+from src.core.security.security import generate_verification_code
 
 router = APIRouter(tags=["Code"], prefix="/verify-code")
 

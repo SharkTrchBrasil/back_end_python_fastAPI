@@ -2,8 +2,7 @@
 from sqlalchemy.orm import Session
 
 from src.core import models
-from src.core.security import verify_password
-
+from src.core.security.security import verify_password
 
 
 def authenticate_user(email: str, password: str, db: Session) -> models.User | None:

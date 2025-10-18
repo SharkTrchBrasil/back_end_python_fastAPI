@@ -1,7 +1,7 @@
 import jwt
 from src.core import models
 # ✅ CORREÇÃO: Importa as constantes do local correto
-from src.core.security import SECRET_KEY, ALGORITHM
+
 
 # Esta função é para autorizar TOTENS, não admins. Vamos renomeá-la para clareza.
 async def authorize_totem_by_device_token(db, token: str):

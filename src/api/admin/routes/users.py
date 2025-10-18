@@ -6,7 +6,8 @@ from fastapi import APIRouter, HTTPException
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetCurrentUserDep
-from src.core.security import generate_verification_code, get_password_hash
+from src.core.security.security import get_password_hash, generate_verification_code
+
 from src.core.utils.referral import generate_unique_referral_code
 from src.api.schemas.auth.user import UserCreate, UserSchema, UserUpdate
 from src.api.admin.utils.email_service import send_verification_email
