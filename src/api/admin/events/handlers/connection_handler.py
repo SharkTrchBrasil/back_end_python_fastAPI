@@ -2,6 +2,7 @@ from urllib.parse import parse_qs
 
 from src.api.admin.services.store_access_service import StoreAccessService
 from src.api.admin.services.store_session_service import SessionService
+from src.api.admin.services.store_transformer_service import StoreTransformerService
 from src.api.admin.services.subscription_service import SubscriptionService  # ← NOVO
 
 from src.api.schemas.store.store_with_role import StoreWithRole
@@ -86,33 +87,13 @@ async def handle_admin_connect(self, sid, environ):
             accessible_store_accesses = StoreAccessService.get_accessible_stores_with_roles(db, admin_user)
 
             stores_list_payload = []
-            if accessible_store_accesses:
-                print(f"🔧 Serializando {len(accessible_store_accesses)} loja(s)...")
-                for access in accessible_store_accesses:
-                    # ✅ CORREÇÃO: Calcula dados da subscrição ANTES de validar
-                    subscription_details_dict = SubscriptionService.get_subscription_details(
-                        store=access.store,
-                        db=db
-                    )
-
-                    # ✅ Converte o objeto ORM para dicionário
-                    store_data = access.store.__dict__.copy()
-
-                    # ✅ Injeta dados calculados
-                    if subscription_details_dict is not None:
-                        store_data['active_subscription'] = subscription_details_dict
-
-                    # ✅ Monta dicionário final para validação
-                    access_data = {
-                        'store': store_data,
-                        'role': access.role,
-                        'store_id': access.store_id,
-                        'user_id': access.user_id,
-                    }
-
-                    # ✅ Valida contra schema Pydantic
-                    store_with_role = StoreWithRole.model_validate(access_data)
-                    stores_list_payload.append(store_with_role.model_dump(mode='json'))
+            for access in accessible_store_accesses:
+                # ✅ RETORNA SCHEMA JÁ VALIDADO
+                store_with_role = StoreTransformerService.enrich_store_access_with_role(
+                    store_access=access,
+                    db=db
+                )
+                stores_list_payload.append(store_with_role.model_dump(mode='json'))
 
             await self.emit("admin_stores_list", {"stores": stores_list_payload}, to=sid)
 
