@@ -9,11 +9,11 @@ Gerador centralizado de chaves de cache com padrões consistentes.
 Padrão de chaves:
 - store:{store_id}:products:list
 - store:{store_id}:categories:list
-- store:{store_id}:product:{product_id}
-- dashboard:{store_id}:{date_range}
+- auth:login_failed:{email}
+- auth:user_locations:{email}
 
 Autor: PDVix Team
-Data: 2025-01-18
+Data: 2025-01-19
 """
 
 from datetime import date
@@ -29,6 +29,70 @@ class CacheKeys:
     - Organização
     - Fácil debugging
     """
+
+    # ═══════════════════════════════════════════════════════════
+    # AUTENTICAÇÃO & SEGURANÇA (NOVO)
+    # ═══════════════════════════════════════════════════════════
+
+    @staticmethod
+    def login_failed_attempts(email: str) -> str:
+        """
+        Contador de tentativas de login falhadas
+
+        TTL: 15 minutos
+        Uso: Prevenir brute force
+        """
+        return f"auth:login_failed:{email}"
+
+    @staticmethod
+    def user_locations(email: str) -> str:
+        """
+        Set de países onde o usuário já fez login
+
+        TTL: Sem expiração (permanente)
+        Uso: Detectar login de localização suspeita
+        """
+        return f"auth:user_locations:{email}"
+
+    @staticmethod
+    def user_sessions(email: str) -> str:
+        """
+        Lista de sessões ativas do usuário
+
+        TTL: 30 dias (mesmo do refresh token)
+        Uso: Logout de todos dispositivos
+        """
+        return f"auth:user_sessions:{email}"
+
+    @staticmethod
+    def account_locked(email: str) -> str:
+        """
+        Flag de conta temporariamente bloqueada
+
+        TTL: 1 hora
+        Uso: Bloquear conta após muitas tentativas
+        """
+        return f"auth:account_locked:{email}"
+
+    @staticmethod
+    def password_reset_token(email: str) -> str:
+        """
+        Token de reset de senha
+
+        TTL: 30 minutos
+        Uso: Recuperação de senha
+        """
+        return f"auth:password_reset:{email}"
+
+    @staticmethod
+    def suspicious_login_alert(email: str) -> str:
+        """
+        Flag de alerta de login suspeito enviado
+
+        TTL: 24 horas
+        Uso: Evitar spam de alertas
+        """
+        return f"auth:suspicious_alert:{email}"
 
     # ═══════════════════════════════════════════════════════════
     # PRODUTOS (APP - CARDÁPIO DIGITAL)

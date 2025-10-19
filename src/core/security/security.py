@@ -11,7 +11,8 @@ from fastapi.security import OAuth2PasswordBearer
 
 from src.core.config import config  # ✅ Importa o objeto config
 from src.core.security.token_blacklist import TokenBlacklist
-
+# ✅ MELHORIA 1: Usar logging ao invés de print
+import logging
 # ═══════════════════════════════════════════════════════════
 # CONSTANTES DE SEGURANÇA
 # ═══════════════════════════════════════════════════════════
@@ -132,36 +133,38 @@ def create_refresh_token(
 # FUNÇÕES DE VERIFICAÇÃO DE TOKENS
 # ═══════════════════════════════════════════════════════════
 
+
+
+logger = logging.getLogger(__name__)
+
+
 def verify_access_token(token: str) -> Optional[dict]:
-    """
-    ✅ VERSÃO SEGURA: Valida token E verifica blacklist
-
-    Args:
-        token: Token JWT a ser validado
-
-    Returns:
-        dict com payload do token se válido, None se inválido/revogado
-    """
     try:
-        # 1. Decodifica e valida assinatura + expiração
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
 
-        # 2. ✅ VERIFICA BLACKLIST
         jti = payload.get("jti")
         if jti and TokenBlacklist.is_blacklisted(jti):
-            print(f"⚠️ Token revogado detectado: {jti[:8]}...")
+            logger.warning(f"Token revogado detectado: {jti[:8]}...")  # ✅ logging
             return None
 
-        # 3. Valida tipo do token
-        if payload.get("type") != "access":
-            print(f"⚠️ Tipo de token inválido: {payload.get('type')}")
+        # ✅ MELHORIA 2: Validar claims obrigatórios
+        required_claims = ["sub", "exp", "jti", "type"]
+        if not all(claim in payload for claim in required_claims):
+            logger.error("Token sem claims obrigatórios")
+            return None
+
+        # ✅ MELHORIA 3: Validar timestamp (previne tokens futuros)
+        iat = payload.get("iat")
+        if iat and iat > datetime.now(timezone.utc).timestamp():
+            logger.error("Token com timestamp futuro detectado")
             return None
 
         return payload
 
     except InvalidTokenError as e:
-        print(f"❌ Token inválido: {e}")
+        logger.error(f"Token inválido: {e}")
         return None
+
 
 
 def verify_refresh_token(token: str) -> Optional[dict]:

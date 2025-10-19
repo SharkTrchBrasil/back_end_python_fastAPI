@@ -27,29 +27,53 @@ from src.core.security.security import (
     ALGORITHM,
     SECRET_KEY
 )
+from src.core.cache.redis_client import RedisClient
 
 from src.core.security.token_blacklist import TokenBlacklist
 
+
+
+
+
+
+
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
+
 
 
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit(RATE_LIMITS["login"])
 async def login_for_access_token(
         request: Request,
-        db: GetDBDep,  # Session injetada pelo FastAPI
+        db: GetDBDep,
         form_data: OAuth2PasswordRequestForm = Depends(),
 ):
-    # ✅ CORRETO: Ordem correta dos parâmetros
-    user: models.User | None = authenticate_user(
-        db=db,  # ← PRIMEIRO parâmetro
-        email=form_data.username,
-        password=form_data.password,
-    )
+    email = form_data.username
+
+    # ✅ Verifica bloqueio por tentativas excessivas
+    failed_key = f"login_failed:{email}"
+    failed_attempts = int(RedisClient.get(failed_key) or 0)
+
+    if failed_attempts >= 5:
+        raise HTTPException(
+            status_code=429,
+            detail="Conta temporariamente bloqueada por excesso de tentativas. Tente novamente em 15 minutos."
+        )
+
+    user = authenticate_user(db=db, email=email, password=form_data.password)
 
     if not user:
-        logger.warning(f"⚠️ Login falhou: {form_data.username}")
+        # ✅ Incrementa contador de falhas
+        new_count = failed_attempts + 1
+        RedisClient.set(failed_key, str(new_count), ex=900)  # 15 minutos
+
+        logger.warning(f"⚠️ Login falhou ({new_count}/5): {email}")
         raise HTTPException(status_code=401, detail="Incorrect email or password")
+
+    # ✅ Limpa contador ao fazer login com sucesso
+    RedisClient.delete(failed_key)
+
 
     if not user.is_email_verified:
         raise HTTPException(status_code=401, detail="Email not verified")
