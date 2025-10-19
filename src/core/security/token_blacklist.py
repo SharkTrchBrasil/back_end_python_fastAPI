@@ -36,21 +36,28 @@ class TokenBlacklist:
         key = f"blacklist:{jti}"
         return redis_client.exists(key) > 0
 
+    # ✅ CORREÇÃO: Usar SCAN ao invés de KEYS
     @staticmethod
     def revoke_all_user_tokens(user_email: str):
-        """
-        Revoga TODOS os tokens de um usuário.
-        Útil para: trocar senha, banir usuário, etc.
-        """
+        """Revoga TODOS os tokens de um usuário de forma segura."""
         pattern = f"user_tokens:{user_email}:*"
-        keys = redis_client.keys(pattern)
 
-        if keys:
-            # Adiciona todos à blacklist
-            for key in keys:
-                jti = key.split(":")[-1]
-                # TTL máximo (30 dias do refresh token)
-                TokenBlacklist.add_token(jti, 30 * 24 * 60 * 60)
+        # ✅ SCAN não bloqueia o Redis
+        cursor = 0
+        while True:
+            cursor, keys = redis_client.scan(
+                cursor=cursor,
+                match=pattern,
+                count=100
+            )
+
+            if keys:
+                for key in keys:
+                    jti = key.split(":")[-1]
+                    TokenBlacklist.add_token(jti, 30 * 24 * 60 * 60)
+
+            if cursor == 0:
+                break
 
     @staticmethod
     def store_user_token(user_email: str, jti: str, ttl_seconds: int):
