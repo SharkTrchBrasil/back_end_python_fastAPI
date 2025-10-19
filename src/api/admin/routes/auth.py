@@ -10,7 +10,8 @@ from starlette.requests import Request
 
 from src.api.schemas.auth.auth import TokenResponse
 from src.api.admin.utils.authenticate import authenticate_user
-from src.api.schemas.auth.auth_totem import TotemAuthorizationResponse, AuthenticateByUrlRequest, TotemCheckTokenResponse
+from src.api.schemas.auth.auth_totem import TotemAuthorizationResponse, AuthenticateByUrlRequest, \
+    TotemCheckTokenResponse
 from src.core import models
 from src.core.config import config
 from src.core.database import GetDBDep
@@ -23,23 +24,18 @@ from src.core.security.security import (
     create_access_token,
     create_refresh_token,
     verify_refresh_token,
-    get_password_hash,  # ✅ ADICIONAR
+    get_password_hash,
     ALGORITHM,
     SECRET_KEY
 )
-from src.core.cache.redis_client import RedisClient
 
 from src.core.security.token_blacklist import TokenBlacklist
 
-
-
-
-
-
+# ✅ IMPORTA A INSTÂNCIA (minúsculo), NÃO A CLASSE
+from src.core.cache.redis_client import redis_client
+from src.core.cache.keys import CacheKeys
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
-
-
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -49,43 +45,89 @@ async def login_for_access_token(
         db: GetDBDep,
         form_data: OAuth2PasswordRequestForm = Depends(),
 ):
+    """
+    ✅ LOGIN SEGURO COM PROTEÇÃO CONTRA BRUTE FORCE
+    """
     email = form_data.username
 
-    # ✅ Verifica bloqueio por tentativas excessivas
-    failed_key = f"login_failed:{email}"
-    failed_attempts = int(RedisClient.get(failed_key) or 0)
+    # ═══════════════════════════════════════════════════════════
+    # 1️⃣ PROTEÇÃO CONTRA BRUTE FORCE
+    # ═══════════════════════════════════════════════════════════
 
-    if failed_attempts >= 5:
+    # ✅ CORRETO: Usa redis_client (instância)
+    locked_key = CacheKeys.account_locked(email)
+    if redis_client.exists(locked_key):
+        logger.error(f"🔒 Tentativa de login em conta bloqueada: {email}")
         raise HTTPException(
             status_code=429,
-            detail="Conta temporariamente bloqueada por excesso de tentativas. Tente novamente em 15 minutos."
+            detail={
+                "error": "account_locked",
+                "message": "Conta temporariamente bloqueada. Tente novamente em 15 minutos.",
+                "retry_after": 900
+            }
         )
 
-    user = authenticate_user(db=db, email=email, password=form_data.password)
+    # ═══════════════════════════════════════════════════════════
+    # 2️⃣ AUTENTICAÇÃO
+    # ═══════════════════════════════════════════════════════════
+
+    user: models.User | None = authenticate_user(
+        db=db,
+        email=email,
+        password=form_data.password,
+    )
 
     if not user:
-        # ✅ Incrementa contador de falhas
-        new_count = failed_attempts + 1
-        RedisClient.set(failed_key, str(new_count), ex=900)  # 15 minutos
+        # ✅ CORRETO: Usa redis_client
+        failed_key = CacheKeys.login_failed_attempts(email)
 
-        logger.warning(f"⚠️ Login falhou ({new_count}/5): {email}")
-        raise HTTPException(status_code=401, detail="Incorrect email or password")
+        # Incrementa contador (usa cliente Redis raw porque RedisClient não tem incr)
+        if redis_client._is_available and redis_client._client:
+            attempts = redis_client._client.incr(failed_key)
 
-    # ✅ Limpa contador ao fazer login com sucesso
-    RedisClient.delete(failed_key)
+            # Define TTL na primeira tentativa
+            if attempts == 1:
+                redis_client._client.expire(failed_key, 900)  # 15 minutos
 
+            logger.warning(f"⚠️ Login falhou ({attempts}/5): {email}")
 
+            # Bloqueia após 5 tentativas
+            if attempts >= 5:
+                redis_client.set(locked_key, "locked", ttl=900)
+                logger.error(f"🔒 Conta bloqueada: {email}")
+                raise HTTPException(
+                    status_code=429,
+                    detail={
+                        "error": "account_locked",
+                        "message": f"Conta bloqueada após {attempts} tentativas. Tente em 15 minutos.",
+                        "retry_after": 900
+                    }
+                )
+
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect email or password"
+        )
+
+    # ✅ Validações de conta
     if not user.is_email_verified:
         raise HTTPException(status_code=401, detail="Email not verified")
 
     if not user.is_active:
         raise HTTPException(status_code=401, detail="Inactive account")
 
-    # ✅ GERA JTIs ÚNICOS
+    # ✅ Login bem-sucedido - limpa tentativas falhadas
+    failed_key = CacheKeys.login_failed_attempts(email)
+    redis_client.delete(failed_key)
+    logger.info(f"✅ Login bem-sucedido: {email}")
+
+    # ═══════════════════════════════════════════════════════════
+    # 3️⃣ GERAÇÃO DE TOKENS
+    # ═══════════════════════════════════════════════════════════
+
     access_jti = str(uuid.uuid4())
     refresh_jti = str(uuid.uuid4())
 
-    # ✅ CRIA TOKENS COM JTI
     access_token = create_access_token(
         data={"sub": user.email},
         jti=access_jti
@@ -95,7 +137,7 @@ async def login_for_access_token(
         jti=refresh_jti
     )
 
-    # ✅ REGISTRA TOKENS ATIVOS NO REDIS
+    # ✅ Registra tokens ativos no Redis
     TokenBlacklist.store_user_token(
         user.email,
         access_jti,
@@ -107,8 +149,6 @@ async def login_for_access_token(
         config.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
     )
 
-    logger.info(f"✅ Login bem-sucedido: {user.email}")
-
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -116,7 +156,7 @@ async def login_for_access_token(
     }
 
 
-# src/api/admin/routes/authenticate.py
+
 
 @router.post("/refresh", response_model=TokenResponse)
 @limiter.limit("10/minute")
