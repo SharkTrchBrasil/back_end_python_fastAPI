@@ -643,11 +643,11 @@ def delete_store_access(
     db.commit()
 
 
-@router.get("/check-url/{url_slug}", ...)
+@router.get("/check-url/{url_slug}")
 def check_url_availability(
         url_slug: str,
         db: GetDBDep,
-        current_user: GetCurrentUserDep  # ✅ REQUER AUTENTICAÇÃO
+        current_user: GetCurrentUserDep
 ):
     """Verifica disponibilidade de URL (requer autenticação)."""
 
