@@ -2,32 +2,59 @@
 
 from sqlalchemy.orm import selectinload
 
+from src.api.admin.services.subscription_service import SubscriptionService
 from src.api.crud import store_crud
 from src.api.schemas.products.category import Category
 from src.core import models
 
 from src.core.utils.enums import ProductStatus
 from src.socketio_instance import sio
-from src.api.schemas.products.product import ProductOut
+from src.api.schemas.products.product import ProductOut, logger
 from src.api.schemas.store.store_details import StoreDetails
 from src.api.schemas.store.store_theme import StoreThemeOut
 from src.api.app.services.rating import get_store_ratings_summary
 
 
+
+
 async def emit_store_updated(db, store_id: int):
     """
-    Emite uma atualização com os detalhes GERAIS da loja.
-    Esta função NÃO emite o catálogo de produtos.
+    ✅ VERSÃO CORRIGIDA - USA O MESMO MÉTODO DO ADMIN
+
+    Emite detalhes atualizados da loja para o namespace /totem (público)
     """
+    try:
+        # ✅ 1. BUSCA A LOJA DO BANCO
+        store_model = store_crud.get_store_base_details(db=db, store_id=store_id)
 
-    store = store_crud.get_store_for_customer_view(db=db, store_id=store_id)
+        if not store_model:
+            logger.warning(f"⚠️ Loja {store_id} não encontrada")
+            return
 
-    if store:
-        await sio.emit(
-            'store_updated',
-            StoreDetails.model_validate(store).model_dump(mode='json'),
-            to=f'store_{store.id}'
+        # ✅ 2. USA O MESMO MÉTODO QUE O ADMIN USA
+        # Isso garante que os campos computados sejam adicionados
+        store_dict = SubscriptionService.get_store_dict_with_subscription(
+            store=store_model,
+            db=db
         )
+
+        # ✅ 3. VALIDA COM PYDANTIC (AGORA VAI FUNCIONAR)
+        store_schema = StoreDetails.model_validate(store_dict)
+
+        # ✅ 4. EMITE PARA O TOTEM
+        await sio.emit(
+            'store_details_updated',
+            {"store": store_schema.model_dump(mode='json', by_alias=True)},
+            namespace='/',  # ← Namespace do totem (público)
+            room=f"store_{store_id}"
+        )
+
+        logger.info(f"✅ [TOTEM] store_details_updated emitido para loja {store_id}")
+
+    except Exception as e:
+        logger.error(f'❌ Erro ao emitir store_details_updated (TOTEM): {e}', exc_info=True)
+
+
 
 async def emit_theme_updated(theme: models.StoreTheme):
     """ Emite uma atualização do tema da loja. (Sua função original está correta) """
