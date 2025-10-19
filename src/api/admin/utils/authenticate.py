@@ -3,12 +3,12 @@ from src.core import models
 from src.core.security.security import verify_password
 
 
-def authenticate_user(db, email: str, password: str) -> models.User | None:
+def authenticate_user(db: Session, email: str, password: str) -> models.User | None:
     """
     Autentica um usuário verificando email e senha.
 
     Args:
-        db: Sessão do banco de dados (PRIMEIRO parâmetro!)
+        db: Sessão do banco de dados (Session do SQLAlchemy)
         email: Email do usuário
         password: Senha em texto plano
 
