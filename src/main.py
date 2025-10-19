@@ -45,8 +45,8 @@ from src.api.admin.webhooks.chatbot import chatbot_message_webhook
 from src.api.admin.webhooks.pagarme_webhook import router as pagarme_webhook_router
 
 # ✅ Sistema de cache
-from src.core.cache import redis_client, cache_manager
-
+from src.core.cache import cache_manager
+from src.core.cache.redis_client import redis_client
 
 logging.basicConfig(
     level=logging.INFO,
