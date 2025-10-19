@@ -24,8 +24,8 @@ from src.core.dependencies import GetCurrentUserDep
 from src.api.schemas.auth.user import ChangePasswordData
 from src.core.models import TotemAuthorization
 
-# ✅ IMPORTAÇÃO CORRETA
-from src.core.rate_limit.rate_limit import rate_limit, RATE_LIMITS, logger
+# ✅ IMPORTAÇÃO CORRETA - Dependency Injection
+from src.core.rate_limit.rate_limit import RateLimitDependency, RATE_LIMITS, logger
 
 from src.core.security.security import (
     create_access_token,
@@ -44,21 +44,17 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 @router.post("/login", response_model=TokenResponse)
-@rate_limit(RATE_LIMITS["login"])  # ✅ Usa wrapper customizado
 async def login_for_access_token(
         request: Request,
         db: GetDBDep,
         form_data: OAuth2PasswordRequestForm = Depends(),
+        # ✅ RATE LIMIT COMO DEPENDENCY (não como decorator)
+        _rate_limit: None = Depends(RateLimitDependency(RATE_LIMITS["login"]))
 ):
-    """
-    ✅ LOGIN SEGURO COM RATE LIMITING
-    """
+    """✅ LOGIN SEGURO COM RATE LIMITING"""
     email = form_data.username
 
-    # ═══════════════════════════════════════════════════════════
-    # 1️⃣ PROTEÇÃO CONTRA BRUTE FORCE
-    # ═══════════════════════════════════════════════════════════
-
+    # Proteção brute force
     locked_key = CacheKeys.account_locked(email)
     if redis_client.exists(locked_key):
         logger.error(f"🔒 Conta bloqueada: {email}")
@@ -67,10 +63,7 @@ async def login_for_access_token(
             detail="Conta temporariamente bloqueada. Tente em 15 minutos."
         )
 
-    # ═══════════════════════════════════════════════════════════
-    # 2️⃣ AUTENTICAÇÃO
-    # ═══════════════════════════════════════════════════════════
-
+    # Autenticação
     user: models.User | None = authenticate_user(db, email, form_data.password)
 
     if not user:
@@ -92,10 +85,7 @@ async def login_for_access_token(
                     detail="Conta bloqueada após 5 tentativas."
                 )
 
-        raise HTTPException(
-            status_code=401,
-            detail="Email ou senha incorretos"
-        )
+        raise HTTPException(status_code=401, detail="Email ou senha incorretos")
 
     if not user.is_email_verified:
         raise HTTPException(status_code=401, detail="Email não verificado")
@@ -104,35 +94,17 @@ async def login_for_access_token(
         raise HTTPException(status_code=401, detail="Conta inativa")
 
     # Limpa tentativas falhadas
-    failed_key = CacheKeys.login_failed_attempts(email)
-    redis_client.delete(failed_key)
+    redis_client.delete(CacheKeys.login_failed_attempts(email))
 
-    # ═══════════════════════════════════════════════════════════
-    # 3️⃣ GERAÇÃO DE TOKENS
-    # ═══════════════════════════════════════════════════════════
-
+    # Gera tokens
     access_jti = str(uuid.uuid4())
     refresh_jti = str(uuid.uuid4())
 
-    access_token = create_access_token(
-        data={"sub": user.email},
-        jti=access_jti
-    )
-    refresh_token = create_refresh_token(
-        data={"sub": user.email},
-        jti=refresh_jti
-    )
+    access_token = create_access_token(data={"sub": user.email}, jti=access_jti)
+    refresh_token = create_refresh_token(data={"sub": user.email}, jti=refresh_jti)
 
-    TokenBlacklist.store_user_token(
-        user.email,
-        access_jti,
-        config.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    )
-    TokenBlacklist.store_user_token(
-        user.email,
-        refresh_jti,
-        config.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
-    )
+    TokenBlacklist.store_user_token(user.email, access_jti, config.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
+    TokenBlacklist.store_user_token(user.email, refresh_jti, config.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60)
 
     logger.info(f"✅ Login bem-sucedido: {email}")
 
@@ -145,15 +117,14 @@ async def login_for_access_token(
 
 
 @router.post("/refresh", response_model=TokenResponse)
-@rate_limit("10/minute")
 async def refresh_access_token(
         request: Request,
         refresh_token: Annotated[str, Body(..., embed=True)],
-        db: GetDBDep
+        db: GetDBDep,
+        _rate_limit: None = Depends(RateLimitDependency("10/minute"))
 ):
-    """Renova access token usando refresh token"""
+    """Renova access token"""
     payload = verify_refresh_token(refresh_token)
-
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
@@ -193,14 +164,14 @@ async def refresh_access_token(
 
 
 @router.post("/change-password")
-@rate_limit(RATE_LIMITS["password_reset"])
 async def change_password(
         request: Request,
         change_password_data: ChangePasswordData,
         db: GetDBDep,
         current_user: GetCurrentUserDep,
+        _rate_limit: None = Depends(RateLimitDependency(RATE_LIMITS["password_reset"]))
 ):
-    """Troca senha do usuário"""
+    """Troca senha"""
     user = authenticate_user(db, current_user.email, change_password_data.old_password)
 
     if not user:
@@ -210,22 +181,19 @@ async def change_password(
     db.commit()
 
     TokenBlacklist.revoke_all_user_tokens(current_user.email)
-
     logger.warning(f"🔐 Senha alterada: {current_user.email}")
 
-    return {
-        "message": "Senha alterada. Faça login novamente."
-    }
+    return {"message": "Senha alterada. Faça login novamente."}
 
 
 @router.post("/logout")
-@rate_limit("10/minute")
 async def logout(
         request: Request,
         current_user: GetCurrentUserDep,
-        authorization: str = Header(...)
+        authorization: str = Header(...),
+        _rate_limit: None = Depends(RateLimitDependency("10/minute"))
 ):
-    """Logout - revoga token atual"""
+    """Logout"""
     try:
         token = authorization.split(" ")[1] if " " in authorization else authorization
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_signature": False})
@@ -248,17 +216,16 @@ async def logout(
 
 
 @router.post("/logout-all")
-@rate_limit("3/hour")
 async def logout_all_devices(
         request: Request,
-        current_user: GetCurrentUserDep
+        current_user: GetCurrentUserDep,
+        _rate_limit: None = Depends(RateLimitDependency("3/hour"))
 ):
-    """Logout global - revoga todos tokens"""
+    """Logout global"""
     try:
         TokenBlacklist.revoke_all_user_tokens(current_user.email)
         logger.warning(f"🚨 Logout global: {current_user.email}")
         return {"message": "Todos os dispositivos foram desconectados"}
-
     except Exception as e:
         logger.error(f"❌ Erro no logout global: {e}")
         raise HTTPException(status_code=500, detail="Erro ao desconectar dispositivos")
