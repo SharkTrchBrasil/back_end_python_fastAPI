@@ -1,110 +1,49 @@
+# src/core/cors/cors_config.py
 """
-Configuração segura de CORS para MenuHub
-Autor: Sistema de Segurança PDVix
-Data: 2025-10-18
+Configuração CORS - Wrapper para config.py
+==========================================
+
+Este arquivo agora é apenas um wrapper para manter compatibilidade
+com código existente. Toda a lógica real está em config.py
+
+Autor: PDVix Team
+Última atualização: 2025-01-19
 """
-from typing import List
+
 from src.core.config import config
-import logging
 
-logger = logging.getLogger(__name__)
 
-def get_allowed_origins() -> List[str]:
+def get_allowed_origins() -> list[str]:
     """
-    Retorna lista de origens permitidas baseado no ambiente
+    ✅ Retorna lista de origens permitidas para CORS
 
-    ✅ Produção: Apenas domínios oficiais do MenuHub
-    🛠️ Desenvolvimento: Localhost para testes
+    Delegado para config.get_allowed_origins_list()
     """
-
-    # 🔒 PRODUÇÃO - Domínios oficiais
-    if config.ENVIRONMENT == "production":
-        origins = [
-            # ✅ Domínio principal
-            "https://menuhub.com.br",
-            "https://www.menuhub.com.br",
-
-            # ✅ Subdomínios oficiais (se tiver)
-            "https://app.menuhub.com.br",
-            "https://admin.menuhub.com.br",
-            "https://painel.menuhub.com.br",
-
-            # ✅ Backend (para testes internos via Swagger)
-            "https://api-pdvix-production.up.railway.app",
-        ]
-        logger.info(f"🔒 CORS PRODUÇÃO: {len(origins)} origens autorizadas")
-        return origins
-
-    # 🛠️ DESENVOLVIMENTO - Localhost + Railway
-    elif config.ENVIRONMENT == "development":
-        origins = [
-            # Frontend local (Flutter web/React)
-            "http://localhost:3000",
-            "http://localhost:8080",
-            "http://localhost:5173",  # Vite
-            "http://127.0.0.1:3000",
-            "http://127.0.0.1:8080",
-
-            # Backend Railway (desenvolvimento)
-            "https://api-pdvix-production.up.railway.app",
-
-            # Domínio de produção (para testes)
-            "https://menuhub.com.br",
-            "https://www.menuhub.com.br",
-        ]
-        logger.info(f"🛠️ CORS DESENVOLVIMENTO: {len(origins)} origens (inclui localhost)")
-        return origins
-
-    # 🧪 STAGING - Ambiente de homologação
-    elif config.ENVIRONMENT == "staging":
-        origins = [
-            "https://staging.menuhub.com.br",
-            "https://dev.menuhub.com.br",
-            "https://api-pdvix-production.up.railway.app",
-        ]
-        logger.info(f"🧪 CORS STAGING: {len(origins)} origens")
-        return origins
-
-    # ⚠️ Fallback seguro (caso ENVIRONMENT não esteja definido)
-    logger.warning("⚠️ ENVIRONMENT não definido! Usando fallback seguro.")
-    return [
-        "https://menuhub.com.br",
-        "https://api-pdvix-production.up.railway.app"
-    ]
+    return config.get_allowed_origins_list()
 
 
-def get_allowed_methods() -> List[str]:
+def get_allowed_methods() -> list[str]:
     """
-    Métodos HTTP permitidos (princípio do menor privilégio)
+    ✅ Retorna métodos HTTP permitidos
 
-    ✅ Apenas os métodos realmente necessários
+    Delegado para config.get_allowed_methods()
     """
-    return ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+    return config.get_allowed_methods()
 
 
-def get_allowed_headers() -> List[str]:
+def get_allowed_headers() -> list[str]:
     """
-    Headers HTTP permitidos (apenas o necessário)
+    ✅ Retorna headers permitidos
 
-    ✅ Lista restrita para segurança máxima
+    Delegado para config.get_allowed_headers()
     """
-    return [
-        "Authorization",      # JWT tokens
-        "Content-Type",       # application/json
-        "Accept",            # Aceita resposta
-        "Origin",            # CORS
-        "X-Requested-With",  # Ajax requests
-        "X-Store-ID",        # Identificação da loja (multi-tenant)
-        "X-Device-ID",       # Identificação do dispositivo
-    ]
+    return config.get_allowed_headers()
 
 
-def get_expose_headers() -> List[str]:
+def get_expose_headers() -> list[str]:
     """
-    Headers que o frontend pode ler na resposta
+    ✅ Retorna headers expostos
+
+    Delegado para config.get_expose_headers()
     """
-    return [
-        "X-Total-Count",     # Paginação
-        "X-Page-Number",     # Número da página
-        "X-Rate-Limit",      # Rate limiting info
-    ]
+    return config.get_expose_headers()

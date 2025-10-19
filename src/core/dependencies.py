@@ -1,3 +1,9 @@
+# src/api/dependencies/auth.py
+"""
+Dependências de Autenticação e Autorização
+===========================================
+"""
+
 from datetime import datetime
 from typing import Annotated
 
@@ -59,6 +65,36 @@ def get_current_user(
     return user
 
 
+# ✅ ADICIONAR: Função para validar admin
+def get_current_admin_user(
+        db: GetDBDep,
+        token: Annotated[str, Depends(oauth2_scheme)]
+) -> models.User:
+    """
+    ✅ Retorna o usuário atual SE FOR ADMIN/SUPERUSER
+
+    Uso: Proteger endpoints de administração que não dependem de store_id
+
+    Exemplo:
+    ```python
+    @app.get("/admin/stats")
+    async def admin_stats(admin: GetCurrentAdminUserDep):
+        return {"admin": admin.email}
+    ```
+    """
+    # Reutiliza a função existente
+    user = get_current_user(db, token)
+
+    # ✅ Valida se é admin
+    if not user.is_superuser:
+        raise HTTPException(
+            status_code=403,
+            detail="Acesso negado. Requer privilégios de administrador."
+        )
+
+    return user
+
+
 def get_optional_user(db: GetDBDep, authorization: Annotated[str | None, Header()] = None):
     """✅ ATUALIZADO: Compatível com nova função verify_access_token"""
     if not authorization:
@@ -74,7 +110,9 @@ def get_optional_user(db: GetDBDep, authorization: Annotated[str | None, Header(
         return None
 
 
+# ✅ Type annotations para usar com Depends()
 GetCurrentUserDep = Annotated[models.User, Depends(get_current_user)]
+GetCurrentAdminUserDep = Annotated[models.User, Depends(get_current_admin_user)]  # ✅ NOVO
 GetOptionalUserDep = Annotated[models.User | None, Depends(get_optional_user)]
 
 

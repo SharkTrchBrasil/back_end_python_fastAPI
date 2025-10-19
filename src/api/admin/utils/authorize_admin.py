@@ -1,5 +1,8 @@
 import jwt
 from src.core import models
+from src.core.security.security import SECRET_KEY, ALGORITHM
+
+
 # ✅ CORREÇÃO: Importa as constantes do local correto
 
 
