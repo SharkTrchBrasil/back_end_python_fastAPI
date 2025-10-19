@@ -1,4 +1,4 @@
-# src/api/dependencies/auth.py
+# src/api/dependencies/authenticate.py
 """
 Dependências de Autenticação e Autorização
 ===========================================

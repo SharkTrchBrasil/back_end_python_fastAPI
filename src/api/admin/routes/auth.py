@@ -9,7 +9,7 @@ from starlette import status
 from starlette.requests import Request
 
 from src.api.schemas.auth.auth import TokenResponse
-from src.api.admin.utils.auth import authenticate_user
+from src.api.admin.utils.authenticate import authenticate_user
 from src.api.schemas.auth.auth_totem import TotemAuthorizationResponse, AuthenticateByUrlRequest, TotemCheckTokenResponse
 from src.core import models
 from src.core.config import config
@@ -37,13 +37,14 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 @limiter.limit(RATE_LIMITS["login"])
 async def login_for_access_token(
         request: Request,
-        db: GetDBDep,
+        db: GetDBDep,  # Session injetada pelo FastAPI
         form_data: OAuth2PasswordRequestForm = Depends(),
 ):
+    # ✅ CORRETO: Ordem correta dos parâmetros
     user: models.User | None = authenticate_user(
+        db=db,  # ← PRIMEIRO parâmetro
         email=form_data.username,
         password=form_data.password,
-        db=db
     )
 
     if not user:
@@ -91,7 +92,7 @@ async def login_for_access_token(
     }
 
 
-# src/api/admin/routes/auth.py
+# src/api/admin/routes/authenticate.py
 
 @router.post("/refresh", response_model=TokenResponse)
 @limiter.limit("10/minute")
