@@ -121,6 +121,39 @@ class Config(BaseSettings):
     # MÉTODOS ÚTEIS
     # ═══════════════════════════════════════════════════════════
 
+
+
+
+    # ═══════════════════════════════════════════════════════════
+    # DATABASE - ENTERPRISE CONFIGURATION
+    # ═══════════════════════════════════════════════════════════
+
+    DATABASE_URL: str
+    DATABASE_READ_REPLICA_URL: Optional[str] = None  # ✅ Read replica opcional
+
+    # Pool de Conexões
+    DB_POOL_SIZE: int = 50
+    DB_MAX_OVERFLOW: int = 50
+    DB_POOL_TIMEOUT: int = 10
+    DB_POOL_RECYCLE: int = 1800
+
+    # Retry Logic
+    DB_MAX_RETRIES: int = 3
+    DB_RETRY_DELAY: float = 0.5
+
+    # Circuit Breaker
+    DB_CIRCUIT_BREAKER_THRESHOLD: int = 5
+    DB_CIRCUIT_BREAKER_TIMEOUT: int = 30
+
+    # Query Timeouts
+    DB_STATEMENT_TIMEOUT: int = 30000  # 30 segundos em milliseconds
+    DB_CONNECT_TIMEOUT: int = 10  # 10 segundos
+
+
+
+
+
+
     @property
     def is_production(self) -> bool:
         """Verifica se está em produção"""

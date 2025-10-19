@@ -17,6 +17,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+from src.api.admin.routes import monitoring
 from src.api.scheduler import start_scheduler, stop_scheduler
 from src.core.cors.cors_config import get_allowed_origins, get_allowed_methods, get_allowed_headers, get_expose_headers
 from src.core.cors.cors_middleware import CustomCORSMiddleware
@@ -30,6 +31,7 @@ from src.core.db_initialization import (
 )
 from src.api.admin.events.admin_namespace import AdminNamespace
 from src.api.app.events.totem_namespace import TotemNamespace
+from src.core.monitoring.middleware import MetricsMiddleware
 from src.core.rate_limit.rate_limit import limiter, rate_limit_exceeded_handler, check_redis_connection
 from src.socketio_instance import sio
 from src.api.admin import router as admin_router
@@ -41,6 +43,8 @@ from src.core.config import config
 
 # ✅ ADICIONAR: Importações do sistema de cache
 from src.core.cache import redis_client, cache_manager
+
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -166,6 +170,10 @@ fast_app = FastAPI(
     lifespan=lifespan
 )
 
+# Adicionar middleware
+fast_app.add_middleware(MetricsMiddleware)
+
+
 # ==========================================
 # 🛡️ RATE LIMITING - PROTEÇÃO CONTRA DDoS
 # ==========================================
@@ -263,6 +271,8 @@ fast_app.include_router(app_router)
 fast_app.include_router(chatbot_webhooks_router)
 fast_app.include_router(chatbot_message_webhook.router)
 fast_app.include_router(pagarme_webhook_router)
+# Adicionar rota de monitoring
+fast_app.include_router(monitoring.router)
 
 logger.info("✅ Rotas registradas")
 
