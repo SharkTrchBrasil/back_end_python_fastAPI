@@ -268,31 +268,71 @@ def retry_on_db_error(max_retries: int = DatabaseConfig.MAX_RETRIES):
     """
     Decorator para retry automático em erros de conexão
 
-    Args:
-        max_retries: Número máximo de tentativas
+    ✅ VERSÃO CORRIGIDA: Compatível com geradores (generators) de
+    dependência do FastAPI.
     """
 
-    def decorator(func):
-        @wraps(func)
+    def decorator(func_gen):
+        @wraps(func_gen)
         def wrapper(*args, **kwargs):
             last_exception = None
+            gen = None
+            resource = None
 
+            # 1. Tenta INICIAR o gerador e obter o recurso (a sessão)
+            #    Isso é feito dentro de um loop de retry.
             for attempt in range(max_retries):
                 try:
-                    return func(*args, **kwargs)
+                    # Cria o gerador (ex: chama get_db() ou get_read_db())
+                    gen = func_gen(*args, **kwargs)
+                    # Executa o gerador até o primeiro 'yield'
+                    resource = next(gen)
+
+                    # Se 'next(gen)' funcionou, a sessão foi criada
+                    last_exception = None
+                    break  # Sucesso, sai do loop de retry
+
                 except (OperationalError, DisconnectionError, DBAPIError) as e:
+                    # Falha de conexão ao tentar criar a sessão
                     last_exception = e
                     if attempt < max_retries - 1:
-                        delay = DatabaseConfig.RETRY_DELAY * (2 ** attempt)  # Exponential backoff
+                        delay = DatabaseConfig.RETRY_DELAY * (2 ** attempt)  # Backoff
                         logger.warning(
                             f"⚠️ Erro de banco (tentativa {attempt + 1}/{max_retries}). "
                             f"Retentando em {delay}s... Erro: {str(e)}"
                         )
                         time.sleep(delay)
                     else:
-                        logger.error(f"❌ Falha após {max_retries} tentativas: {str(e)}")
+                        logger.error(f"❌ Falha ao obter sessão após {max_retries} tentativas: {str(e)}")
 
-            raise last_exception
+                except StopIteration:
+                    # O gerador não deu 'yield' em nada
+                    last_exception = RuntimeError(f"Dependency generator {func_gen.__name__} did not yield a value.")
+                    break
+
+            if last_exception:
+                raise last_exception
+
+            # 2. Se o recurso (sessão) foi obtido, dá 'yield' para a rota
+            try:
+                yield resource
+            except Exception as e:
+                # 3. Se um erro acontece na rota, joga de volta no gerador
+                #    para acionar o 'except' ou 'finally' original
+                logger.error(f"❌ Erro na sessão: {e}", exc_info=True)
+                try:
+                    gen.throw(e)
+                except StopIteration:
+                    pass
+                except Exception as gen_e:
+                    logger.error(f"❌ Erro ao fechar gerador: {gen_e}", exc_info=True)
+                raise  # Levanta a exceção original da rota
+            else:
+                # 4. Se a rota terminou sem erro, executa o 'finally' do gerador
+                try:
+                    next(gen)
+                except StopIteration:
+                    pass  # O gerador terminou normalmente
 
         return wrapper
 
