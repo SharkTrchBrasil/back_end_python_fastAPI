@@ -1,3 +1,5 @@
+# src/api/admin/routes/auth.py
+
 import uuid
 from datetime import datetime, timezone
 from typing import Annotated
@@ -30,8 +32,6 @@ from src.core.security.security import (
 )
 
 from src.core.security.token_blacklist import TokenBlacklist
-
-# ✅ IMPORTA A INSTÂNCIA (minúsculo), NÃO A CLASSE
 from src.core.cache.redis_client import redis_client
 from src.core.cache.keys import CacheKeys
 
@@ -42,11 +42,11 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 @limiter.limit(RATE_LIMITS["login"])
 async def login_for_access_token(
         request: Request,
-        db: GetDBDep,
+        db: GetDBDep,  # ✅ FastAPI injeta a Session aqui
         form_data: OAuth2PasswordRequestForm = Depends(),
 ):
     """
-    ✅ LOGIN SEGURO COM PROTEÇÃO CONTRA BRUTE FORCE
+    ✅ LOGIN SEGURO
     """
     email = form_data.username
 
@@ -54,72 +54,60 @@ async def login_for_access_token(
     # 1️⃣ PROTEÇÃO CONTRA BRUTE FORCE
     # ═══════════════════════════════════════════════════════════
 
-    # ✅ CORRETO: Usa redis_client (instância)
     locked_key = CacheKeys.account_locked(email)
     if redis_client.exists(locked_key):
-        logger.error(f"🔒 Tentativa de login em conta bloqueada: {email}")
+        logger.error(f"🔒 Conta bloqueada: {email}")
         raise HTTPException(
             status_code=429,
-            detail={
-                "error": "account_locked",
-                "message": "Conta temporariamente bloqueada. Tente novamente em 15 minutos.",
-                "retry_after": 900
-            }
+            detail="Conta temporariamente bloqueada. Tente em 15 minutos."
         )
 
     # ═══════════════════════════════════════════════════════════
     # 2️⃣ AUTENTICAÇÃO
     # ═══════════════════════════════════════════════════════════
 
+    # ✅ CORRETO: Argumentos posicionais (db é passado primeiro)
     user: models.User | None = authenticate_user(
-        db=db,
-        email=email,
-        password=form_data.password,
+        db,  # ✅ Primeiro argumento (Session)
+        email,  # ✅ Segundo argumento
+        form_data.password  # ✅ Terceiro argumento
     )
 
     if not user:
-        # ✅ CORRETO: Usa redis_client
+        # Registra falha
         failed_key = CacheKeys.login_failed_attempts(email)
 
-        # Incrementa contador (usa cliente Redis raw porque RedisClient não tem incr)
         if redis_client._is_available and redis_client._client:
             attempts = redis_client._client.incr(failed_key)
 
-            # Define TTL na primeira tentativa
             if attempts == 1:
-                redis_client._client.expire(failed_key, 900)  # 15 minutos
+                redis_client._client.expire(failed_key, 900)
 
             logger.warning(f"⚠️ Login falhou ({attempts}/5): {email}")
 
-            # Bloqueia após 5 tentativas
             if attempts >= 5:
                 redis_client.set(locked_key, "locked", ttl=900)
                 logger.error(f"🔒 Conta bloqueada: {email}")
                 raise HTTPException(
                     status_code=429,
-                    detail={
-                        "error": "account_locked",
-                        "message": f"Conta bloqueada após {attempts} tentativas. Tente em 15 minutos.",
-                        "retry_after": 900
-                    }
+                    detail="Conta bloqueada após 5 tentativas."
                 )
 
         raise HTTPException(
             status_code=401,
-            detail="Incorrect email or password"
+            detail="Email ou senha incorretos"
         )
 
-    # ✅ Validações de conta
+    # Validações
     if not user.is_email_verified:
-        raise HTTPException(status_code=401, detail="Email not verified")
+        raise HTTPException(status_code=401, detail="Email não verificado")
 
     if not user.is_active:
-        raise HTTPException(status_code=401, detail="Inactive account")
+        raise HTTPException(status_code=401, detail="Conta inativa")
 
-    # ✅ Login bem-sucedido - limpa tentativas falhadas
+    # Limpa tentativas falhadas
     failed_key = CacheKeys.login_failed_attempts(email)
     redis_client.delete(failed_key)
-    logger.info(f"✅ Login bem-sucedido: {email}")
 
     # ═══════════════════════════════════════════════════════════
     # 3️⃣ GERAÇÃO DE TOKENS
@@ -137,7 +125,6 @@ async def login_for_access_token(
         jti=refresh_jti
     )
 
-    # ✅ Registra tokens ativos no Redis
     TokenBlacklist.store_user_token(
         user.email,
         access_jti,
@@ -149,13 +136,13 @@ async def login_for_access_token(
         config.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
     )
 
+    logger.info(f"✅ Login bem-sucedido: {email}")
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
         "refresh_token": refresh_token
     }
-
-
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -165,28 +152,22 @@ async def refresh_access_token(
         refresh_token: Annotated[str, Body(..., embed=True)],
         db: GetDBDep
 ):
-    # ✅ VALIDA E VERIFICA BLACKLIST
     payload = verify_refresh_token(refresh_token)
 
     if not payload:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired refresh token"
-        )
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
 
     email = payload.get("sub")
     old_jti = payload.get("jti")
 
-    # Verifica se usuário ainda existe e está ativo
     user = db.query(models.User).filter(
         models.User.email == email,
         models.User.is_active == True
     ).first()
 
     if not user:
-        raise HTTPException(status_code=401, detail="User not found or inactive")
+        raise HTTPException(status_code=401, detail="User not found")
 
-    # ✅ REVOGA O REFRESH TOKEN ANTIGO
     if old_jti:
         exp = payload.get("exp")
         now = datetime.now(timezone.utc).timestamp()
@@ -194,35 +175,21 @@ async def refresh_access_token(
 
         if ttl_seconds > 0:
             TokenBlacklist.add_token(old_jti, ttl_seconds)
-            logger.info(f"✅ Refresh token antigo revogado: {old_jti[:8]}...")
 
-    # ✅ CRIA NOVOS TOKENS COM NOVOS JTIs
     new_access_jti = str(uuid.uuid4())
     new_refresh_jti = str(uuid.uuid4())
 
     new_access_token = create_access_token(data={"sub": email}, jti=new_access_jti)
     new_refresh_token = create_refresh_token(data={"sub": email}, jti=new_refresh_jti)
 
-    # ✅ REGISTRA NOVOS TOKENS
-    TokenBlacklist.store_user_token(
-        email,
-        new_access_jti,
-        config.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    )
-    TokenBlacklist.store_user_token(
-        email,
-        new_refresh_jti,
-        config.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
-    )
+    TokenBlacklist.store_user_token(email, new_access_jti, config.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
+    TokenBlacklist.store_user_token(email, new_refresh_jti, config.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60)
 
     return {
         "access_token": new_access_token,
         "token_type": "bearer",
         "refresh_token": new_refresh_token
     }
-
-
-
 
 
 @router.post("/change-password")
@@ -233,33 +200,26 @@ async def change_password(
         db: GetDBDep,
         current_user: GetCurrentUserDep,
 ):
-    # Valida senha antiga
+    # ✅ CORRETO: Argumentos posicionais
     user = authenticate_user(
-        email=current_user.email,
-        password=change_password_data.old_password,
-        db=db
+        db,  # ✅ Primeiro
+        current_user.email,  # ✅ Segundo
+        change_password_data.old_password  # ✅ Terceiro
     )
+
     if not user:
         raise HTTPException(status_code=401, detail="Senha atual incorreta")
 
-    # Atualiza senha
     user.hashed_password = get_password_hash(change_password_data.new_password)
     db.commit()
 
-    # ✅ REVOGA TODOS OS TOKENS APÓS TROCAR SENHA
     TokenBlacklist.revoke_all_user_tokens(current_user.email)
 
-    logger.warning(f"🔐 Senha alterada e todos tokens revogados: {current_user.email}")
+    logger.warning(f"🔐 Senha alterada: {current_user.email}")
 
     return {
-        "message": "Senha alterada com sucesso. "
-                   "Você foi desconectado de todos os dispositivos. "
-                   "Faça login novamente."
+        "message": "Senha alterada. Faça login novamente."
     }
-
-
-
-
 
 
 
