@@ -10,6 +10,7 @@ import sys
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime
+from typing import Union
 
 import socketio
 import uvicorn
@@ -17,11 +18,11 @@ from fastapi import FastAPI, Request
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy.orm import Session
 from starlette.middleware.cors import CORSMiddleware
-from starlette.responses import Response
+from starlette.responses import Response, JSONResponse
 
 from src.api.admin.routes import monitoring
 from src.api.scheduler import start_scheduler, stop_scheduler
-from src.core.config import config  # ✅ ÚNICO IMPORT NECESSÁRIO
+from src.core.config import config
 from src.core.cors.cors_middleware import CustomCORSMiddleware
 from src.core.database import engine
 from src.core.db_initialization import (
@@ -178,8 +179,14 @@ fast_app.add_middleware(MetricsMiddleware)
 # RATE LIMITING
 # ═══════════════════════════════════════════════════════════
 
-fast_app.state.limiter = limiter
-fast_app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+# ✅ CORREÇÃO: Type hint explícito para resolver warning do IDE
+fast_app.state.limiter = limiter  # type: ignore[attr-defined]
+
+# ✅ CORREÇÃO: Exception handler com type hint correto
+fast_app.add_exception_handler(
+    RateLimitExceeded,
+    rate_limit_exceeded_handler  # type: ignore[arg-type]
+)
 
 if config.REDIS_URL:
     redis_ok = check_redis_connection()
@@ -196,7 +203,6 @@ logger.info(f"✅ Rate Limiting ativo: {config.RATE_LIMIT_ENABLED}")
 # CORS
 # ═══════════════════════════════════════════════════════════
 
-# ✅ AGORA TUDO VEM DO CONFIG
 allowed_origins = config.get_allowed_origins_list()
 
 fast_app.add_middleware(
@@ -223,7 +229,10 @@ logger.info("=" * 60)
 # ═══════════════════════════════════════════════════════════
 
 @fast_app.middleware("http")
-async def security_logging_middleware(request: Request, call_next):
+async def security_logging_middleware(
+    request: Request,
+    call_next
+) -> Union[Response, JSONResponse]:
     """Middleware de segurança e logging"""
     origin = request.headers.get("origin")
 
@@ -270,7 +279,7 @@ logger.info("✅ Rotas registradas")
 
 @fast_app.get("/health", tags=["Health"])
 @limiter.limit("100/minute")
-async def health_check(request: Request):
+async def health_check(request: Request) -> dict:
     """Health check com informações de cache"""
     cache_status = "enabled" if redis_client.is_available else "disabled"
     cache_stats = redis_client.get_stats() if redis_client.is_available else {}
@@ -288,7 +297,7 @@ async def health_check(request: Request):
 
 
 @fast_app.get("/cache/stats", tags=["Cache"], include_in_schema=False)
-async def cache_stats(current_admin: GetCurrentAdminUserDep):
+async def cache_stats(current_admin: GetCurrentAdminUserDep) -> dict:
     """Endpoint protegido para admins monitorarem cache"""
     if not redis_client.is_available:
         return {

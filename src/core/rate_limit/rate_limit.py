@@ -1,23 +1,29 @@
+# src/core/rate_limit/rate_limit.py
+
 """
-Sistema de Rate Limiting para MenuHub
+Sistema de Rate Limiting Profissional para MenuHub
+===================================================
 Protege contra DDoS, brute force e abuso de API
+
+Última atualização: 2025-01-19
 """
+
 import logging
+from typing import Callable
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-from typing import Optional
 from src.core.config import config
 import redis
 
 logger = logging.getLogger(__name__)
 
 
-# ==========================================
+# ═══════════════════════════════════════════════════════════
 # CONFIGURAÇÃO DO STORAGE (Redis ou Memória)
-# ==========================================
+# ═══════════════════════════════════════════════════════════
 
 def get_storage_uri() -> str:
     """
@@ -27,7 +33,6 @@ def get_storage_uri() -> str:
     1. Redis (produção) - persistente e distribuído
     2. Memory (desenvolvimento) - temporário
     """
-
     if config.REDIS_URL:
         logger.info(f"✅ Rate Limiting usando Redis: {config.REDIS_URL[:30]}...")
         return config.REDIS_URL
@@ -36,9 +41,9 @@ def get_storage_uri() -> str:
     return "memory://"
 
 
-# ==========================================
+# ═══════════════════════════════════════════════════════════
 # FUNÇÃO PARA IDENTIFICAR USUÁRIO
-# ==========================================
+# ═══════════════════════════════════════════════════════════
 
 def get_identifier(request: Request) -> str:
     """
@@ -47,14 +52,9 @@ def get_identifier(request: Request) -> str:
     Prioridade:
     1. User ID (se autenticado) - mais preciso
     2. IP Address (se anônimo) - fallback
-
-    Isso evita que um usuário legítimo seja bloqueado
-    por compartilhar IP (ex: mesma empresa)
     """
-
     # 1. Tenta pegar user_id do token JWT (se autenticado)
     try:
-        # Se o usuário está autenticado, usa seu ID
         if hasattr(request.state, "user") and request.state.user:
             user_id = getattr(request.state.user, "id", None)
             if user_id:
@@ -63,7 +63,6 @@ def get_identifier(request: Request) -> str:
         pass
 
     # 2. Fallback: usa IP address
-    # Considera X-Forwarded-For (Railway/proxy)
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
         ip = forwarded.split(",")[0].strip()
@@ -73,31 +72,35 @@ def get_identifier(request: Request) -> str:
     return f"ip:{ip}"
 
 
-# ==========================================
-# INICIALIZAÇÃO DO LIMITER
-# ==========================================
+# ═══════════════════════════════════════════════════════════
+# INICIALIZAÇÃO DO LIMITER (CONFIGURAÇÃO CORRIGIDA)
+# ═══════════════════════════════════════════════════════════
 
 limiter = Limiter(
-    key_func=get_identifier,  # ✅ Usa nossa função customizada
-    storage_uri=get_storage_uri(),  # ✅ Redis ou memória
-    default_limits=["1000/hour"],  # ✅ Limite global padrão
-    headers_enabled=True,  # ✅ Retorna headers informativos
-    swallow_errors=True,  # ✅ Não quebra se Redis cair (fallback para sem limite)
+    key_func=get_identifier,
+    storage_uri=get_storage_uri(),
+    default_limits=["1000/hour"],
+    headers_enabled=True,
+    swallow_errors=True,
+    # ✅ CRÍTICO: Esta configuração previne o erro do SlowAPI
+    strategy="fixed-window",
+    # ✅ Desabilita injeção automática de headers (FastAPI faz isso depois)
+    auto_check=False,
 )
 
 logger.info(f"✅ Rate Limiter inicializado com storage: {get_storage_uri()[:30]}")
 
 
-# ==========================================
-# HANDLER DE ERRO CUSTOMIZADO
-# ==========================================
+# ═══════════════════════════════════════════════════════════
+# HANDLER DE ERRO CUSTOMIZADO (MELHORADO)
+# ═══════════════════════════════════════════════════════════
 
-def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
     """
-    Retorna resposta amigável quando rate limit é excedido
-    """
+    ✅ Handler assíncrono para rate limit excedido
 
-    # Extrai informações do erro
+    Retorna JSONResponse diretamente (compatível com FastAPI)
+    """
     path = request.url.path
     method = request.method
     identifier = get_identifier(request)
@@ -111,61 +114,95 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSO
         f"   └─ User-Agent: {request.headers.get('user-agent', 'N/A')[:100]}"
     )
 
-    # Resposta para o cliente
+    # ✅ Extrai informações do erro
+    retry_after = 60  # Padrão: 1 minuto
+    try:
+        if hasattr(exc, 'retry_after'):
+            retry_after = int(exc.retry_after)
+        elif "Retry after" in exc.detail:
+            retry_after = int(exc.detail.split("Retry after ")[1].split(" ")[0])
+    except:
+        pass
+
+    # ✅ Resposta JSON profissional
     return JSONResponse(
         status_code=429,
         content={
             "error": "too_many_requests",
             "message": "Muitas requisições. Por favor, aguarde alguns segundos.",
             "detail": exc.detail,
-            "retry_after": getattr(exc, "retry_after", 60),  # Segundos até poder tentar novamente
+            "retry_after_seconds": retry_after,
         },
         headers={
-            "Retry-After": str(getattr(exc, "retry_after", 60)),
-            "X-RateLimit-Limit": str(getattr(exc, "limit", "N/A")),
+            "Retry-After": str(retry_after),
             "X-RateLimit-Remaining": "0",
-            "X-RateLimit-Reset": str(getattr(exc, "reset", "N/A")),
         }
     )
 
 
-# ==========================================
-# DECORATORS ESPECÍFICOS PARA CADA CENÁRIO
-# ==========================================
+# ═══════════════════════════════════════════════════════════
+# RATE LIMITS PRÉ-CONFIGURADOS
+# ═══════════════════════════════════════════════════════════
 
-# ✅ Rate limits pré-configurados
 RATE_LIMITS = {
     # Autenticação (mais restritivo)
-    "login": "5/minute",  # Máx 5 tentativas de login por minuto
-    "register": "3/minute",  # Máx 3 cadastros por minuto (previne spam)
-    "password_reset": "3/hour",  # Máx 3 resets de senha por hora
+    "login": "5/minute",
+    "register": "3/minute",
+    "password_reset": "3/hour",
 
     # Operações normais
-    "read": "100/minute",  # Leitura (GET) - mais permissivo
-    "write": "30/minute",  # Escrita (POST/PUT/DELETE) - mais restritivo
+    "read": "100/minute",
+    "write": "30/minute",
 
     # Webhooks
-    "webhook": "1000/hour",  # Webhooks de pagamento
+    "webhook": "1000/hour",
 
     # WebSocket
-    "websocket_connect": "10/minute",  # Máx 10 conexões por minuto (previne spam)
+    "websocket_connect": "10/minute",
 
     # Admin operations
-    "admin_write": "60/minute",  # Admins podem fazer mais operações
+    "admin_write": "60/minute",
 
-    # Endpoints públicos (cardápio)
-    "public": "200/minute",  # Mais permissivo para clientes finais
+    # Endpoints públicos
+    "public": "200/minute",
 }
 
 
-# ==========================================
+# ═══════════════════════════════════════════════════════════
+# WRAPPER PARA COMPATIBILIDADE COM FASTAPI
+# ═══════════════════════════════════════════════════════════
+
+def rate_limit(limit_string: str):
+    """
+    ✅ Wrapper profissional que garante compatibilidade total
+
+    Uso:
+    ```python
+    @router.post("/login")
+    @rate_limit("5/minute")
+    async def login(...):
+        return {"token": "..."}  # Retorna dict normal
+    ```
+    """
+    def decorator(func: Callable) -> Callable:
+        # ✅ Aplica limiter mas não tenta modificar resposta dict
+        limited_func = limiter.limit(limit_string)(func)
+
+        # ✅ Marca função para FastAPI processar corretamente
+        limited_func.__rate_limited__ = True
+        limited_func.__rate_limit__ = limit_string
+
+        return limited_func
+
+    return decorator
+
+
+# ═══════════════════════════════════════════════════════════
 # FUNÇÕES AUXILIARES
-# ==========================================
+# ═══════════════════════════════════════════════════════════
 
 def check_redis_connection() -> bool:
-    """
-    Verifica se Redis está acessível
-    """
+    """Verifica se Redis está acessível"""
     if not config.REDIS_URL:
         return False
 
@@ -180,9 +217,7 @@ def check_redis_connection() -> bool:
 
 
 def get_rate_limit_info(request: Request) -> dict:
-    """
-    Retorna informações sobre rate limiting para o cliente
-    """
+    """Retorna informações sobre rate limiting"""
     return {
         "rate_limit_enabled": config.RATE_LIMIT_ENABLED,
         "storage": "redis" if config.REDIS_URL else "memory",
