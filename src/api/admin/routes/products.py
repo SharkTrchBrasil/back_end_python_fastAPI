@@ -3,8 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Form, UploadFile, File, HTTPException
 
 from pydantic import ValidationError
-from sqlalchemy import func
-from sqlalchemy.orm import Query
+
 
 from starlette import status
 
@@ -32,7 +31,8 @@ from src.core.dependencies import GetStoreDep, GetProductDep
 from src.core.utils.enums import ProductStatus
 
 router = APIRouter(prefix="/stores/{store_id}/products", tags=["Products"])
-
+# ✅ DEPOIS
+from fastapi import APIRouter, Form, UploadFile, File, HTTPException, Query
 
 # ===================================================================
 # ROTA 1: CRIAR PRODUTO SIMPLES (Ex: Bebidas, Lanches)
