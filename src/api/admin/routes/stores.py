@@ -3,6 +3,7 @@ import asyncio
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
+from sqlite3 import IntegrityError
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response, UploadFile, Form, File
@@ -12,7 +13,7 @@ from starlette.requests import Request
 from src.api.admin.services.cloning_service import clone_store_data
 
 from src.api.admin.services.subscription_service import SubscriptionService
-from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_stores_list_update
+from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_stores_list_update, emit_store_updates
 from src.api.app.socketio.socketio_emitters import emit_store_updated
 from src.api.schemas.auth.store_access import StoreAccess
 from src.api.schemas.auth.user import CreateStoreUserRequest, GrantStoreAccessRequest
@@ -173,7 +174,7 @@ async def create_store(
     db.refresh(db_store_access)
 
     await admin_emit_stores_list_update(db, admin_user=user)
-    await admin_emit_store_updated(db, store_id=db_store.id)
+    await emit_store_updates(db, store_id=db_store.id)
 
     return db_store_access
 
@@ -319,7 +320,7 @@ def get_store(store: Annotated[Store, Depends(GetStore([Roles.OWNER]))]):
 @router.patch("/{store_id}", response_model=StoreDetails)
 async def patch_store(
         db: GetDBDep,
-        store: Annotated[Store, Depends(GetStore([Roles.OWNER]))],
+        store: Annotated[Store, Depends(GetStore([Roles.OWNER, Roles.MANAGER]))],  # ✅ Adicionei MANAGER
         name: str | None = Form(None),
         phone: str | None = Form(None),
         email: str | None = Form(None),
@@ -358,12 +359,30 @@ async def patch_store(
         banner_key_to_delete = store.banner_file_key
         store.banner_file_key = upload_single_file(banner)
 
+    # ✅ HELPER PARA NORMALIZAR STRINGS VAZIAS PARA NULL
+    def normalize_empty_string(value: str | None) -> str | None:
+        """Converte strings vazias para None (NULL no banco)"""
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped if stripped else None
+
     update_data = {
-        "name": name, "phone": phone, "description": description,
-        "url_slug": url_slug, "cnpj": cnpj, "segment_id": segment_id,
-        "zip_code": zip_code, "street": street, "number": number,
-        "neighborhood": neighborhood, "complement": complement, "city": city, "state": state,
-        "responsible_name": responsible_name, "responsible_phone": responsible_phone,
+        "name": name,
+        "phone": phone,
+        "description": description,
+        "url_slug": url_slug,
+        "cnpj": normalize_empty_string(cnpj),  # ✅ CORRIGIDO
+        "segment_id": segment_id,
+        "zip_code": zip_code,
+        "street": street,
+        "number": number,
+        "neighborhood": neighborhood,
+        "complement": normalize_empty_string(complement),  # ✅ CORRIGIDO
+        "city": city,
+        "state": state,
+        "responsible_name": responsible_name,
+        "responsible_phone": normalize_empty_string(responsible_phone),  # ✅ CORRIGIDO
         "is_setup_complete": is_setup_complete,
     }
 
@@ -372,17 +391,43 @@ async def patch_store(
             setattr(store, key, value)
 
     db.add(store)
-    db.commit()
-    db.refresh(store)
+
+    try:
+        db.commit()
+        db.refresh(store)
+    except IntegrityError as e:
+        db.rollback()
+
+        # ✅ TRATAMENTO ESPECÍFICO PARA CNPJ DUPLICADO
+        if "ix_stores_cnpj" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": "Este CNPJ já está cadastrado em outra loja.",
+                    "code": "DUPLICATE_CNPJ"
+                }
+            )
+
+        # ✅ TRATAMENTO GENÉRICO PARA OUTROS ERROS DE INTEGRIDADE
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": "Erro de integridade de dados. Verifique os campos únicos.",
+                "code": "INTEGRITY_ERROR"
+            }
+        )
 
     if file_key_to_delete:
         delete_file(file_key_to_delete)
     if banner_key_to_delete:
         delete_file(banner_key_to_delete)
 
-    await asyncio.create_task(emit_store_updated(db, store.id))
-    await admin_emit_store_updated(db, store.id)
+
+    await emit_store_updates(db, store.id)
     return store
+
+
+
 
 
 @router.post(
