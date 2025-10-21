@@ -185,3 +185,135 @@ class ChatbotMessageGroupEnum(enum.Enum):
     LOYALTY = "Ative seu programa de fidelidade"
     ORDER_UPDATES = "Envie atualizações automáticas do pedido"
     COURIER_NOTIFICATIONS = "Notifique seus Entregadores"
+
+
+# src/core/utils/enums.py
+
+import enum
+
+
+class AuditAction(str, enum.Enum):
+    """Ações de auditoria do sistema"""
+
+    # === PRODUTOS ===
+    CREATE_PRODUCT = "create_product"
+    UPDATE_PRODUCT = "update_product"
+    DELETE_PRODUCT = "delete_product"
+    ARCHIVE_PRODUCT = "archive_product"
+    BULK_ARCHIVE_PRODUCTS = "bulk_archive_products"
+    BULK_UPDATE_CATEGORY = "bulk_update_category"
+    BULK_UPDATE_STATUS = "bulk_update_status"
+    UPDATE_PRODUCT_PRICE = "update_product_price"
+    ADD_PRODUCT_TO_CATEGORY = "add_product_to_category"
+    REMOVE_PRODUCT_FROM_CATEGORY = "remove_product_from_category"
+
+    # === CATEGORIAS ===
+    CREATE_CATEGORY = "create_category"
+    UPDATE_CATEGORY = "update_category"
+    DELETE_CATEGORY = "delete_category"
+    REORDER_CATEGORIES = "reorder_categories"
+
+    # === VARIANTES/COMPLEMENTOS ===
+    CREATE_VARIANT = "create_variant"
+    UPDATE_VARIANT = "update_variant"
+    DELETE_VARIANT = "delete_variant"
+    LINK_VARIANT_TO_PRODUCT = "link_variant_to_product"
+    UNLINK_VARIANT_FROM_PRODUCT = "unlink_variant_from_product"
+
+    # === PEDIDOS ===
+    CREATE_ORDER = "create_order"
+    UPDATE_ORDER_STATUS = "update_order_status"
+    CANCEL_ORDER = "cancel_order"
+    APPLY_DISCOUNT = "apply_discount"
+
+    # === CUPONS ===
+    CREATE_COUPON = "create_coupon"
+    UPDATE_COUPON = "update_coupon"
+    DELETE_COUPON = "delete_coupon"
+    ACTIVATE_COUPON = "activate_coupon"
+    DEACTIVATE_COUPON = "deactivate_coupon"
+
+    # === ACESSOS E PERMISSÕES ===
+    GRANT_STORE_ACCESS = "grant_store_access"
+    REVOKE_STORE_ACCESS = "revoke_store_access"
+    UPDATE_USER_ROLE = "update_user_role"
+
+    # === LOJAS ===
+    CREATE_STORE = "create_store"
+    UPDATE_STORE_SETTINGS = "update_store_settings"
+    UPDATE_OPERATION_CONFIG = "update_operation_config"
+    UPDATE_THEME = "update_theme"
+    UPDATE_PAYMENT_METHODS = "update_payment_methods"
+
+    # === ASSINATURAS (BILLING) ✅ NOVAS ===
+    CREATE_SUBSCRIPTION = "create_subscription"
+    REACTIVATE_SUBSCRIPTION = "reactivate_subscription"
+    UPDATE_SUBSCRIPTION_CARD = "update_subscription_card"
+    CANCEL_SUBSCRIPTION = "cancel_subscription"
+    SUBSCRIPTION_PAYMENT_SUCCESS = "subscription_payment_success"
+    SUBSCRIPTION_PAYMENT_FAILED = "subscription_payment_failed"
+
+    # === FINANCEIRO - CAIXA ✅ NOVAS ===
+    OPEN_CASHIER = "open_cashier"
+    CLOSE_CASHIER = "close_cashier"
+    ADD_CASH = "add_cash"
+    REMOVE_CASH = "remove_cash"
+    CASHIER_ADJUSTMENT = "cashier_adjustment"
+    CASHIER_DISCREPANCY = "cashier_discrepancy"
+
+    # === FINANCEIRO - CONTAS ===
+    CREATE_PAYABLE = "create_payable"
+    UPDATE_PAYABLE = "update_payable"
+    DELETE_PAYABLE = "delete_payable"
+    PAY_PAYABLE = "pay_payable"
+
+    # === FORMAS DE PAGAMENTO ✅ NOVAS ===
+    ACTIVATE_PAYMENT_METHOD = "activate_payment_method"
+    DEACTIVATE_PAYMENT_METHOD = "deactivate_payment_method"
+    UPDATE_PAYMENT_METHOD_FEE = "update_payment_method_fee"
+    UPDATE_PAYMENT_METHOD_CONFIG = "update_payment_method_config"
+
+    # === MESAS E COMANDAS ===
+    CREATE_TABLE = "create_table"
+    UPDATE_TABLE_STATUS = "update_table_status"
+    DELETE_TABLE = "delete_table"
+    CREATE_COMMAND = "create_command"
+    CLOSE_COMMAND = "close_command"
+
+    # === CLIENTES ===
+    CREATE_CUSTOMER = "create_customer"
+    UPDATE_CUSTOMER = "update_customer"
+    DELETE_CUSTOMER = "delete_customer"
+
+    # === SISTEMA ===
+    LOGIN = "login"
+    LOGOUT = "logout"
+    FAILED_LOGIN = "failed_login"
+    PASSWORD_CHANGE = "password_change"
+    DATA_EXPORT = "data_export"
+    DATA_IMPORT = "data_import"
+
+
+class AuditEntityType(str, enum.Enum):
+    """Tipos de entidades que podem ser auditadas"""
+    PRODUCT = "product"
+    CATEGORY = "category"
+    VARIANT = "variant"
+    ORDER = "order"
+    CUSTOMER = "customer"
+    COUPON = "coupon"
+    STORE_ACCESS = "store_access"
+    USER = "user"
+    STORE = "store"
+    STORE_SETTINGS = "store_settings"
+
+    # ✅ NOVAS ENTIDADES
+    SUBSCRIPTION = "subscription"
+    PAYMENT_METHOD = "payment_method"
+    CASHIER_SESSION = "cashier_session"
+    CASHIER_TRANSACTION = "cashier_transaction"
+
+    PAYABLE = "payable"
+    TABLE = "table"
+    COMMAND = "command"
+    CART = "cart"

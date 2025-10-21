@@ -2381,22 +2381,29 @@ class Plans(Base, TimestampMixin):
     __tablename__ = "plans"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    plan_name: Mapped[str] = mapped_column()
-    available: Mapped[bool] = mapped_column(default=True)
-    support_type: Mapped[str | None] = mapped_column(nullable=True)
+
+    # ✅ CORREÇÃO 1: Usar String explicitamente
+    plan_name: Mapped[str] = mapped_column(String(100), nullable=False)
+
+    # ✅ CORREÇÃO 2: Usar Boolean explicitamente
+    available: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # ✅ CORREÇÃO 3: String com nullable=True
+    support_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     # ═══════════════════════════════════════════════════════════
     # 💎 ESTRUTURA DE PREÇOS COMPETITIVA (Atualizada 2025-01-15)
     # ═══════════════════════════════════════════════════════════
 
-    # ✅ TIER 1: Até R$ 2.500 = Taxa fixa de R$ 39,90
+    # ✅ CORREÇÃO 4: Integer explícito
     minimum_fee: Mapped[int] = mapped_column(
+        Integer,
         default=3990,
         nullable=False,
         doc="Taxa mínima em centavos (R$ 39,90)"
     )
 
-    # ✅ TIER 2: R$ 2.501 - R$ 15.000 = 1,8% do faturamento
+    # ✅ CORREÇÃO 5: Numeric com precisão explícita
     revenue_percentage: Mapped[Decimal] = mapped_column(
         Numeric(5, 4),
         default=Decimal('0.018'),
@@ -2404,20 +2411,25 @@ class Plans(Base, TimestampMixin):
         doc="Percentual aplicado no Tier 2 (1.8%)"
     )
 
+    # ✅ CORREÇÃO 6: Integer com nullable=True
     percentage_tier_start: Mapped[int | None] = mapped_column(
+        Integer,
         default=250000,
         nullable=True,
         doc="Início do Tier 2 em centavos (R$ 2.500,00)"
     )
 
+    # ✅ CORREÇÃO 7: Integer com nullable=True
     percentage_tier_end: Mapped[int | None] = mapped_column(
+        Integer,
         default=1500000,
         nullable=True,
         doc="Fim do Tier 2 em centavos (R$ 15.000,00)"
     )
 
-    # ✅ TIER 3: Acima de R$ 15.000 = Taxa fixa de R$ 240,00
+    # ✅ CORREÇÃO 8: Integer com nullable=True
     revenue_cap_fee: Mapped[int | None] = mapped_column(
+        Integer,
         default=24000,
         nullable=True,
         doc="Taxa máxima em centavos (R$ 240,00)"
@@ -2427,12 +2439,15 @@ class Plans(Base, TimestampMixin):
     # 🎁 BENEFÍCIOS PROGRESSIVOS
     # ═══════════════════════════════════════════════════════════
 
+    # ✅ CORREÇÃO 9: Boolean explícito
     first_month_free: Mapped[bool] = mapped_column(
+        Boolean,
         default=True,
         nullable=False,
         doc="1º mês grátis (100% de desconto)"
     )
 
+    # ✅ CORREÇÃO 10: Numeric com precisão
     second_month_discount: Mapped[Decimal] = mapped_column(
         Numeric(3, 2),
         default=Decimal('0.50'),
@@ -2440,6 +2455,7 @@ class Plans(Base, TimestampMixin):
         doc="2º mês: 50% de desconto (paga 50%)"
     )
 
+    # ✅ CORREÇÃO 11: Numeric com precisão
     third_month_discount: Mapped[Decimal] = mapped_column(
         Numeric(3, 2),
         default=Decimal('0.75'),
@@ -2468,8 +2484,6 @@ class Plans(Base, TimestampMixin):
             f"tier2={self.revenue_percentage * 100:.1f}%, "
             f"tier3=R${(self.revenue_cap_fee or 0) / 100:.2f})>"
         )
-
-
 
 class PlansAddon(Base, TimestampMixin):
     __tablename__ = "plans_addons"
@@ -2953,3 +2967,87 @@ class ProcessedWebhookEvent(Base, TimestampMixin):
             f"event_type='{self.event_type}', "
             f"processed_at={self.processed_at})>"
         )
+
+
+class AuditLog(Base, TimestampMixin):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    # Quem fez a ação
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+
+    # Onde a ação foi feita
+    store_id: Mapped[int | None] = mapped_column(
+        ForeignKey("stores.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+
+    # Tipo de ação
+    action: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        doc="Tipo de ação: 'grant_access', 'revoke_access', 'create', 'update', 'delete', etc"
+    )
+
+    # Tipo de entidade afetada
+    entity_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        doc="Tipo da entidade: 'store_access', 'product', 'category', 'order', etc"
+    )
+
+    # ID da entidade afetada
+    entity_id: Mapped[int | None] = mapped_column(
+        nullable=True,
+        doc="ID do recurso afetado"
+    )
+
+    # Detalhes das mudanças
+    changes: Mapped[dict | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        doc="Detalhes das alterações em formato JSON"
+    )
+
+    # Metadados da requisição
+    ip_address: Mapped[str | None] = mapped_column(
+        String(45),
+        nullable=True,
+        doc="Endereço IP de origem"
+    )
+
+    user_agent: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        doc="User Agent do cliente"
+    )
+
+    # Informações adicionais para contexto
+    description: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        doc="Descrição legível da ação"
+    )
+
+    # Relacionamentos
+    user: Mapped[Optional["User"]] = relationship()
+    store: Mapped[Optional["Store"]] = relationship()
+
+    __table_args__ = (
+        Index('idx_audit_logs_user_store', 'user_id', 'store_id'),
+        Index('idx_audit_logs_entity', 'entity_type', 'entity_id'),
+        Index('idx_audit_logs_action', 'action'),
+        Index('idx_audit_logs_created_at', 'created_at'),
+        Index(
+            'idx_audit_logs_store_entity',
+            'store_id',
+            'entity_type',
+            'created_at'
+        ),
+    )

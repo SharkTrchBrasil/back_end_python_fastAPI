@@ -7,7 +7,8 @@ Dependências de Autenticação e Autorização
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Header
+from fastapi import  Header
+from fastapi import  HTTPException, Request
 from sqlalchemy.orm import Session, joinedload
 
 from src.api.admin.services.subscription_service import SubscriptionService
@@ -15,6 +16,10 @@ from src.core import models
 from src.core.database import GetDBDep
 from src.core.security.security import verify_access_token, oauth2_scheme
 from src.core.utils.enums import Roles
+from typing import Annotated
+from fastapi import Depends
+
+from src.core.utils.audit import AuditLogger
 
 
 def get_user_from_token(token: str, db: Session):
@@ -261,3 +266,16 @@ def get_current_customer(
 
 
 get_current_customer_dep = Annotated[models.Customer, Depends(get_current_customer)]
+
+
+
+def get_audit_logger(
+    request: Request,
+    db: GetDBDep,
+    current_user: GetCurrentUserDep,
+    store: GetStoreDep
+) -> AuditLogger:
+    """Cria uma instância do AuditLogger para uso nas rotas"""
+    return AuditLogger(db, request, current_user, store)
+
+GetAuditLoggerDep = Annotated[AuditLogger, Depends(get_audit_logger)]
