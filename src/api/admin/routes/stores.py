@@ -59,6 +59,10 @@ async def create_store(
         uf: str = Form(...),
         responsible_name: str = Form(...),
         responsible_phone: str = Form(...),
+        # ✅ NOVOS PARÂMETROS ADICIONADOS
+        latitude: float | None = Form(None),
+        longitude: float | None = Form(None),
+        delivery_radius_km: float | None = Form(None),
 ):
     """Cria uma nova loja com configurações padrão e trial de 30 dias."""
 
@@ -100,6 +104,9 @@ async def create_store(
         segment_id=segment_id, cnpj=cnpj, zip_code=cep, street=street, number=number,
         complement=complement, neighborhood=neighborhood, city=city, state=uf,
         responsible_name=responsible_name, responsible_phone=responsible_phone,
+        latitude=latitude,
+        longitude=longitude,
+        delivery_radius_km=delivery_radius_km if delivery_radius_km else 10.0,  # Default 10km
         is_active=True, is_setup_complete=False,
         verification_status=StoreVerificationStatus.UNVERIFIED
     )
@@ -198,6 +205,9 @@ async def create_store(
             "city": city,
             "state": uf,
             "segment_id": segment_id,
+            "latitude": latitude,  # ✅ NOVO
+            "longitude": longitude,  # ✅ NOVO
+            "delivery_radius_km": delivery_radius_km,  # ✅ NOVO
             "trial_days": 30,
             "plan_id": main_plan.id
         },
