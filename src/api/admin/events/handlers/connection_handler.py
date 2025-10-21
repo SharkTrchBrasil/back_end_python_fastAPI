@@ -1,3 +1,4 @@
+import asyncio
 import time
 from collections import defaultdict
 from urllib.parse import parse_qs
@@ -97,54 +98,86 @@ async def handle_admin_connect(self, sid, environ):
             # 4. LIMITE DE DISPOSITIVOS (MAX 5 DISPOSITIVOS)
             # ═══════════════════════════════════════════════════════════
 
+            # ═══════════════════════════════════════════════════════════
+            # ✅ CORREÇÃO: LIMPEZA AGRESSIVA DE SESSÕES ANTIGAS
+            # ═══════════════════════════════════════════════════════════
+
             MAX_DEVICES = 5
-            active_sessions = db.query(models.StoreSession).filter(
+
+            # Busca TODAS as sessões do usuário (incluindo a atual, se já existir)
+            all_sessions = db.query(models.StoreSession).filter(
                 models.StoreSession.user_id == admin_id,
-                models.StoreSession.client_type == 'admin',
-                models.StoreSession.sid != sid
+                models.StoreSession.client_type == 'admin'
             ).order_by(models.StoreSession.created_at.asc()).all()
 
+            # ✅ NOVO: Remove a sessão atual da lista (se já existir)
+            active_sessions = [s for s in all_sessions if s.sid != sid]
+
             if len(active_sessions) >= MAX_DEVICES:
-                oldest_session = active_sessions[0]
                 logger.warning(
                     f"⚠️ Limite de {MAX_DEVICES} dispositivos atingido para admin {admin_id}. "
-                    f"Desconectando dispositivo mais antigo: {oldest_session.sid}"
+                    f"Limpando {len(active_sessions) - MAX_DEVICES + 1} sessão(ões) antiga(s)..."
                 )
 
-                # Notifica dispositivo que será desconectado
-                await self.emit(
-                    "session_limit_reached",
-                    {
-                        "message": f"Você foi desconectado porque o limite de {MAX_DEVICES} dispositivos foi atingido.",
-                        "max_devices": MAX_DEVICES
-                    },
-                    to=oldest_session.sid
-                )
+                # ✅ CORREÇÃO: Desconecta E remove TODAS as sessões excedentes
+                sessions_to_remove = active_sessions[:len(active_sessions) - MAX_DEVICES + 1]
 
-                # Desconecta e remove sessão antiga
-                await sio.disconnect(oldest_session.sid, namespace='/admin')
-                db.delete(oldest_session)
+                for old_session in sessions_to_remove:
+                    logger.warning(
+                        f"🚨 Desconectando sessão antiga: {old_session.sid} "
+                        f"(Criada em: {old_session.created_at})"
+                    )
+
+                    try:
+                        # ✅ 1. Notifica o dispositivo
+                        await self.emit(
+                            "session_revoked",
+                            {
+                                "reason": "device_limit",
+                                "message": f"Você foi desconectado porque o limite de {MAX_DEVICES} dispositivos foi atingido."
+                            },
+                            to=old_session.sid
+                        )
+
+                        # ✅ 2. AGUARDA 100ms para garantir que a mensagem chegue
+                        await asyncio.sleep(0.1)
+
+                        # ✅ 3. Desconecta o socket
+                        await sio.disconnect(old_session.sid, namespace='/admin')
+                        logger.info(f"✅ Socket desconectado: {old_session.sid}")
+
+                        # ✅ 4. Remove do banco IMEDIATAMENTE (não espera disconnect handler)
+                        db.delete(old_session)
+                        logger.info(f"✅ Sessão removida do banco: {old_session.sid}")
+
+                    except Exception as e:
+                        logger.error(f"❌ Erro ao desconectar sessão {old_session.sid}: {e}")
+                        # ✅ REMOVE DO BANCO MESMO COM ERRO
+                        try:
+                            db.delete(old_session)
+                        except:
+                            pass
+
+                # ✅ COMMIT UMA ÚNICA VEZ APÓS TODAS AS REMOÇÕES
                 db.commit()
+                logger.info(f"✅ Limpeza concluída. {len(sessions_to_remove)} sessão(ões) removida(s).")
 
             logger.info(f"✅ Dispositivos ativos para admin {admin_id}: {len(active_sessions)}/{MAX_DEVICES}")
 
             # ═══════════════════════════════════════════════════════════
-            # 5. SALA DE NOTIFICAÇÕES
+            # (Resto do código continua igual)
             # ═══════════════════════════════════════════════════════════
 
+            # Sala de notificações
             notification_room = f"admin_notifications_{admin_id}"
             await self.enter_room(sid, notification_room)
             logger.info(f"✅ Admin {sid} entrou na sala de notificações: {notification_room}")
 
-            # ═══════════════════════════════════════════════════════════
-            # 6. BUSCA LOJAS ACESSÍVEIS
-            # ═══════════════════════════════════════════════════════════
-
+            # Busca lojas
             accessible_store_accesses = StoreAccessService.get_accessible_stores_with_roles(db, admin_user)
 
             stores_list_payload = []
             for access in accessible_store_accesses:
-                # Obtém dados da loja com subscription
                 store_dict = SubscriptionService.get_store_dict_with_subscription(
                     store=access.store,
                     db=db
@@ -160,20 +193,15 @@ async def handle_admin_connect(self, sid, environ):
                 store_with_role = StoreWithRole.model_validate(access_dict)
                 stores_list_payload.append(store_with_role.model_dump(mode='json'))
 
-            # Envia lista de lojas para o cliente
             await self.emit("admin_stores_list", {"stores": stores_list_payload}, to=sid)
 
-            # Se não tiver lojas, notifica
             if not stores_list_payload:
                 await self.emit("user_has_no_stores", {
                     "user_id": admin_id,
                     "message": "Você não possui lojas."
                 }, to=sid)
 
-            # ═══════════════════════════════════════════════════════════
-            # 7. CRIA SESSÃO NO BANCO
-            # ═══════════════════════════════════════════════════════════
-
+            # Cria nova sessão
             all_accessible_store_ids = [access.store_id for access in accessible_store_accesses]
             default_store_id = all_accessible_store_ids[0] if all_accessible_store_ids else None
 
@@ -196,7 +224,6 @@ async def handle_admin_connect(self, sid, environ):
             )
 
         except ConnectionRefusedError:
-            # Re-lança erros de conexão recusada
             raise
 
         except Exception as e:
@@ -204,7 +231,6 @@ async def handle_admin_connect(self, sid, environ):
             logger.error(f"❌ Erro ao processar conexão do admin (SID: {sid}): {str(e)}", exc_info=True)
             self.environ.pop(sid, None)
             raise ConnectionRefusedError(f"Falha na autenticação: {str(e)}")
-
 
 async def handle_admin_disconnect(self, sid):
     """
