@@ -18,7 +18,7 @@ from typing import Any, Optional, Callable
 from functools import wraps
 import logging
 
-from src.core.cache import redis_client
+from src.core.cache.redis_client import redis_client
 
 logger = logging.getLogger(__name__)
 

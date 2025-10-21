@@ -7,12 +7,13 @@ Autor: PDVix Team
 """
 import time
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from src.core.database import get_pool_stats, check_database_health, GetDBDep
-from src.core.cache import redis_client
-from src.core.monitoring.metrics import metrics
-from src.core.dependencies import GetCurrentUserDep
+from fastapi import APIRouter
+
 from src.core import models
+from src.core.cache.redis_client import redis_client
+from src.core.database import get_pool_stats, check_database_health, GetDBDep
+from src.core.dependencies import GetCurrentUserDep
+from src.core.monitoring.metrics import metrics
 
 router = APIRouter(prefix="/monitoring", tags=["Monitoring"])
 

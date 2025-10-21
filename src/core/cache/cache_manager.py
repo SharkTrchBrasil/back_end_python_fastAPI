@@ -11,11 +11,9 @@ Data: 2025-01-18
 """
 
 import logging
-from typing import Any, Optional, Callable
-from functools import wraps
 
-from src.core.cache.redis_client import redis_client
 from src.core.cache.keys import CacheKeys
+from src.core.cache.redis_client import redis_client
 
 logger = logging.getLogger(__name__)
 

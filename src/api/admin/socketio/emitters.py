@@ -36,7 +36,7 @@ from src.api.admin.services.product_analytic_services import get_product_analyti
 
 
 from src.api.schemas.orders.order import OrderDetails
-from src.core.cache import redis_client
+from src.core.cache.redis_client import redis_client
 from src.core.cache.cache_manager import cache_manager
 from src.core.database import get_db_manager
 from src.core.models import Order
