@@ -2,8 +2,11 @@
 
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List
-from decimal import Decimal
+
 import logging
+
+from sqlalchemy import inspect
+from src.api.schemas.store.store_details import StoreDetails
 
 from src.api.admin.services.billing_preview_service import BillingPreviewService
 from src.api.schemas.subscriptions.plans import PlanSchema
@@ -122,47 +125,52 @@ class SubscriptionService:
             logger.error(f"❌ Erro ao calcular detalhes da assinatura: {e}", exc_info=True)
             return None
 
+    # ✅✅ MÉTODO CORRIGIDO FINAL
     @staticmethod
     def get_store_dict_with_subscription(
             store: models.Store,
             db: GetDBDep
     ) -> Dict[str, Any]:
         """
-        ✅ VERSÃO MAIS LIMPA: Usa .model_validate() + enriquecimento
+        ✅ VERSÃO FINAL: Enriquece ANTES de validar
 
-        Esta é a forma mais "Pythonica" e segura.
+        Por que não usar model_validate(store) direto?
+        - store.subscriptions são objetos ORM do banco
+        - NÃO possuem campos computados (is_blocked, has_payment_method)
+        - Precisamos calcular esses campos ANTES de validar
         """
-        from src.api.schemas.store.store_details import StoreDetails
 
         try:
-            # ✅ 1. CONVERTE ORM → PYDANTIC DIRETAMENTE
-            # O Pydantic usa configuração `from_attributes=True` para fazer isso
-            store_pydantic = StoreDetails.model_validate(store)
-
-            # ✅ 2. CALCULA ASSINATURA
+            # ✅ 1. CALCULA ASSINATURA ENRIQUECIDA
             subscription_details = SubscriptionService.get_subscription_details(
                 store=store,
                 db=db
             )
 
-            # ✅ 3. ENRIQUECE COM CAMPOS COMPUTADOS
-            # Usa .model_copy() para criar nova instância com campos atualizados
-            enriched_store = store_pydantic.model_copy(update={
-                'active_subscription': subscription_details,
-                'billing_preview': (
-                    subscription_details.get('billing_preview')
-                    if subscription_details
-                    else None
-                )
-            })
+            # ✅ 2. EXTRAI APENAS COLUNAS DO BANCO (SEM RELAÇÕES)
+            mapper = inspect(store.__class__)
+            store_dict = {
+                column.key: getattr(store, column.key)
+                for column in mapper.columns
+            }
 
-            # ✅ 4. RETORNA COMO DICT JSON
-            return enriched_store.model_dump(by_alias=True, mode='json')
+            # ✅ 3. ADICIONA CAMPOS COMPUTADOS/ENRIQUECIDOS
+            store_dict['active_subscription'] = subscription_details
+            store_dict['billing_preview'] = (
+                subscription_details.get('billing_preview')
+                if subscription_details
+                else None
+            )
+
+            # ✅ 4. VALIDA (AGORA TEM TODOS OS CAMPOS)
+            validated = StoreDetails.model_validate(store_dict)
+
+            # ✅ 5. RETORNA COMO DICT JSON
+            return validated.model_dump(by_alias=True, mode='json')
 
         except Exception as e:
-            logger.error(f"❌ Erro ao converter loja {store.id}: {e}", exc_info=True)
+            logger.error(f"❌ Erro ao converter loja {store.id} para dict: {e}", exc_info=True)
             raise
-
 
 
 
