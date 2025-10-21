@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any, List
 import logging
 
 from sqlalchemy import inspect
-from src.api.schemas.store.store_details import StoreDetails
+
 
 from src.api.admin.services.billing_preview_service import BillingPreviewService
 from src.api.schemas.subscriptions.plans import PlanSchema
@@ -139,6 +139,8 @@ class SubscriptionService:
         - NÃO possuem campos computados (is_blocked, has_payment_method)
         - Precisamos calcular esses campos ANTES de validar
         """
+        # ✅ IMPORT DENTRO DA FUNÇÃO (EVITA CIRCULAR IMPORT)
+        from src.api.schemas.store.store_details import StoreDetails
 
         try:
             # ✅ 1. CALCULA ASSINATURA ENRIQUECIDA
