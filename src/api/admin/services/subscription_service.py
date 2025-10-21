@@ -122,44 +122,50 @@ class SubscriptionService:
             logger.error(f"❌ Erro ao calcular detalhes da assinatura: {e}", exc_info=True)
             return None
 
-    # ✅ NOVO MÉTODO: Retorna Store enriquecida como dicionário
     @staticmethod
     def get_store_dict_with_subscription(
             store: models.Store,
             db: GetDBDep
     ) -> Dict[str, Any]:
         """
-        ✅ Converte Store ORM para dicionário enriquecido com assinatura.
+        ✅ VERSÃO MAIS LIMPA: Usa .model_validate() + enriquecimento
 
-        Este é o método que você deve usar nos emissores e rotas.
-
-        Args:
-            store: Objeto ORM da loja
-            db: Sessão do banco de dados
-
-        Returns:
-            Dicionário completo pronto para validação Pydantic
+        Esta é a forma mais "Pythonica" e segura.
         """
-        # 1. Converte ORM para dict
-        store_dict = store.__dict__.copy()
+        from src.api.schemas.store.store_details import StoreDetails
 
-        # Remove metadados do SQLAlchemy
-        store_dict.pop('_sa_instance_state', None)
+        try:
+            # ✅ 1. CONVERTE ORM → PYDANTIC DIRETAMENTE
+            # O Pydantic usa configuração `from_attributes=True` para fazer isso
+            store_pydantic = StoreDetails.model_validate(store)
 
-        # 2. Calcula e injeta assinatura
-        subscription_details = SubscriptionService.get_subscription_details(
-            store=store,
-            db=db
-        )
+            # ✅ 2. CALCULA ASSINATURA
+            subscription_details = SubscriptionService.get_subscription_details(
+                store=store,
+                db=db
+            )
 
-        store_dict['active_subscription'] = subscription_details
+            # ✅ 3. ENRIQUECE COM CAMPOS COMPUTADOS
+            # Usa .model_copy() para criar nova instância com campos atualizados
+            enriched_store = store_pydantic.model_copy(update={
+                'active_subscription': subscription_details,
+                'billing_preview': (
+                    subscription_details.get('billing_preview')
+                    if subscription_details
+                    else None
+                )
+            })
 
-        if subscription_details:
-            store_dict['billing_preview'] = subscription_details.get('billing_preview')
-        else:
-            store_dict['billing_preview'] = None
+            # ✅ 4. RETORNA COMO DICT JSON
+            return enriched_store.model_dump(by_alias=True, mode='json')
 
-        return store_dict
+        except Exception as e:
+            logger.error(f"❌ Erro ao converter loja {store.id}: {e}", exc_info=True)
+            raise
+
+
+
+
 
     # Métodos auxiliares (mantidos como estavam)
     @staticmethod
