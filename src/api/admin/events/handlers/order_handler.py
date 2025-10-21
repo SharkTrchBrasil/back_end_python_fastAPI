@@ -1,6 +1,9 @@
+# src/api/admin/socketio/order_handler.py
+
 import asyncio
 import traceback
 from urllib.parse import parse_qs
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -15,34 +18,59 @@ from src.core import models
 from src.api.admin.socketio.emitters import (
     admin_emit_order_updated_from_obj, admin_emit_new_print_jobs
 )
-from src.core.cache.cache_manager import logger
+from src.core.cache.cache_manager import logger, cache_manager
 from src.core.database import get_db_manager
-from src.core.utils.enums import OrderStatus
+from src.core.utils.enums import OrderStatus, AuditAction, AuditEntityType  # ✅ ADICIONAR
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🔥 PONTO VITAL 1: ATUALIZAR STATUS DO PEDIDO
+# ═══════════════════════════════════════════════════════════════════════════════
 
 async def handle_update_order_status(self, sid, data):
+    """
+    ✅ Atualiza o status de um pedido com auditoria completa
+
+    - Rastreia mudanças de status
+    - Registra quem fez a alteração
+    - Monitora cancelamentos
+    - Detecta finalizações
+    """
+
     with get_db_manager() as db:
         try:
-            # --- Sua lógica de validação e autorização (continua perfeita) ---
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 1. VALIDAÇÃO DE DADOS
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
             if not all(key in data for key in ['order_id', 'new_status']):
                 return {'error': 'Dados incompletos'}
+
             session = db.query(models.StoreSession).filter_by(sid=sid, client_type='admin').first()
             if not session:
                 return {'error': 'Sessão não autorizada'}
+
             query_params = parse_qs(self.environ[sid].get("QUERY_STRING", ""))
             admin_token = query_params.get("admin_token", [None])[0]
             if not admin_token:
                 return {"error": "Token de admin não encontrado na sessão."}
+
             admin_user = await authorize_admin_by_jwt(db, admin_token)
             if not admin_user or not admin_user.id:
                 return {"error": "Admin não autorizado."}
-            all_accessible_store_ids_for_admin = StoreAccessService.get_accessible_store_ids_with_fallback(db,
-                                                                                                         admin_user)
+
+            all_accessible_store_ids_for_admin = StoreAccessService.get_accessible_store_ids_with_fallback(
+                db, admin_user
+            )
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 2. BUSCA PEDIDO COM TODOS OS DADOS PARA AUDITORIA
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
             order = db.query(models.Order).options(
-                selectinload(models.Order.store)
-                .selectinload(models.Store.chatbot_config),  # Carrega a config do chatbot
-                joinedload(models.Order.customer)  # Carrega os dados do cliente
+                selectinload(models.Order.store).selectinload(models.Store.chatbot_config),
+                joinedload(models.Order.customer),
+                selectinload(models.Order.products)  # ✅ Para calcular valor total
             ).filter(models.Order.id == data['order_id']).first()
 
             if not order:
@@ -51,162 +79,329 @@ async def handle_update_order_status(self, sid, data):
             if order.store_id not in all_accessible_store_ids_for_admin:
                 return {'error': 'Acesso negado: Pedido não pertence a uma das suas lojas.'}
 
-            # --- Sua lógica de atualização de status (continua perfeita) ---
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 3. VALIDAÇÃO DE STATUS
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
             valid_statuses = [status.value for status in OrderStatus]
             if data['new_status'] not in valid_statuses:
                 return {'error': 'Status inválido'}
 
             old_status_value = order.order_status.value
             new_status_str = data['new_status']
+
             if old_status_value == new_status_str:
                 return {'success': True, 'message': 'O pedido já estava com este status.'}
 
+            # ✅ CAPTURA DADOS PARA AUDITORIA ANTES DE MUDAR
+            audit_data = {
+                "order_id": order.id,
+                "public_id": order.public_id,
+                "old_status": old_status_value,
+                "new_status": new_status_str,
+                "order_type": order.order_type,
+                "customer_name": order.customer_name or (order.customer.name if order.customer else "Sem nome"),
+                "customer_phone": order.customer_phone,
+                "total_price": float(order.total_price) / 100,
+                "discounted_price": float(order.discounted_total_price) / 100,
+                "payment_method": order.payment_method,
+                "changed_by": admin_user.name,
+                "changed_at": datetime.now(timezone.utc).isoformat(),
+                "store_name": order.store.name
+            }
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 4. APLICA MUDANÇA DE STATUS
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
             order.order_status = OrderStatus(new_status_str)
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 5. LÓGICA DE NEGÓCIO ESPECÍFICA POR STATUS
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+            business_actions = []
 
             # Ação que ocorre na entrega física
             if new_status_str == OrderStatus.DELIVERED.value:
                 decrease_stock_for_order(order, db)
-                # Apenas a baixa de estoque permanece aqui, pois ela é um evento físico.
+                business_actions.append("Estoque baixado")
 
             # Ações que ocorrem no fechamento financeiro/lógico do pedido
             if new_status_str == OrderStatus.FINALIZED.value:
                 calculate_and_apply_cashback_for_order(order, db)
                 loyalty_service.award_points_for_order(db=db, order=order)
                 update_store_customer_stats(db, order)
+                business_actions.extend([
+                    "Cashback aplicado",
+                    "Pontos de fidelidade creditados",
+                    "Estatísticas do cliente atualizadas"
+                ])
 
-            # Ação de cancelamento permanece a mesma
+            # Ação de cancelamento
             if new_status_str == OrderStatus.CANCELED.value:
                 restock_for_canceled_order(order, db)
+                business_actions.append("Estoque reposto")
 
+                # ✅ REGISTRA MOTIVO DO CANCELAMENTO SE FORNECIDO
+                if 'cancellation_reason' in data:
+                    audit_data["cancellation_reason"] = data['cancellation_reason']
+
+            audit_data["business_actions"] = business_actions
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 6. REGISTRA LOG DE AUDITORIA
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+            # ✅ DETERMINA A AÇÃO ESPECÍFICA
+            if new_status_str == OrderStatus.CANCELED.value:
+                audit_action = AuditAction.CANCEL_ORDER
+                description = f"Pedido #{order.public_id} CANCELADO"
+            elif new_status_str == OrderStatus.FINALIZED.value:
+                audit_action = AuditAction.UPDATE_ORDER_STATUS
+                description = f"Pedido #{order.public_id} FINALIZADO - R$ {audit_data['discounted_price']:.2f}"
+            else:
+                audit_action = AuditAction.UPDATE_ORDER_STATUS
+                description = f"Status do pedido #{order.public_id} alterado: {old_status_value} → {new_status_str}"
+
+            # ✅ CRIA O LOG DE AUDITORIA
+            audit_log = models.AuditLog(
+                store_id=order.store_id,
+                user_id=admin_user.id,
+                user_name=admin_user.name,
+                action=audit_action.value,
+                entity_type=AuditEntityType.ORDER.value,
+                entity_id=order.id,
+                changes=audit_data,
+                description=description,
+                ip_address=self.environ[sid].get("REMOTE_ADDR"),
+                user_agent=self.environ[sid].get("HTTP_USER_AGENT"),
+                created_at=datetime.now(timezone.utc)
+            )
+
+            db.add(audit_log)
             db.commit()
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 7. INVALIDAÇÃO DE CACHE
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
             db.refresh(order, attribute_names=['customer', 'store'])
 
-            # ✅ ADICIONAR: Invalida cache de pedidos ativos
             cache_manager.client.delete(f"admin:{order.store_id}:orders:active")
             cache_manager.client.delete(f"admin:{order.store_id}:order:{order.id}:details")
 
             logger.info(f"🗑️ Cache invalidado para store {order.store_id} após mudança de status")
 
-            # --- DEBUG: VERIFICANDO DADOS ANTES DE NOTIFICAR ---
-            print("\n--- DEBUG: VERIFICANDO DADOS ANTES DE NOTIFICAR ---")
-            print(f"ID do Pedido: {order.id}")
-            if order.customer:
-                print(f"Cliente encontrado: ID {order.customer.id}, Nome: {order.customer.name}")
-                print(f"Telefone via 'order.customer.phone': {order.customer.phone}")
-            else:
-                print("Cliente (relação order.customer) NÃO encontrado.")
-            print(f"Telefone via 'order.customer_phone' (campo direto): {order.customer_phone}")
-            print("---------------------------------------------------\n")
-            # --- FIM DEBUG ---
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 8. NOTIFICAÇÕES EM TEMPO REAL
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            # --- Disparo das notificações (continua perfeito) ---
             asyncio.create_task(send_order_status_update(db, order))
             await admin_emit_order_updated_from_obj(order)
 
-            print(
-                f"✅ [Session {sid}] Pedido {order.id} da loja {order.store_id} atualizado de '{old_status_value}' para: '{new_status_str}'")
+            logger.info(
+                f"✅ [AUDIT] Pedido #{order.public_id} ({order.id}) - "
+                f"Status: {old_status_value} → {new_status_str} - "
+                f"Por: {admin_user.name} - "
+                f"Ações: {', '.join(business_actions) if business_actions else 'Nenhuma'}"
+            )
 
-            return {'success': True, 'order_id': order.id, 'new_status': order.order_status.value}
+            return {
+                'success': True,
+                'order_id': order.id,
+                'new_status': order.order_status.value,
+                'audit_id': audit_log.id  # ✅ Retorna ID do log para rastreamento
+            }
 
         except Exception as e:
             db.rollback()
-            print(f"❌ Erro ao atualizar pedido: {str(e)}\n{traceback.format_exc()}")
+
+            # ✅ LOG DE ERRO TAMBÉM É AUDITADO
+            try:
+                error_log = models.AuditLog(
+                    store_id=data.get('store_id'),
+                    user_id=admin_user.id if 'admin_user' in locals() else None,
+                    user_name=admin_user.name if 'admin_user' in locals() else "Desconhecido",
+                    action=AuditAction.UPDATE_ORDER_STATUS.value,
+                    entity_type=AuditEntityType.ORDER.value,
+                    entity_id=data.get('order_id'),
+                    changes={"error": str(e), "traceback": traceback.format_exc()},
+                    description=f"❌ ERRO ao atualizar pedido: {str(e)}",
+                    ip_address=self.environ[sid].get("REMOTE_ADDR"),
+                    user_agent=self.environ[sid].get("HTTP_USER_AGENT"),
+                    created_at=datetime.now(timezone.utc)
+                )
+                db.add(error_log)
+                db.commit()
+            except:
+                pass  # Se nem o log de erro funcionar, apenas imprime
+
+            logger.error(f"❌ Erro ao atualizar pedido: {str(e)}\n{traceback.format_exc()}")
             return {'error': 'Falha interna ao processar a atualização do pedido.'}
 
 
-
-
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🔥 PONTO VITAL 2: PROCESSAR AUTOMAÇÕES DE NOVO PEDIDO
+# ═══════════════════════════════════════════════════════════════════════════════
 
 async def process_new_order_automations(db, order):
     """
-    Processa as automações de auto-accept e auto-print para um novo pedido.
+    ✅ Processa automações de auto-accept e auto-print com auditoria
+
+    - Registra auto-aceitação
+    - Rastreia jobs de impressão criados
+    - Monitora falhas de automação
     """
-    store_settings = order.store.store_operation_config
-    did_status_change = False
 
-    # 1. Lógica de Auto-Accept (sem alterações)
-    if store_settings.auto_accept_orders and order.order_status == 'pending':
-        order.order_status = 'preparing'
+    try:
+        store_settings = order.store.store_operation_config
+        did_status_change = False
+        automation_actions = []
 
-        did_status_change = True
-        print(f"Pedido {order.id} aceito automaticamente.")
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # 1. AUTO-ACCEPT
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    # 2. Lógica de Auto-Print (VERSÃO ATUALIZADA)
-    jobs_to_emit = []
-    if store_settings.auto_print_orders:
-        products_by_destination = {}
+        if store_settings.auto_accept_orders and order.order_status == 'pending':
+            old_status = order.order_status
+            order.order_status = 'preparing'
+            did_status_change = True
+            automation_actions.append("Auto-aceitação ativada")
 
-        for order_product in order.products:
-            destination = (order_product.product.category.printer_destination or
-                           store_settings.main_printer_destination)
-            if destination:
-                if destination not in products_by_destination:
-                    products_by_destination[destination] = []
-                products_by_destination[destination].append(order_product)
+            logger.info(f"✅ [AUTO-ACCEPT] Pedido #{order.public_id} aceito automaticamente")
 
-        if products_by_destination:
-            new_job_objects = []
-            for dest, products_in_dest in products_by_destination.items():
-                new_job = models.OrderPrintLog(
-                    order_id=order.id,
-                    printer_destination=dest,
-                    status='pending'
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # 2. AUTO-PRINT
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        jobs_to_emit = []
+        if store_settings.auto_print_orders:
+            products_by_destination = {}
+
+            for order_product in order.products:
+                destination = (
+                        order_product.product.category.printer_destination or
+                        store_settings.main_printer_destination
                 )
-                db.add(new_job)
-                new_job_objects.append(new_job)
+                if destination:
+                    if destination not in products_by_destination:
+                        products_by_destination[destination] = []
+                    products_by_destination[destination].append(order_product)
 
-            db.flush()
+            if products_by_destination:
+                new_job_objects = []
+                for dest, products_in_dest in products_by_destination.items():
+                    new_job = models.OrderPrintLog(
+                        order_id=order.id,
+                        printer_destination=dest,
+                        status='pending'
+                    )
+                    db.add(new_job)
+                    new_job_objects.append(new_job)
 
-            for job in new_job_objects:
-                jobs_to_emit.append({'id': job.id, 'destination': job.destination})
+                db.flush()
 
-            print(f"Criados {len(jobs_to_emit)} trabalhos de impressão DIRECIONADOS para o pedido {order.id}.")
+                for job in new_job_objects:
+                    jobs_to_emit.append({
+                        'id': job.id,
+                        'destination': job.printer_destination
+                    })
 
-    # 3. Salva as mudanças no banco (sem alterações)
-    db.commit()
-    # Adicionamos 'products' pois essa função também os utiliza
-    db.refresh(order, attribute_names=['customer', 'store', 'products'])
+                automation_actions.append(f"{len(jobs_to_emit)} jobs de impressão criados")
+
+                logger.info(
+                    f"✅ [AUTO-PRINT] {len(jobs_to_emit)} jobs criados para pedido #{order.public_id}"
+                )
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # 3. SALVA MUDANÇAS E REGISTRA AUDITORIA
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        db.commit()
+        db.refresh(order, attribute_names=['customer', 'store', 'products'])
+
+        # ✅ REGISTRA AUDITORIA SE HOUVE AUTOMAÇÃO
+        if automation_actions:
+            audit_log = models.AuditLog(
+                store_id=order.store_id,
+                user_id=None,  # Ação automática do sistema
+                user_name="SISTEMA",
+                action=AuditAction.CREATE_ORDER.value,
+                entity_type=AuditEntityType.ORDER.value,
+                entity_id=order.id,
+                changes={
+                    "order_id": order.id,
+                    "public_id": order.public_id,
+                    "automation_actions": automation_actions,
+                    "auto_accept_enabled": store_settings.auto_accept_orders,
+                    "auto_print_enabled": store_settings.auto_print_orders,
+                    "print_jobs_created": len(jobs_to_emit),
+                    "print_destinations": [job['destination'] for job in jobs_to_emit]
+                },
+                description=f"Pedido #{order.public_id} criado - Automações: {', '.join(automation_actions)}",
+                ip_address="127.0.0.1",  # Ação do sistema
+                user_agent="System Automation",
+                created_at=datetime.now(timezone.utc)
+            )
+            db.add(audit_log)
+            db.commit()
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # 4. NOTIFICAÇÕES
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        asyncio.create_task(send_new_order_summary(db, order))
+
+        if did_status_change:
+            await admin_emit_order_updated_from_obj(order)
+            asyncio.create_task(send_order_status_update(db, order))
+
+        if jobs_to_emit:
+            await admin_emit_new_print_jobs(order.store_id, order.id, jobs_to_emit)
+
+    except Exception as e:
+        logger.error(f"❌ Erro ao processar automações do pedido #{order.id}: {e}")
+        db.rollback()
+
+        # ✅ REGISTRA ERRO NA AUDITORIA
+        try:
+            error_log = models.AuditLog(
+                store_id=order.store_id,
+                user_id=None,
+                user_name="SISTEMA",
+                action=AuditAction.CREATE_ORDER.value,
+                entity_type=AuditEntityType.ORDER.value,
+                entity_id=order.id,
+                changes={
+                    "error": str(e),
+                    "traceback": traceback.format_exc()
+                },
+                description=f"❌ ERRO ao processar automações do pedido #{order.id}",
+                ip_address="127.0.0.1",
+                user_agent="System Automation",
+                created_at=datetime.now(timezone.utc)
+            )
+            db.add(error_log)
+            db.commit()
+        except:
+            pass
 
 
-    asyncio.create_task(send_new_order_summary(db, order))
-
-    # 4. Emite os eventos para os clientes (sem alterações)
-    if did_status_change:
-        await admin_emit_order_updated_from_obj(order)
-
-        asyncio.create_task(send_order_status_update(db, order))
-
-    if jobs_to_emit:
-        await admin_emit_new_print_jobs(order.store_id, order.id, jobs_to_emit)
-
-
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🔥 PONTO VITAL 3: REIVINDICAR JOB DE IMPRESSÃO
+# ═══════════════════════════════════════════════════════════════════════════════
 
 async def claim_specific_print_job(sid, data):
     """
-    Permite que um cliente reivindique um trabalho de impressão específico pelo seu ID.
-    Esta operação é atômica para evitar que dois dispositivos reivindiquem o mesmo trabalho.
+    ✅ Permite reivindicar um job de impressão com auditoria
+
+    - Rastreia qual dispositivo pegou o job
+    - Monitora conflitos de impressão
+    - Registra timestamp de claim
     """
-    print(f"📠 [Session {sid}] Recebida reivindicação para o trabalho de impressão: {data}")
+
+    logger.info(f"📠 [Session {sid}] Recebida reivindicação para job: {data}")
 
     with get_db_manager() as db:
         try:
@@ -215,6 +410,7 @@ async def claim_specific_print_job(sid, data):
 
             job_id = data['job_id']
 
+            # ✅ LOCK PESSIMISTA PARA EVITAR RACE CONDITION
             job_to_claim = db.query(models.OrderPrintLog).filter(
                 models.OrderPrintLog.id == job_id
             ).with_for_update().first()
@@ -222,32 +418,92 @@ async def claim_specific_print_job(sid, data):
             if not job_to_claim:
                 return {'error': f'Trabalho de impressão com ID {job_id} não encontrado.'}
 
+            # ✅ CAPTURA DADOS ANTES DE REIVINDICAR
+            was_claimed = job_to_claim.status != 'pending'
+
             if job_to_claim.status == 'pending':
                 job_to_claim.status = 'claimed'
+
+                # ✅ REGISTRA AUDITORIA DO CLAIM
+                audit_log = models.AuditLog(
+                    store_id=job_to_claim.order.store_id,
+                    user_id=None,  # Job não tem user_id direto
+                    user_name="Dispositivo de Impressão",
+                    action=AuditAction.UPDATE_ORDER.value,  # Usa UPDATE_ORDER genérico
+                    entity_type=AuditEntityType.ORDER.value,
+                    entity_id=job_to_claim.order_id,
+                    changes={
+                        "print_job_id": job_id,
+                        "printer_destination": job_to_claim.printer_destination,
+                        "status_change": "pending → claimed",
+                        "claimed_at": datetime.now(timezone.utc).isoformat(),
+                        "session_id": sid
+                    },
+                    description=f"Job de impressão #{job_id} reivindicado - Destino: {job_to_claim.printer_destination}",
+                    ip_address="Sistema",
+                    user_agent="Print Client",
+                    created_at=datetime.now(timezone.utc)
+                )
+                db.add(audit_log)
                 db.commit()
-                print(f"✅ [Session {sid}] Reivindicou com sucesso o trabalho de impressão #{job_id}")
+
+                logger.info(f"✅ [Session {sid}] Job #{job_id} reivindicado com sucesso")
                 return {'status': 'claim_successful', 'success': True}
             else:
-                print(f"❌ [Session {sid}] Falha ao reivindicar trabalho #{job_id}. Status atual: {job_to_claim.status}")
                 db.rollback()
+
+                # ✅ REGISTRA TENTATIVA DE CLAIM DUPLICADO
+                conflict_log = models.AuditLog(
+                    store_id=job_to_claim.order.store_id,
+                    user_id=None,
+                    user_name="Dispositivo de Impressão",
+                    action=AuditAction.UPDATE_ORDER.value,
+                    entity_type=AuditEntityType.ORDER.value,
+                    entity_id=job_to_claim.order_id,
+                    changes={
+                        "print_job_id": job_id,
+                        "current_status": job_to_claim.status,
+                        "conflict": "Tentativa de claim duplicado",
+                        "session_id": sid
+                    },
+                    description=f"⚠️ Job #{job_id} já estava com status '{job_to_claim.status}' - Claim falhou",
+                    ip_address="Sistema",
+                    user_agent="Print Client",
+                    created_at=datetime.now(timezone.utc)
+                )
+                db.add(conflict_log)
+                db.commit()
+
+                logger.warning(
+                    f"❌ [Session {sid}] Job #{job_id} já estava {job_to_claim.status}"
+                )
                 return {'status': 'already_claimed', 'success': False}
 
         except Exception as e:
             db.rollback()
-            print(f"❌ Erro inesperado em claim_specific_print_job: {str(e)}")
+            logger.error(f"❌ Erro em claim_specific_print_job: {str(e)}")
             return {'error': 'Falha interna ao processar a reivindicação'}
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🔥 PONTO VITAL 4: ATUALIZAR STATUS DO JOB DE IMPRESSÃO
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# ✅ NOVO HANDLER: Adicione esta função ao seu arquivo.
 async def handle_update_print_job_status(self, sid, data):
     """
-    Recebe uma atualização do cliente sobre o status de um trabalho de impressão
-    (ex: 'completed' ou 'failed').
+    ✅ Atualiza status de job de impressão com auditoria
+
+    - Rastreia sucesso/falha de impressão
+    - Monitora dispositivos problemáticos
+    - Registra tempo de impressão
     """
+
     with get_db_manager() as db:
         try:
-            # Validação dos dados recebidos
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 1. VALIDAÇÃO
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
             if not all(key in data for key in ['job_id', 'status']):
                 return {'error': 'Dados incompletos'}
 
@@ -258,7 +514,10 @@ async def handle_update_print_job_status(self, sid, data):
             if new_status not in valid_statuses:
                 return {'error': f"Status '{new_status}' inválido."}
 
-            # --- Bloco de Autorização (essencial para segurança) ---
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 2. AUTORIZAÇÃO
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
             session = db.query(models.StoreSession).filter_by(sid=sid, client_type='admin').first()
             if not session:
                 return {'error': 'Sessão não autorizada'}
@@ -271,9 +530,11 @@ async def handle_update_print_job_status(self, sid, data):
             admin_user = await authorize_admin_by_jwt(db, admin_token)
             if not admin_user:
                 return {"error": "Admin não autorizado."}
-            # --- Fim da Autorização ---
 
-            # Busca o trabalho de impressão no banco
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 3. BUSCA E VALIDA JOB
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
             job_to_update = db.query(models.OrderPrintLog).filter(
                 models.OrderPrintLog.id == job_id
             ).first()
@@ -281,54 +542,106 @@ async def handle_update_print_job_status(self, sid, data):
             if not job_to_update:
                 return {'error': f'Trabalho de impressão #{job_id} não encontrado.'}
 
-            # Garante que o admin tem permissão para modificar este trabalho
-            accessible_stores = StoreAccessService.get_accessible_store_ids_with_fallback(db, admin_user)
+            accessible_stores = StoreAccessService.get_accessible_store_ids_with_fallback(
+                db, admin_user
+            )
             if job_to_update.order.store_id not in accessible_stores:
                 return {'error': 'Acesso negado.'}
 
-            # Atualiza o status e salva
+            # ✅ CAPTURA ESTADO ANTERIOR
+            old_status = job_to_update.status
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 4. ATUALIZA STATUS
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
             job_to_update.status = new_status
+
+            # ✅ REGISTRA AUDITORIA
+            audit_log = models.AuditLog(
+                store_id=job_to_update.order.store_id,
+                user_id=admin_user.id,
+                user_name=admin_user.name,
+                action=AuditAction.UPDATE_ORDER.value,
+                entity_type=AuditEntityType.ORDER.value,
+                entity_id=job_to_update.order_id,
+                changes={
+                    "print_job_id": job_id,
+                    "printer_destination": job_to_update.printer_destination,
+                    "old_status": old_status,
+                    "new_status": new_status,
+                    "order_public_id": job_to_update.order.public_id,
+                    "updated_by": admin_user.name,
+                    "session_id": sid
+                },
+                description=f"Job de impressão #{job_id} {'✅ CONCLUÍDO' if new_status == 'completed' else '❌ FALHOU'}",
+                ip_address=self.environ[sid].get("REMOTE_ADDR"),
+                user_agent=self.environ[sid].get("HTTP_USER_AGENT"),
+                created_at=datetime.now(timezone.utc)
+            )
+            db.add(audit_log)
             db.commit()
             db.refresh(job_to_update)
 
-            print(f"✅ Status do trabalho de impressão #{job_id} atualizado para '{new_status}'")
+            logger.info(
+                f"✅ Job #{job_id} - Status: {old_status} → {new_status} - "
+                f"Pedido #{job_to_update.order.public_id}"
+            )
 
-            # Opcional: Emite uma notificação para que outras telas atualizem o ícone de impressão
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 5. NOTIFICAÇÃO EM TEMPO REAL
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
             await admin_emit_order_updated_from_obj(job_to_update.order)
 
-            return {'success': True, 'job_id': job_id, 'new_status': new_status}
+            return {
+                'success': True,
+                'job_id': job_id,
+                'new_status': new_status,
+                'audit_id': audit_log.id
+            }
 
         except Exception as e:
             db.rollback()
-            print(f"❌ Erro em handle_update_print_job_status: {str(e)}")
+            logger.error(f"❌ Erro em handle_update_print_job_status: {str(e)}")
             return {'error': 'Falha interna'}
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FUNÇÃO AUXILIAR (SEM AUDITORIA - APENAS ESTATÍSTICA)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def update_store_customer_stats(db, order: models.Order):
     """
     Cria ou atualiza as estatísticas de um cliente em uma loja específica
     após um pedido ser concluído.
+
+    ⚠️ Esta função NÃO precisa de auditoria pois é apenas estatística,
+       o evento principal já foi auditado em `handle_update_order_status`
     """
-    # Se o pedido não tem um cliente associado, não há o que fazer.
+
     if not order.customer_id:
-        print(f"Pedido {order.id} não possui cliente, estatísticas não atualizadas.")
+        logger.debug(f"Pedido {order.id} não possui cliente, estatísticas não atualizadas.")
         return
 
-    # Procura se já existe um registro para este cliente nesta loja
     store_customer = db.query(models.StoreCustomer).filter_by(
         store_id=order.store_id,
         customer_id=order.customer_id
     ).first()
 
     if store_customer:
-        # Se já existe, ATUALIZA os dados
-        print(f"Atualizando estatísticas para o cliente {order.customer_id} na loja {order.store_id}.")
+        logger.debug(
+            f"Atualizando estatísticas: Cliente {order.customer_id} - "
+            f"Loja {order.store_id}"
+        )
         store_customer.total_orders += 1
-        store_customer.total_spent += order.discounted_total_price  # Usa o preço final com desconto
-        store_customer.last_order_at = order.created_at  # ou a data de conclusão do pedido
+        store_customer.total_spent += order.discounted_total_price
+        store_customer.last_order_at = order.created_at
     else:
-        # Se não existe, CRIA um novo registro
-        print(f"Criando primeiro registro de estatísticas para o cliente {order.customer_id} na loja {order.store_id}.")
+        logger.debug(
+            f"Criando estatísticas: Cliente {order.customer_id} - "
+            f"Loja {order.store_id}"
+        )
         store_customer = models.StoreCustomer(
             store_id=order.store_id,
             customer_id=order.customer_id,
@@ -338,6 +651,4 @@ def update_store_customer_stats(db, order: models.Order):
         )
         db.add(store_customer)
 
-    # Salva as alterações no banco de dados
-    # O commit deve ser gerenciado pela sua rota/evento principal
-    db.flush()  # Usa flush para preparar a escrita sem finalizar a transação principal
+    db.flush()

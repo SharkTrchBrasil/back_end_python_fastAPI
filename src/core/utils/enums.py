@@ -187,15 +187,15 @@ class ChatbotMessageGroupEnum(enum.Enum):
     COURIER_NOTIFICATIONS = "Notifique seus Entregadores"
 
 
-# src/core/utils/enums.py
-
 import enum
 
 
 class AuditAction(str, enum.Enum):
     """Ações de auditoria do sistema"""
 
-    # === PRODUTOS ===
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PRODUTOS
+    # ═══════════════════════════════════════════════════════════════════════════
     CREATE_PRODUCT = "create_product"
     UPDATE_PRODUCT = "update_product"
     DELETE_PRODUCT = "delete_product"
@@ -207,45 +207,84 @@ class AuditAction(str, enum.Enum):
     ADD_PRODUCT_TO_CATEGORY = "add_product_to_category"
     REMOVE_PRODUCT_FROM_CATEGORY = "remove_product_from_category"
 
-    # === CATEGORIAS ===
+    # ═══════════════════════════════════════════════════════════════════════════
+    # CATEGORIAS ✅ EXPANDIDO
+    # ═══════════════════════════════════════════════════════════════════════════
     CREATE_CATEGORY = "create_category"
     UPDATE_CATEGORY = "update_category"
     DELETE_CATEGORY = "delete_category"
+    ACTIVATE_CATEGORY = "activate_category"  # ✅ NOVO
+    DEACTIVATE_CATEGORY = "deactivate_category"  # ✅ NOVO
     REORDER_CATEGORIES = "reorder_categories"
 
-    # === VARIANTES/COMPLEMENTOS ===
+    # Grupos de Opções (Option Groups)
+    CREATE_OPTION_GROUP = "create_option_group"  # ✅ NOVO
+    UPDATE_OPTION_GROUP = "update_option_group"  # ✅ NOVO
+    DELETE_OPTION_GROUP = "delete_option_group"  # ✅ NOVO
+
+    # Itens de Opções (Option Items)
+    CREATE_OPTION_ITEM = "create_option_item"  # ✅ NOVO
+    UPDATE_OPTION_ITEM = "update_option_item"  # ✅ NOVO
+    DELETE_OPTION_ITEM = "delete_option_item"  # ✅ NOVO
+    UPLOAD_OPTION_ITEM_IMAGE = "upload_option_item_image"  # ✅ NOVO
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # VARIANTES/COMPLEMENTOS
+    # ═══════════════════════════════════════════════════════════════════════════
     CREATE_VARIANT = "create_variant"
     UPDATE_VARIANT = "update_variant"
     DELETE_VARIANT = "delete_variant"
     LINK_VARIANT_TO_PRODUCT = "link_variant_to_product"
     UNLINK_VARIANT_FROM_PRODUCT = "unlink_variant_from_product"
+    BULK_UPDATE_VARIANT_STATUS = "bulk_update_variant_status"  # ✅ NOVO
+    BULK_UNLINK_VARIANTS = "bulk_unlink_variants"  # ✅ NOVO
 
-    # === PEDIDOS ===
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PEDIDOS ✅ EXPANDIDO
+    # ═══════════════════════════════════════════════════════════════════════════
     CREATE_ORDER = "create_order"
+    UPDATE_ORDER = "update_order"  # ✅ NOVO
     UPDATE_ORDER_STATUS = "update_order_status"
     CANCEL_ORDER = "cancel_order"
+    REFUND_ORDER = "refund_order"  # ✅ NOVO
     APPLY_DISCOUNT = "apply_discount"
+    REMOVE_DISCOUNT = "remove_discount"  # ✅ NOVO
+    ADD_ITEM_TO_ORDER = "add_item_to_order"  # ✅ NOVO
+    REMOVE_ITEM_FROM_ORDER = "remove_item_from_order"  # ✅ NOVO
+    UPDATE_ORDER_ITEM_QUANTITY = "update_order_item_quantity"  # ✅ NOVO
+    UPDATE_ORDER_PAYMENT_METHOD = "update_order_payment_method"  # ✅ NOVO
+    MARK_ORDER_AS_PAID = "mark_order_as_paid"  # ✅ NOVO
+    SPLIT_ORDER_PAYMENT = "split_order_payment"  # ✅ NOVO
+    RETRY_ORDER_PAYMENT = "retry_order_payment"  # ✅ NOVO
 
-    # === CUPONS ===
+    # ═══════════════════════════════════════════════════════════════════════════
+    # CUPONS
+    # ═══════════════════════════════════════════════════════════════════════════
     CREATE_COUPON = "create_coupon"
     UPDATE_COUPON = "update_coupon"
     DELETE_COUPON = "delete_coupon"
     ACTIVATE_COUPON = "activate_coupon"
     DEACTIVATE_COUPON = "deactivate_coupon"
 
-    # === ACESSOS E PERMISSÕES ===
+    # ═══════════════════════════════════════════════════════════════════════════
+    # ACESSOS E PERMISSÕES
+    # ═══════════════════════════════════════════════════════════════════════════
     GRANT_STORE_ACCESS = "grant_store_access"
     REVOKE_STORE_ACCESS = "revoke_store_access"
     UPDATE_USER_ROLE = "update_user_role"
 
-    # === LOJAS ===
+    # ═══════════════════════════════════════════════════════════════════════════
+    # LOJAS
+    # ═══════════════════════════════════════════════════════════════════════════
     CREATE_STORE = "create_store"
     UPDATE_STORE_SETTINGS = "update_store_settings"
     UPDATE_OPERATION_CONFIG = "update_operation_config"
     UPDATE_THEME = "update_theme"
     UPDATE_PAYMENT_METHODS = "update_payment_methods"
 
-    # === ASSINATURAS (BILLING) ✅ NOVAS ===
+    # ═══════════════════════════════════════════════════════════════════════════
+    # ASSINATURAS (BILLING)
+    # ═══════════════════════════════════════════════════════════════════════════
     CREATE_SUBSCRIPTION = "create_subscription"
     REACTIVATE_SUBSCRIPTION = "reactivate_subscription"
     UPDATE_SUBSCRIPTION_CARD = "update_subscription_card"
@@ -253,7 +292,9 @@ class AuditAction(str, enum.Enum):
     SUBSCRIPTION_PAYMENT_SUCCESS = "subscription_payment_success"
     SUBSCRIPTION_PAYMENT_FAILED = "subscription_payment_failed"
 
-    # === FINANCEIRO - CAIXA ✅ NOVAS ===
+    # ═══════════════════════════════════════════════════════════════════════════
+    # FINANCEIRO - CAIXA
+    # ═══════════════════════════════════════════════════════════════════════════
     OPEN_CASHIER = "open_cashier"
     CLOSE_CASHIER = "close_cashier"
     ADD_CASH = "add_cash"
@@ -261,31 +302,49 @@ class AuditAction(str, enum.Enum):
     CASHIER_ADJUSTMENT = "cashier_adjustment"
     CASHIER_DISCREPANCY = "cashier_discrepancy"
 
-    # === FINANCEIRO - CONTAS ===
+    # ═══════════════════════════════════════════════════════════════════════════
+    # FINANCEIRO - CONTAS
+    # ═══════════════════════════════════════════════════════════════════════════
     CREATE_PAYABLE = "create_payable"
     UPDATE_PAYABLE = "update_payable"
     DELETE_PAYABLE = "delete_payable"
     PAY_PAYABLE = "pay_payable"
 
-    # === FORMAS DE PAGAMENTO ✅ NOVAS ===
+    # ═══════════════════════════════════════════════════════════════════════════
+    # FORMAS DE PAGAMENTO
+    # ═══════════════════════════════════════════════════════════════════════════
     ACTIVATE_PAYMENT_METHOD = "activate_payment_method"
     DEACTIVATE_PAYMENT_METHOD = "deactivate_payment_method"
     UPDATE_PAYMENT_METHOD_FEE = "update_payment_method_fee"
     UPDATE_PAYMENT_METHOD_CONFIG = "update_payment_method_config"
 
-    # === MESAS E COMANDAS ===
+    # ═══════════════════════════════════════════════════════════════════════════
+    # MESAS E COMANDAS ✅ EXPANDIDO
+    # ═══════════════════════════════════════════════════════════════════════════
     CREATE_TABLE = "create_table"
+    UPDATE_TABLE = "update_table"  # ✅ NOVO
     UPDATE_TABLE_STATUS = "update_table_status"
     DELETE_TABLE = "delete_table"
+    OPEN_TABLE = "open_table"  # ✅ NOVO
+    CLOSE_TABLE = "close_table"  # ✅ NOVO
+
     CREATE_COMMAND = "create_command"
     CLOSE_COMMAND = "close_command"
+    ADD_ITEM_TO_COMMAND = "add_item_to_command"  # ✅ NOVO
+    REMOVE_ITEM_FROM_COMMAND = "remove_item_from_command"  # ✅ NOVO
+    TRANSFER_COMMAND = "transfer_command"  # ✅ NOVO
+    MERGE_COMMANDS = "merge_commands"  # ✅ NOVO
 
-    # === CLIENTES ===
+    # ═══════════════════════════════════════════════════════════════════════════
+    # CLIENTES
+    # ═══════════════════════════════════════════════════════════════════════════
     CREATE_CUSTOMER = "create_customer"
     UPDATE_CUSTOMER = "update_customer"
     DELETE_CUSTOMER = "delete_customer"
 
-    # === SISTEMA ===
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SISTEMA
+    # ═══════════════════════════════════════════════════════════════════════════
     LOGIN = "login"
     LOGOUT = "logout"
     FAILED_LOGIN = "failed_login"
@@ -296,24 +355,46 @@ class AuditAction(str, enum.Enum):
 
 class AuditEntityType(str, enum.Enum):
     """Tipos de entidades que podem ser auditadas"""
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # ENTIDADES PRINCIPAIS
+    # ═══════════════════════════════════════════════════════════════════════════
     PRODUCT = "product"
     CATEGORY = "category"
+    OPTION_GROUP = "option_group"  # ✅ NOVO
+    OPTION_ITEM = "option_item"  # ✅ NOVO
     VARIANT = "variant"
     ORDER = "order"
+    ORDER_ITEM = "order_item"  # ✅ NOVO
     CUSTOMER = "customer"
     COUPON = "coupon"
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # ACESSOS E USUÁRIOS
+    # ═══════════════════════════════════════════════════════════════════════════
     STORE_ACCESS = "store_access"
     USER = "user"
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # LOJA E CONFIGURAÇÕES
+    # ═══════════════════════════════════════════════════════════════════════════
     STORE = "store"
     STORE_SETTINGS = "store_settings"
 
-    # ✅ NOVAS ENTIDADES
+    # ═══════════════════════════════════════════════════════════════════════════
+    # FINANCEIRO
+    # ═══════════════════════════════════════════════════════════════════════════
     SUBSCRIPTION = "subscription"
     PAYMENT_METHOD = "payment_method"
     CASHIER_SESSION = "cashier_session"
     CASHIER_TRANSACTION = "cashier_transaction"
-
     PAYABLE = "payable"
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # OPERAÇÃO
+    # ═══════════════════════════════════════════════════════════════════════════
     TABLE = "table"
     COMMAND = "command"
     CART = "cart"
+
+

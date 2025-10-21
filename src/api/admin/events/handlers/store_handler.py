@@ -48,9 +48,6 @@ async def handle_join_store_room(sid, data):
 
 
 
-
-
-
 async def handle_leave_store_room(sio_namespace, sid, data):
     """
     Remove um admin da sala de uma loja específica.
