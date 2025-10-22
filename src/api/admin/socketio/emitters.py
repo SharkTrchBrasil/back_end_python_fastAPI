@@ -9,6 +9,7 @@ from src.api.admin.services.billing_preview_service import BillingPreviewService
 from src.api.admin.services.holiday_service import HolidayService
 from src.api.admin.services.insights_service import InsightsService
 from src.api.admin.services.payable_service import payable_service
+from src.api.admin.services.store_service import StoreService
 from src.api.admin.services.subscription_service import SubscriptionService
 from src.api.app.socketio.socketio_emitters import emit_products_updated, emit_store_updated
 
@@ -50,53 +51,38 @@ from sqlalchemy.orm import selectinload
 from src.api.schemas.products.variant import Variant
 
 
-
-
 async def admin_emit_store_updated(db, store_id: int):
-    """✅ VERSÃO CORRIGIDA COM store_operation_config"""
+    """
+    ✅ VERSÃO SIMPLIFICADA: Usa o StoreService
+
+    Agora este emissor não precisa saber NADA sobre:
+    - Como calcular assinaturas
+    - Quais campos são computados
+    - Como montar o payload
+
+    Apenas:
+    1. Busca a loja do banco
+    2. Chama StoreService
+    3. Emite o resultado
+    """
     try:
-        # ✅ CORREÇÃO: Usa a função de CRUD que carrega TODAS as relações
+        # 1. Busca loja com todas as relações
         store_model = store_crud.get_store_base_details(db=db, store_id=store_id)
 
         if not store_model:
             logger.warning(f"⚠️ Loja {store_id} não encontrada")
             return
 
-        # ✅ VERIFICAÇÃO: Confirma se a config foi carregada
-        if not store_model.store_operation_config:
-            logger.error(f"❌ store_operation_config NÃO foi carregada para loja {store_id}")
-            # Tenta carregar manualmente
-            from src.core.models import StoreOperationConfig
-            config = db.query(StoreOperationConfig).filter_by(store_id=store_id).first()
-            if config:
-                store_model.store_operation_config = config
-                logger.info(f"✅ store_operation_config carregada manualmente")
-            else:
-                logger.error(f"❌ store_operation_config não existe no banco para loja {store_id}")
-                # Cria uma config padrão
-                config = StoreOperationConfig(store_id=store_id)
-                db.add(config)
-                db.commit()
-                db.refresh(config)
-                store_model.store_operation_config = config
-                logger.info(f"✅ store_operation_config CRIADA para loja {store_id}")
-
-        # ✅ USA O MÉTODO DO SubscriptionService
-        store_dict = SubscriptionService.get_store_dict_with_subscription(
+        # 2. ✅ DELEGA PARA O STORESERVICE
+        store_payload = StoreService.get_store_complete_payload(
             store=store_model,
             db=db
         )
 
-        # Valida com Pydantic
-        store_schema = StoreDetails.model_validate(store_dict)
-
-        # ✅ LOG DE DEBUG
-        logger.info(f"✅ Config carregada: delivery_enabled={store_schema.store_operation_config.delivery_enabled if store_schema.store_operation_config else 'NULL'}")
-
-        # Emite
+        # 3. Emite o payload pronto
         await sio.emit(
             'store_details_updated',
-            {"store": store_schema.model_dump(mode='json', by_alias=True)},
+            {"store": store_payload},
             namespace='/admin',
             room=f"admin_store_{store_id}"
         )
