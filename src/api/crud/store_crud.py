@@ -56,7 +56,7 @@ def get_store_for_customer_view(db, store_id: int) -> models.Store | None:
 def get_store_base_details(db, store_id: int) -> models.Store | None:
     """
     Consulta Otimizada: Carrega apenas os dados de configuração da loja.
-    (Exclui listas pesadas como produtos, categorias, clientes, etc.)
+    ✅ CORREÇÃO: Garante que store_operation_config seja carregado
     """
     store = (
         db.query(models.Store)
@@ -64,7 +64,10 @@ def get_store_base_details(db, store_id: int) -> models.Store | None:
             # --- Carrega apenas o essencial ---
             joinedload(models.Store.segment),
             joinedload(models.Store.theme),
+
+            # ✅ CRÍTICO: Carrega a configuração operacional
             joinedload(models.Store.store_operation_config),
+
             selectinload(models.Store.hours),
             selectinload(models.Store.scheduled_pauses),
             selectinload(models.Store.banners),
@@ -80,18 +83,17 @@ def get_store_base_details(db, store_id: int) -> models.Store | None:
             selectinload(models.Store.chatbot_messages).joinedload(models.StoreChatbotMessage.template),
 
             joinedload(models.Store.chatbot_config),
-    
+
             selectinload(models.Store.monthly_charges).joinedload(models.MonthlyCharge.subscription),
 
             selectinload(models.Store.subscriptions)
             .joinedload(models.StoreSubscription.plan)
-            .selectinload(models.Plans.included_features)  # ← Esta é a tabela de associação
-            .joinedload(models.PlansFeature.feature),  # ← Agora acessa a Feature
+            .selectinload(models.Plans.included_features)
+            .joinedload(models.PlansFeature.feature),
 
             noload(models.Store.products),
             noload(models.Store.categories),
             noload(models.Store.variants),
-
             noload(models.Store.orders)
         )
         .filter(models.Store.id == store_id)
@@ -99,10 +101,18 @@ def get_store_base_details(db, store_id: int) -> models.Store | None:
     )
 
     # ✅ LOG PARA DEBUG
-    if store and store.subscriptions:
-        print(f"✅ [CRUD] Loja {store_id} tem {len(store.subscriptions)} subscription(s)")
-        print(f"   Status: {store.subscriptions[0].status if store.subscriptions else 'N/A'}")
+    if store:
+        if store.store_operation_config:
+            print(f"✅ [CRUD] store_operation_config carregada: id={store.store_operation_config.id}")
+        else:
+            print(f"⚠️ [CRUD] store_operation_config É NULL para loja {store_id}")
+
+        if store.subscriptions:
+            print(f"✅ [CRUD] Loja {store_id} tem {len(store.subscriptions)} subscription(s)")
+            print(f"   Status: {store.subscriptions[0].status if store.subscriptions else 'N/A'}")
+        else:
+            print(f"⚠️ [CRUD] Loja {store_id} SEM subscriptions carregadas!")
     else:
-        print(f"⚠️ [CRUD] Loja {store_id} SEM subscriptions carregadas!")
+        print(f"❌ [CRUD] Loja {store_id} NÃO ENCONTRADA!")
 
     return store

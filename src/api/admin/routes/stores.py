@@ -205,9 +205,9 @@ async def create_store(
             "city": city,
             "state": uf,
             "segment_id": segment_id,
-            "latitude": latitude,  # ✅ NOVO
-            "longitude": longitude,  # ✅ NOVO
-            "delivery_radius_km": delivery_radius_km,  # ✅ NOVO
+            "latitude": latitude,
+            "longitude": longitude,
+            "delivery_radius_km": delivery_radius_km,
             "trial_days": 30,
             "plan_id": main_plan.id
         },

@@ -53,13 +53,33 @@ from src.api.schemas.products.variant import Variant
 
 
 async def admin_emit_store_updated(db, store_id: int):
-    """✅ VERSÃO SIMPLES E DIRETA"""
+    """✅ VERSÃO CORRIGIDA COM store_operation_config"""
     try:
+        # ✅ CORREÇÃO: Usa a função de CRUD que carrega TODAS as relações
         store_model = store_crud.get_store_base_details(db=db, store_id=store_id)
 
         if not store_model:
             logger.warning(f"⚠️ Loja {store_id} não encontrada")
             return
+
+        # ✅ VERIFICAÇÃO: Confirma se a config foi carregada
+        if not store_model.store_operation_config:
+            logger.error(f"❌ store_operation_config NÃO foi carregada para loja {store_id}")
+            # Tenta carregar manualmente
+            from src.core.models import StoreOperationConfig
+            config = db.query(StoreOperationConfig).filter_by(store_id=store_id).first()
+            if config:
+                store_model.store_operation_config = config
+                logger.info(f"✅ store_operation_config carregada manualmente")
+            else:
+                logger.error(f"❌ store_operation_config não existe no banco para loja {store_id}")
+                # Cria uma config padrão
+                config = StoreOperationConfig(store_id=store_id)
+                db.add(config)
+                db.commit()
+                db.refresh(config)
+                store_model.store_operation_config = config
+                logger.info(f"✅ store_operation_config CRIADA para loja {store_id}")
 
         # ✅ USA O MÉTODO DO SubscriptionService
         store_dict = SubscriptionService.get_store_dict_with_subscription(
@@ -69,6 +89,9 @@ async def admin_emit_store_updated(db, store_id: int):
 
         # Valida com Pydantic
         store_schema = StoreDetails.model_validate(store_dict)
+
+        # ✅ LOG DE DEBUG
+        logger.info(f"✅ Config carregada: delivery_enabled={store_schema.store_operation_config.delivery_enabled if store_schema.store_operation_config else 'NULL'}")
 
         # Emite
         await sio.emit(

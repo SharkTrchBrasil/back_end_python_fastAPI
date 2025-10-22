@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 from typing import Optional, List
-from pydantic import Field, ConfigDict, computed_field, model_validator
+from pydantic import Field, ConfigDict, computed_field
 
 from src.api.admin.services.subscription_service import SubscriptionService
 from src.api.schemas.chatbot.chatbot_config import StoreChatbotMessageSchema, StoreChatbotConfigSchema
@@ -10,7 +10,8 @@ from src.api.schemas.financial.billing_preview import BillingPreviewSchema
 from src.api.schemas.products.category import Category
 from src.api.schemas.store.scheduled_pauses import ScheduledPauseOut
 from src.api.schemas.financial.coupon import CouponOut
-from src.api.schemas.financial.payment_method import PaymentMethodGroupOut, PlatformPaymentMethodOut, StorePaymentMethodActivationOut
+from src.api.schemas.financial.payment_method import PaymentMethodGroupOut, PlatformPaymentMethodOut, \
+    StorePaymentMethodActivationOut
 from src.api.schemas.products.product import ProductOut
 from src.api.schemas.products.rating import RatingsSummaryOut
 from src.api.schemas.store.store import StoreSchema
@@ -23,7 +24,12 @@ from src.core import models
 
 
 class StoreDetails(StoreSchema):
-    store_operation_config: StoreOperationConfigOut | None = None
+    # ✅ CRÍTICO: Garante que NÃO seja None por padrão
+    store_operation_config: StoreOperationConfigOut | None = Field(
+        default=None,
+        description="Configurações operacionais da loja (delivery, pickup, mesa)"
+    )
+
     hours: list[StoreHoursOut] = []
     cities: list[StoreCitySchema] = []
     ratingsSummary: Optional[RatingsSummaryOut] = Field(None, alias="ratingsSummary")
@@ -37,19 +43,12 @@ class StoreDetails(StoreSchema):
     chatbot_config: Optional[StoreChatbotConfigSchema] = None
     payment_activations: list[models.StorePaymentMethodActivation] = Field(default=[], exclude=True)
     billing_preview: Optional[BillingPreviewSchema] = Field(default=None)
-
-    # ✅ O campo continua aqui, mas será populado EXTERNAMENTE
     active_subscription: SubscriptionDetailsSchema | None = None
-
-    # ❌ REMOVIDO O @model_validator 'populate_subscription_details'
-    # Esta lógica será movida para o emissor do Socket.IO,
-    # que tem acesso à sessão do banco de dados.
 
     @computed_field(return_type=list[PaymentMethodGroupOut])
     @property
     def payment_method_groups(self) -> list[PaymentMethodGroupOut]:
         """Constrói a estrutura hierárquica de métodos de pagamento."""
-        # ... (código existente permanece igual)
         if not self.payment_activations:
             return []
 
