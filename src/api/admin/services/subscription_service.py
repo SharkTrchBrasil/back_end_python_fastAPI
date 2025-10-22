@@ -131,39 +131,60 @@ class SubscriptionService:
             db: GetDBDep
     ) -> Dict[str, Any]:
         """
-        ✅ VERSÃO FINAL SIMPLIFICADA
+        ✅ VERSÃO HÍBRIDA QUE FUNCIONA
 
-        O Pydantic faz o trabalho pesado de extrair todos os campos.
-        Só precisamos adicionar os campos calculados customizados.
+        - Pydantic valida campos simples automaticamente
+        - Calculamos manualmente apenas os campos complexos/computados
         """
         from src.api.schemas.store.store_details import StoreDetails
 
         try:
-            # Calcula assinatura enriquecida
+            # ✅ 1. CALCULA A ASSINATURA ENRIQUECIDA (com campos computados)
             subscription_details = SubscriptionService.get_subscription_details(
                 store=store,
                 db=db
             )
 
-            # ✅ Deixa o Pydantic fazer a extração automática
-            validated = StoreDetails.model_validate(store)
+            # ✅ 2. EXTRAI COLUNAS DO ORM (apenas colunas, não relações complexas)
+            mapper = inspect(store.__class__)
+            store_dict = {
+                column.key: getattr(store, column.key)
+                for column in mapper.columns
+            }
 
-            # Converte para dict
-            result = validated.model_dump(by_alias=True, mode='json')
+            # ✅ 3. ADICIONA RELAÇÕES SIMPLES (que o Pydantic consegue validar)
+            store_dict['store_operation_config'] = store.store_operation_config
+            store_dict['hours'] = store.hours
+            store_dict['cities'] = store.cities
+            store_dict['scheduled_pauses'] = store.scheduled_pauses
+            store_dict['banners'] = store.banners
+            store_dict['payment_activations'] = store.payment_activations
+            store_dict['coupons'] = store.coupons
+            store_dict['chatbot_messages'] = store.chatbot_messages
+            store_dict['chatbot_config'] = store.chatbot_config
+            store_dict['categories'] = store.categories
+            store_dict['products'] = store.products
+            store_dict['variants'] = store.variants
 
-            # Adiciona campos customizados
-            result['active_subscription'] = subscription_details
-            result['billing_preview'] = (
+            # ✅ 4. ADICIONA CAMPOS COMPUTADOS/ENRIQUECIDOS
+            # Estes NÃO podem vir do ORM porque não existem no banco
+            store_dict['active_subscription'] = subscription_details
+            store_dict['billing_preview'] = (
                 subscription_details.get('billing_preview')
                 if subscription_details
                 else None
             )
 
-            return result
+            # ✅ 5. VALIDA (agora todos os campos estão corretos)
+            validated = StoreDetails.model_validate(store_dict)
+
+            # ✅ 6. RETORNA COMO DICT JSON
+            return validated.model_dump(by_alias=True, mode='json')
 
         except Exception as e:
             logger.error(f"❌ Erro ao converter loja {store.id}: {e}", exc_info=True)
             raise
+
 
     # Métodos auxiliares (mantidos como estavam)
     @staticmethod
