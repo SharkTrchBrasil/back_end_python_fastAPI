@@ -2,6 +2,7 @@
 
 from sqlalchemy.orm import selectinload
 
+from src.api.admin.services.store_service import StoreService
 from src.api.admin.services.subscription_service import SubscriptionService
 from src.api.crud import store_crud
 from src.api.schemas.products.category import Category
@@ -33,7 +34,7 @@ async def emit_store_updated(db, store_id: int):
 
         # ✅ 2. USA O MESMO MÉTODO QUE O ADMIN USA
         # Isso garante que os campos computados sejam adicionados
-        store_dict = SubscriptionService.get_store_dict_with_subscription(
+        store_dict = StoreService.get_store_complete_payload(
             store=store_model,
             db=db
         )

@@ -4,6 +4,7 @@ from collections import defaultdict
 from urllib.parse import parse_qs
 
 from src.api.admin.services.store_access_service import StoreAccessService
+from src.api.admin.services.store_service import StoreService
 from src.api.admin.services.store_session_service import SessionService
 from src.api.admin.services.subscription_service import SubscriptionService
 from src.api.schemas.store.store_with_role import StoreWithRole
@@ -178,7 +179,7 @@ async def handle_admin_connect(self, sid, environ):
 
             stores_list_payload = []
             for access in accessible_store_accesses:
-                store_dict = SubscriptionService.get_store_dict_with_subscription(
+                store_dict = StoreService.get_store_complete_payload(
                     store=access.store,
                     db=db
                 )
