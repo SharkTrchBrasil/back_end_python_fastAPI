@@ -11,6 +11,7 @@ from sqlalchemy import func
 from starlette.requests import Request
 
 from src.api.admin.services.cloning_service import clone_store_data
+from src.api.admin.services.store_service import StoreService
 from src.api.admin.services.subscription_service import SubscriptionService
 from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_stores_list_update, emit_store_updates
 from src.api.app.socketio.socketio_emitters import emit_store_updated
@@ -931,7 +932,7 @@ def list_stores(db: GetDBDep, user: GetCurrentUserDep):
     result = []
 
     for access in db_store_accesses:
-        store_dict = SubscriptionService.get_store_dict_with_subscription(
+        store_dict = StoreService.get_store_complete_payload(
             store=access.store,
             db=db
         )
