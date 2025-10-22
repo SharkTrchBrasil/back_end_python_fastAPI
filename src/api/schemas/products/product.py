@@ -263,6 +263,13 @@ class ProductOut(AppBaseModel):
             return self.gallery_images[0].image_url
         return None
 
+
+    # ✅ CONFIGURAÇÃO PROFISSIONAL
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra='ignore',  # ← IGNORA @hybrid_property do ORM
+        populate_by_name=True,
+    )
 # -------------------------------------------------
 # 2. Schemas de Avaliação (ProductRating)
 # -------------------------------------------------

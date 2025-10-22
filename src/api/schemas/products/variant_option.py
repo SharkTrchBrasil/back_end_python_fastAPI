@@ -1,7 +1,7 @@
 
 
 from typing import Annotated
-from pydantic import Field, computed_field
+from pydantic import Field, computed_field, ConfigDict
 
 from src.api.schemas.shared.base import AppBaseModel
 from src.api.schemas.shared.minimal import ProductMinimal  # Garanta que este import está correto
@@ -97,7 +97,11 @@ class VariantOption(VariantOptionBase):
 
 
 
-
+# ✅ CONFIGURAÇÃO PROFISSIONAL
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra='ignore',  # ← IGNORA @hybrid_property do ORM
+    )
 
 class OptionForVariantUpdate(VariantOptionBase):
     """
