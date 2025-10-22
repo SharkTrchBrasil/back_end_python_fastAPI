@@ -125,57 +125,45 @@ class SubscriptionService:
             logger.error(f"❌ Erro ao calcular detalhes da assinatura: {e}", exc_info=True)
             return None
 
-    # ✅✅ MÉTODO CORRIGIDO FINAL
     @staticmethod
     def get_store_dict_with_subscription(
             store: models.Store,
             db: GetDBDep
     ) -> Dict[str, Any]:
         """
-        ✅ VERSÃO FINAL: Enriquece ANTES de validar
+        ✅ VERSÃO FINAL SIMPLIFICADA
 
-        Por que não usar model_validate(store) direto?
-        - store.subscriptions são objetos ORM do banco
-        - NÃO possuem campos computados (is_blocked, has_payment_method)
-        - Precisamos calcular esses campos ANTES de validar
+        O Pydantic faz o trabalho pesado de extrair todos os campos.
+        Só precisamos adicionar os campos calculados customizados.
         """
-        # ✅ IMPORT DENTRO DA FUNÇÃO (EVITA CIRCULAR IMPORT)
         from src.api.schemas.store.store_details import StoreDetails
 
         try:
-            # ✅ 1. CALCULA ASSINATURA ENRIQUECIDA
+            # Calcula assinatura enriquecida
             subscription_details = SubscriptionService.get_subscription_details(
                 store=store,
                 db=db
             )
 
-            # ✅ 2. EXTRAI APENAS COLUNAS DO BANCO (SEM RELAÇÕES)
-            mapper = inspect(store.__class__)
-            store_dict = {
-                column.key: getattr(store, column.key)
-                for column in mapper.columns
-            }
+            # ✅ Deixa o Pydantic fazer a extração automática
+            validated = StoreDetails.model_validate(store)
 
-            # ✅ 3. ADICIONA CAMPOS COMPUTADOS/ENRIQUECIDOS
-            store_dict['active_subscription'] = subscription_details
-            store_dict['billing_preview'] = (
+            # Converte para dict
+            result = validated.model_dump(by_alias=True, mode='json')
+
+            # Adiciona campos customizados
+            result['active_subscription'] = subscription_details
+            result['billing_preview'] = (
                 subscription_details.get('billing_preview')
                 if subscription_details
                 else None
             )
 
-            # ✅ 4. VALIDA (AGORA TEM TODOS OS CAMPOS)
-            validated = StoreDetails.model_validate(store_dict)
-
-            # ✅ 5. RETORNA COMO DICT JSON
-            return validated.model_dump(by_alias=True, mode='json')
+            return result
 
         except Exception as e:
-            logger.error(f"❌ Erro ao converter loja {store.id} para dict: {e}", exc_info=True)
+            logger.error(f"❌ Erro ao converter loja {store.id}: {e}", exc_info=True)
             raise
-
-
-
 
     # Métodos auxiliares (mantidos como estavam)
     @staticmethod
