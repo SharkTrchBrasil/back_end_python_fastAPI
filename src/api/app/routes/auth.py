@@ -7,12 +7,14 @@ from fastapi import APIRouter, Body, HTTPException, logger
 
 from starlette import status
 from starlette.requests import Request
+from starlette.responses import Response
 
 from src.api.app.security.domain_validator import DomainValidator
 from src.api.app.security.jwt_handler import MenuJWTHandler
 from src.api.schemas.auth.auth_totem import TotemAuth, TotemAuthorizationResponse, TotemCheckTokenResponse, \
     AuthenticateByUrlRequest, SecureMenuAuthResponse
 from src.core import models
+from src.core.config import config
 from src.core.database import GetDBDep
 from src.core.models import TotemAuthorization, AuditLog
 from src.core.rate_limit.rate_limit import limiter
@@ -20,7 +22,30 @@ from src.core.rate_limit.rate_limit import limiter
 router = APIRouter(tags=["Totem Auth"], prefix="/auth")
 
 
-# src/api/app/routes/auth.py (REFATORADO)
+# ✅ ADICIONE ESTA ROTA ANTES DO POST:
+@router.options("/subdomain")
+async def subdomain_preflight():
+    """
+    🔧 Trata requisição CORS preflight (OPTIONS)
+
+    O navegador envia esta requisição ANTES do POST
+    para verificar se a origem está autorizada.
+
+    Esta rota é chamada automaticamente pelo navegador
+    antes de qualquer requisição cross-origin.
+    """
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*" if config.is_development else ",".join(
+                config.get_allowed_origins_list()),
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
+
+
 @router.post("/subdomain", response_model=SecureMenuAuthResponse)
 @limiter.limit("10/minute")  # Rate limit específico
 async def authenticate_menu_access(

@@ -200,66 +200,55 @@ else:
 logger.info(f"✅ Rate Limiting ativo: {config.RATE_LIMIT_ENABLED}")
 
 # ═══════════════════════════════════════════════════════════
-# CORS
+# CORS - CONFIGURAÇÃO INTELIGENTE POR AMBIENTE
 # ═══════════════════════════════════════════════════════════
 
-allowed_origins = config.get_allowed_origins_list()
-
-fast_app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=config.get_allowed_methods(),
-    allow_headers=config.get_allowed_headers(),
-    expose_headers=config.get_expose_headers(),
-    max_age=3600,
-)
-
-# ✅ Log de segurança
 logger.info("=" * 60)
-logger.info(f"🔒 CORS CONFIGURADO - Ambiente: {config.ENVIRONMENT.upper()}")
-logger.info(f"✅ Origens autorizadas: {len(allowed_origins)}")
-for origin in allowed_origins:
-    logger.info(f"   → {origin}")
+logger.info(f"🌐 CONFIGURANDO CORS - Ambiente: {config.ENVIRONMENT.upper()}")
 logger.info("=" * 60)
 
+if config.is_development:
+    # 🟢 DESENVOLVIMENTO: Permite tudo para facilitar testes
+    logger.info("🟢 MODO DESENVOLVIMENTO: CORS permissivo")
 
-# ═══════════════════════════════════════════════════════════
-# MIDDLEWARE DE SEGURANÇA
-# ═══════════════════════════════════════════════════════════
+    fast_app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # Permite todas as origens
+        allow_credentials=True,
+        allow_methods=["*"],  # Permite todos os métodos (GET, POST, PUT, DELETE, etc)
+        allow_headers=["*"],  # Permite todos os headers
+        expose_headers=["*"],
+        max_age=3600,
+    )
 
-@fast_app.middleware("http")
-async def security_logging_middleware(
-    request: Request,
-    call_next
-) -> Union[Response, JSONResponse]:
-    """Middleware de segurança e logging"""
-    origin = request.headers.get("origin")
+    logger.info("   ├─ Origens: * (todas)")
+    logger.info("   ├─ Métodos: * (todos)")
+    logger.info("   ├─ Headers: * (todos)")
+    logger.info("   └─ ⚠️ NÃO USE ISSO EM PRODUÇÃO!")
 
-    # Valida CORS e loga bloqueios
-    if origin:
-        if not CustomCORSMiddleware.is_allowed_origin(origin, allowed_origins):
-            logger.warning(
-                f"🚨 TENTATIVA DE ACESSO BLOQUEADA\n"
-                f"   ├─ Origem: {origin}\n"
-                f"   ├─ Path: {request.url.path}\n"
-                f"   ├─ Método: {request.method}\n"
-                f"   ├─ IP: {request.client.host if request.client else 'N/A'}\n"
-                f"   └─ User-Agent: {request.headers.get('user-agent', 'N/A')[:100]}"
-            )
+else:
+    # 🔴 PRODUÇÃO: Validação rigorosa
+    logger.info("🔴 MODO PRODUÇÃO: CORS restritivo")
 
-    # Processa requisição
-    response: Response = await call_next(request)
+    allowed_origins = config.get_allowed_origins_list()
 
-    # Adiciona headers de segurança
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    fast_app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=config.get_allowed_methods(),
+        allow_headers=config.get_allowed_headers(),
+        expose_headers=config.get_expose_headers(),
+        max_age=3600,
+    )
 
-    return response
+    logger.info(f"   ├─ {len(allowed_origins)} origens autorizadas:")
+    for origin in allowed_origins:
+        logger.info(f"   │  → {origin}")
+    logger.info(f"   ├─ Métodos: {', '.join(config.get_allowed_methods())}")
+    logger.info(f"   └─ ✅ Segurança ativa")
 
+logger.info("=" * 60)
 
 # ═══════════════════════════════════════════════════════════
 # ROTAS
