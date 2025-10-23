@@ -95,6 +95,33 @@ class OrderStatus(str, enum.Enum):
     CANCELED = 'canceled'    # Pedido foi cancelado em alguma etapa.
 
 
+class PaymentStatus(str, enum.Enum):
+    """
+    Status de pagamento do pedido.
+    Indica o estado atual da transação financeira.
+    """
+    PENDING = 'pending'        # Aguardando pagamento
+    PAID = 'paid'              # Pagamento confirmado
+    PROCESSING = 'processing'  # Processando pagamento (para gateways online)
+    FAILED = 'failed'          # Falha no pagamento
+    REFUNDED = 'refunded'      # Pagamento reembolsado
+    CANCELLED = 'cancelled'    # Pagamento cancelado
+
+class SalesChannel(str, enum.Enum):
+    """
+    Canal de origem/venda do pedido.
+    Define por onde o pedido foi realizado.
+    """
+    CARDAPIO_DIGITAL = 'cardapy'  # Pedido feito pelo cardápio digital (QR Code)
+    TABLE = 'table'                        # Pedido feito em mesa (garçom/comanda)
+    COUNTER = 'counter'                    # Pedido feito no balcão
+    PHONE = 'phone'                        # Pedido feito por telefone
+    WHATSAPP = 'whatsapp'                  # Pedido feito pelo WhatsApp
+    IFOOD = 'ifood'                        # Pedido do iFood (integração futura)
+    RAPPI = 'rappi'                        # Pedido do Rappi (integração futura)
+    UBER_EATS = 'uber_eats'                # Pedido do Uber Eats (integração futura)
+    ADMIN_PANEL = 'admin_panel'            # Pedido criado pelo painel admin
+
 
 class PayableStatus(str, enum.Enum):
     pending = "pending"
@@ -186,8 +213,6 @@ class ChatbotMessageGroupEnum(enum.Enum):
     ORDER_UPDATES = "Envie atualizações automáticas do pedido"
     COURIER_NOTIFICATIONS = "Notifique seus Entregadores"
 
-
-import enum
 
 
 class AuditAction(str, enum.Enum):

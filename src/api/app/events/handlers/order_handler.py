@@ -11,9 +11,7 @@ from src.api.admin.utils.order_code import generate_unique_public_id, gerar_sequ
 from src.core import models
 
 from src.core.database import get_db_manager
-
-
-
+from src.core.utils.enums import OrderStatus, SalesChannel, PaymentStatus
 
 from src.socketio_instance import sio
 
@@ -81,14 +79,14 @@ async def create_order_from_cart(sid, data):
                 customer_phone=customer.phone,
                 payment_method_id=payment_activation.id,
                 payment_method_name=payment_activation.platform_method.name,
-                order_type='cardapio_digital',
+                order_type=SalesChannel.CARDAPIO_DIGITAL,
                 delivery_type=input_data.delivery_type,
                 observation=input_data.observation,
                 needs_change=input_data.needs_change,
                 change_amount=input_data.change_for,
                 delivery_fee = input_data.delivery_fee,
-                payment_status='pending',
-                order_status='pending',
+                payment_status=PaymentStatus.PENDING,
+                order_status=OrderStatus.PENDING
             )
 
             if address:

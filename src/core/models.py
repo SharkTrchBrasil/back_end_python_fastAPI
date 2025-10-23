@@ -15,7 +15,8 @@ from src.core.aws import S3_PUBLIC_BASE_URL
 from src.core.security.encryption import encryption_service
 from src.core.utils.enums import CashbackType, TableStatus, CommandStatus, StoreVerificationStatus, PaymentMethodType, \
     CartStatus, ProductType, OrderStatus, PayableStatus, ThemeMode, CategoryType, FoodTagEnum, AvailabilityTypeEnum, \
-    BeverageTagEnum, PricingStrategyType, CategoryTemplateType, OptionGroupType, ProductStatus, ChatbotMessageGroupEnum
+    BeverageTagEnum, PricingStrategyType, CategoryTemplateType, OptionGroupType, ProductStatus, ChatbotMessageGroupEnum, \
+    PaymentStatus
 from src.api.schemas.shared.base import VariantType, UIDisplayMode
 
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -1912,11 +1913,20 @@ class Order(Base, TimestampMixin):
     discount_type: Mapped[str | None] = mapped_column(nullable=True)
     discount_reason: Mapped[str | None] = mapped_column(nullable=True)
 
-    # Status e pagamento
-    payment_status: Mapped[str] = mapped_column()
+    # ✅ Use SQLEnum para validação automática
+    order_status = Column(
+        Enum(OrderStatus),
+        nullable=False,
+        default=OrderStatus.PENDING,
+        server_default='pending'  # Fallback no banco
+    )
 
-    order_status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus, native_enum=False), default=OrderStatus.PENDING,
-                                                      index=True)
+    payment_status = Column(
+        Enum(PaymentStatus),  # Crie este Enum também
+        nullable=False,
+        default='pending'
+    )
+
 
     needs_change: Mapped[bool] = mapped_column(default=False)
 

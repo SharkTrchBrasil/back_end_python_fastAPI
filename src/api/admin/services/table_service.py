@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from src.api.schemas.tables.table import CreateSaloonRequest, OpenTableRequest, CreateTableRequest, \
     AddItemToTableRequest, UpdateTableRequest, UpdateSaloonRequest
 from src.core import models
-from src.core.utils.enums import TableStatus, CommandStatus, OrderStatus
+from src.core.utils.enums import TableStatus, CommandStatus, OrderStatus, PaymentStatus, SalesChannel
 
 
 class TableService:
@@ -288,19 +288,19 @@ class TableService:
             command_id=request.command_id,
             sequential_id=self._get_next_sequential_id(store_id),
             public_id=self._generate_public_id(store_id),
-            order_type="table",
+            order_type=SalesChannel.TABLE,
             delivery_type="in_store",
             order_status=OrderStatus.PENDING,  # ✅ Usa o Enum
-            payment_status="pending",
-            consumption_type="dine_in",  # ✅ ADICIONE este campo
+            payment_status=PaymentStatus.PENDING,
+            consumption_type="dine_in",
             total_price=0,
             subtotal_price=0,
             discounted_total_price=0,
-            delivery_fee=0,  # ✅ ADICIONE este campo
+            delivery_fee=0,
             street="",
             neighborhood="",
             city="",
-            customer_name=None,  # ✅ Pega da comanda depois se precisar
+            customer_name=None,
             customer_phone=None,
         )
 
