@@ -287,17 +287,10 @@ async def admin_emit_financials_updated(db, store_id: int, sid: str | None = Non
         print(f'❌ Erro ao emitir financials_updated: {e}')
 
 
-async def admin_emit_orders_initial(db, store_id: int, sid: Optional[str] = None):
-    """
-    ✅ OTIMIZADO COM CACHE: Lista inicial de pedidos ativos
 
-    Cache Strategy:
-    - TTL: 15 segundos
-    - Key: admin:{store_id}:orders:active
-    - Invalidação: Quando status de pedido muda
-    """
+
+async def admin_emit_orders_initial(db, store_id: int, sid: Optional[str] = None):
     try:
-        # ✅ TENTA BUSCAR DO CACHE PRIMEIRO
         cache_key = f"admin:{store_id}:orders:active"
         cached_data = redis_client.get(cache_key)
 
@@ -307,8 +300,12 @@ async def admin_emit_orders_initial(db, store_id: int, sid: Optional[str] = None
         else:
             logger.debug(f"❌ CACHE MISS: {cache_key}")
 
-            # Busca do banco (código existente)
             active_order_statuses = ['pending', 'preparing', 'ready', 'on_route']
+
+            # ✅ ADICIONAR LOGS AQUI
+            print(f"\n🔍 DEBUG orders_initial:")
+            print(f"   Store ID: {store_id}")
+            print(f"   Buscando status: {active_order_statuses}")
 
             orders = (
                 db.query(models.Order)
@@ -325,44 +322,68 @@ async def admin_emit_orders_initial(db, store_id: int, sid: Optional[str] = None
                 .all()
             )
 
+            # ✅ ADICIONAR MAIS LOGS
+            print(f"   ✅ Encontrados {len(orders)} pedidos no banco")
+
+            if len(orders) > 0:
+                print(f"   📦 Pedidos encontrados:")
+                for order in orders:
+                    print(f"      - ID: {order.id}, Status: '{order.order_status}', Cliente: {order.customer_name}")
+            else:
+                print(f"   ⚠️ NENHUM pedido encontrado! Verificando motivo...")
+
+                # Query de debug para ver TODOS os pedidos da loja
+                all_orders = db.query(models.Order).filter(
+                    models.Order.store_id == store_id
+                ).all()
+
+                print(f"   Total de pedidos na loja {store_id}: {len(all_orders)}")
+                for order in all_orders:
+                    print(f"      - ID: {order.id}, Status: '{order.order_status}' (tipo: {type(order.order_status)})")
+
             orders_data = []
 
             for order in orders:
-                store_customer = db.query(models.StoreCustomer).filter_by(
-                    store_id=store_id,
-                    customer_id=order.customer_id
-                ).first()
+                try:
+                    store_customer = db.query(models.StoreCustomer).filter_by(
+                        store_id=store_id,
+                        customer_id=order.customer_id
+                    ).first()
 
-                order_dict = OrderDetails.model_validate(order).model_dump(mode='json')
-                order_dict["customer_order_count"] = store_customer.total_orders if store_customer else 1
+                    order_dict = OrderDetails.model_validate(order).model_dump(mode='json')
+                    order_dict["customer_order_count"] = store_customer.total_orders if store_customer else 1
 
-                orders_data.append(order_dict)
+                    orders_data.append(order_dict)
+                    print(f"   ✅ Pedido {order.id} serializado com sucesso")
+
+                except Exception as e:
+                    print(f"   ❌ ERRO ao serializar pedido {order.id}: {e}")
+                    import traceback
+                    traceback.print_exc()
+
+            print(f"   📤 Enviando {len(orders_data)} pedidos para o frontend\n")
 
             payload = {
                 "store_id": store_id,
                 "orders": orders_data
             }
 
-            # ✅ ARMAZENA NO CACHE (15 segundos)
             redis_client.set(cache_key, payload, ttl=15)
 
-        # Emite para o cliente
         if sid:
             await sio.emit("orders_initial", payload, namespace='/admin', to=sid)
         else:
             await sio.emit("orders_initial", payload, namespace='/admin', room=f"admin_store_{store_id}")
 
-
     except Exception as e:
-        # Loga o erro detalhadamente para depuração no servidor
-        print(f'❌ Erro ao emitir pedidos iniciais para loja {store_id} (SID: {sid}): {e.__class__.__name__}: {str(e)}')
-        # Sempre emite uma resposta para o frontend, mesmo em caso de erro,
-        # para que o frontend possa reagir (e.g., mostrar mensagem de erro, tela vazia).
+        print(f'❌ ERRO GERAL em orders_initial: {e}')
+        import traceback
+        traceback.print_exc()
+
         error_payload = {
             "store_id": store_id,
-            "orders": [],  # Garante que a lista de pedidos seja sempre enviada como lista vazia em caso de erro
-            "error": str(e),  # Opcional: envia a mensagem de erro para o frontend se útil para depuração
-            "message": "Não foi possível carregar os pedidos iniciais. Tente novamente."  # Mensagem amigável
+            "orders": [],
+            "error": str(e)
         }
         if sid:
             await sio.emit("orders_initial", error_payload, namespace='/admin', to=sid)
