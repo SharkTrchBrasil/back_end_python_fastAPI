@@ -10,7 +10,10 @@ from src.core.config import config
 from src.core.database import get_db_manager
 from src.core import models
 from src.core.utils.enums import OrderStatus  # Importe seu Enum de status
-from src.api.admin.socketio.emitters import admin_emit_stuck_order_alert, admin_emit_order_updated_from_obj
+from src.api.admin.socketio.emitters import (
+    admin_emit_stuck_order_alert,
+    admin_emit_order_updated_from_obj
+)
 
 # Define o tempo para considerar um pedido como "preso"
 STUCK_ORDER_MINUTES = 20
@@ -28,10 +31,11 @@ async def check_for_stuck_orders():
 
     with get_db_manager() as db:
         try:
+            # ✅ CORREÇÃO: Usa .value para pegar a string do enum
             stmt = (
                 select(models.Order)
                 .where(
-                    models.Order.order_status == OrderStatus.PREPARING,  # ✅ Usa o Enum direto
+                    models.Order.order_status == OrderStatus.PREPARING.value,  # ✅ CORRIGIDO
                     models.Order.updated_at < time_threshold,
                     models.Order.stuck_alert_sent_at == None
                 )
@@ -54,6 +58,8 @@ async def check_for_stuck_orders():
 
         except Exception as e:
             print(f"❌ ERRO CRÍTICO no job de verificação de pedidos presos: {e}")
+            import traceback
+            traceback.print_exc()
 
 
 async def request_reviews_for_delivered_orders():
@@ -68,16 +74,23 @@ async def request_reviews_for_delivered_orders():
 
     with get_db_manager() as db:
         try:
-            template = db.query(models.ChatbotMessageTemplate).filter_by(message_key='request_review').first()
+            template = db.query(models.ChatbotMessageTemplate).filter_by(
+                message_key='request_review'
+            ).first()
+
             if not template:
                 print("❌ ERRO: Template 'request_review' não encontrado.")
                 return
 
+            # ✅ CORREÇÃO: Usa .value para pegar a string do enum
             stmt = (
                 select(models.Order)
-                .options(selectinload(models.Order.customer), selectinload(models.Order.store))
+                .options(
+                    selectinload(models.Order.customer),
+                    selectinload(models.Order.store)
+                )
                 .where(
-                    models.Order.order_status == OrderStatus.DELIVERED,  # ✅ Usa o Enum direto
+                    models.Order.order_status == OrderStatus.DELIVERED.value,  # ✅ CORRIGIDO
                     models.Order.review_request_sent_at == None,
                     models.Order.updated_at.between(lower_threshold, upper_threshold)
                 )
@@ -99,25 +112,45 @@ async def request_reviews_for_delivered_orders():
                     order_review_url = f"{store_base_url}/orders/{order.public_id}/review"
 
                     message_content = template.final_content
-                    message_content = message_content.replace('{client.name}', order.customer.name.split(' ')[0])
-                    message_content = message_content.replace('{company.name}', order.store.name)
-                    message_content = message_content.replace('{order.url}', order_review_url)
+                    message_content = message_content.replace(
+                        '{client.name}',
+                        order.customer.name.split(' ')[0]
+                    )
+                    message_content = message_content.replace(
+                        '{company.name}',
+                        order.store.name
+                    )
+                    message_content = message_content.replace(
+                        '{order.url}',
+                        order_review_url
+                    )
 
-                    payload = {"lojaId": str(order.store_id), "number": order.customer.phone, "message": message_content}
+                    payload = {
+                        "lojaId": str(order.store_id),
+                        "number": order.customer.phone,
+                        "message": message_content
+                    }
                     headers = {"x-webhook-secret": config.CHATBOT_WEBHOOK_SECRET}
 
-                    response = await client.post(f"{config.CHATBOT_API_URL}/send-message", json=payload, headers=headers)
+                    response = await client.post(
+                        f"{config.CHATBOT_API_URL}/send-message",
+                        json=payload,
+                        headers=headers
+                    )
 
                     if response.status_code == 200:
                         print(f"  ✅ Solicitação de avaliação para o pedido {order.public_id} enviada.")
                         order.review_request_sent_at = now
                     else:
-                        print(f"  ❌ Falha ao enviar solicitação para o pedido {order.public_id}. Status: {response.status_code}")
+                        print(
+                            f"  ❌ Falha ao enviar solicitação para o pedido {order.public_id}. Status: {response.status_code}")
 
             db.commit()
 
         except Exception as e:
             print(f"❌ ERRO CRÍTICO no job de solicitação de avaliação: {e}")
+            import traceback
+            traceback.print_exc()
             db.rollback()
 
 
@@ -132,10 +165,11 @@ async def cancel_old_pending_orders():
 
     with get_db_manager() as db:
         try:
+            # ✅ CORREÇÃO: Usa .value para pegar a string do enum
             stmt = (
                 select(models.Order)
                 .where(
-                    models.Order.order_status == OrderStatus.PENDING,  # ✅ Usa o Enum direto
+                    models.Order.order_status == OrderStatus.PENDING.value,  # ✅ CORRIGIDO
                     models.Order.created_at < time_threshold
                 )
             )
@@ -149,7 +183,8 @@ async def cancel_old_pending_orders():
 
             for order in orders_to_cancel:
                 print(f"  - Cancelando pedido ID {order.id} ({order.public_id}) por falta de aceite.")
-                order.order_status = OrderStatus.CANCELED  # ✅ CORRIGIDO: Usa o Enum direto
+                # ✅ CORREÇÃO: Atribui o enum Python direto (SQLAlchemy converte automaticamente)
+                order.order_status = OrderStatus.CANCELED
 
                 await admin_emit_order_updated_from_obj(order)
 
@@ -158,6 +193,8 @@ async def cancel_old_pending_orders():
 
         except Exception as e:
             print(f"❌ ERRO CRÍTICO no job de cancelamento de pedidos: {e}")
+            import traceback
+            traceback.print_exc()
             db.rollback()
 
 
@@ -172,10 +209,11 @@ async def finalize_old_delivered_orders():
 
     with get_db_manager() as db:
         try:
+            # ✅ CORREÇÃO: Usa .value para pegar a string do enum
             stmt = (
                 select(models.Order)
                 .where(
-                    models.Order.order_status == OrderStatus.DELIVERED,  # ✅ Usa o Enum direto
+                    models.Order.order_status == OrderStatus.DELIVERED.value,  # ✅ CORRIGIDO
                     models.Order.updated_at < time_threshold
                 )
             )
@@ -190,7 +228,8 @@ async def finalize_old_delivered_orders():
 
             for order in orders_to_finalize:
                 print(f"  - Finalizando pedido ID {order.id} ({order.public_id}).")
-                order.order_status = OrderStatus.FINALIZED  # ✅ CORRIGIDO: Usa o Enum direto
+                # ✅ CORREÇÃO: Atribui o enum Python direto
+                order.order_status = OrderStatus.FINALIZED
 
                 await admin_emit_order_updated_from_obj(order)
 
@@ -199,4 +238,6 @@ async def finalize_old_delivered_orders():
 
         except Exception as e:
             print(f"❌ ERRO CRÍTICO no job de finalização de pedidos: {e}")
+            import traceback
+            traceback.print_exc()
             db.rollback()
