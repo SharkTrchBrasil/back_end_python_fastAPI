@@ -112,7 +112,7 @@ class SalesChannel(str, enum.Enum):
     Canal de origem/venda do pedido.
     Define por onde o pedido foi realizado.
     """
-    CARDAPIO_DIGITAL = 'cardapy'  # Pedido feito pelo cardápio digital (QR Code)
+    MENU = 'menu'  # Pedido feito pelo cardápio digital (QR Code)
     TABLE = 'table'                        # Pedido feito em mesa (garçom/comanda)
     COUNTER = 'counter'                    # Pedido feito no balcão
     PHONE = 'phone'                        # Pedido feito por telefone

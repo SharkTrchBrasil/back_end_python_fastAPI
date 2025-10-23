@@ -79,7 +79,7 @@ async def create_order_from_cart(sid, data):
                 customer_phone=customer.phone,
                 payment_method_id=payment_activation.id,
                 payment_method_name=payment_activation.platform_method.name,
-                order_type=SalesChannel.CARDAPIO_DIGITAL,
+                order_type=SalesChannel.MENU,
                 delivery_type=input_data.delivery_type,
                 observation=input_data.observation,
                 needs_change=input_data.needs_change,

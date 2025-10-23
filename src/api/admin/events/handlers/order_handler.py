@@ -1,4 +1,4 @@
-# src/api/admin/socketio/order_handler.py
+# src/api/admin/events/handlers/order_handler.py
 
 import asyncio
 import traceback
@@ -20,7 +20,7 @@ from src.api.admin.socketio.emitters import (
 )
 from src.core.cache.cache_manager import logger, cache_manager
 from src.core.database import get_db_manager
-from src.core.utils.enums import OrderStatus, AuditAction, AuditEntityType  # ✅ ADICIONAR
+from src.core.utils.enums import OrderStatus, AuditAction, AuditEntityType
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -70,7 +70,7 @@ async def handle_update_order_status(self, sid, data):
             order = db.query(models.Order).options(
                 selectinload(models.Order.store).selectinload(models.Store.chatbot_config),
                 joinedload(models.Order.customer),
-                selectinload(models.Order.products)  # ✅ Para calcular valor total
+                selectinload(models.Order.products)
             ).filter(models.Order.id == data['order_id']).first()
 
             if not order:
@@ -87,7 +87,8 @@ async def handle_update_order_status(self, sid, data):
             if data['new_status'] not in valid_statuses:
                 return {'error': 'Status inválido'}
 
-            old_status_value = order.order_status.value
+            # ✅ CORREÇÃO: Garante que ambos sejam strings para comparação
+            old_status_value = order.order_status.value if isinstance(order.order_status, OrderStatus) else order.order_status
             new_status_str = data['new_status']
 
             if old_status_value == new_status_str:
@@ -104,7 +105,7 @@ async def handle_update_order_status(self, sid, data):
                 "customer_phone": order.customer_phone,
                 "total_price": float(order.total_price) / 100,
                 "discounted_price": float(order.discounted_total_price) / 100,
-                "payment_method": order.payment_method,
+                "payment_method": order.payment_method_name,
                 "changed_by": admin_user.name,
                 "changed_at": datetime.now(timezone.utc).isoformat(),
                 "store_name": order.store.name
@@ -114,6 +115,7 @@ async def handle_update_order_status(self, sid, data):
             # 4. APLICA MUDANÇA DE STATUS
             # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+            # ✅ CORREÇÃO: Converte string para Enum
             order.order_status = OrderStatus(new_status_str)
 
             # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -122,12 +124,11 @@ async def handle_update_order_status(self, sid, data):
 
             business_actions = []
 
-            # Ação que ocorre na entrega física
+            # ✅ CORREÇÃO: Compara strings
             if new_status_str == OrderStatus.DELIVERED.value:
                 decrease_stock_for_order(order, db)
                 business_actions.append("Estoque baixado")
 
-            # Ações que ocorrem no fechamento financeiro/lógico do pedido
             if new_status_str == OrderStatus.FINALIZED.value:
                 calculate_and_apply_cashback_for_order(order, db)
                 loyalty_service.award_points_for_order(db=db, order=order)
@@ -138,12 +139,10 @@ async def handle_update_order_status(self, sid, data):
                     "Estatísticas do cliente atualizadas"
                 ])
 
-            # Ação de cancelamento
             if new_status_str == OrderStatus.CANCELED.value:
                 restock_for_canceled_order(order, db)
                 business_actions.append("Estoque reposto")
 
-                # ✅ REGISTRA MOTIVO DO CANCELAMENTO SE FORNECIDO
                 if 'cancellation_reason' in data:
                     audit_data["cancellation_reason"] = data['cancellation_reason']
 
@@ -153,7 +152,7 @@ async def handle_update_order_status(self, sid, data):
             # 6. REGISTRA LOG DE AUDITORIA
             # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-            # ✅ DETERMINA A AÇÃO ESPECÍFICA
+            # ✅ CORREÇÃO: Compara strings
             if new_status_str == OrderStatus.CANCELED.value:
                 audit_action = AuditAction.CANCEL_ORDER
                 description = f"Pedido #{order.public_id} CANCELADO"
@@ -211,7 +210,7 @@ async def handle_update_order_status(self, sid, data):
                 'success': True,
                 'order_id': order.id,
                 'new_status': order.order_status.value,
-                'audit_id': audit_log.id  # ✅ Retorna ID do log para rastreamento
+                'audit_id': audit_log.id
             }
 
         except Exception as e:
@@ -235,7 +234,7 @@ async def handle_update_order_status(self, sid, data):
                 db.add(error_log)
                 db.commit()
             except:
-                pass  # Se nem o log de erro funcionar, apenas imprime
+                pass
 
             logger.error(f"❌ Erro ao atualizar pedido: {str(e)}\n{traceback.format_exc()}")
             return {'error': 'Falha interna ao processar a atualização do pedido.'}
@@ -263,9 +262,11 @@ async def process_new_order_automations(db, order):
         # 1. AUTO-ACCEPT
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-        if store_settings.auto_accept_orders and order.order_status == 'pending':
+        # ✅ CORREÇÃO: Usa Enum para comparação
+        if store_settings.auto_accept_orders and order.order_status == OrderStatus.PENDING:
             old_status = order.order_status
-            order.order_status = 'preparing'
+            # ✅ CORREÇÃO: Atribui Enum diretamente
+            order.order_status = OrderStatus.PREPARING
             did_status_change = True
             automation_actions.append("Auto-aceitação ativada")
 
@@ -325,7 +326,7 @@ async def process_new_order_automations(db, order):
         if automation_actions:
             audit_log = models.AuditLog(
                 store_id=order.store_id,
-                user_id=None,  # Ação automática do sistema
+                user_id=None,
                 user_name="SISTEMA",
                 action=AuditAction.CREATE_ORDER.value,
                 entity_type=AuditEntityType.ORDER.value,
@@ -340,7 +341,7 @@ async def process_new_order_automations(db, order):
                     "print_destinations": [job['destination'] for job in jobs_to_emit]
                 },
                 description=f"Pedido #{order.public_id} criado - Automações: {', '.join(automation_actions)}",
-                ip_address="127.0.0.1",  # Ação do sistema
+                ip_address="127.0.0.1",
                 user_agent="System Automation",
                 created_at=datetime.now(timezone.utc)
             )
@@ -427,9 +428,9 @@ async def claim_specific_print_job(sid, data):
                 # ✅ REGISTRA AUDITORIA DO CLAIM
                 audit_log = models.AuditLog(
                     store_id=job_to_claim.order.store_id,
-                    user_id=None,  # Job não tem user_id direto
+                    user_id=None,
                     user_name="Dispositivo de Impressão",
-                    action=AuditAction.UPDATE_ORDER.value,  # Usa UPDATE_ORDER genérico
+                    action=AuditAction.UPDATE_ORDER.value,
                     entity_type=AuditEntityType.ORDER.value,
                     entity_id=job_to_claim.order_id,
                     changes={

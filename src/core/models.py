@@ -1913,20 +1913,17 @@ class Order(Base, TimestampMixin):
     discount_type: Mapped[str | None] = mapped_column(nullable=True)
     discount_reason: Mapped[str | None] = mapped_column(nullable=True)
 
-    # ✅ Use SQLEnum para validação automática
     order_status = Column(
         Enum(OrderStatus),
         nullable=False,
-        default=OrderStatus.PENDING,
-        server_default='pending'  # Fallback no banco
+        default=OrderStatus.PENDING
     )
 
     payment_status = Column(
-        Enum(PaymentStatus),  # Crie este Enum também
+        Enum(PaymentStatus),
         nullable=False,
-        default='pending'
+        default=PaymentStatus.PENDING
     )
-
 
     needs_change: Mapped[bool] = mapped_column(default=False)
 

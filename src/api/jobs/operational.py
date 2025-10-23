@@ -9,12 +9,11 @@ from sqlalchemy.orm import selectinload
 from src.core.config import config
 from src.core.database import get_db_manager
 from src.core import models
-from src.core.utils.enums import OrderStatus # Importe seu Enum de status
+from src.core.utils.enums import OrderStatus  # Importe seu Enum de status
 from src.api.admin.socketio.emitters import admin_emit_stuck_order_alert, admin_emit_order_updated_from_obj
 
 # Define o tempo para considerar um pedido como "preso"
 STUCK_ORDER_MINUTES = 20
-
 
 
 async def check_for_stuck_orders():
@@ -25,18 +24,16 @@ async def check_for_stuck_orders():
     print("▶️  Executando job de verificação de pedidos presos (Lógica Corrigida)...")
 
     now = datetime.now(timezone.utc)
-    # ✅ LÓGICA SIMPLIFICADA: O limite agora é simples, "mais de 20 minutos atrás"
     time_threshold = now - timedelta(minutes=STUCK_ORDER_MINUTES)
 
     with get_db_manager() as db:
         try:
-            # ✅ QUERY CORRIGIDA E ROBUSTA
             stmt = (
                 select(models.Order)
                 .where(
-                    models.Order.order_status == OrderStatus.PREPARING.value,
-                    models.Order.updated_at < time_threshold,  # 1. O pedido está parado há mais de 20 min?
-                    models.Order.stuck_alert_sent_at == None  # 2. O alerta para ele ainda não foi enviado?
+                    models.Order.order_status == OrderStatus.PREPARING,  # ✅ Usa o Enum direto
+                    models.Order.updated_at < time_threshold,
+                    models.Order.stuck_alert_sent_at == None
                 )
             )
             stuck_orders = db.execute(stmt).scalars().all()
@@ -49,22 +46,14 @@ async def check_for_stuck_orders():
 
             for order in stuck_orders:
                 print(f"  - Enviando alerta para o pedido ID {order.id} ({order.public_id})")
-
-                # 1. Envia o alerta
                 await admin_emit_stuck_order_alert(order)
-
-                # 2. ✅ MARCA O PEDIDO COMO "JÁ ALERTADO"
-                # Isso impede que ele seja pego novamente na próxima execução do job.
                 order.stuck_alert_sent_at = now
 
-            db.commit()  # Salva a atualização do 'stuck_alert_sent_at'
+            db.commit()
             print("✅ Alertas de pedidos presos enviados com sucesso.")
 
         except Exception as e:
             print(f"❌ ERRO CRÍTICO no job de verificação de pedidos presos: {e}")
-
-
-
 
 
 async def request_reviews_for_delivered_orders():
@@ -73,26 +62,22 @@ async def request_reviews_for_delivered_orders():
     """
     print("▶️  Executando job de solicitação de avaliação...")
 
-    # Janela de tempo: busca pedidos marcados como entregues entre 60 e 90 minutos atrás.
-    # Isso dá tempo para o cliente comer, mas a experiência ainda está fresca.
     now = datetime.now(timezone.utc)
     upper_threshold = now - timedelta(minutes=60)
     lower_threshold = now - timedelta(minutes=90)
 
     with get_db_manager() as db:
         try:
-            # 1. Busca o template da mensagem no banco
             template = db.query(models.ChatbotMessageTemplate).filter_by(message_key='request_review').first()
             if not template:
                 print("❌ ERRO: Template 'request_review' não encontrado.")
                 return
 
-            # 2. Busca os pedidos elegíveis
             stmt = (
                 select(models.Order)
                 .options(selectinload(models.Order.customer), selectinload(models.Order.store))
                 .where(
-                    models.Order.order_status == OrderStatus.DELIVERED,
+                    models.Order.order_status == OrderStatus.DELIVERED,  # ✅ Usa o Enum direto
                     models.Order.review_request_sent_at == None,
                     models.Order.updated_at.between(lower_threshold, upper_threshold)
                 )
@@ -111,19 +96,13 @@ async def request_reviews_for_delivered_orders():
                         continue
 
                     store_base_url = f"https://{order.store.url_slug}.{config.PLATFORM_DOMAIN}"
-
-
-                    # 2. Monta a URL final da avaliação
                     order_review_url = f"{store_base_url}/orders/{order.public_id}/review"
 
-
-
-                    message_content = template.final_content # Usa a hybrid_property
+                    message_content = template.final_content
                     message_content = message_content.replace('{client.name}', order.customer.name.split(' ')[0])
                     message_content = message_content.replace('{company.name}', order.store.name)
                     message_content = message_content.replace('{order.url}', order_review_url)
 
-                    # 4. Dispara a API do Chatbot
                     payload = {"lojaId": str(order.store_id), "number": order.customer.phone, "message": message_content}
                     headers = {"x-webhook-secret": config.CHATBOT_WEBHOOK_SECRET}
 
@@ -149,17 +128,15 @@ async def cancel_old_pending_orders():
     """
     print("▶️  Executando job de cancelamento automático de pedidos...")
 
-    # Define o tempo limite. O iFood usa 8, é um bom padrão.
     time_threshold = datetime.now(timezone.utc) - timedelta(minutes=8)
 
     with get_db_manager() as db:
         try:
-            # 1. Busca os pedidos que atendem aos critérios
             stmt = (
                 select(models.Order)
                 .where(
-                    models.Order.order_status == OrderStatus.PENDING.value,
-                    models.Order.created_at < time_threshold  # Apenas pedidos criados ANTES do tempo limite
+                    models.Order.order_status == OrderStatus.PENDING,  # ✅ Usa o Enum direto
+                    models.Order.created_at < time_threshold
                 )
             )
             orders_to_cancel = db.execute(stmt).scalars().all()
@@ -170,12 +147,10 @@ async def cancel_old_pending_orders():
 
             print(f"🔍 Encontrados {len(orders_to_cancel)} pedidos pendentes para cancelar.")
 
-            # 2. Itera sobre os pedidos, atualiza o status e emite a notificação
             for order in orders_to_cancel:
                 print(f"  - Cancelando pedido ID {order.id} ({order.public_id}) por falta de aceite.")
-                order.order_status = OrderStatus.CANCELED.value
+                order.order_status = OrderStatus.CANCELED  # ✅ CORRIGIDO: Usa o Enum direto
 
-                # Esta é a parte crucial: notificar o frontend em tempo real
                 await admin_emit_order_updated_from_obj(order)
 
             db.commit()
@@ -186,7 +161,6 @@ async def cancel_old_pending_orders():
             db.rollback()
 
 
-# ✅ ADICIONE A NOVA FUNÇÃO ABAIXO
 async def finalize_old_delivered_orders():
     """
     Encontra pedidos no status 'delivered' por mais de 4 horas
@@ -194,18 +168,15 @@ async def finalize_old_delivered_orders():
     """
     print("▶️  Executando job de finalização de pedidos antigos...")
 
-    # Define o tempo limite (ex: 4 horas atrás)
-    # Isso dá tempo para o lojista resolver qualquer pendência antes da finalização.
     time_threshold = datetime.now(timezone.utc) - timedelta(hours=4)
 
     with get_db_manager() as db:
         try:
-            # 1. Monta a query para encontrar os pedidos entregues e "esquecidos"
             stmt = (
                 select(models.Order)
                 .where(
-                    models.Order.order_status == OrderStatus.DELIVERED.value,
-                    models.Order.updated_at < time_threshold  # A última atualização foi antes do nosso limite
+                    models.Order.order_status == OrderStatus.DELIVERED,  # ✅ Usa o Enum direto
+                    models.Order.updated_at < time_threshold
                 )
             )
 
@@ -217,12 +188,10 @@ async def finalize_old_delivered_orders():
 
             print(f"🔍 Encontrados {len(orders_to_finalize)} pedidos para finalizar.")
 
-            # 2. Itera sobre os pedidos, atualiza o status e notifica o frontend
             for order in orders_to_finalize:
                 print(f"  - Finalizando pedido ID {order.id} ({order.public_id}).")
-                order.order_status = OrderStatus.FINALIZED.value
+                order.order_status = OrderStatus.FINALIZED  # ✅ CORRIGIDO: Usa o Enum direto
 
-                # Notifica a UI para que o pedido suma da lista de ativos
                 await admin_emit_order_updated_from_obj(order)
 
             db.commit()

@@ -16,7 +16,7 @@ from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 from src.api.schemas.analytics.performance import StorePerformanceSchema, TodaySummarySchema
 from src.api.admin.services.performance_service import get_store_performance_for_date, get_today_summary
-
+from src.core.utils.enums import SalesChannel
 
 router = APIRouter(
     prefix="/stores/{store_id}/performance",
@@ -68,7 +68,7 @@ def list_orders_by_date(
 
     # ✅ FILTRO POR TIPO DE PEDIDO
     if order_type:
-        valid_types = ['delivery', 'table', 'pickup', 'cardapio_digital']
+        valid_types = [SalesChannel.MENU, SalesChannel.TABLE]
         if order_type not in valid_types:
             raise HTTPException(
                 status_code=400,
