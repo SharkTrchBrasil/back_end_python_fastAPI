@@ -41,7 +41,7 @@ from src.core.cache.redis_client import redis_client
 from src.core.cache.cache_manager import cache_manager
 from src.core.database import get_db_manager
 from src.core.models import Order
-from src.core.utils.enums import ProductStatus, CommandStatus
+from src.core.utils.enums import ProductStatus, CommandStatus, OrderStatus
 from src.socketio_instance import sio
 from src.core import models
 
@@ -300,7 +300,8 @@ async def admin_emit_orders_initial(db, store_id: int, sid: Optional[str] = None
         else:
             logger.debug(f"❌ CACHE MISS: {cache_key}")
 
-            active_order_statuses = ['pending', 'preparing', 'ready', 'on_route']
+            active_order_statuses = [OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY, OrderStatus.ON_ROUTE]
+
 
             # ✅ ADICIONAR LOGS AQUI
             print(f"\n🔍 DEBUG orders_initial:")
