@@ -1,9 +1,12 @@
+# src/core/cors/cors_middleware.py
+
 """
 Middleware CORS customizado para validar subdomínios dinâmicos
 Sistema Multi-Tenant MenuHub
 """
 import re
 import logging
+import os
 from typing import List
 
 logger = logging.getLogger(__name__)
@@ -15,11 +18,10 @@ class CustomCORSMiddleware:
     Exemplo de subdomínios válidos:
     - https://pizzaria123.menuhub.com.br (loja do cliente)
     - https://restaurante-abc.menuhub.com.br
+    - http://localhost:* (APENAS EM DESENVOLVIMENTO)
     """
 
-    # ✅ Padrão para validar subdomínios de lojas dos clientes
-    # Aceita: letras, números, hífen
-    # Rejeita: caracteres especiais, underscores duplos, etc.
+    # ✅ Padrão para validar subdomínios de lojas dos clientes (PRODUÇÃO)
     SUBDOMAIN_PATTERN = re.compile(
         r'^https://[\w\-]+\.menuhub\.com\.br$',
         re.IGNORECASE
@@ -30,6 +32,25 @@ class CustomCORSMiddleware:
         r'^https://www\.menuhub\.com\.br$',
         re.IGNORECASE
     )
+
+    # ✅ NOVO: Padrões para DESENVOLVIMENTO LOCAL
+    LOCALHOST_PATTERN = re.compile(
+        r'^http://localhost:\d+$',
+        re.IGNORECASE
+    )
+
+    LOCALHOST_IP_PATTERN = re.compile(
+        r'^http://127\.0\.0\.1:\d+$',
+        re.IGNORECASE
+    )
+
+    @classmethod
+    def is_development_mode(cls) -> bool:
+        """
+        Verifica se está em modo de desenvolvimento
+        """
+        env = os.getenv('ENVIRONMENT', 'production').lower()
+        return env in ['development', 'dev', 'local']
 
     @classmethod
     def is_allowed_origin(cls, origin: str, allowed_origins: List[str]) -> bool:
@@ -52,21 +73,28 @@ class CustomCORSMiddleware:
             logger.debug(f"✅ Origem permitida (lista explícita): {origin}")
             return True
 
-        # 2. Valida subdomínios dinâmicos (lojas dos clientes)
+        # ✅ 2. NOVO: Permite localhost APENAS em desenvolvimento
+        if cls.is_development_mode():
+            if cls.LOCALHOST_PATTERN.match(origin) or cls.LOCALHOST_IP_PATTERN.match(origin):
+                logger.info(f"🔧 [DEV] Origem localhost permitida: {origin}")
+                return True
+
+        # 3. Valida subdomínios dinâmicos (lojas dos clientes)
         if cls.SUBDOMAIN_PATTERN.match(origin):
             logger.debug(f"✅ Origem permitida (subdomínio válido): {origin}")
             return True
 
-        # 3. Valida www
+        # 4. Valida www
         if cls.WWW_PATTERN.match(origin):
             logger.debug(f"✅ Origem permitida (www): {origin}")
             return True
 
-        # 4. Rejeita qualquer outra origem
+        # 5. Rejeita qualquer outra origem
         logger.warning(
             f"🚨 CORS BLOQUEADO: Origem não autorizada\n"
             f"   Origem rejeitada: {origin}\n"
-            f"   Padrão esperado: https://*.menuhub.com.br"
+            f"   Padrão esperado: https://*.menuhub.com.br\n"
+            f"   Modo: {'DESENVOLVIMENTO' if cls.is_development_mode() else 'PRODUÇÃO'}"
         )
         return False
 
@@ -95,8 +123,16 @@ class CustomCORSMiddleware:
 
         Exemplo:
             https://pizzaria123.menuhub.com.br -> pizzaria123
+            http://localhost:3000 -> localhost
         """
+        # Produção: extrai subdomínio
         match = re.match(r'^https://([\w\-]+)\.menuhub\.com\.br$', origin)
         if match:
             return match.group(1)
+
+        # Desenvolvimento: retorna 'localhost'
+        if cls.is_development_mode():
+            if cls.LOCALHOST_PATTERN.match(origin) or cls.LOCALHOST_IP_PATTERN.match(origin):
+                return "localhost"
+
         return ""
