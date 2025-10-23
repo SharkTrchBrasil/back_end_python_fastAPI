@@ -9,7 +9,9 @@ from src.core.security.security import SECRET_KEY
 
 
 class MenuJWTHandler:
-    SECRET_KEY = config.JWT_SECRET  # Do .env
+
+    SECRET_KEY = config.SECRET_KEY
+
 
     @staticmethod
     def create_access_token(store_id: int, store_url: str) -> dict:
