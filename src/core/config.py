@@ -98,8 +98,26 @@ class Config(BaseSettings):
     ALLOWED_ORIGINS: str = "http://localhost:3000"
     PLATFORM_DOMAIN: str = "menuhub.com.br"
 
+    # ═══════════════════════════════════════════════════════════
+    # 🖥️ SERVIDOR
+    # ═══════════════════════════════════════════════════════════
+
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
+    LOG_LEVEL: str = "INFO"
+
+    # ═══════════════════════════════════════════════════════════
+    # 🔧 MÉTODOS CORS
+    # ═══════════════════════════════════════════════════════════
+
     def get_allowed_origins_list(self) -> list[str]:
-        """Retorna lista de origens permitidas para CORS"""
+        """
+        ✅ Retorna lista de origens permitidas para CORS
+
+        Returns:
+            Lista de URLs permitidas
+        """
+        # Parse das origens do .env
         origins = [
             origin.strip()
             for origin in self.ALLOWED_ORIGINS.split(",")
@@ -111,19 +129,55 @@ class Config(BaseSettings):
             origins.extend([
                 "http://localhost:3000",
                 "http://localhost:3001",
+                "http://localhost:8000",
                 "http://127.0.0.1:3000",
+                "http://127.0.0.1:3001",
             ])
 
         # Remove duplicatas mantendo ordem
         return list(dict.fromkeys(origins))
 
-    # ═══════════════════════════════════════════════════════════
-    # 🖥️ SERVIDOR
-    # ═══════════════════════════════════════════════════════════
+    def get_allowed_methods(self) -> list[str]:
+        """
+        ✅ Retorna métodos HTTP permitidos para CORS
 
-    HOST: str = "0.0.0.0"
-    PORT: int = 8000
-    LOG_LEVEL: str = "INFO"
+        Returns:
+            Lista de métodos HTTP
+        """
+        return ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+
+    def get_allowed_headers(self) -> list[str]:
+        """
+        ✅ Retorna headers permitidos para CORS
+
+        Returns:
+            Lista de headers permitidos
+        """
+        return [
+            "Accept",
+            "Accept-Language",
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+            "X-CSRF-Token",
+            "X-Request-ID",
+        ]
+
+    def get_expose_headers(self) -> list[str]:
+        """
+        ✅ Retorna headers expostos para CORS
+
+        Headers que o cliente pode acessar na resposta
+
+        Returns:
+            Lista de headers expostos
+        """
+        return [
+            "Content-Length",
+            "X-JSON",
+            "X-Request-ID",
+            "X-Total-Count",
+        ]
 
     # ═══════════════════════════════════════════════════════════
     # 🔧 PROPRIEDADES ÚTEIS
@@ -186,5 +240,6 @@ if config.is_development:
     print(f"🗄️ Database: {config.DATABASE_URL.split('@')[1] if '@' in config.DATABASE_URL else 'OK'}")
     print(f"💳 Pagar.me: {config.PAGARME_ENVIRONMENT}")
     print(f"🔴 Redis: {'✅' if config.REDIS_URL else '❌'}")
-    print(f"🌐 CORS: {len(config.get_allowed_origins_list())} origens")
+    print(f"🌐 CORS Origins: {len(config.get_allowed_origins_list())} origens")
+    print(f"🔧 CORS Methods: {', '.join(config.get_allowed_methods())}")
     print("=" * 60)
