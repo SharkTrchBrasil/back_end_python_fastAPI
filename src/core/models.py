@@ -109,6 +109,22 @@ class Store(Base, TimestampMixin):
     )
     internal_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Domínios customizados autorizados para o cardápio
+    custom_domains: Mapped[list[str] | None] = mapped_column(
+        ARRAY(String),
+        nullable=True,
+        default=list,
+        doc="Lista de domínios customizados autorizados (ex: ['https://www.minhaloja.com.br'])"
+    )
+
+    # Configurações de segurança do cardápio
+    menu_security_config: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=dict,
+        doc="Configurações de rate limiting e IPs permitidos para o cardápio"
+    )
+
     # --- Relacionamentos (Seus relacionamentos existentes) ---
     segment: Mapped["Segment"] = relationship()
 
@@ -1118,30 +1134,42 @@ class CouponUsage(Base):
     )
 
 
-
 class TotemAuthorization(Base, TimestampMixin):
     __tablename__ = "totem_authorizations"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-
     totem_token: Mapped[str] = mapped_column(unique=True)
-    totem_name: Mapped[str] = mapped_column()
+    totem_name: Mapped[str]
     public_key: Mapped[str] = mapped_column(unique=True)
-
     store_id: Mapped[int | None] = mapped_column(ForeignKey("stores.id"))
     granted: Mapped[bool] = mapped_column(default=False)
-    granted_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
-
-    store: Mapped[Store] = relationship()
-
+    store_url: Mapped[str] = mapped_column(unique=True, nullable=False)
     sid: Mapped[str | None] = mapped_column(unique=True)
 
-    store_url: Mapped[str] = mapped_column(unique=True, nullable=False)
+    # ✅ NOVO: Lista de domínios customizados autorizados
+    allowed_domains: Mapped[list[str] | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=list,
+        comment="Domínios customizados autorizados para esta loja"
+    )
+
+    # ✅ NOVO: Configurações de segurança
+    security_config: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=dict,
+        comment="Configurações de rate limiting e IPs permitidos"
+    )
+
+    store: Mapped[Store] = relationship()
 
 
     __table_args__ = (
         Index('idx_totem_store_granted', 'store_id', 'granted'),
     )
+
+
 
 
 class StoreSession(Base):
