@@ -23,24 +23,18 @@ logger = getLogger(__name__)
 async def handler_totem_on_connect(self, sid, environ):
     """
     Handler robusto e seguro para novas conexões de totens (clientes do cardápio).
-    Valida um token de conexão de uso único e curta duração.
     """
     logger.info(f"🔌 [CONEXÃO] Nova tentativa de conexão recebida. SID: {sid}")
 
     query = parse_qs(environ.get("QUERY_STRING", ""))
-
-    # 1. Espera o `connection_token` de uso único, não mais o totem_token persistente.
     connection_token = query.get("connection_token", [None])[0]
 
     if not connection_token:
         logger.warning(f"❌ [CONEXÃO] {sid} recusada: `connection_token` ausente na query.")
         raise ConnectionRefusedError("Connection token missing")
 
-    # Usa um gerenciador de contexto para garantir que a sessão do banco seja fechada.
     with get_db_manager() as db:
         try:
-            # 2. Valida e consome o token de uso único.
-            # Esta é a etapa de autorização principal para o WebSocket.
             totem_auth = ConnectionTokenService.validate_and_consume_token(db, connection_token)
 
             if not totem_auth:
@@ -50,28 +44,29 @@ async def handler_totem_on_connect(self, sid, environ):
             store_id = totem_auth.store_id
             logger.info(f"🏪 [CONEXÃO] {sid} autorizado com sucesso para a loja ID: {store_id}")
 
-            # 3. Cria a sessão do cliente no banco de dados.
-            # Esta sessão é vinculada ao SID e à loja, começando como anônima.
             customer_session = models.CustomerSession(sid=sid, store_id=store_id, customer_id=None)
             db.add(customer_session)
             db.commit()
             logger.info(f"📝 [SESSÃO] CustomerSession criada para o SID {sid} na loja {store_id}.")
 
-            # 4. Adiciona o cliente a uma "sala" específica da loja.
-            # Isso permite enviar eventos para todos os totens de uma mesma loja.
             await self.enter_room(sid, f"store_{store_id}")
             logger.info(f"🚪 [SALA] SID {sid} adicionado à sala 'store_{store_id}'.")
 
-            # 5. Busca todos os dados necessários para o estado inicial do totem.
             logger.info(f"⏳ [DADOS] Buscando estado inicial para a loja {store_id}...")
             store = store_crud.get_store_for_customer_view(db=db, store_id=store_id)
             if not store:
-                # Caso raro onde a loja foi deletada entre a autorização e agora.
                 logger.error(f"❌ [DADOS] Loja {store_id} não encontrada no banco após autorização bem-sucedida.")
                 raise ConnectionRefusedError(f"Store {store_id} not found.")
 
-            # 6. Verifica o status da assinatura da loja.
-            subscription_details = SubscriptionService.get_subscription_details(store, db)
+            # --- ✅ CORREÇÃO APLICADA AQUI ---
+            # Trocamos a chamada para o novo método `get_enriched_subscription`.
+            subscription_details = SubscriptionService.get_enriched_subscription(store, db)
+
+            # É importante verificar se os detalhes foram retornados antes de usá-los.
+            if not subscription_details:
+                logger.error(f"❌ [ASSINATURA] Não foi possível obter os detalhes da assinatura para a loja {store_id}.")
+                raise ConnectionRefusedError("Subscription details not found.")
+
             is_blocked = subscription_details.get('is_blocked', True)
             is_operational = not is_blocked
 
@@ -82,13 +77,11 @@ async def handler_totem_on_connect(self, sid, environ):
                 logger.info(
                     f"✅ [STATUS] Loja {store_id} está OPERACIONAL (Status Assinatura: {subscription_details.get('status')})")
 
-            # 7. Monta o payload completo com todos os dados para o cliente.
             store_schema = StoreDetails.model_validate(store)
             store_schema.ratingsSummary = RatingsSummaryOut(**get_store_ratings_summary(db, store_id=store.id))
             if store_schema.store_operation_config:
                 store_schema.store_operation_config.is_operational = is_operational
 
-            # Anexa as avaliações aos produtos
             product_ratings = {p.id: get_product_ratings_summary(db, product_id=p.id) for p in store.products}
             for product in store_schema.products:
                 product.rating = product_ratings.get(product.id)
@@ -100,7 +93,6 @@ async def handler_totem_on_connect(self, sid, environ):
                 "banners": store.banners
             }
 
-            # 8. Envia o estado inicial para o cliente recém-conectado.
             await self.emit(
                 "initial_state_loaded",
                 jsonable_encoder(initial_state_payload),
@@ -109,15 +101,12 @@ async def handler_totem_on_connect(self, sid, environ):
             logger.info(f"🚀 [PAYLOAD] Estado inicial enviado com sucesso para o SID {sid}.")
 
         except ConnectionRefusedError as cre:
-            # Re-lança a exceção de recusa de conexão para que o Socket.IO a manipule.
             raise cre
         except Exception as e:
-            # Captura qualquer outro erro inesperado, faz rollback e loga.
             db.rollback()
             logger.error(
                 f"❌ [ERRO CRÍTICO] Erro inesperado durante a conexão do SID {sid}: {e.__class__.__name__}: {e}")
             logger.error(traceback.format_exc())
-            # Recusa a conexão para evitar estados inconsistentes.
             raise ConnectionRefusedError("Internal server error during connection setup.")
 
 
