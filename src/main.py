@@ -207,7 +207,7 @@ logger.info(f"✅ Rate Limiting ativo: {config.RATE_LIMIT_ENABLED}")
 # ═══════════════════════════════════════════════════════════
 
 logger.info("=" * 60)
-logger.info(f"🌐 CONFIGURANDO CORS - Ambiente: {config.ENVIRONMENT.UPPER()}")
+logger.info(f"🌐 CONFIGURANDO CORS - Ambiente: {config.ENVIRONMENT.upper()}")
 logger.info("=" * 60)
 
 if config.is_development:
