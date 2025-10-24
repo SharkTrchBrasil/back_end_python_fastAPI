@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from src.core import models
 import logging
 
-# --- ✅ 1. IMPORTAR O ENUM DE STATUS DO PEDIDO ---
+# --- ✅ 1. IMPORTA O ENUM DE STATUS DO PEDIDO ---
 from src.core.utils.enums import OrderStatus
 
 logger = logging.getLogger(__name__)
@@ -22,33 +22,23 @@ class BillingPreviewService:
     """
 
     @staticmethod
-    def _calculate_fee(revenue: Decimal, plan: models.Plans) -> Decimal:
-        # (Lógica mantida como está)
-        if not plan:
-            return Decimal('0.0')
-        # ...
-        return Decimal('0.0')
-
-    @staticmethod
     def get_billing_preview(db: Session, store: models.Store) -> Optional[Dict[str, Any]]:
         """
         Calcula a prévia da fatura para a loja no período de faturamento atual.
         """
+
         subscription = store.latest_subscription
         if not subscription or not subscription.plan:
-            logger.info(f"[BillingPreview] Loja {store.id} sem assinatura ou plano.")
+            logger.info(f"[BillingPreview] Loja {store.id} sem assinatura ou plano")
             return None
 
         if subscription.status not in ['active', 'trialing']:
-            logger.info(f"[BillingPreview] Loja {store.id}: Status '{subscription.status}' - Retornando preview zerado.")
+            logger.info(f"[BillingPreview] Loja {store.id}: Status '{subscription.status}' - Retornando preview zerado")
             return {
                 "period_start": subscription.current_period_start.isoformat(),
                 "period_end": subscription.current_period_end.isoformat(),
-                "revenue_so_far": 0.0,
-                "orders_so_far": 0,
-                "fee_so_far": 0.0,
-                "projected_revenue": 0.0,
-                "projected_fee": 0.0,
+                "revenue_so_far": 0.0, "orders_so_far": 0, "fee_so_far": 0.0,
+                "projected_revenue": 0.0, "projected_fee": 0.0,
                 "status_note": f"Assinatura {subscription.status}. Preview não disponível."
             }
 
@@ -57,27 +47,26 @@ class BillingPreviewService:
         period_end = subscription.current_period_end
 
         if not all([period_start, period_end]):
-            logger.warning(f"[BillingPreview] Loja {store.id}: Datas de período inválidas na assinatura.")
+            logger.warning(f"[BillingPreview] Loja {store.id}: Datas de período inválidas")
             return None
 
         if period_start.tzinfo is None: period_start = period_start.replace(tzinfo=timezone.utc)
         if period_end.tzinfo is None: period_end = period_end.replace(tzinfo=timezone.utc)
 
         # --- ✅ 2. CORREÇÃO DEFINITIVA APLICADA AQUI ---
-        # Define a lista de status que são considerados para faturamento usando os
-        # próprios membros do Enum. O SQLAlchemy se encarrega de extrair o valor correto ('finalized', 'delivered').
+        # Usamos os membros do Enum diretamente. O SQLAlchemy se encarrega de usar
+        # o valor correto em minúsculas ('finalized', 'delivered').
         billable_statuses = [
             OrderStatus.FINALIZED,
             OrderStatus.DELIVERED,
         ]
 
-        # Busca faturamento até agora usando a lista de Enums.
         query_result = db.query(
             func.sum(models.Order.total_price).label('total_revenue'),
             func.count(models.Order.id).label('total_orders')
         ).filter(
             models.Order.store_id == store.id,
-            models.Order.order_status.in_(billable_statuses), # <-- A MUDANÇA ESTÁ AQUI
+            models.Order.order_status.in_(billable_statuses), # <-- CONSULTA CORRIGIDA
             models.Order.created_at >= period_start,
             models.Order.created_at <= now
         ).first()
