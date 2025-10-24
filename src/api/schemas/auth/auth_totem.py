@@ -19,16 +19,9 @@ class TotemCheckTokenResponse(BaseModel):
     store_id: int | None
 
 
-# VIA URL PERSONALIZADA
 class AuthenticateByUrlRequest(BaseModel):
-    store_url: str = Field(
-        ...,
-        min_length=3,
-        max_length=50,
-        pattern=r'^[a-z0-9-]+$',
-        description="Slug da loja (apenas letras minúsculas, números e hífen)"
-    )
-    totem_token: Optional[str] = None
+    store_url: str = Field(..., min_length=3, max_length=50, pattern=r'^[a-z0-9-]+$')
+    totem_token: str # Agora é obrigatório para o novo fluxo
 
 
 # Schema para a RESPOSTA COMPLETA do backend (o que o Flutter espera)
