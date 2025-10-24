@@ -1138,12 +1138,19 @@ class TotemAuthorization(Base, TimestampMixin):
     __tablename__ = "totem_authorizations"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    totem_token: Mapped[str] = mapped_column(unique=True)
+
+    # --- ✅ CORREÇÃO: Esta coluna DEVE ser única. ---
+    # Cada totem tem um token único e intransferível.
+    totem_token: Mapped[str] = mapped_column(unique=True, index=True)
+
     totem_name: Mapped[str]
     public_key: Mapped[str] = mapped_column(unique=True)
     store_id: Mapped[int | None] = mapped_column(ForeignKey("stores.id"))
     granted: Mapped[bool] = mapped_column(default=False)
-    store_url: Mapped[str] = mapped_column(unique=True, nullable=False)
+
+
+    store_url: Mapped[str] = mapped_column(nullable=False, index=True)  # Removido o unique=True
+
     sid: Mapped[str | None] = mapped_column(unique=True)
 
     allowed_domains: Mapped[list[str] | None] = mapped_column(
@@ -1162,21 +1169,16 @@ class TotemAuthorization(Base, TimestampMixin):
 
     store: Mapped["Store"] = relationship()
 
-    # --- ✅ ADIÇÃO: RELACIONAMENTO REVERSO ---
-    # Permite navegar de uma autorização para todos os tokens de conexão que ela já gerou.
     connection_tokens: Mapped[list["ConnectionToken"]] = relationship(
         back_populates="totem_authorization",
         cascade="all, delete-orphan"
     )
-    # --- FIM DA ADIÇÃO ---
 
     __table_args__ = (
         Index('idx_totem_store_granted', 'store_id', 'granted'),
     )
 
 
-# --- ✅ NOVA TABELA: CONNECTION_TOKEN ---
-# Esta tabela armazena os tokens de uso único para a conexão WebSocket.
 class ConnectionToken(Base, TimestampMixin):
     __tablename__ = "connection_tokens"
 

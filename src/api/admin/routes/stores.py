@@ -14,6 +14,7 @@ from src.api.admin.services.cloning_service import clone_store_data
 from src.api.admin.services.store_service import StoreService
 from src.api.admin.services.subscription_service import SubscriptionService
 from src.api.admin.socketio.emitters import admin_emit_store_updated, admin_emit_stores_list_update, emit_store_updates
+from src.api.app.services.authorize_totem import TotemAuthorizationService
 from src.api.app.socketio.socketio_emitters import emit_store_updated
 from src.api.schemas.auth.store_access import StoreAccess
 from src.api.schemas.auth.user import CreateStoreUserRequest, GrantStoreAccessRequest
@@ -162,12 +163,16 @@ async def create_store(
     )
     db.add(db_store_configuration)
 
-    totem_token = str(uuid.uuid4())
-    totem_auth = models.TotemAuthorization(
-        store_id=db_store.id, totem_token=totem_token, public_key=totem_token,
-        totem_name=db_store.name, granted=True, granted_by_id=user.id,
+
+    first_totem_token = str(uuid.uuid4())
+
+
+    totem_auth = TotemAuthorizationService.authorize_or_create(
+        db=db,
         store_url=db_store.url_slug,
+        totem_token=first_totem_token
     )
+
     db.add(totem_auth)
 
     db_role = db.query(models.Role).filter(models.Role.machine_name == "owner").first()
