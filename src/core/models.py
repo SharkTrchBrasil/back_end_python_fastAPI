@@ -1975,17 +1975,21 @@ class Order(Base, TimestampMixin):
     discount_type: Mapped[str | None] = mapped_column(nullable=True)
     discount_reason: Mapped[str | None] = mapped_column(nullable=True)
 
-    order_status = Column(
-        Enum(OrderStatus),
+
+    order_status: Mapped[OrderStatus] = mapped_column(
+        Enum(OrderStatus, native_enum=False),
         nullable=False,
-        default=OrderStatus.PENDING
+        default=OrderStatus.PENDING,
+        index=True
     )
 
-    payment_status = Column(
-        Enum(PaymentStatus),
+    payment_status: Mapped[PaymentStatus] = mapped_column(
+        Enum(PaymentStatus, native_enum=False),
         nullable=False,
-        default=PaymentStatus.PENDING
+        default=PaymentStatus.PENDING,
+        index=True
     )
+
 
     needs_change: Mapped[bool] = mapped_column(default=False)
 
