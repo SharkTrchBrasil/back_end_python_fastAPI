@@ -6,6 +6,7 @@ Aplicação Principal - PDVix API
 """
 
 import logging
+import re
 import sys
 import asyncio
 from contextlib import asynccontextmanager
@@ -23,7 +24,7 @@ from starlette.responses import Response, JSONResponse
 from src.api.admin.routes import monitoring
 from src.api.scheduler import start_scheduler, stop_scheduler
 from src.core.config import config
-from src.core.cors.cors_middleware import CustomCORSMiddleware
+
 from src.core.database import engine
 from src.core.db_initialization import (
     initialize_roles,
@@ -199,16 +200,18 @@ else:
 
 logger.info(f"✅ Rate Limiting ativo: {config.RATE_LIMIT_ENABLED}")
 
+
+
 # ═══════════════════════════════════════════════════════════
 # CORS - CONFIGURAÇÃO INTELIGENTE POR AMBIENTE
 # ═══════════════════════════════════════════════════════════
 
 logger.info("=" * 60)
-logger.info(f"🌐 CONFIGURANDO CORS - Ambiente: {config.ENVIRONMENT.upper()}")
+logger.info(f"🌐 CONFIGURANDO CORS - Ambiente: {config.ENVIRONMENT.UPPER()}")
 logger.info("=" * 60)
 
 if config.is_development:
-    # 🟢 DESENVOLVIMENTO: Permite tudo para facilitar testes
+    # 🟢 DESENVOLVIMENTO: Permite tudo (inclusive localhost do Flutter)
     logger.info("🟢 MODO DESENVOLVIMENTO: CORS permissivo")
 
     fast_app.add_middleware(
@@ -217,38 +220,43 @@ if config.is_development:
         allow_credentials=True,
         allow_methods=["*"],  # Permite todos os métodos (GET, POST, PUT, DELETE, etc)
         allow_headers=["*"],  # Permite todos os headers
-        expose_headers=["*"],
-        max_age=3600,
     )
 
     logger.info("   ├─ Origens: * (todas)")
-    logger.info("   ├─ Métodos: * (todos)")
-    logger.info("   ├─ Headers: * (todos)")
-    logger.info("   └─ ⚠️ NÃO USE ISSO EM PRODUÇÃO!")
+    logger.info("   └─ ⚠️ OK para testes locais")
 
 else:
-    # 🔴 PRODUÇÃO: Validação rigorosa
-    logger.info("🔴 MODO PRODUÇÃO: CORS restritivo")
+    # 🔴 PRODUÇÃO: Validação rigorosa com Regex para subdomínios
+    logger.info("🔴 MODO PRODUÇÃO: CORS restritivo com Regex")
 
-    allowed_origins = config.get_allowed_origins_list()
+    # 1. Pega as origens estáticas do .env (ex: app.menuhub.com.br)
+    static_origins = config.get_allowed_origins_list()  #
+
+    # 2. ✅ CRIA O REGEX PARA SUBDOMÍNIOS DINÂMICOS
+    #    Isso vai permitir https://qualquer-coisa.menuhub.com.br
+    #    Usamos re.escape para garantir que o ponto em "menuhub.com.br"
+    #    seja tratado como um ponto literal, e não como um "qualquer caractere"
+    dynamic_subdomain_regex = rf"https://.*\.{re.escape(config.PLATFORM_DOMAIN)}"  #
 
     fast_app.add_middleware(
         CORSMiddleware,
-        allow_origins=allowed_origins,
+        allow_origins=static_origins,  # Permite a lista estática
+        allow_origin_regex=dynamic_subdomain_regex,  # E permite os subdomínios
         allow_credentials=True,
-        allow_methods=config.get_allowed_methods(),
-        allow_headers=config.get_allowed_headers(),
-        expose_headers=config.get_expose_headers(),
+        allow_methods=config.get_allowed_methods(),  #
+        allow_headers=config.get_allowed_headers(),  #
+        expose_headers=config.get_expose_headers(),  #
         max_age=3600,
     )
 
-    logger.info(f"   ├─ {len(allowed_origins)} origens autorizadas:")
-    for origin in allowed_origins:
-        logger.info(f"   │  → {origin}")
-    logger.info(f"   ├─ Métodos: {', '.join(config.get_allowed_methods())}")
+    logger.info(
+        f"   ├─ Origens Estáticas: {len(static_origins)} (ex: {static_origins[0] if static_origins else 'N/A'})")
+    logger.info(f"   ├─ Origens Dinâmicas (Regex): {dynamic_subdomain_regex}")
     logger.info(f"   └─ ✅ Segurança ativa")
 
 logger.info("=" * 60)
+
+
 
 # ═══════════════════════════════════════════════════════════
 # ROTAS
