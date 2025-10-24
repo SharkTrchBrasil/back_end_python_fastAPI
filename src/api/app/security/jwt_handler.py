@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 import jwt
 from src.core.config import config
+from src.core.security.security import SECRET_KEY
 
 
 class MenuJWTHandler:
