@@ -78,23 +78,40 @@ async def handler_totem_on_connect(self, sid, environ):
             store_dict = StoreService.get_store_complete_payload(store=store, db=db)
             logger.info(f"✅ [DEBUG] Payload montado com sucesso")
 
-            # ✅ VALIDA COM PYDANTIC (já retorna o schema validado)
+            # ✅ CONVERTE DICT PARA SCHEMA (mas ainda é mutável como dict)
+            # NÃO convertemos para Pydantic ainda, mantemos como dict para poder modificar
+            logger.info(f"✅ [DEBUG] Payload em formato dict")
+
+            # ✅ ADICIONA RATINGS DA LOJA
+            store_ratings = get_store_ratings_summary(db, store_id=store.id)
+            store_dict['ratingsSummary'] = store_ratings
+
+            # ✅ ADICIONA RATINGS DOS PRODUTOS (modifica o dict antes de validar)
+            logger.info(f"🔍 [DEBUG] Adicionando ratings dos produtos...")
+            product_ratings = {p.id: get_product_ratings_summary(db, product_id=p.id) for p in store.products}
+
+            # Modifica os produtos no dict (não no schema Pydantic)
+            if 'products' in store_dict and store_dict['products']:
+                for product_dict in store_dict['products']:
+                    if isinstance(product_dict, dict):
+                        product_dict['rating'] = product_ratings.get(product_dict.get('id'))
+
+            logger.info(f"✅ [DEBUG] Ratings dos produtos adicionados")
+
+            # ✅ AGORA VALIDA COM PYDANTIC (depois de adicionar os ratings)
+            logger.info(f"🔍 [DEBUG] Validando store_dict com Pydantic...")
             store_schema = StoreDetails.model_validate(store_dict)
             logger.info(f"✅ [DEBUG] Validação Pydantic concluída")
-
-            # ✅ ADICIONA RATINGS (lógica específica do cliente)
-            store_schema.ratingsSummary = RatingsSummaryOut(**get_store_ratings_summary(db, store_id=store.id))
-
-            product_ratings = {p.id: get_product_ratings_summary(db, product_id=p.id) for p in store.products}
-            for product in store_schema.products:
-                product.rating = product_ratings.get(product.id)
 
             # ✅ APLICA STATUS OPERACIONAL BASEADO NA ASSINATURA
             is_blocked = subscription_details.get('is_blocked', True)
             is_operational = not is_blocked
 
             if store_schema.store_operation_config:
-                store_schema.store_operation_config.is_operational = is_operational
+                # ✅ CORREÇÃO: Use model_copy para modificar schema imutável
+                store_schema.store_operation_config = store_schema.store_operation_config.model_copy(
+                    update={'is_operational': is_operational}
+                )
                 logger.info(f"✅ [STATUS] is_operational definido como: {is_operational}")
             else:
                 logger.warning(f"⚠️ [STATUS] store_operation_config é None para loja {store_id}")
