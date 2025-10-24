@@ -7,6 +7,7 @@ from urllib.parse import parse_qs
 from fastapi.encoders import jsonable_encoder
 from socketio.exceptions import ConnectionRefusedError
 
+from src.api.admin.services.store_service import StoreService
 from src.api.admin.services.subscription_service import SubscriptionService
 from src.api.app.services.connection_token_service import ConnectionTokenService
 from src.api.app.services.rating import get_store_ratings_summary, get_product_ratings_summary
@@ -58,34 +59,54 @@ async def handler_totem_on_connect(self, sid, environ):
                 logger.error(f"❌ [DADOS] Loja {store_id} não encontrada no banco após autorização bem-sucedida.")
                 raise ConnectionRefusedError(f"Store {store_id} not found.")
 
-            # --- ✅ CORREÇÃO APLICADA AQUI ---
-            # Trocamos a chamada para o novo método `get_enriched_subscription`.
+            # ═══════════════════════════════════════════════════════════════════════════
+            # ✅ USA O MESMO SERVIÇO DO ADMIN - DRY (Don't Repeat Yourself)
+            # ═══════════════════════════════════════════════════════════════════════════
+
+            logger.info(f"🔍 [DEBUG] Buscando subscription details...")
             subscription_details = SubscriptionService.get_enriched_subscription(store, db)
 
-            # É importante verificar se os detalhes foram retornados antes de usá-los.
             if not subscription_details:
                 logger.error(f"❌ [ASSINATURA] Não foi possível obter os detalhes da assinatura para a loja {store_id}.")
                 raise ConnectionRefusedError("Subscription details not found.")
 
+            logger.info(
+                f"✅ [DEBUG] Subscription obtida: status={subscription_details.get('status')}, is_blocked={subscription_details.get('is_blocked')}")
+
+            # ✅ USA O STORESERVICE PARA MONTAR O PAYLOAD (igual ao admin)
+            logger.info(f"🔍 [DEBUG] Montando payload completo da loja com StoreService...")
+            store_dict = StoreService.get_store_complete_payload(store=store, db=db)
+            logger.info(f"✅ [DEBUG] Payload montado com sucesso")
+
+            # ✅ VALIDA COM PYDANTIC (já retorna o schema validado)
+            store_schema = StoreDetails.model_validate(store_dict)
+            logger.info(f"✅ [DEBUG] Validação Pydantic concluída")
+
+            # ✅ ADICIONA RATINGS (lógica específica do cliente)
+            store_schema.ratingsSummary = RatingsSummaryOut(**get_store_ratings_summary(db, store_id=store.id))
+
+            product_ratings = {p.id: get_product_ratings_summary(db, product_id=p.id) for p in store.products}
+            for product in store_schema.products:
+                product.rating = product_ratings.get(product.id)
+
+            # ✅ APLICA STATUS OPERACIONAL BASEADO NA ASSINATURA
             is_blocked = subscription_details.get('is_blocked', True)
             is_operational = not is_blocked
+
+            if store_schema.store_operation_config:
+                store_schema.store_operation_config.is_operational = is_operational
+                logger.info(f"✅ [STATUS] is_operational definido como: {is_operational}")
+            else:
+                logger.warning(f"⚠️ [STATUS] store_operation_config é None para loja {store_id}")
 
             if is_blocked:
                 logger.warning(
                     f"⚠️ [STATUS] Loja {store_id} está BLOQUEADA: {subscription_details.get('warning_message')}")
             else:
                 logger.info(
-                    f"✅ [STATUS] Loja {store_id} está OPERACIONAL (Status Assinatura: {subscription_details.get('status')})")
+                    f"✅ [STATUS] Loja {store_id} está OPERACIONAL (Status: {subscription_details.get('status')})")
 
-            store_schema = StoreDetails.model_validate(store)
-            store_schema.ratingsSummary = RatingsSummaryOut(**get_store_ratings_summary(db, store_id=store.id))
-            if store_schema.store_operation_config:
-                store_schema.store_operation_config.is_operational = is_operational
-
-            product_ratings = {p.id: get_product_ratings_summary(db, product_id=p.id) for p in store.products}
-            for product in store_schema.products:
-                product.rating = product_ratings.get(product.id)
-
+            # ✅ MONTA PAYLOAD FINAL
             initial_state_payload = {
                 "store": store_schema,
                 "theme": store.theme,
@@ -93,6 +114,7 @@ async def handler_totem_on_connect(self, sid, environ):
                 "banners": store.banners
             }
 
+            # ✅ ENVIA PARA O CLIENTE
             await self.emit(
                 "initial_state_loaded",
                 jsonable_encoder(initial_state_payload),
@@ -101,12 +123,17 @@ async def handler_totem_on_connect(self, sid, environ):
             logger.info(f"🚀 [PAYLOAD] Estado inicial enviado com sucesso para o SID {sid}.")
 
         except ConnectionRefusedError as cre:
+            logger.error(f"❌ [CONNECTION REFUSED] SID {sid}: {str(cre)}")
             raise cre
         except Exception as e:
             db.rollback()
-            logger.error(
-                f"❌ [ERRO CRÍTICO] Erro inesperado durante a conexão do SID {sid}: {e.__class__.__name__}: {e}")
+            logger.error("=" * 80)
+            logger.error(f"❌ [ERRO CRÍTICO] Erro inesperado durante a conexão do SID {sid}")
+            logger.error(f"   ├─ Tipo: {e.__class__.__name__}")
+            logger.error(f"   ├─ Mensagem: {e}")
+            logger.error(f"   └─ Traceback completo:")
             logger.error(traceback.format_exc())
+            logger.error("=" * 80)
             raise ConnectionRefusedError("Internal server error during connection setup.")
 
 
@@ -132,4 +159,3 @@ async def handler_totem_on_disconnect(self, sid):
         except Exception as e:
             db.rollback()
             logger.error(f"❌ [ERRO CRÍTICO] Erro na desconexão do SID {sid}: {e}")
-
