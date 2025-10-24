@@ -1,24 +1,24 @@
 # src/api/app/routes/auth.py
 import re
-from typing import Annotated
-
+from logging import getLogger
 from fastapi import APIRouter, Body, HTTPException
 from starlette.requests import Request
+# --- ✅ CORREÇÃO: Importar JSONResponse ---
+from starlette.responses import JSONResponse
 
 from src.api.app.security.domain_validator import DomainValidator
 from src.api.app.security.jwt_handler import MenuJWTHandler
-from src.api.schemas.auth.auth_totem import (
-    AuthenticateByUrlRequest, SecureMenuAuthResponse
-)
+from src.api.schemas.auth.auth_totem import AuthenticateByUrlRequest, SecureMenuAuthResponse
 from src.core.database import GetDBDep
 from src.core.models import TotemAuthorization, AuditLog
 from src.core.rate_limit.rate_limit import limiter
-from logging import getLogger
 
 logger = getLogger(__name__)
 router = APIRouter(tags=["Totem Auth"], prefix="/auth")
 
-@router.post("/subdomain", response_model=SecureMenuAuthResponse)
+
+# --- ✅ CORREÇÃO: Removido o `response_model` daqui, pois retornaremos um JSONResponse diretamente ---
+@router.post("/subdomain")
 @limiter.limit("10/minute")
 async def authenticate_menu_access(
         request: Request,
@@ -73,9 +73,12 @@ async def authenticate_menu_access(
     ))
     db.commit()
 
-    return {
+    # --- ✅ CORREÇÃO: Retorna um objeto JSONResponse em vez de um dict ---
+    response_data = {
         **tokens,
         "store_id": totem_auth.store_id,
         "store_url": store_url,
         "store_name": totem_auth.store.name,
     }
+
+    return JSONResponse(content=response_data)
