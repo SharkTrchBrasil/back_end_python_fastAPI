@@ -8,6 +8,8 @@ from starlette.responses import JSONResponse
 
 from src.api.app.security.domain_validator import DomainValidator
 from src.api.app.security.jwt_handler import MenuJWTHandler
+from src.api.app.services.authorize_totem import TotemAuthorizationService
+from src.api.app.services.connection_token_service import ConnectionTokenService
 from src.api.schemas.auth.auth_totem import AuthenticateByUrlRequest, SecureMenuAuthResponse
 from src.core.database import GetDBDep
 from src.core.models import TotemAuthorization, AuditLog
@@ -17,7 +19,6 @@ logger = getLogger(__name__)
 router = APIRouter(tags=["Totem Auth"], prefix="/auth")
 
 
-# --- ✅ CORREÇÃO: Removido o `response_model` daqui, pois retornaremos um JSONResponse diretamente ---
 @router.post("/subdomain")
 @limiter.limit("10/minute")
 async def authenticate_menu_access(
@@ -26,58 +27,49 @@ async def authenticate_menu_access(
         body: AuthenticateByUrlRequest
 ):
     """
-    🔒 Endpoint seguro para autenticação de cardápio via subdomínio.
+    🔒 Endpoint seguro para autenticação de cardápio.
+    1. Valida o totem_token persistente.
+    2. Gera e retorna um `connection_token` de uso único para o WebSocket.
+    3. Gera e retorna os tokens JWT para autenticação do cliente logado.
     """
-    # 1. Sanitiza e valida input
-    store_url = body.store_url.strip().lower()
-    if not re.match(r'^[a-z0-9-]{3,50}$', store_url):
-        raise HTTPException(400, "URL da loja inválida")
-
-    # 2. Busca loja no banco
-    totem_auth = db.query(TotemAuthorization).filter(
-        TotemAuthorization.store_url == store_url,
-        TotemAuthorization.granted == True
-    ).first()
-
-    if not totem_auth or not totem_auth.store:
-        logger.warning(
-            f"🚨 Tentativa de acesso a loja inexistente ou não associada: {store_url} "
-            f"de {request.client.host}"
-        )
-        raise HTTPException(404, "Loja não encontrada ou não configurada.")
-
-    # 3. Valida origem da requisição
-    origin = request.headers.get("origin")
-    if not DomainValidator.is_allowed_origin(origin, totem_auth.store):
-        logger.warning(
-            f"🚨 Acesso bloqueado de origem não autorizada: {origin} "
-            f"para loja {store_url}"
-        )
-        raise HTTPException(403, "Origem não autorizada")
-
-    # 4. Gera tokens JWT
-    tokens = MenuJWTHandler.create_access_token(
-        store_id=totem_auth.store_id,
-        store_url=store_url
+    # 1. Autoriza o totem ou cria uma nova autorização
+    totem_auth = TotemAuthorizationService.authorize_or_create(
+        db, store_url=body.store_url, totem_token=body.totem_token
     )
 
-    # 5. Registra acesso em log de auditoria
-    db.add(AuditLog(
+    if not totem_auth or not totem_auth.store:
+        logger.warning(f"🚨 Tentativa de acesso falhou para loja: {body.store_url}")
+        raise HTTPException(404, "Loja não encontrada ou totem não configurado.")
+
+    # 2. Valida a origem da requisição (CORS)
+    origin = request.headers.get("origin")
+    if not DomainValidator.is_allowed_origin(origin, totem_auth.store):
+        logger.warning(f"🚨 Acesso bloqueado de origem não autorizada: {origin}")
+        raise HTTPException(403, "Origem não autorizada")
+
+    # 3. Gera o token de conexão de uso único para o Socket.IO
+    connection_token = ConnectionTokenService.generate_token(db, totem_auth_id=totem_auth.id)
+
+    # 4. Gera os tokens JWT para autenticação do cliente (uso posterior)
+    jwt_tokens = MenuJWTHandler.create_access_token(
         store_id=totem_auth.store_id,
-        action="menu_access",
-        entity_type="totem_auth",
-        description=f"Acesso ao cardápio de {store_url}",
-        ip_address=request.client.host,
-        user_agent=request.headers.get("user-agent"),
-        metadata={"origin": origin}
+        store_url=totem_auth.store_url
+    )
+
+    # 5. Registra o log de auditoria
+    db.add(AuditLog(
+        store_id=totem_auth.store_id, action="menu_auth_request",
+        description=f"Solicitação de acesso ao cardápio de {totem_auth.store_url}",
+        ip_address=request.client.host
     ))
     db.commit()
 
-    # --- ✅ CORREÇÃO: Retorna um objeto JSONResponse em vez de um dict ---
+    # 6. Retorna todos os tokens necessários para o cliente
     response_data = {
-        **tokens,
+        **jwt_tokens,
+        "connection_token": connection_token,  # ✅ O token crucial para o Socket.IO
         "store_id": totem_auth.store_id,
-        "store_url": store_url,
+        "store_url": totem_auth.store_url,
         "store_name": totem_auth.store.name,
     }
 

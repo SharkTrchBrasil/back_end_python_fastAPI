@@ -1146,7 +1146,6 @@ class TotemAuthorization(Base, TimestampMixin):
     store_url: Mapped[str] = mapped_column(unique=True, nullable=False)
     sid: Mapped[str | None] = mapped_column(unique=True)
 
-    # ✅ NOVO: Lista de domínios customizados autorizados
     allowed_domains: Mapped[list[str] | None] = mapped_column(
         JSON,
         nullable=True,
@@ -1154,7 +1153,6 @@ class TotemAuthorization(Base, TimestampMixin):
         comment="Domínios customizados autorizados para esta loja"
     )
 
-    # ✅ NOVO: Configurações de segurança
     security_config: Mapped[dict | None] = mapped_column(
         JSON,
         nullable=True,
@@ -1162,14 +1160,48 @@ class TotemAuthorization(Base, TimestampMixin):
         comment="Configurações de rate limiting e IPs permitidos"
     )
 
-    store: Mapped[Store] = relationship()
+    store: Mapped["Store"] = relationship()
 
+    # --- ✅ ADIÇÃO: RELACIONAMENTO REVERSO ---
+    # Permite navegar de uma autorização para todos os tokens de conexão que ela já gerou.
+    connection_tokens: Mapped[list["ConnectionToken"]] = relationship(
+        back_populates="totem_authorization",
+        cascade="all, delete-orphan"
+    )
+    # --- FIM DA ADIÇÃO ---
 
     __table_args__ = (
         Index('idx_totem_store_granted', 'store_id', 'granted'),
     )
 
 
+# --- ✅ NOVA TABELA: CONNECTION_TOKEN ---
+# Esta tabela armazena os tokens de uso único para a conexão WebSocket.
+class ConnectionToken(Base, TimestampMixin):
+    __tablename__ = "connection_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    # O token seguro de uso único.
+    token: Mapped[str] = mapped_column(String(128), unique=True, index=True, nullable=False)
+
+    # Chave estrangeira para saber qual autorização de totem gerou este token.
+    totem_authorization_id: Mapped[int] = mapped_column(ForeignKey("totem_authorizations.id", ondelete="CASCADE"))
+
+    # Timestamp de quando o token expira (vida curta, ex: 30 segundos).
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    # Flag para garantir que o token seja usado apenas uma vez.
+    is_used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+
+    # Relacionamento para navegar facilmente para a autorização principal.
+    totem_authorization: Mapped["TotemAuthorization"] = relationship(back_populates="connection_tokens")
+
+    __table_args__ = (
+        # Índice para limpar tokens expirados de forma eficiente.
+        Index('idx_connection_tokens_expires_at', 'expires_at'),
+    )
+# --- FIM DA NOVA TABELA ---
 
 
 class StoreSession(Base):
