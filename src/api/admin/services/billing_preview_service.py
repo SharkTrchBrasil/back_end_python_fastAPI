@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from src.core import models
 import logging
 
-# --- ✅ 1. IMPORTAR O ENUM CORRETO ---
+# --- ✅ 1. IMPORTAR O ENUM DE STATUS DO PEDIDO ---
 from src.core.utils.enums import OrderStatus
 
 logger = logging.getLogger(__name__)
@@ -23,12 +23,10 @@ class BillingPreviewService:
 
     @staticmethod
     def _calculate_fee(revenue: Decimal, plan: models.Plans) -> Decimal:
-        """
-        (Esta função parece não ser usada, mas mantida por segurança)
-        """
+        # (Lógica mantida como está)
         if not plan:
             return Decimal('0.0')
-        # ... (lógica mantida)
+        # ...
         return Decimal('0.0')
 
     @staticmethod
@@ -36,7 +34,6 @@ class BillingPreviewService:
         """
         Calcula a prévia da fatura para a loja no período de faturamento atual.
         """
-        # Usa `latest_subscription` para pegar a mais recente, mesmo que cancelada
         subscription = store.latest_subscription
         if not subscription or not subscription.plan:
             logger.info(f"[BillingPreview] Loja {store.id} sem assinatura ou plano.")
@@ -67,20 +64,20 @@ class BillingPreviewService:
         if period_end.tzinfo is None: period_end = period_end.replace(tzinfo=timezone.utc)
 
         # --- ✅ 2. CORREÇÃO DEFINITIVA APLICADA AQUI ---
-        # Define a lista de status que são considerados para faturamento usando os membros do Enum.
-        # O SQLAlchemy converterá `OrderStatus.FINALIZED` para `'finalized'` (minúsculo).
+        # Define a lista de status que são considerados para faturamento usando os
+        # próprios membros do Enum. O SQLAlchemy se encarrega de extrair o valor correto ('finalized', 'delivered').
         billable_statuses = [
             OrderStatus.FINALIZED,
             OrderStatus.DELIVERED,
         ]
 
-        # Busca faturamento até agora usando os status corretos.
+        # Busca faturamento até agora usando a lista de Enums.
         query_result = db.query(
             func.sum(models.Order.total_price).label('total_revenue'),
             func.count(models.Order.id).label('total_orders')
         ).filter(
             models.Order.store_id == store.id,
-            models.Order.order_status.in_(billable_statuses), # Usa a lista segura com os Enums
+            models.Order.order_status.in_(billable_statuses), # <-- A MUDANÇA ESTÁ AQUI
             models.Order.created_at >= period_start,
             models.Order.created_at <= now
         ).first()
@@ -89,14 +86,12 @@ class BillingPreviewService:
         revenue_so_far = Decimal(revenue_so_far_cents) / 100
         orders_so_far = query_result.total_orders or 0
 
-        # Importa as funções de cálculo de taxa
         from src.api.jobs.billing import calculate_platform_fee, calculate_months_active
 
         months_active = calculate_months_active(subscription, date.today())
         fee_details = calculate_platform_fee(revenue_so_far, subscription.plan, months_active)
         fee_so_far = float(fee_details['final_fee'])
 
-        # Projeção linear
         days_in_cycle = (period_end - period_start).days
         days_passed = (now - period_start).days if now > period_start else 0
 
