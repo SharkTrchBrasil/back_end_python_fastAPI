@@ -236,7 +236,8 @@ else:
     #    Isso vai permitir https://qualquer-coisa.menuhub.com.br
     #    Usamos re.escape para garantir que o ponto em "menuhub.com.br"
     #    seja tratado como um ponto literal, e não como um "qualquer caractere"
-    dynamic_subdomain_regex = rf"https://.*\.{re.escape(config.PLATFORM_DOMAIN)}"  #
+    dynamic_subdomain_regex = rf"https://[a-zA-Z0-9-]+\.{re.escape(config.PLATFORM_DOMAIN)}"
+
 
     fast_app.add_middleware(
         CORSMiddleware,
