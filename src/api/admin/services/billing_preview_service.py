@@ -57,8 +57,8 @@ class BillingPreviewService:
         # Usamos os membros do Enum diretamente. O SQLAlchemy se encarrega de usar
         # o valor correto em minúsculas ('finalized', 'delivered').
         billable_statuses = [
-            OrderStatus.FINALIZED,
-            OrderStatus.DELIVERED,
+            OrderStatus.FINALIZED.value,
+            OrderStatus.DELIVERED.value,
         ]
 
         query_result = db.query(
