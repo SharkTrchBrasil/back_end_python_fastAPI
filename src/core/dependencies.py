@@ -280,3 +280,59 @@ def get_audit_logger(
     return AuditLogger(db, request, current_user, store)
 
 GetAuditLoggerDep = Annotated[AuditLogger, Depends(get_audit_logger)]
+
+
+
+
+class GetStoreForSubscriptionRoutes:
+    """
+    Dependência especial para rotas de assinatura.
+    Valida o acesso (role) mas IGNORA o status da assinatura,
+    permitindo que o usuário (dono) acesse a rota para reativar.
+    """
+
+    def __init__(self, roles: list[Roles]):
+        self.roles = roles
+
+    def __call__(self, db: GetDBDep, user: GetCurrentUserDep, store_id: int):
+
+        if user.is_superuser:
+            store = db.query(models.Store).options(
+                joinedload(models.Store.subscriptions)
+                .joinedload(models.StoreSubscription.plan)
+            ).filter(models.Store.id == store_id).first()
+
+            if not store:
+                raise HTTPException(status_code=404, detail="Store not found")
+
+        else:
+            db_store_access = db.query(models.StoreAccess).filter(
+                models.StoreAccess.user == user,
+                models.StoreAccess.store_id == store_id
+            ).first()
+
+            if not db_store_access:
+                raise HTTPException(
+                    status_code=403,
+                    detail={'message': 'User does not have access to this store', 'code': 'NO_ACCESS_STORE'}
+                )
+
+            # ✅ Valida se é o dono (ou outra role permitida)
+            if db_store_access.role.machine_name not in [e.value for e in self.roles]:
+                raise HTTPException(
+                    status_code=403,
+                    detail={'message': f'User must be one of {[e.value for e in self.roles]} to execute this action',
+                            'code': 'REQUIRES_ANOTHER_ROLE'}
+                )
+
+            store = db_store_access.store
+
+        # ✅ Nota: O bloco de verificação de 'is_blocked' FOI REMOVIDO
+
+        return store
+
+
+# ✅ ADICIONA O NOVO 'annotated'
+# Apenas o DONO pode gerenciar assinaturas
+get_store_for_subscription = GetStoreForSubscriptionRoutes([Roles.OWNER])
+GetStoreForSubscriptionDep = Annotated[models.Store, Depends(get_store_for_subscription)]

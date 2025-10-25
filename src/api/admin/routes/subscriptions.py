@@ -25,7 +25,7 @@ from src.api.app.socketio.socketio_emitters import emit_store_updated
 from src.api.schemas.subscriptions.store_subscription import CreateStoreSubscription
 from src.core import models
 from src.core.database import GetDBDep
-from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetAuditLoggerDep
+from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetAuditLoggerDep, GetStoreForSubscriptionDep
 from src.core.utils.enums import AuditAction, AuditEntityType
 from src.core.utils.validators import validate_cpf, validate_cnpj, validate_email, validate_phone
 
@@ -69,7 +69,7 @@ def _get_days_remaining(period_end: Optional[datetime]) -> int:
 async def create_subscription(
         request: Request,
         db: GetDBDep,
-        store: GetStoreDep,
+        store: GetStoreForSubscriptionDep,
         user: GetCurrentUserDep,
         audit: GetAuditLoggerDep,
         subscription_data: CreateStoreSubscription,
@@ -363,7 +363,7 @@ async def create_subscription(
 async def reactivate_subscription(
         request: Request,
         db: GetDBDep,
-        store: GetStoreDep,
+        store: GetStoreForSubscriptionDep,
         user: GetCurrentUserDep,
         audit: GetAuditLoggerDep,
 ):
@@ -499,7 +499,7 @@ async def reactivate_subscription(
 async def cancel_subscription(
         request: Request,
         db: GetDBDep,
-        store: GetStoreDep,
+        store: GetStoreForSubscriptionDep,
         user: GetCurrentUserDep,
         audit: GetAuditLoggerDep,
 ):
@@ -632,7 +632,7 @@ async def cancel_subscription(
 @router.get("/stores/{store_id}/subscriptions/details")
 async def get_subscription_details(
         db: GetDBDep,
-        store: GetStoreDep,
+        store: GetStoreForSubscriptionDep,
         user: GetCurrentUserDep,
 ):
     """
@@ -664,7 +664,7 @@ async def get_subscription_details(
 async def update_subscription_card(
         request: Request,
         db: GetDBDep,
-        store: GetStoreDep,
+        store: GetStoreForSubscriptionDep,
         user: GetCurrentUserDep,
         audit: GetAuditLoggerDep,
         card_data: CreateStoreSubscription,
