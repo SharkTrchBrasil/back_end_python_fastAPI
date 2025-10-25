@@ -157,16 +157,17 @@ class GetStore:
 
             store = db_store_access.store
 
-        sub_details = SubscriptionService.get_subscription_details(store, db)
+            # ✅ ESTA É A CORREÇÃO
+            sub_details = SubscriptionService.get_enriched_subscription(store, db)
 
-        if sub_details and sub_details.get("is_blocked"):
-            raise HTTPException(
-                status_code=403,
-                detail={
-                    'message': sub_details.get('warning_message', 'Acesso negado devido à assinatura.'),
-                    'code': 'PLAN_EXPIRED'
-                }
-            )
+            if sub_details and sub_details.get("is_blocked"):
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        'message': sub_details.get('warning_message', 'Acesso negado devido à assinatura.'),
+                        'code': 'PLAN_EXPIRED'
+                    }
+                )
 
         return store
 
