@@ -1,14 +1,10 @@
-# src/api/dependencies/authenticate.py
-"""
-Dependências de Autenticação e Autorização
-===========================================
-"""
+# src/core/dependencies.py - GetStore COMPLETA E CORRIGIDA
 
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import  Header
-from fastapi import  HTTPException, Request
+from fastapi import Header
+from fastapi import HTTPException, Request
 from sqlalchemy.orm import Session, joinedload
 
 from src.api.admin.services.subscription_service import SubscriptionService
@@ -23,7 +19,7 @@ from src.core.utils.audit import AuditLogger
 
 
 def get_user_from_token(token: str, db: Session):
-    """✅ VERSÃO ATUALIZADA: Compatível com novo verify_access_token"""
+    """âœ… VERSÃƒO ATUALIZADA: CompatÃ­vel com novo verify_access_token"""
     payload = verify_access_token(token)
 
     if not payload:
@@ -45,13 +41,13 @@ def get_current_user(
         db: GetDBDep,
         token: Annotated[str, Depends(oauth2_scheme)]
 ):
-    """✅ VERSÃO SEGURA: Usa nova função verify_access_token com blacklist"""
+    """âœ… VERSÃƒO SEGURA: Usa nova funÃ§Ã£o verify_access_token com blacklist"""
     payload = verify_access_token(token)
 
     if not payload:
         raise HTTPException(
             status_code=401,
-            detail="Token inválido ou revogado",
+            detail="Token invÃ¡lido ou revogado",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -70,15 +66,15 @@ def get_current_user(
     return user
 
 
-# ✅ ADICIONAR: Função para validar admin
+# âœ… ADICIONAR: FunÃ§Ã£o para validar admin
 def get_current_admin_user(
         db: GetDBDep,
         token: Annotated[str, Depends(oauth2_scheme)]
 ) -> models.User:
     """
-    ✅ Retorna o usuário atual SE FOR ADMIN/SUPERUSER
+    âœ… Retorna o usuÃ¡rio atual SE FOR ADMIN/SUPERUSER
 
-    Uso: Proteger endpoints de administração que não dependem de store_id
+    Uso: Proteger endpoints de administraÃ§Ã£o que nÃ£o dependem de store_id
 
     Exemplo:
     ```python
@@ -87,21 +83,21 @@ def get_current_admin_user(
         return {"admin": admin.email}
     ```
     """
-    # Reutiliza a função existente
+    # Reutiliza a funÃ§Ã£o existente
     user = get_current_user(db, token)
 
-    # ✅ Valida se é admin
+    # âœ… Valida se Ã© admin
     if not user.is_superuser:
         raise HTTPException(
             status_code=403,
-            detail="Acesso negado. Requer privilégios de administrador."
+            detail="Acesso negado. Requer privilÃ©gios de administrador."
         )
 
     return user
 
 
 def get_optional_user(db: GetDBDep, authorization: Annotated[str | None, Header()] = None):
-    """✅ ATUALIZADO: Compatível com nova função verify_access_token"""
+    """âœ… ATUALIZADO: CompatÃ­vel com nova funÃ§Ã£o verify_access_token"""
     if not authorization:
         return None
 
@@ -115,18 +111,35 @@ def get_optional_user(db: GetDBDep, authorization: Annotated[str | None, Header(
         return None
 
 
-# ✅ Type annotations para usar com Depends()
+# âœ… Type annotations para usar com Depends()
 GetCurrentUserDep = Annotated[models.User, Depends(get_current_user)]
-GetCurrentAdminUserDep = Annotated[models.User, Depends(get_current_admin_user)]  # ✅ NOVO
+GetCurrentAdminUserDep = Annotated[models.User, Depends(get_current_admin_user)]  # âœ… NOVO
 GetOptionalUserDep = Annotated[models.User | None, Depends(get_optional_user)]
 
 
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# âœ… GetStore CORRIGIDA E COMPLETA
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
 class GetStore:
+    """
+    âœ… DependÃªncia para validar acesso Ã  loja
+
+    ValidaÃ§Ãµes:
+    - Usuário é admin OU tem acesso declarado
+    - Usuário tem a role correta (Owner/Manager)
+    - !! NÃƒO valida status da assinatura aqui !!
+
+    O bloqueio por assinatura deve ser feito POR ENDPOINT específico,
+    não na dependência genérica (que é usada por muitos endpoints).
+    """
+
     def __init__(self, roles: list[Roles]):
         self.roles = roles
 
     def __call__(self, db: GetDBDep, user: GetCurrentUserDep, store_id: int):
 
+        # ✅ 1. ADMIN VÊ TUDO
         if user.is_superuser:
             store = db.query(models.Store).options(
                 joinedload(models.Store.subscriptions)
@@ -134,47 +147,132 @@ class GetStore:
             ).filter(models.Store.id == store_id).first()
 
             if not store:
-                raise HTTPException(status_code=404, detail="Store not found")
-
-        else:
-            db_store_access = db.query(models.StoreAccess).filter(
-                models.StoreAccess.user == user,
-                models.StoreAccess.store_id == store_id
-            ).first()
-
-            if not db_store_access:
                 raise HTTPException(
-                    status_code=403,
-                    detail={'message': 'User does not have access to this store', 'code': 'NO_ACCESS_STORE'}
+                    status_code=404,
+                    detail="Store not found"
                 )
 
-            if db_store_access.role.machine_name not in [e.value for e in self.roles]:
-                raise HTTPException(
-                    status_code=403,
-                    detail={'message': f'User must be one of {[e.value for e in self.roles]} to execute this action',
-                            'code': 'REQUIRES_ANOTHER_ROLE'}
-                )
+            return store
 
-            store = db_store_access.store
+        # ✅ 2. USUÁRIO COMUM: VALIDA ACESSO
+        db_store_access = db.query(models.StoreAccess).filter(
+            models.StoreAccess.user == user,
+            models.StoreAccess.store_id == store_id
+        ).first()
 
-            # ✅ ESTA É A CORREÇÃO
-            sub_details = SubscriptionService.get_enriched_subscription(store, db)
+        if not db_store_access:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    'message': 'User does not have access to this store',
+                    'code': 'NO_ACCESS_STORE'
+                }
+            )
 
-            if sub_details and sub_details.get("is_blocked"):
-                raise HTTPException(
-                    status_code=403,
-                    detail={
-                        'message': sub_details.get('warning_message', 'Acesso negado devido à assinatura.'),
-                        'code': 'PLAN_EXPIRED'
-                    }
-                )
+        # ✅ 3. VALIDA ROLE (OWNER, MANAGER, etc)
+        if db_store_access.role.machine_name not in [e.value for e in self.roles]:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    'message': f'User must be one of {[e.value for e in self.roles]} to execute this action',
+                    'code': 'REQUIRES_ANOTHER_ROLE'
+                }
+            )
+
+        store = db_store_access.store
+
+        # ✅ 4. REMOVED: NÃO VALIDAMOS BLOQUEIO AQUI
+        # O bloqueio por assinatura expirada deve ser feito por endpoint específico
 
         return store
 
 
+# ✅ Instância padrão: Owner e Manager
 get_store = GetStore([Roles.OWNER, Roles.MANAGER])
 GetStoreDep = Annotated[models.Store, Depends(get_store)]
 
+
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# âœ… GetStoreForSubscriptionRoutes - PARA ENDPOINTS DE ASSINATURA
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+class GetStoreForSubscriptionRoutes:
+    """
+    âœ… DependÃªncia especial para rotas de assinatura
+
+    IDÊNTICA ao GetStore, MAS SEM validação de is_blocked.
+
+    Permite que o usuário (dono) acesse as rotas de assinatura
+    mesmo que a assinatura anterior tenha expirado.
+
+    Isso é CRÍTICO para:
+    - POST /subscriptions â†' Criar nova assinatura
+    - DELETE /subscriptions â†' Cancelar assinatura
+    - POST /subscriptions/reactivate â†' Reativar cancelada
+    - PATCH /subscriptions/card â†' Atualizar cartão
+    """
+
+    def __init__(self, roles: list[Roles]):
+        self.roles = roles
+
+    def __call__(self, db: GetDBDep, user: GetCurrentUserDep, store_id: int):
+
+        # ✅ 1. ADMIN VÊ TUDO
+        if user.is_superuser:
+            store = db.query(models.Store).options(
+                joinedload(models.Store.subscriptions)
+                .joinedload(models.StoreSubscription.plan)
+            ).filter(models.Store.id == store_id).first()
+
+            if not store:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Store not found"
+                )
+
+            return store
+
+        # ✅ 2. USUÁRIO COMUM: VALIDA ACESSO
+        db_store_access = db.query(models.StoreAccess).filter(
+            models.StoreAccess.user == user,
+            models.StoreAccess.store_id == store_id
+        ).first()
+
+        if not db_store_access:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    'message': 'User does not have access to this store',
+                    'code': 'NO_ACCESS_STORE'
+                }
+            )
+
+        # ✅ 3. VALIDA ROLE (OWNER só para gerenciar assinaturas)
+        if db_store_access.role.machine_name not in [e.value for e in self.roles]:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    'message': f'Only {[e.value for e in self.roles]} can manage subscriptions',
+                    'code': 'REQUIRES_OWNER_ROLE'
+                }
+            )
+
+        store = db_store_access.store
+
+        # ✅ 4. NÃO VALIDAMOS BLOQUEIO AQUI!
+        # Isso permite que o usuário crie nova assinatura mesmo se a anterior expirou
+
+        return store
+
+
+# ✅ Instância: Apenas OWNER pode gerenciar assinaturas
+get_store_for_subscription = GetStoreForSubscriptionRoutes([Roles.OWNER])
+GetStoreForSubscriptionDep = Annotated[models.Store, Depends(get_store_for_subscription)]
+
+
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# OUTRAS DEPENDÊNCIAS (mantidas como estavam)
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 def get_product(
         db: GetDBDep,
@@ -241,20 +339,20 @@ GetStoreFromTotemTokenDep = Annotated[models.Store, Depends(get_store_from_token
 
 
 def get_customer_from_token(token: str, db: Session) -> models.Customer:
-    """✅ ATUALIZADO: Compatível com nova função verify_access_token"""
+    """âœ… ATUALIZADO: CompatÃ­vel com nova funÃ§Ã£o verify_access_token"""
     payload = verify_access_token(token)
 
     if not payload:
-        raise HTTPException(status_code=401, detail="Token de cliente inválido ou expirado")
+        raise HTTPException(status_code=401, detail="Token de cliente invÃ¡lido ou expirado")
 
     email = payload.get("sub")
     if not email:
-        raise HTTPException(status_code=401, detail="Token payload inválido")
+        raise HTTPException(status_code=401, detail="Token payload invÃ¡lido")
 
     customer = db.query(models.Customer).filter(models.Customer.email == email).first()
 
     if not customer:
-        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+        raise HTTPException(status_code=404, detail="Cliente nÃ£o encontrado")
 
     return customer
 
@@ -269,70 +367,14 @@ def get_current_customer(
 get_current_customer_dep = Annotated[models.Customer, Depends(get_current_customer)]
 
 
-
 def get_audit_logger(
-    request: Request,
-    db: GetDBDep,
-    current_user: GetCurrentUserDep,
-    store: GetStoreDep
+        request: Request,
+        db: GetDBDep,
+        current_user: GetCurrentUserDep,
+        store: GetStoreDep
 ) -> AuditLogger:
-    """Cria uma instância do AuditLogger para uso nas rotas"""
+    """Cria uma instÃ¢ncia do AuditLogger para uso nas rotas"""
     return AuditLogger(db, request, current_user, store)
 
+
 GetAuditLoggerDep = Annotated[AuditLogger, Depends(get_audit_logger)]
-
-
-
-
-class GetStoreForSubscriptionRoutes:
-    """
-    Dependência especial para rotas de assinatura.
-    Valida o acesso (role) mas IGNORA o status da assinatura,
-    permitindo que o usuário (dono) acesse a rota para reativar.
-    """
-
-    def __init__(self, roles: list[Roles]):
-        self.roles = roles
-
-    def __call__(self, db: GetDBDep, user: GetCurrentUserDep, store_id: int):
-
-        if user.is_superuser:
-            store = db.query(models.Store).options(
-                joinedload(models.Store.subscriptions)
-                .joinedload(models.StoreSubscription.plan)
-            ).filter(models.Store.id == store_id).first()
-
-            if not store:
-                raise HTTPException(status_code=404, detail="Store not found")
-
-        else:
-            db_store_access = db.query(models.StoreAccess).filter(
-                models.StoreAccess.user == user,
-                models.StoreAccess.store_id == store_id
-            ).first()
-
-            if not db_store_access:
-                raise HTTPException(
-                    status_code=403,
-                    detail={'message': 'User does not have access to this store', 'code': 'NO_ACCESS_STORE'}
-                )
-
-            # ✅ Valida se é o dono (ou outra role permitida)
-            if db_store_access.role.machine_name not in [e.value for e in self.roles]:
-                raise HTTPException(
-                    status_code=403,
-                    detail={'message': f'User must be one of {[e.value for e in self.roles]} to execute this action',
-                            'code': 'REQUIRES_ANOTHER_ROLE'}
-                )
-
-            store = db_store_access.store
-
-        # ✅ Nota: O bloco de verificação de 'is_blocked' FOI REMOVIDO
-
-        return store
-
-
-# ✅ ADICIONA O NOVO 'annotated'
-# Apenas o DONO pode gerenciar assinaturas
-get_store_for_subscription = GetStoreForSubscriptionRoutes([Roles.OWNER])
-GetStoreForSubscriptionDep = Annotated[models.Store, Depends(get_store_for_subscription)]
