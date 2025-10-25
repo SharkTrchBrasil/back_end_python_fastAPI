@@ -12,7 +12,7 @@ Estados derivados (calculados em tempo real):
 """
 
 from datetime import datetime, timezone, timedelta
-from decimal import Decimal
+
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
@@ -25,9 +25,9 @@ from src.api.app.socketio.socketio_emitters import emit_store_updated
 from src.api.schemas.subscriptions.store_subscription import CreateStoreSubscription
 from src.core import models
 from src.core.database import GetDBDep
-from src.core.dependencies import GetCurrentUserDep, GetStoreDep, GetAuditLoggerDep, GetStoreForSubscriptionDep
+from src.core.dependencies import GetCurrentUserDep, GetAuditLoggerDep, GetStoreForSubscriptionDep
 from src.core.utils.enums import AuditAction, AuditEntityType
-from src.core.utils.validators import validate_cpf, validate_cnpj, validate_email, validate_phone
+from src.socketio_instance import sio
 
 router = APIRouter(tags=["Subscriptions"])
 
@@ -319,6 +319,31 @@ async def create_subscription(
 
         db.commit()
 
+
+        store_accesses = db.query(models.StoreAccess).filter(
+            models.StoreAccess.store_id == store.id
+        ).all()
+
+        for access in store_accesses:
+            admin_id = access.user_id
+            notification_room = f"admin_notifications_{admin_id}"
+
+            await sio.emit(
+                'subscription_updated',
+                {
+                    'store_id': store.id,
+                    'store_name': store.name,
+                    'is_blocked': False,
+                    'status': 'active',
+                    'updated_at': datetime.now(timezone.utc).isoformat()
+                },
+                to=notification_room,
+                namespace='/admin'
+            )
+
+        logger.info(f"✅ Emitido 'subscription_updated' para {len(store_accesses)} admin(s)")
+
+        # ✅ MANTÉM OS EVENTOS EXISTENTES
         await admin_emit_store_updated(db, store.id)
         await emit_store_updated(db, store.id)
 
