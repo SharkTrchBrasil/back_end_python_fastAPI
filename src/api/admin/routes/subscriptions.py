@@ -19,6 +19,8 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.logger import logger
 
 from src.api.admin.services.pagarme_service import pagarme_service, PagarmeError
+from src.api.admin.services.store_access_service import StoreAccessService
+from src.api.admin.services.store_service import StoreService
 from src.api.admin.services.subscription_service import SubscriptionService
 from src.api.admin.socketio.emitters import admin_emit_store_updated
 from src.api.app.socketio.socketio_emitters import emit_store_updated
@@ -319,7 +321,7 @@ async def create_subscription(
 
         db.commit()
 
-
+        # ✅ 1. Emitir para a sala pessoal do admin (subscription_updated)
         store_accesses = db.query(models.StoreAccess).filter(
             models.StoreAccess.store_id == store.id
         ).all()
@@ -343,7 +345,45 @@ async def create_subscription(
 
         logger.info(f"✅ Emitido 'subscription_updated' para {len(store_accesses)} admin(s)")
 
-        # ✅ MANTÉM OS EVENTOS EXISTENTES
+        # ✅ 2. NOVO: Emitir LISTA COMPLETA ATUALIZADA para cada admin
+        for access in store_accesses:
+            admin_id = access.user_id
+
+            # Busca todas as lojas do admin (novamente, para pegar dados atualizados)
+            accessible_store_accesses = StoreAccessService.get_accessible_stores_with_roles(
+                db,
+                db.query(models.User).filter(models.User.id == admin_id).first()
+            )
+
+            # Prepara a lista completa de lojas
+            stores_list_payload = []
+            for store_access in accessible_store_accesses:
+                store_dict = StoreService.get_store_complete_payload(
+                    store=store_access.store,
+                    db=db
+                )
+
+                access_dict = {
+                    'store': store_dict,
+                    'role': store_access.role,
+                    'store_id': store_access.store_id,
+                    'user_id': store_access.user_id,
+                }
+
+                from src.api.schemas.store.store_with_role import StoreWithRole
+                store_with_role = StoreWithRole.model_validate(access_dict)
+                stores_list_payload.append(store_with_role.model_dump(mode='json'))
+
+            # Emite a lista COMPLETA atualizada
+            await sio.emit(
+                'admin_stores_list',
+                {"stores": stores_list_payload},
+                to=f"admin_notifications_{admin_id}",
+                namespace='/admin'
+            )
+
+            logger.info(f"✅ Emitido 'admin_stores_list' atualizada para admin {admin_id}")
+
         await admin_emit_store_updated(db, store.id)
         await emit_store_updated(db, store.id)
 
