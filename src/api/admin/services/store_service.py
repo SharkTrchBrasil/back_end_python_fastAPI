@@ -35,6 +35,7 @@ class StoreService:
         'categories',
         'products',
         'variants',
+        'print_layouts',
     ]
 
     @staticmethod

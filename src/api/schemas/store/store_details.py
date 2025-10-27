@@ -4,7 +4,9 @@ from collections import defaultdict
 from typing import Optional, List
 from pydantic import Field, ConfigDict, computed_field
 
-from src.api.admin.services.subscription_service import SubscriptionService
+# ✅ 1. IMPORTAR O NOVO SCHEMA DE SAÍDA
+from src.api.schemas.print.print_layout import PrintLayoutConfigOut
+
 from src.api.schemas.chatbot.chatbot_config import StoreChatbotMessageSchema, StoreChatbotConfigSchema
 from src.api.schemas.financial.billing_preview import BillingPreviewSchema
 from src.api.schemas.products.category import Category
@@ -24,7 +26,6 @@ from src.core import models
 
 
 class StoreDetails(StoreSchema):
-    # ✅ CRÍTICO: Garante que NÃO seja None por padrão
     store_operation_config: StoreOperationConfigOut | None = Field(
         default=None,
         description="Configurações operacionais da loja (delivery, pickup, mesa)"
@@ -44,6 +45,12 @@ class StoreDetails(StoreSchema):
     payment_activations: list[models.StorePaymentMethodActivation] = Field(default=[], exclude=True)
     billing_preview: Optional[BillingPreviewSchema] = Field(default=None)
     active_subscription: SubscriptionDetailsSchema | None = None
+
+    # ✅ 2. ADICIONAR O CAMPO QUE FALTAVA AQUI
+    print_layouts: list[PrintLayoutConfigOut] = Field(
+        default_factory=list,
+        description="Configurações de layout de impressão para a loja"
+    )
 
     @computed_field(return_type=list[PaymentMethodGroupOut])
     @property
