@@ -90,6 +90,7 @@ def get_store_base_details(db, store_id: int) -> models.Store | None:
             .joinedload(models.StoreSubscription.plan)
             .selectinload(models.Plans.included_features)
             .joinedload(models.PlansFeature.feature),
+            selectinload(models.Store.print_layouts),
 
             noload(models.Store.products),
             noload(models.Store.categories),

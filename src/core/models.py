@@ -150,6 +150,13 @@ class Store(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
 
+
+
+    print_layouts: Mapped[list["PrintLayoutConfig"]] = relationship(
+        back_populates="store",
+        cascade="all, delete-orphan"
+    )
+
     subscriptions: Mapped[list["StoreSubscription"]] = relationship(
         "StoreSubscription",
         back_populates="store",
@@ -157,6 +164,8 @@ class Store(Base, TimestampMixin):
         cascade="all, delete-orphan",
         order_by="desc(StoreSubscription.created_at)"  # ✅ Mais recente primeiro
     )
+
+
 
     @hybrid_property
     def active_subscription(self) -> Optional["StoreSubscription"]:
@@ -3123,4 +3132,43 @@ class AuditLog(Base, TimestampMixin):
             'entity_type',
             'created_at'
         ),
+    )
+
+
+
+class PrintLayoutConfig(Base, TimestampMixin):
+    __tablename__ = "print_layout_configs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), index=True)
+
+    # O destino da impressão: 'expedition' ou 'kitchen'
+    destination: Mapped[str] = mapped_column(String(50), index=True)
+
+    # Configurações de impressão
+    auto_print: Mapped[bool] = mapped_column(Boolean, default=False)
+    copies: Mapped[int] = mapped_column(Integer, default=1)
+
+    # Informações a exibir
+    show_client_data: Mapped[bool] = mapped_column(Boolean, default=True)
+    show_order_values: Mapped[bool] = mapped_column(Boolean, default=True)
+    show_payment_method: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Informações a destacar
+    highlight_order_number: Mapped[bool] = mapped_column(Boolean, default=False)
+    highlight_priority: Mapped[bool] = mapped_column(Boolean, default=False)
+    highlight_delivery_estimate: Mapped[bool] = mapped_column(Boolean, default=False)
+    highlight_item_quantity: Mapped[bool] = mapped_column(Boolean, default=False)
+    highlight_complements: Mapped[bool] = mapped_column(Boolean, default=False)
+    highlight_observations: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Impressoras vinculadas (IDs das impressoras)
+    linked_printers: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
+
+    # Relacionamento de volta para a loja
+    store: Mapped["Store"] = relationship(back_populates="print_layouts")
+
+    __table_args__ = (
+        # Garante que cada loja tenha apenas uma configuração por destino
+        UniqueConstraint('store_id', 'destination', name='_store_destination_uc'),
     )

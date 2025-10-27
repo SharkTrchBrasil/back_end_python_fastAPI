@@ -1,11 +1,9 @@
 # src/api/admin/routes/store_operation_config.py
 
-import asyncio
 from fastapi import APIRouter
 
-from src.api.admin.socketio.emitters import admin_emit_store_updated, emit_store_updates
+from src.api.admin.socketio.emitters import emit_store_updates
 from src.api.schemas.store.store_operation_config import StoreOperationConfigBase, StoreOperationConfigOut
-
 from src.core import models
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
