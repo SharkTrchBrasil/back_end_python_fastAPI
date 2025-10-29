@@ -11,7 +11,6 @@ import sys
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Union
 
 import socketio
 import uvicorn
@@ -19,7 +18,6 @@ from fastapi import FastAPI, Request
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy.orm import Session
 from starlette.middleware.cors import CORSMiddleware
-from starlette.responses import Response, JSONResponse
 
 from src.api.admin.routes import monitoring
 from src.api.scheduler import start_scheduler, stop_scheduler
@@ -42,8 +40,8 @@ from src.core.rate_limit.rate_limit import limiter, rate_limit_exceeded_handler,
 from src.socketio_instance import sio
 from src.api.admin import router as admin_router
 from src.api.app import router as app_router
-from src.api.admin.webhooks.chatbot.chatbot_webhook import router as chatbot_webhooks_router
-from src.api.admin.webhooks.chatbot import chatbot_message_webhook
+from src.api.admin.webhooks.chatbot_webhook import router as chatbot_webhooks_router
+from src.api.admin.webhooks import chatbot_message_webhook
 from src.api.admin.webhooks.pagarme_webhook import router as pagarme_webhook_router
 
 # ✅ Sistema de cache

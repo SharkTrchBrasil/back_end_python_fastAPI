@@ -1,8 +1,11 @@
-# src/core/services/secure_media_service.py - NOVO ARQUIVO
+# src/core/services/secure_media_service.py - VERSÃO FINAL CORRIGIDA
+
 import io
 import uuid
 from typing import Optional, Tuple
 from fastapi import UploadFile, HTTPException
+
+from src.api.admin.services.chatbot.chatbot_media_service import upload_media_from_buffer
 
 
 class SecureMediaService:
@@ -23,19 +26,24 @@ class SecureMediaService:
     def validate_file(self, file: UploadFile) -> Tuple[bool, str]:
         """Valida arquivo antes do upload"""
         try:
+            # ✅ Verifica se o arquivo tem tipo MIME
+            if not file.content_type:
+                return False, "Tipo de arquivo não identificado"
+
             # ✅ Verifica tipo MIME
             if file.content_type not in self.allowed_types:
                 return False, f"Tipo de arquivo não permitido: {file.content_type}"
 
             # ✅ Verifica tamanho (lê apenas o necessário)
+            current_position = file.file.tell()  # Salva posição atual
             file.file.seek(0, 2)  # Vai para o final
             size = file.file.tell()
-            file.file.seek(0)  # Volta para o início
+            file.file.seek(current_position)  # Volta para a posição original
 
             if size > self.max_file_size:
                 return False, f"Arquivo muito grande: {size} bytes (máximo: {self.max_file_size})"
 
-            # ✅ Verifica extensão vs tipo MIME
+            # ✅ Verifica extensão vs tipo MIME (se tiver filename)
             if file.filename:
                 extension = file.filename.lower().split('.')[-1]
                 if not self._validate_extension(file.content_type, extension):
@@ -50,12 +58,15 @@ class SecureMediaService:
         """Valida se a extensão corresponde ao tipo MIME"""
         extension_map = {
             'image/jpeg': {'jpg', 'jpeg'},
+            'image/jpg': {'jpg', 'jpeg'},
             'image/png': {'png'},
             'image/webp': {'webp'},
             'audio/mpeg': {'mp3'},
             'audio/ogg': {'ogg'},
+            'audio/wav': {'wav'},
             'application/pdf': {'pdf'},
             'video/mp4': {'mp4'},
+            'video/3gpp': {'3gp'},
             'text/plain': {'txt'}
         }
 
@@ -71,15 +82,14 @@ class SecureMediaService:
             return None
 
         try:
-            # ✅ Lê o arquivo em chunks para evitar memory leak
+            # ✅ Lê o arquivo
             file_bytes = await file.read()
 
-            # ✅ Upload para S3 (usa função existente)
-            from src.api.admin.services.chatbot.chatbot_media_service import upload_media_from_buffer
+            # ✅ Usa a função existente de upload
             return upload_media_from_buffer(
                 store_id=store_id,
                 file_buffer=file_bytes,
-                filename=file.filename,
+                filename=file.filename or f"file_{uuid.uuid4()}",
                 content_type=file.content_type
             )
 

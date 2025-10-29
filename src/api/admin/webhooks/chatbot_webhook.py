@@ -1,7 +1,7 @@
-# src/api/webhooks/chatbot_webhook.py
+# src/api/webhooks/chatbot_webhook.py - VERSÃO FINAL
 
 import os
-import secrets  # ✅ Importado
+import secrets
 from fastapi import APIRouter, Depends, Header, HTTPException
 
 from src.api.admin.socketio.emitters import emit_chatbot_config_update, emit_store_updates
@@ -65,16 +65,16 @@ async def chatbot_webhook(payload: ChatbotWebhookPayload, db: GetDBDep):
     if payload.status in ['disconnected', 'error']:
         config.last_qr_code = None
         config.whatsapp_name = None
-        config.last_connection_code = None #
+        config.last_connection_code = None
     elif payload.status == 'awaiting_pairing_code':
-        config.last_connection_code = payload.pairingCode #
+        config.last_connection_code = payload.pairingCode
         config.last_qr_code = None
     elif payload.status == 'awaiting_qr':
-        config.last_qr_code = payload.qrCode #
+        config.last_qr_code = payload.qrCode
         config.whatsapp_name = None
         config.last_connection_code = None
     elif payload.status == 'connected':
-        config.whatsapp_name = payload.whatsappName #
+        config.whatsapp_name = payload.whatsappName
         config.last_qr_code = None
         config.last_connection_code = None
 

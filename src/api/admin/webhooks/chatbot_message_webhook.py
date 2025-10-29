@@ -5,7 +5,7 @@ from src.core import models
 from datetime import datetime, timezone
 from .chatbot_webhook import verify_webhook_secret
 from src.api.admin.socketio.emitters import emit_new_chat_message
-from ...services.chatbot.secure_media_service import media_service
+from src.api.admin.services.chatbot.secure_media_service import media_service
 
 router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
 
