@@ -1,38 +1,37 @@
-# src/api/admin/routers/chatbot_webhook.py
-
-import os
-from typing import List, Optional
+# src/api/admin/routers/chatbot_config.py - VERSÃO COMPLETA
 from fastapi import APIRouter, HTTPException, Depends
-import httpx
-
-from src.api.admin.socketio.emitters import admin_emit_store_updated
-from src.api.admin.utils.format_phone import format_phone_number
-from src.api.schemas.chatbot.chatbot_config import StoreChatbotMessageSchema, StoreChatbotMessageUpdateSchema
-from src.core import models
-from src.core.database import GetDBDep
-from src.core.dependencies import GetStoreDep
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
-async def get_async_http_client() -> httpx.AsyncClient:
-    async with httpx.AsyncClient() as client:
-        yield client
+from src.api.admin.services.chatbot.chatbot_client import chatbot_client
+from src.core.database import GetDBDep
+from src.core.dependencies import GetStoreDep
+from src.core import models
 
-
-CHATBOT_SERVICE_URL = os.getenv("CHATBOT_SERVICE_URL")
-CHATBOT_WEBHOOK_SECRET = os.getenv("CHATBOT_WEBHOOK_SECRET")
-
-if not CHATBOT_SERVICE_URL or not CHATBOT_WEBHOOK_SECRET:
-    raise ValueError("As variáveis CHATBOT_SERVICE_URL e CHATBOT_WEBHOOK_SECRET são obrigatórias.")
+from src.api.admin.socketio.emitters import admin_emit_store_updated
+from src.api.schemas.chatbot.chatbot_config import StoreChatbotMessageSchema, StoreChatbotMessageUpdateSchema
 
 router = APIRouter(tags=["Chatbot Config"], prefix="/stores/{store_id}/chatbot-config")
 
 
-# --- ROTAS DE GET E PATCH (CORRETAS) ---
+# ✅ SCHEMAS
+class ConnectRequest(BaseModel):
+    method: str = Field(..., description="Método de conexão: 'qr' ou 'pairing'")
+    phone_number: Optional[str] = Field(None, description="Número de telefone, obrigatório se o método for 'pairing'")
+
+
+class ChatbotStatusUpdate(BaseModel):
+    isActive: bool
+
+
+# ✅ ROTAS DE MENSAGENS (RESTAURADAS)
 @router.get("", response_model=List[StoreChatbotMessageSchema])
 def get_all_message_configs(store: GetStoreDep, db: GetDBDep):
+    """Obtém todas as configurações de mensagem do chatbot"""
     all_templates = db.query(models.ChatbotMessageTemplate).all()
     store_configs_list = db.query(models.StoreChatbotMessage).filter_by(store_id=store.id).all()
     store_configs_map = {config.template_key: config for config in store_configs_list}
+
     final_configs = []
     for template in all_templates:
         store_config = store_configs_map.get(template.message_key)
@@ -43,25 +42,44 @@ def get_all_message_configs(store: GetStoreDep, db: GetDBDep):
             "template": template
         }
         final_configs.append(final_config_obj)
+
     return final_configs
 
 
 @router.patch("/{message_key}", response_model=StoreChatbotMessageSchema)
-async def update_message_config(message_key: str, config_update: StoreChatbotMessageUpdateSchema, store: GetStoreDep,
-                                db: GetDBDep):
+async def update_message_config(
+        message_key: str,
+        config_update: StoreChatbotMessageUpdateSchema,
+        store: GetStoreDep,
+        db: GetDBDep
+):
+    """Atualiza uma configuração de mensagem específica"""
+    # Validar template
     template = db.query(models.ChatbotMessageTemplate).filter_by(message_key=message_key).first()
     if not template:
-        raise HTTPException(status_code=404, detail=f"Message template '{message_key}' not found.")
-    db_config = db.query(models.StoreChatbotMessage).filter_by(store_id=store.id, template_key=message_key).first()
+        raise HTTPException(status_code=404, detail=f"Template de mensagem '{message_key}' não encontrado.")
+
+    # Buscar ou criar configuração da loja
+    db_config = db.query(models.StoreChatbotMessage).filter_by(
+        store_id=store.id,
+        template_key=message_key
+    ).first()
+
     if not db_config:
         db_config = models.StoreChatbotMessage(store_id=store.id, template_key=message_key)
         db.add(db_config)
+
+    # Aplicar atualizações
     update_data = config_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_config, key, value)
+
     db.commit()
     db.refresh(db_config)
+
+    # Notificar frontend
     await admin_emit_store_updated(db, store.id)
+
     return {
         "template_key": db_config.template_key,
         "is_active": db_config.is_active,
@@ -70,79 +88,68 @@ async def update_message_config(message_key: str, config_update: StoreChatbotMes
     }
 
 
-@router.post("/toggle-status", summary="Ativa ou desativa as respostas do chatbot")
-async def toggle_chatbot_status(store: GetStoreDep, db: GetDBDep,
-                                http_client: httpx.AsyncClient = Depends(get_async_http_client)):
+# ✅ ROTAS DE STATUS DO CHATBOT
+@router.post("/update-status")
+async def update_chatbot_status(
+        status_update: ChatbotStatusUpdate,
+        store: GetStoreDep,
+        db: GetDBDep
+):
+    """Ativa ou desativa o chatbot (compatível com Dart)"""
     config = db.query(models.StoreChatbotConfig).filter_by(store_id=store.id).first()
 
-    # CORREÇÃO: Verificar se a configuração existe
     if not config:
-        raise HTTPException(status_code=404, detail="Configuração do chatbot não encontrada para esta loja.")
+        raise HTTPException(status_code=404, detail="Configuração do chatbot não encontrada")
 
     if config.connection_status != 'connected':
-        raise HTTPException(status_code=409,
-                            detail="O chatbot não está conectado, então não pode ser ativado ou desativado.")
+        raise HTTPException(status_code=409, detail="Chatbot precisa estar conectado para alterar status")
 
-    config.is_active = not config.is_active
+    # Atualizar status
+    config.is_active = status_update.isActive
     db.commit()
-    db.refresh(config)
 
+    # Notificar serviço Node.js
     try:
-        update_url = f"{CHATBOT_SERVICE_URL}/update-status"
-        headers = {'x-webhook-secret': CHATBOT_WEBHOOK_SECRET}
-        payload = {"storeId": store.id, "isActive": config.is_active}
-
-        await http_client.post(update_url, json=payload, headers=headers, timeout=10.0)
+        success = await chatbot_client.update_status(store.id, status_update.isActive)
+        if not success:
+            print(f"⚠️ Status atualizado localmente, mas falha ao notificar Node.js")
     except Exception as e:
-        print(
-            f"AVISO: O estado do chatbot para a loja {store.id} foi alterado para {config.is_active}, mas falhou ao notificar o serviço Node.js. Erro: {e}")
+        print(f"⚠️ Erro ao notificar Node.js: {e}")
 
     await admin_emit_store_updated(db, store.id)
 
-    return {"message": f"Chatbot foi {'ativado' if config.is_active else 'pausado'}.", "isActive": config.is_active}
+    action = "ativado" if status_update.isActive else "pausado"
+    return {
+        "message": f"Chatbot {action} com sucesso",
+        "isActive": config.is_active
+    }
 
 
-# ✅ 1. Definimos o modelo do corpo da requisição para a rota de conexão.
-class ConnectRequest(BaseModel):
-    method: str = Field(..., description="Método de conexão: 'qr' ou 'pairing'")
-    phone_number: Optional[str] = Field(None, description="Número de telefone, obrigatório se o método for 'pairing'")
 
-
-# ✅ 2. A rota /connect é totalmente reescrita para seguir a sua lógica.
+# ✅ ROTAS DE CONEXÃO
 @router.post("/connect")
 async def conectar_whatsapp(
-        request_data: ConnectRequest,  # Recebe os dados do corpo da requisição
+        request_data: ConnectRequest,
         store: GetStoreDep,
-        db: GetDBDep,
-        http_client: httpx.AsyncClient = Depends(get_async_http_client)
+        db: GetDBDep
 ):
-    iniciar_sessao_url = f"{CHATBOT_SERVICE_URL}/start-session"
+    """Conecta WhatsApp de forma robusta"""
+    method = request_data.method
+    phone_number = request_data.phone_number
 
-    # A verificação de status existente continua válida
+    # Validações
+    if method not in ["qr", "pairing"]:
+        raise HTTPException(400, "Método deve ser 'qr' ou 'pairing'")
+
+    if method == "pairing" and not phone_number:
+        raise HTTPException(400, "phone_number obrigatório para pairing")
+
+    # Verificar se já existe conexão ativa
     config = db.query(models.StoreChatbotConfig).filter_by(store_id=store.id).first()
     if config and config.connection_status in ["pending", "awaiting_qr", "awaiting_pairing_code", "connected"]:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Uma conexão já está ativa ou pendente com o status: {config.connection_status}."
-        )
+        raise HTTPException(409, f"Já existe uma conexão com status: {config.connection_status}")
 
-    # --- LÓGICA NOVA E CORRETA ---
-
-    # Validação baseada no método escolhido pelo cliente
-    if request_data.method not in ["qr", "pairing"]:
-        raise HTTPException(status_code=400, detail="O método deve ser 'qr' ou 'pairing'.")
-
-    formatted_phone_number = None
-    if request_data.method == "pairing":
-        if not request_data.phone_number:
-            raise HTTPException(status_code=400, detail="O 'phone_number' é obrigatório para o método 'pairing'.")
-        try:
-            # Formata o número que o CLIENTE enviou
-            formatted_phone_number = format_phone_number(request_data.phone_number)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-
-    # A lógica de criar/atualizar a configuração no banco continua a mesma
+    # Criar/atualizar configuração
     if not config:
         config = models.StoreChatbotConfig(store_id=store.id, is_active=True)
         db.add(config)
@@ -151,56 +158,40 @@ async def conectar_whatsapp(
     config.last_qr_code = None
     config.whatsapp_name = None
     db.commit()
-    await admin_emit_store_updated(db, store.id)
 
-    try:
-        headers = {'x-webhook-secret': CHATBOT_WEBHOOK_SECRET}
+    # Iniciar sessão no Node.js
+    success = await chatbot_client.start_session(
+        store_id=store.id,
+        method=method,
+        phone_number=phone_number
+    )
 
-        # Monta o payload para o Node.js com os dados recebidos do cliente
-        payload = {
-            "storeId": str(store.id),
-            "method": request_data.method
-        }
-        if formatted_phone_number:
-            payload["phoneNumber"] = formatted_phone_number
-
-        response = await http_client.post(iniciar_sessao_url, json=payload, headers=headers, timeout=15.0)
-        response.raise_for_status()
-
-        return {"message": "Solicitação de conexão enviada ao serviço de chatbot"}
-    except (httpx.RequestError, httpx.HTTPStatusError) as e:
+    if not success:
         config.connection_status = "error"
         db.commit()
-        await admin_emit_store_updated(db, store.id)
-        raise HTTPException(status_code=503, detail=f"Erro de comunicação com o serviço de chatbot: {e}")
+        raise HTTPException(503, "Falha ao iniciar sessão no serviço de chatbot")
+
+    await admin_emit_store_updated(db, store.id)
+    return {"message": "Solicitação de conexão enviada ao serviço de chatbot"}
 
 
-@router.delete("/disconnect", status_code=200)
-async def desconectar_whatsapp(store: GetStoreDep, db: GetDBDep,
-                               http_client: httpx.AsyncClient = Depends(get_async_http_client)):
-    desconectar_url = f"{CHATBOT_SERVICE_URL}/disconnect"
-    headers = {'x-webhook-secret': CHATBOT_WEBHOOK_SECRET}
+@router.delete("/disconnect")
+async def desconectar_whatsapp(store: GetStoreDep, db: GetDBDep):
+    """Desconecta WhatsApp"""
+    success = await chatbot_client.disconnect_session(store.id)
 
-    try:
-        # A requisição para o serviço Node.js continua sendo POST, pois é uma chamada de serviço interno
-        response = await http_client.post(
-            desconectar_url,
-            json={"storeId": store.id},
-            headers=headers,
-            timeout=15.0
-        )
-        response.raise_for_status()
-    except (httpx.RequestError, httpx.HTTPStatusError) as e:
-        print(f"Aviso: O serviço de chatbot não respondeu à desconexão, mas o status será atualizado. Erro: {e}")
+    if not success:
+        raise HTTPException(503, "Falha ao desconectar do serviço de chatbot")
 
-    chatbot_config = db.query(models.StoreChatbotConfig).filter_by(store_id=store.id).first()
-    if chatbot_config:
-        chatbot_config.connection_status = 'disconnected'
-        chatbot_config.whatsapp_name = None
-        chatbot_config.whatsapp_number = None
-        chatbot_config.last_qr_code = None
-        chatbot_config.last_connection_code = None # Limpa também o código de conexão
+    # Atualizar status no banco
+    config = db.query(models.StoreChatbotConfig).filter_by(store_id=store.id).first()
+    if config:
+        config.connection_status = 'disconnected'
+        config.whatsapp_name = None
+        config.whatsapp_number = None
+        config.last_qr_code = None
+        config.last_connection_code = None
         db.commit()
         await admin_emit_store_updated(db, store.id)
 
-    return {"message": "Solicitação de desconexão processada com sucesso."}
+    return {"message": "Solicitação de desconexão processada com sucesso"}

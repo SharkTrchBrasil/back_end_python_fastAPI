@@ -1415,6 +1415,8 @@ class StoreChatbotConfig(Base, TimestampMixin):
             postgresql_where=text("connection_status = 'connected' AND is_active = true")
         ),
     )
+
+
 class ChatbotAuthCredential(Base):
     """
     Armazena as credenciais de autenticação da Baileys (WhatsApp)
@@ -1431,6 +1433,12 @@ class ChatbotAuthCredential(Base):
     # O valor da credencial, armazenado como JSONB para eficiência no PostgreSQL
     cred_value: Mapped[dict] = mapped_column(JSONB, nullable=False)
 
+    # ✅ NOVA COLUNA ADICIONADA
+    cred_metadata: Mapped[dict | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        doc="Metadados adicionais da credencial (algoritmo, versão, etc.)"
+    )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -1440,7 +1448,6 @@ class ChatbotAuthCredential(Base):
         doc="Timestamp da última atualização da credencial"
     )
 
-
     __table_args__ = (
         Index('idx_chatbot_creds_session', 'session_id'),
         Index('idx_chatbot_creds_updated', 'updated_at'),
@@ -1449,9 +1456,17 @@ class ChatbotAuthCredential(Base):
             'session_id',
             'cred_id'
         ),
+        # ✅ NOVO ÍNDICE PARA METADADOS (opcional, mas recomendado para buscas)
+        Index(
+            'idx_auth_creds_metadata',
+            'cred_metadata',
+            postgresql_using='gin'
+        ),
     )
+
     def __repr__(self) -> str:
         return f"<ChatbotAuthCredential(session='{self.session_id}', cred='{self.cred_id}')>"
+
 
 
 class PaymentMethodGroup(Base):
