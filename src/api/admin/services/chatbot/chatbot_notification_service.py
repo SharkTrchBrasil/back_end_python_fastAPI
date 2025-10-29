@@ -1,16 +1,15 @@
-# src/api/admin/services/chatbot_notification_service.py - VERSÃO FINAL
+# src/api/admin/services/chatbot_notification_service.py - VERSÃO FINAL (REFATORADA)
 
 import os
 from sqlalchemy.orm import Session
+from typing import Optional
 
 from src.api.admin.services.chatbot.chatbot_client import chatbot_client
-from src.api.admin.utils.format_phone import format_phone_number
+# ❌ REMOVIDO: importação de format_phone (não usada)
 from src.api.admin.utils.track_order_url import _get_tracking_link
 from src.core import models
 from src.core.config import config
 from src.core.utils.enums import OrderStatus
-
-
 
 STATUS_TO_MESSAGE_KEY = {
     OrderStatus.PREPARING: 'order_accepted',
@@ -19,6 +18,7 @@ STATUS_TO_MESSAGE_KEY = {
     OrderStatus.DELIVERED: 'order_delivered',
     OrderStatus.CANCELED: 'order_canceled',
 }
+
 
 # --- FUNÇÃO HELPER PARA FORMATAR A MENSAGEM DO RESUMO ---
 def _build_order_summary_message(order: models.Order) -> str:
@@ -72,7 +72,38 @@ def _build_order_summary_message(order: models.Order) -> str:
     return "\n".join(message_parts)
 
 
-# --- NOVA FUNÇÃO PARA ENVIAR O RESUMO ---
+# ✅ NOVA FUNÇÃO HELPER (Refatorada)
+def _get_formatted_customer_phone(raw_phone: str) -> Optional[str]:
+    """
+    Limpa, valida e formata o número de telefone para o padrão E.164 (55+DDD+Numero).
+    Retorna None se o número for inválido.
+    """
+    if not raw_phone:
+        return None
+
+    try:
+        # 1. Pega apenas os dígitos do número
+        clean_phone = "".join(filter(str.isdigit, raw_phone))
+
+        # 2. Se o número já tiver o 55 no início (seja com 8 ou 9 dígitos), ele já está pronto.
+        if clean_phone.startswith('55'):
+            # Verifica se o tamanho é válido (12 = 55+DDD+8dígitos, 13 = 55+DDD+9dígitos)
+            if len(clean_phone) not in [12, 13]:
+                raise ValueError(f"Número '{raw_phone}' com 55 tem tamanho inválido.")
+            return clean_phone
+        # 3. Se for um número local (sem 55), apenas adicionamos o código do país.
+        else:
+            # Verifica se o tamanho é válido (10 = DDD+8dígitos, 11 = DDD+9dígitos)
+            if len(clean_phone) not in [10, 11]:
+                raise ValueError(f"Número '{raw_phone}' sem 55 tem tamanho inválido.")
+            return f"55{clean_phone}"
+
+    except ValueError as e:
+        print(f"AVISO: Número de telefone inválido: {e}")
+        return None
+
+
+# --- FUNÇÃO PARA ENVIAR O RESUMO ---
 async def send_new_order_summary(db: Session, order: models.Order):
     """ Envia o resumo completo de um novo pedido para o cliente. """
     message_key = 'new_order_summary'
@@ -89,32 +120,13 @@ async def send_new_order_summary(db: Session, order: models.Order):
 
     raw_phone = order.customer.phone if order.customer else order.customer_phone
 
-    if not raw_phone:
-        return print(f"AVISO: Pedido {order.id} não possui telefone de cliente. Resumo não enviado.")
-
-    # ✅ VERSÃO FINAL: Apenas limpa o número e garante o código do país.
-    try:
-        # 1. Pega apenas os dígitos do número
-        clean_phone = "".join(filter(str.isdigit, raw_phone))
-
-        # 2. Se o número já tiver o 55 no início (seja com 8 ou 9 dígitos), ele já está pronto.
-        if clean_phone.startswith('55'):
-            # Verifica se o tamanho é válido (12 = 55+DDD+8dígitos, 13 = 55+DDD+9dígitos)
-            if len(clean_phone) not in [12, 13]:
-                raise ValueError(f"Número '{raw_phone}' com 55 tem tamanho inválido.")
-            customer_phone = clean_phone
-        # 3. Se for um número local (sem 55), apenas adicionamos o código do país.
-        else:
-            # Verifica se o tamanho é válido (10 = DDD+8dígitos, 11 = DDD+9dígitos)
-            if len(clean_phone) not in [10, 11]:
-                raise ValueError(f"Número '{raw_phone}' sem 55 tem tamanho inválido.")
-            customer_phone = f"55{clean_phone}"
-
-        print(f"DEBUG: Número final e limpo enviado para a API: {customer_phone}")
-
-    except ValueError as e:
-        print(f"AVISO: Número de telefone inválido para o cliente do pedido {order.id}: {e}. Mensagem não enviada.")
+    # ✅ LÓGICA DE TELEFONE CENTRALIZADA
+    customer_phone = _get_formatted_customer_phone(raw_phone)
+    if not customer_phone:
+        print(f"AVISO: Pedido {order.id} não possui telefone de cliente válido. Resumo não enviado.")
         return
+
+    print(f"DEBUG: Número final e limpo enviado para a API: {customer_phone}")
 
     final_message = _build_order_summary_message(order)
 
@@ -178,60 +190,24 @@ async def send_order_status_update(db: Session, order: models.Order):
         print(f"INFO: Mensagem '{message_key}' está inativa ou não configurada para a loja {order.store_id}.")
         return
 
-    # --- INÍCIO DO BLOCO DE DEBUG DO TELEFONE ---
-    print(f"\n--- DEBUG (send_order_status_update): BUSCANDO TELEFONE PARA O PEDIDO {order.id} ---")
+    # 4. Busca o telefone (com fallback)
     raw_phone = None
-
     try:
-        # Tentativa 1: Via relação order.customer
         if order.customer and order.customer.phone:
-            print(f"DEBUG: Encontrado telefone via 'order.customer.phone': {order.customer.phone}")
             raw_phone = order.customer.phone
-        else:
-            print("DEBUG: 'order.customer' ou 'order.customer.phone' está vazio. Tentando fallback.")
-
-        # Tentativa 2: Via campo direto order.customer_phone (fallback)
-        if not raw_phone and order.customer_phone:
-            print(f"DEBUG: Encontrado telefone via campo direto 'order.customer_phone': {order.customer_phone}")
+        elif order.customer_phone:
             raw_phone = order.customer_phone
-
-        print(f"DEBUG: Valor final de 'raw_phone' antes da verificação: {raw_phone} (Tipo: {type(raw_phone)})")
-
     except Exception as e:
         print(f"❌ ERRO CRÍTICO ao tentar acessar o telefone do cliente: {e}")
-        # Importante para ver erros como 'DetachedInstanceError' do SQLAlchemy
-        import traceback
-        traceback.print_exc()
-        return
-    # --- FIM DO BLOCO DE DEBUG DO TELEFONE ---
-
-    if not raw_phone:
-        print(f"AVISO FINAL: Pedido {order.id} não possui telefone de cliente. Mensagem não enviada.")
         return
 
-    # ✅ VERSÃO FINAL: Apenas limpa o número e garante o código do país.
-    try:
-        # 1. Pega apenas os dígitos do número
-        clean_phone = "".join(filter(str.isdigit, raw_phone))
-
-        # 2. Se o número já tiver o 55 no início (seja com 8 ou 9 dígitos), ele já está pronto.
-        if clean_phone.startswith('55'):
-            # Verifica se o tamanho é válido (12 = 55+DDD+8dígitos, 13 = 55+DDD+9dígitos)
-            if len(clean_phone) not in [12, 13]:
-                raise ValueError(f"Número '{raw_phone}' com 55 tem tamanho inválido.")
-            customer_phone = clean_phone
-        # 3. Se for um número local (sem 55), apenas adicionamos o código do país.
-        else:
-            # Verifica se o tamanho é válido (10 = DDD+8dígitos, 11 = DDD+9dígitos)
-            if len(clean_phone) not in [10, 11]:
-                 raise ValueError(f"Número '{raw_phone}' sem 55 tem tamanho inválido.")
-            customer_phone = f"55{clean_phone}"
-
-        print(f"DEBUG: Número final e limpo enviado para a API: {customer_phone}")
-
-    except ValueError as e:
-        print(f"AVISO: Número de telefone inválido para o cliente do pedido {order.id}: {e}. Mensagem não enviada.")
+    # ✅ LÓGICA DE TELEFONE CENTRALIZADA
+    customer_phone = _get_formatted_customer_phone(raw_phone)
+    if not customer_phone:
+        print(f"AVISO FINAL: Pedido {order.id} não possui telefone de cliente válido. Mensagem não enviada.")
         return
+
+    print(f"DEBUG: Número final e limpo enviado para a API: {customer_phone}")
 
     # 5. Formata a mensagem final
     content_to_send = message_config.final_content

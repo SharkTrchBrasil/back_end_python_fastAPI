@@ -185,7 +185,6 @@ async def create_category(
             "store_name": store.name,
             "category_name": db_category.name,
             "category_type": db_category.type,
-            "is_pizza": db_category.is_pizza,
             "option_groups_count": len(category_data.option_groups) if category_data.option_groups else 0,
             "option_groups": [
                 {
@@ -264,7 +263,7 @@ async def update_category(
     old_values = {
         "name": db_category.name,
         "category_type": db_category.type,
-        "is_pizza": db_category.is_pizza,
+
         "priority": db_category.priority,
         "is_active": db_category.is_active,
         "option_groups_count": len(db_category.option_groups) if db_category.option_groups else 0
@@ -369,7 +368,6 @@ async def delete_category(
         "category_id": db_category.id,
         "name": db_category.name,
         "category_type": db_category.type,
-        "is_pizza": db_category.is_pizza,
         "priority": db_category.priority,
         "is_active": db_category.is_active,
         "option_groups": [
