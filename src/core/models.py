@@ -1403,10 +1403,18 @@ class StoreChatbotConfig(Base, TimestampMixin):
     # Relacionamento de volta para a classe Store (a última alteração que fizemos)
     store: Mapped["Store"] = relationship(back_populates="chatbot_config")
 
+    # ✅ ÍNDICES OTIMIZADOS (SUBSTITUIR OS EXISTENTES)
     __table_args__ = (
-        Index('idx_chatbot_config_store_active', 'store_id', 'is_active', unique=True),
+        Index('idx_chatbot_config_store_active', 'store_id', 'is_active'),
+        Index('idx_chatbot_config_status', 'connection_status', 'is_active'),
+        Index(
+            'idx_chatbot_config_connected',
+            'store_id',
+            'connection_status',
+            'is_active',
+            postgresql_where=text("connection_status = 'connected' AND is_active = true")
+        ),
     )
-
 class ChatbotAuthCredential(Base):
     """
     Armazena as credenciais de autenticação da Baileys (WhatsApp)
@@ -1423,6 +1431,25 @@ class ChatbotAuthCredential(Base):
     # O valor da credencial, armazenado como JSONB para eficiência no PostgreSQL
     cred_value: Mapped[dict] = mapped_column(JSONB, nullable=False)
 
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        index=True,
+        doc="Timestamp da última atualização da credencial"
+    )
+
+
+    __table_args__ = (
+        Index('idx_chatbot_creds_session', 'session_id'),
+        Index('idx_chatbot_creds_updated', 'updated_at'),
+        Index(
+            'idx_chatbot_creds_composite',
+            'session_id',
+            'cred_id'
+        ),
+    )
     def __repr__(self) -> str:
         return f"<ChatbotAuthCredential(session='{self.session_id}', cred='{self.cred_id}')>"
 
@@ -2067,12 +2094,32 @@ class Order(Base, TimestampMixin):
     def is_printed(self) -> bool:
         return len(self.print_logs) > 0
 
-    # ✅ ADICIONAR ESTAS LINHAS NO FINAL:
+
     __table_args__ = (
         Index('idx_orders_store_status', 'store_id', 'order_status'),
         Index('idx_orders_store_created', 'store_id', 'created_at'),
         Index('idx_orders_store_customer', 'store_id', 'customer_id'),
+
+        # ✅ NOVOS ÍNDICES PARA O CHATBOT
+        Index(
+            'idx_orders_customer_phone_today',
+            'store_id',
+            'customer_phone',
+            'created_at',
+            postgresql_where=text("created_at >= CURRENT_DATE")
+        ),
+        Index(
+            'idx_orders_today_active',
+            'store_id',
+            'order_status',
+            'created_at',
+            postgresql_where=text(
+                "created_at >= CURRENT_DATE AND "
+                "order_status NOT IN ('DELIVERED', 'CANCELED')"
+            )
+        ),
     )
+
 
 class OrderProduct(Base, TimestampMixin):
     __tablename__ = "order_products"
@@ -2936,6 +2983,20 @@ class ChatbotMessage(Base, TimestampMixin):
     # Relacionamento (opcional, mas bom)
     store: Mapped["Store"] = relationship()
 
+    # ✅ ADICIONAR ESTES ÍNDICES
+    __table_args__ = (
+        Index('idx_chatbot_messages_store_chat', 'store_id', 'chat_id'),
+        Index('idx_chatbot_messages_store_timestamp', 'store_id', 'timestamp'),
+        Index('idx_chatbot_messages_chat_timestamp', 'chat_id', 'timestamp'),
+        Index(
+            'idx_chatbot_messages_recent',
+            'store_id',
+            'chat_id',
+            'timestamp',
+            postgresql_where=text("timestamp >= NOW() - INTERVAL '7 days'")
+        ),
+    )
+
 
 class ChatbotConversationMetadata(Base, TimestampMixin):
     __tablename__ = "chatbot_conversation_metadata"
@@ -2954,6 +3015,24 @@ class ChatbotConversationMetadata(Base, TimestampMixin):
 
     store: Mapped["Store"] = relationship()
 
+
+    # ✅ ADICIONAR ESTES ÍNDICES
+    __table_args__ = (
+        Index('idx_conversation_metadata_store', 'store_id'),
+        Index('idx_conversation_metadata_timestamp', 'last_message_timestamp'),
+        Index(
+            'idx_conversation_metadata_unread',
+            'store_id',
+            'unread_count',
+            postgresql_where=text('unread_count > 0')
+        ),
+        Index(
+            'idx_conversation_metadata_recent',
+            'store_id',
+            'last_message_timestamp',
+            postgresql_where=text("last_message_timestamp >= NOW() - INTERVAL '30 days'")
+        ),
+    )
 
 # ✅ DEPOIS (CORRETO):
 class MonthlyCharge(Base, TimestampMixin):
