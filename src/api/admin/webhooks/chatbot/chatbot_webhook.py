@@ -1,10 +1,10 @@
 # src/api/webhooks/chatbot_webhook.py
 
 import os
+import secrets  # ✅ Importado
 from fastapi import APIRouter, Depends, Header, HTTPException
 
 from src.api.admin.socketio.emitters import emit_chatbot_config_update, emit_store_updates
-
 from src.api.schemas.chatbot.chatbot_config import ChatbotWebhookPayload
 from src.core import models
 from src.core.database import GetDBDep
@@ -15,10 +15,25 @@ WEBHOOK_SECRET_KEY = os.getenv("CHATBOT_WEBHOOK_SECRET")
 if not WEBHOOK_SECRET_KEY:
     raise ValueError("A variável de ambiente CHATBOT_WEBHOOK_SECRET não foi configurada.")
 
-def verify_webhook_secret(x_webhook_secret: str = Header(...)):
-    if x_webhook_secret != WEBHOOK_SECRET_KEY:
-        raise HTTPException(status_code=403, detail="Acesso negado: Chave secreta do webhook inválida.")
+# ✅ FUNÇÃO DE VERIFICAÇÃO CORRIGIDA
+def verify_webhook_secret(x_webhook_secret: str = Header(None)):
+    """
+    Verifica o segredo do webhook usando comparação segura (timing-safe).
+    """
+    if not x_webhook_secret:
+        raise HTTPException(status_code=403, detail="Acesso negado: Chave secreta do webhook ausente.")
 
+    try:
+        # Converte as chaves para bytes para a comparação segura
+        secret_bytes = WEBHOOK_SECRET_KEY.encode('utf-8')
+        received_bytes = x_webhook_secret.encode('utf-8')
+
+        # ✅ secrets.compare_digest previne timing attacks
+        if not secrets.compare_digest(secret_bytes, received_bytes):
+            raise HTTPException(status_code=403, detail="Acesso negado: Chave secreta do webhook inválida.")
+    except Exception:
+        # Captura erros (ex: chaves de tamanhos diferentes)
+        raise HTTPException(status_code=403, detail="Acesso negado: Chave secreta do webhook inválida.")
 
 
 @router.post(
@@ -27,8 +42,6 @@ def verify_webhook_secret(x_webhook_secret: str = Header(...)):
     dependencies=[Depends(verify_webhook_secret)],
     include_in_schema=False
 )
-
-
 async def chatbot_webhook(payload: ChatbotWebhookPayload, db: GetDBDep):
     print(f"🤖 Webhook do Chatbot recebido para loja {payload.storeId}: status {payload.status}")
 
@@ -37,7 +50,6 @@ async def chatbot_webhook(payload: ChatbotWebhookPayload, db: GetDBDep):
         print(f"❌ Loja {payload.storeId} não encontrada")
         return {"status": "erro", "message": "Loja não encontrada"}
 
-    # ✅ EXPANSÃO: Adicionar suporte para pairing code
     valid_statuses = ['awaiting_qr', 'awaiting_pairing_code', 'connected', 'disconnected', 'error']
     if payload.status not in valid_statuses:
         print(f"❌ Status inválido: {payload.status}")
@@ -53,19 +65,16 @@ async def chatbot_webhook(payload: ChatbotWebhookPayload, db: GetDBDep):
     if payload.status in ['disconnected', 'error']:
         config.last_qr_code = None
         config.whatsapp_name = None
-        # ✅ CORRIGIDO: Usando o nome do campo do modelo
-        config.last_connection_code = None
+        config.last_connection_code = None #
     elif payload.status == 'awaiting_pairing_code':
-        # ✅ CORRIGIDO: Usando o nome do campo do modelo
-        config.last_connection_code = payload.pairingCode
+        config.last_connection_code = payload.pairingCode #
         config.last_qr_code = None
-    elif payload.status == 'awaiting_qr': # Adicionado para clareza
-        config.last_qr_code = payload.qrCode
-        config.whatsapp_name = None # Nome só vem quando conectado
+    elif payload.status == 'awaiting_qr':
+        config.last_qr_code = payload.qrCode #
+        config.whatsapp_name = None
         config.last_connection_code = None
     elif payload.status == 'connected':
-        config.whatsapp_name = payload.whatsappName
-        # Limpa os códigos após a conexão ser bem-sucedida
+        config.whatsapp_name = payload.whatsappName #
         config.last_qr_code = None
         config.last_connection_code = None
 

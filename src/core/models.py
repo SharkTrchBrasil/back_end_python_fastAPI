@@ -3251,3 +3251,122 @@ class PrintLayoutConfig(Base, TimestampMixin):
         # Garante que cada loja tenha apenas uma configuração por destino
         UniqueConstraint('store_id', 'destination', name='_store_destination_uc'),
     )
+
+
+class MessageDLQ(Base, TimestampMixin):
+    """
+    Dead Letter Queue (DLQ) - Armazena mensagens que falharam ao encaminhar.
+    Permite retry automático e rastreamento de falhas.
+    """
+    __tablename__ = "message_dlq"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(
+        ForeignKey("stores.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    message_uid: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        doc="ID único da mensagem do WhatsApp"
+    )
+    chat_id: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        doc="ID do chat onde a mensagem falhou"
+    )
+    payload: Mapped[dict] = mapped_column(
+        JSONB,
+        nullable=False,
+        doc="Payload completo da mensagem para retry"
+    )
+    error_message: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        doc="Descrição do erro que causou a falha"
+    )
+    retry_count: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        doc="Número de tentativas de reenvio"
+    )
+    next_retry_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        doc="Próximo horário agendado para retry"
+    )
+    last_retry_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Timestamp da última tentativa de retry"
+    )
+
+    # Relacionamento
+    store: Mapped["Store"] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint('store_id', 'message_uid', name='message_dlq_unique'),
+        Index(
+            'idx_dlq_retry',
+            'next_retry_at',
+            'retry_count',
+            postgresql_where=text('retry_count < 5')
+        ),
+        Index('idx_dlq_store', 'store_id', 'created_at'),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<MessageDLQ(id={self.id}, "
+            f"store_id={self.store_id}, "
+            f"message_uid='{self.message_uid}', "
+            f"retry_count={self.retry_count})>"
+        )
+
+
+class MetricsSnapshot(Base):
+    """
+    Armazena snapshots de métricas do sistema.
+    Útil para análises históricas e dashboards.
+    Nota: Para alta escala, considere usar Prometheus.
+    """
+    __tablename__ = "metrics_snapshot"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    metric_name: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        index=True,
+        doc="Nome da métrica (ex: 'messages_sent', 'orders_created')"
+    )
+    metric_value: Mapped[Decimal] = mapped_column(
+        Numeric(20, 4),
+        nullable=False,
+        doc="Valor numérico da métrica"
+    )
+    tags: Mapped[dict | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        doc="Tags adicionais para filtrar métricas (ex: {'store_id': 1, 'type': 'whatsapp'})"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        index=True
+    )
+
+    __table_args__ = (
+        Index('idx_metrics_name_time', 'metric_name', 'created_at'),
+        Index('idx_metrics_tags', 'tags', postgresql_using='gin'),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<MetricsSnapshot(metric_name='{self.metric_name}', "
+            f"value={self.metric_value}, "
+            f"created_at={self.created_at})>"
+        )
