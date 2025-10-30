@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from .chatbot_webhook import verify_webhook_secret
 from src.core.security.hmac import verify_hmac_signature
 from src.api.admin.socketio.emitters import emit_new_chat_message
+from src.core.rate_limit.rate_limit import RateLimitDependency, RATE_LIMITS
 from src.api.admin.services.chatbot.secure_media_service import media_service
 
 router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
@@ -14,7 +15,11 @@ router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
 @router.post(
     "/chatbot/new-message",
     summary="Webhook para receber novas mensagens do chatbot",
-    dependencies=[Depends(verify_webhook_secret), Depends(verify_hmac_signature)]
+    dependencies=[
+        Depends(verify_webhook_secret),
+        Depends(verify_hmac_signature),
+        Depends(RateLimitDependency(RATE_LIMITS["webhook"]))
+    ]
 )
 async def new_chatbot_message_webhook(
         background_tasks: BackgroundTasks,

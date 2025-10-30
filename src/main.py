@@ -239,14 +239,26 @@ else:
     dynamic_subdomain_regex = rf"https://[a-zA-Z0-9-]+\.{re.escape(config.PLATFORM_DOMAIN)}"
 
 
+    # Garantir que headers de HMAC e correlação estejam permitidos e expostos
+    required_hmac_headers = [
+        "x-webhook-secret",
+        "x-signature",
+        "x-timestamp",
+        "x-nonce",
+        "x-correlation-id",
+    ]
+
+    allowed_headers = list(dict.fromkeys([*config.get_allowed_headers(), *required_hmac_headers]))
+    expose_headers = list(dict.fromkeys([*config.get_expose_headers(), "x-correlation-id"]))
+
     fast_app.add_middleware(
         CORSMiddleware,
         allow_origins=static_origins,  # Permite a lista estática
         allow_origin_regex=dynamic_subdomain_regex,  # E permite os subdomínios
         allow_credentials=True,
         allow_methods=config.get_allowed_methods(),  #
-        allow_headers=config.get_allowed_headers(),  #
-        expose_headers=config.get_expose_headers(),  #
+        allow_headers=allowed_headers,  #
+        expose_headers=expose_headers,  #
         max_age=3600,
     )
 

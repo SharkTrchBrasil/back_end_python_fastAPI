@@ -224,17 +224,172 @@ class TableService:
         if not command:
             raise ValueError("Comanda não encontrada")
 
-        # Fecha a comanda
-        command.status = CommandStatus.CLOSED
+		# Fecha a comanda
+		command.status = CommandStatus.CLOSED
 
-        # Libera a mesa
-        table.status = TableStatus.AVAILABLE
-        table.current_capacity = 0
-        table.closed_at = datetime.now(timezone.utc)
+		# Normaliza pedidos da comanda para contarem no dashboard/performance
+		orders = self.db.query(models.Order).filter(
+			models.Order.command_id == command_id,
+			models.Order.store_id == store_id
+		).all()
+
+		# Fallback de método de pagamento padrão (ex.: Dinheiro) se ausente
+		default_pm = None
+		try:
+			default_pm = (
+				self.db.query(models.StorePaymentMethodActivation)
+				.join(models.PlatformPaymentMethod)
+				.filter(
+					models.StorePaymentMethodActivation.store_id == store_id,
+					models.PlatformPaymentMethod.name.in_(["Dinheiro", "Cash"])
+				)
+				.first()
+			)
+		except Exception:
+			default_pm = None
+
+		for order in orders:
+			# Considera pedido concluído e pago ao fechar mesa
+			order.order_status = OrderStatus.DELIVERED
+			order.payment_status = PaymentStatus.PAID
+			if getattr(order, 'payment_method', None) is None and default_pm is not None:
+				try:
+					order.payment_method = default_pm
+				except Exception:
+					pass
+			# delivered_at opcional
+			if hasattr(order, 'delivered_at') and getattr(order, 'delivered_at') is None:
+				setattr(order, 'delivered_at', datetime.now(timezone.utc))
+			# Garantir campos numéricos não nulos
+			order.total_price = order.total_price or 0
+			order.subtotal_price = order.subtotal_price or order.total_price
+			order.discounted_total_price = order.discounted_total_price or order.total_price
+			# Tipos padronizados para relatórios
+			order.order_type = SalesChannel.TABLE
+			setattr(order, 'delivery_type', 'in_store')
+			setattr(order, 'consumption_type', 'dine_in')
+
+		# Libera a mesa
+		table.status = TableStatus.AVAILABLE
+		table.current_capacity = 0
+		table.closed_at = datetime.now(timezone.utc)
 
         self.db.commit()
         self.db.refresh(table)
         return table
+
+    # ========== OPERAÇÕES AVANÇADAS: TRANSFER/SPLIT/MERGE/MOVE ==========
+
+    def transfer_items_between_commands(self, store_id: int, from_command_id: int, to_command_id: int, order_product_ids: list[int]) -> bool:
+        """Transfere itens selecionados entre comandas (mesma loja)"""
+        from_cmd = self.db.query(models.Command).filter(models.Command.id == from_command_id, models.Command.store_id == store_id).first()
+        to_cmd = self.db.query(models.Command).filter(models.Command.id == to_command_id, models.Command.store_id == store_id).first()
+        if not from_cmd or not to_cmd:
+            raise ValueError("Comanda de origem ou destino não encontrada")
+        if from_cmd.status != CommandStatus.ACTIVE or to_cmd.status != CommandStatus.ACTIVE:
+            raise ValueError("Apenas comandas ativas podem transferir/receber itens")
+
+        items = self.db.query(models.OrderProduct).join(models.Order, models.OrderProduct.order_id == models.Order.id).filter(
+            models.OrderProduct.id.in_(order_product_ids),
+            models.Order.store_id == store_id,
+            models.Order.command_id == from_command_id
+        ).all()
+
+        if not items:
+            raise ValueError("Nenhum item válido para transferir")
+
+        # Reatribui os pedidos base dos itens para a comanda destino
+        order_ids_touched = set()
+        for op in items:
+            order = self.db.query(models.Order).filter(models.Order.id == op.order_id).first()
+            if order:
+                order.command_id = to_command_id
+                order.table_id = to_cmd.table_id
+                order_ids_touched.add(order.id)
+
+        self.db.commit()
+        return True
+
+    def split_items_to_new_command(self, store_id: int, source_command_id: int, order_product_ids: list[int], target_table_id: int | None = None) -> models.Command:
+        """Divide itens selecionados criando uma nova comanda (opcionalmente vinculada a uma mesa)"""
+        source = self.db.query(models.Command).filter(models.Command.id == source_command_id, models.Command.store_id == store_id).first()
+        if not source or source.status != CommandStatus.ACTIVE:
+            raise ValueError("Comanda origem inválida ou inativa")
+
+        new_cmd = models.Command(
+            store_id=store_id,
+            table_id=target_table_id if target_table_id is not None else source.table_id,
+            customer_name=source.customer_name,
+            customer_contact=source.customer_contact,
+            attendant_id=source.attendant_id,
+            notes=source.notes,
+            status=CommandStatus.ACTIVE,
+        )
+        self.db.add(new_cmd)
+        self.db.flush()
+
+        # Move itens selecionados (reassign orders)
+        items = self.db.query(models.OrderProduct).join(models.Order, models.OrderProduct.order_id == models.Order.id).filter(
+            models.OrderProduct.id.in_(order_product_ids),
+            models.Order.store_id == store_id,
+            models.Order.command_id == source_command_id
+        ).all()
+        if not items:
+            raise ValueError("Nenhum item válido para dividir")
+
+        for op in items:
+            order = self.db.query(models.Order).filter(models.Order.id == op.order_id).first()
+            if order:
+                order.command_id = new_cmd.id
+                order.table_id = new_cmd.table_id
+
+        self.db.commit()
+        self.db.refresh(new_cmd)
+        return new_cmd
+
+    def merge_commands(self, store_id: int, source_command_id: int, target_command_id: int) -> bool:
+        """Agrupa (merge) todos os pedidos da comanda origem na comanda destino"""
+        source = self.db.query(models.Command).filter(models.Command.id == source_command_id, models.Command.store_id == store_id).first()
+        target = self.db.query(models.Command).filter(models.Command.id == target_command_id, models.Command.store_id == store_id).first()
+        if not source or not target:
+            raise ValueError("Comandas não encontradas")
+        if source.status != CommandStatus.ACTIVE or target.status != CommandStatus.ACTIVE:
+            raise ValueError("Apenas comandas ativas podem ser unificadas")
+
+        orders = self.db.query(models.Order).filter(models.Order.command_id == source_command_id, models.Order.store_id == store_id).all()
+        for order in orders:
+            order.command_id = target_command_id
+            order.table_id = target.table_id
+
+        # Fecha a comanda origem
+        source.status = CommandStatus.CLOSED
+        self.db.commit()
+        return True
+
+    def move_table_to_saloon(self, store_id: int, table_id: int, new_saloon_id: int) -> models.Tables:
+        """Move a mesa para outro salão (mantém status/comandas)"""
+        table = self.db.query(models.Tables).filter(models.Tables.id == table_id, models.Tables.store_id == store_id).first()
+        if not table:
+            raise ValueError("Mesa não encontrada")
+        saloon = self.db.query(models.Saloon).filter(models.Saloon.id == new_saloon_id, models.Saloon.store_id == store_id).first()
+        if not saloon:
+            raise ValueError("Salão destino não encontrado")
+        table.saloon_id = new_saloon_id
+        self.db.commit()
+        self.db.refresh(table)
+        return table
+
+    def apply_command_adjustments(self, store_id: int, command_id: int, discount_value: float | None = None, notes: str | None = None) -> models.Command:
+        """Aplica desconto e/ou notas na comanda (não altera itens)"""
+        cmd = self.db.query(models.Command).filter(models.Command.id == command_id, models.Command.store_id == store_id).first()
+        if not cmd:
+            raise ValueError("Comanda não encontrada")
+        if notes is not None:
+            cmd.notes = notes
+        # Para desconto, opcional: registrar em tabela de ajustes/financeiro (fora do escopo aqui)
+        self.db.commit()
+        self.db.refresh(cmd)
+        return cmd
 
     # ========== ADICIONAR/REMOVER ITENS ==========
 

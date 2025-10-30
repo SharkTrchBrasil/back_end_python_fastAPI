@@ -15,7 +15,7 @@ from src.api.schemas.analytics.dashboard import (
 from src.core.utils.enums import OrderStatus
 
 
-def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, end_date: date) -> DashboardDataSchema:
+def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, end_date: date, order_type: str | None = None) -> DashboardDataSchema:
     """
     Função central que calcula todos os dados do dashboard para um determinado período.
     Versão final com proteção contra valores nulos em agregações e consulta de pagamento corrigida.
@@ -37,6 +37,8 @@ def get_dashboard_data_for_period(db: Session, store_id: int, start_date: date, 
         models.Order.created_at.between(start_date, end_date),
         models.Order.order_status == OrderStatus.DELIVERED
     )
+    if order_type:
+        base_order_filter = (*base_order_filter, models.Order.order_type == order_type)
 
     # --- 1. Cálculo dos KPIs (Esta parte já estava correta) ---
     kpi_query = db.query(

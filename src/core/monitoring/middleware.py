@@ -49,6 +49,26 @@ class MetricsMiddleware(BaseHTTPMiddleware):
                 status_code=status_code
             )
 
+            # Log estruturado com correlation-id
+            cid = getattr(request.state, "correlation_id", None)
+            try:
+                logger.info(
+                    {
+                        "event": "http_request",
+                        "method": request.method,
+                        "path": request.url.path,
+                        "status": status_code,
+                        "duration_ms": round(duration_ms, 2),
+                        "correlationId": cid,
+                    }
+                )
+            except Exception:
+                # fallback para string caso handler não aceite dicts
+                logger.info(
+                    f"event=http_request method={request.method} path={request.url.path} "
+                    f"status={status_code} duration_ms={duration_ms:.2f} correlationId={cid}"
+                )
+
             # Log de requisições lentas
             if duration_ms > 1000:  # > 1 segundo
                 logger.warning(

@@ -1,5 +1,5 @@
 # src/api/routes/admin/table.py
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Request
 
 from src.api.admin.services.table_service import TableService
 from src.api.schemas.tables.table import SaloonOut, CreateSaloonRequest, UpdateSaloonRequest, TableOut, \
@@ -7,7 +7,8 @@ from src.api.schemas.tables.table import SaloonOut, CreateSaloonRequest, UpdateS
     RemoveItemFromTableRequest
 
 from src.core.database import GetDBDep
-from src.core.dependencies import GetStoreDep
+from src.core.dependencies import GetStoreDep, GetCurrentUserDep, GetAuditLoggerDep
+from src.core.utils.enums import Roles, AuditAction, AuditEntityType
 
 router = APIRouter(tags=["Tables"], prefix="/stores/{store_id}/tables")
 
@@ -19,6 +20,8 @@ async def create_saloon(
     request: CreateSaloonRequest,
     db: GetDBDep,
     store: GetStoreDep,
+    user: GetCurrentUserDep,
+    audit: GetAuditLoggerDep,
 ):
     """Cria um novo salão/ambiente"""
     service = TableService(db)
@@ -33,6 +36,14 @@ async def create_saloon(
             emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
         )
 
+        audit.log(
+            action=AuditAction.CREATE_TABLE,
+            entity_type=AuditEntityType.TABLE,
+            entity_id=saloon.id,
+            changes=request.model_dump(),
+            description=f"Criou salão '{saloon.name}'"
+        )
+        db.commit()
         return saloon
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -44,6 +55,8 @@ async def update_saloon(
     request: UpdateSaloonRequest,
     db: GetDBDep,
     store: GetStoreDep,
+    user: GetCurrentUserDep,
+    audit: GetAuditLoggerDep,
 ):
     """Atualiza um salão existente"""
     service = TableService(db)
@@ -58,6 +71,14 @@ async def update_saloon(
             emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
         )
 
+        audit.log(
+            action=AuditAction.UPDATE_TABLE,
+            entity_type=AuditEntityType.TABLE,
+            entity_id=saloon.id,
+            changes=request.model_dump(exclude_none=True),
+            description=f"Atualizou salão '{saloon.name}'"
+        )
+        db.commit()
         return saloon
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -68,6 +89,8 @@ async def delete_saloon(
     saloon_id: int,
     db: GetDBDep,
     store: GetStoreDep,
+    user: GetCurrentUserDep,
+    audit: GetAuditLoggerDep,
 ):
     """Deleta um salão"""
     service = TableService(db)
@@ -82,6 +105,13 @@ async def delete_saloon(
             emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
         )
 
+        audit.log(
+            action=AuditAction.DELETE_TABLE,
+            entity_type=AuditEntityType.TABLE,
+            entity_id=saloon_id,
+            description=f"Deletou salão {saloon_id}"
+        )
+        db.commit()
         return None
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -94,6 +124,8 @@ async def create_table(
     request: CreateTableRequest,
     db: GetDBDep,
     store: GetStoreDep,
+    user: GetCurrentUserDep,
+    audit: GetAuditLoggerDep,
 ):
     """Cria uma nova mesa"""
     service = TableService(db)
@@ -108,6 +140,14 @@ async def create_table(
             emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
         )
 
+        audit.log(
+            action=AuditAction.CREATE_TABLE,
+            entity_type=AuditEntityType.TABLE,
+            entity_id=table.id,
+            changes=request.model_dump(),
+            description=f"Criou mesa '{table.name}'"
+        )
+        db.commit()
         return table
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -119,6 +159,8 @@ async def update_table(
     request: UpdateTableRequest,
     db: GetDBDep,
     store: GetStoreDep,
+    user: GetCurrentUserDep,
+    audit: GetAuditLoggerDep,
 ):
     """Atualiza informações de uma mesa"""
     service = TableService(db)
@@ -133,6 +175,14 @@ async def update_table(
             emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
         )
 
+        audit.log(
+            action=AuditAction.UPDATE_TABLE,
+            entity_type=AuditEntityType.TABLE,
+            entity_id=table.id,
+            changes=request.model_dump(exclude_none=True),
+            description=f"Atualizou mesa '{table.name}'"
+        )
+        db.commit()
         return table
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -143,6 +193,8 @@ async def delete_table(
     table_id: int,
     db: GetDBDep,
     store: GetStoreDep,
+    user: GetCurrentUserDep,
+    audit: GetAuditLoggerDep,
 ):
     """Deleta uma mesa"""
     service = TableService(db)
@@ -157,6 +209,13 @@ async def delete_table(
             emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
         )
 
+        audit.log(
+            action=AuditAction.DELETE_TABLE,
+            entity_type=AuditEntityType.TABLE,
+            entity_id=table_id,
+            description=f"Deletou mesa {table_id}"
+        )
+        db.commit()
         return None
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -169,6 +228,8 @@ async def open_table(
     request: OpenTableRequest,
     db: GetDBDep,
     store: GetStoreDep,
+    user: GetCurrentUserDep,
+    audit: GetAuditLoggerDep,
 ):
     """Abre uma mesa criando uma comanda"""
     service = TableService(db)
@@ -183,6 +244,14 @@ async def open_table(
             emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
         )
 
+        audit.log(
+            action=AuditAction.OPEN_TABLE,
+            entity_type=AuditEntityType.TABLE,
+            entity_id=command.table_id,
+            changes=request.model_dump(exclude_none=True),
+            description=f"Abriu mesa {command.table_id or 'avulsa'} com comanda {command.id}"
+        )
+        db.commit()
         return {"message": "Mesa aberta com sucesso", "command_id": command.id}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -193,6 +262,8 @@ async def close_table(
     request: CloseTableRequest,
     db: GetDBDep,
     store: GetStoreDep,
+    user: GetCurrentUserDep,
+    audit: GetAuditLoggerDep,
 ):
     """Fecha uma mesa e sua comanda"""
     service = TableService(db)
@@ -207,6 +278,14 @@ async def close_table(
             emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
         )
 
+        audit.log(
+            action=AuditAction.CLOSE_TABLE,
+            entity_type=AuditEntityType.TABLE,
+            entity_id=request.table_id,
+            changes=request.model_dump(),
+            description=f"Fechou mesa {request.table_id} e comanda {request.command_id}"
+        )
+        db.commit()
         return {"message": "Mesa fechada com sucesso"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -238,6 +317,198 @@ async def add_item_to_table(
             "order_id": order.id,
             "total": order.total_price
         }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ========== ROTAS AVANÇADAS: TRANSFER / SPLIT / MERGE / MOVE ==========
+
+@router.post("/transfer-items", status_code=status.HTTP_200_OK)
+async def transfer_items(
+    body: dict,
+    db: GetDBDep,
+    store: GetStoreDep,
+    user: GetCurrentUserDep,
+    audit: GetAuditLoggerDep,
+):
+    """Transfere itens entre comandas"""
+    required = ["from_command_id", "to_command_id", "order_product_ids"]
+    if not all(k in body for k in required):
+        raise HTTPException(status_code=422, detail="Parâmetros ausentes")
+
+    service = TableService(db)
+    try:
+        ok = service.transfer_items_between_commands(
+            store.id,
+            int(body["from_command_id"]),
+            int(body["to_command_id"]),
+            list(map(int, body["order_product_ids"]))
+        )
+
+        from src.api.admin.socketio import emitters
+        import asyncio
+        asyncio.create_task(emitters.admin_emit_tables_and_commands(db=db, store_id=store.id))
+
+        audit.log(
+            action=AuditAction.TRANSFER_COMMAND,
+            entity_type=AuditEntityType.ORDER,
+            changes={
+                "from_command_id": body["from_command_id"],
+                "to_command_id": body["to_command_id"],
+                "order_product_ids": body["order_product_ids"],
+            },
+            description="Transferiu itens entre comandas"
+        )
+        db.commit()
+        return {"status": "ok" if ok else "noop"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/split-items", status_code=status.HTTP_201_CREATED)
+async def split_items(
+    body: dict,
+    db: GetDBDep,
+    store: GetStoreDep,
+    user: GetCurrentUserDep,
+    audit: GetAuditLoggerDep,
+):
+    """Cria nova comanda com itens selecionados"""
+    required = ["source_command_id", "order_product_ids"]
+    if not all(k in body for k in required):
+        raise HTTPException(status_code=422, detail="Parâmetros ausentes")
+
+    service = TableService(db)
+    try:
+        new_cmd = service.split_items_to_new_command(
+            store.id,
+            int(body["source_command_id"]),
+            list(map(int, body["order_product_ids"])),
+            int(body["target_table_id"]) if body.get("target_table_id") is not None else None,
+        )
+
+        from src.api.admin.socketio import emitters
+        import asyncio
+        asyncio.create_task(emitters.admin_emit_tables_and_commands(db=db, store_id=store.id))
+
+        audit.log(
+            action=AuditAction.CREATE_COMMAND,
+            entity_type=AuditEntityType.ORDER,
+            entity_id=new_cmd.id,
+            changes={k: body[k] for k in body.keys()},
+            description="Dividiu itens para nova comanda"
+        )
+        db.commit()
+        return {"message": "Comanda criada", "command_id": new_cmd.id}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/merge-commands", status_code=status.HTTP_200_OK)
+async def merge_commands(
+    body: dict,
+    db: GetDBDep,
+    store: GetStoreDep,
+    user: GetCurrentUserDep,
+    audit: GetAuditLoggerDep,
+):
+    """Agrupa comandas (source -> target)"""
+    required = ["source_command_id", "target_command_id"]
+    if not all(k in body for k in required):
+        raise HTTPException(status_code=422, detail="Parâmetros ausentes")
+
+    service = TableService(db)
+    try:
+        ok = service.merge_commands(
+            store.id,
+            int(body["source_command_id"]),
+            int(body["target_command_id"])
+        )
+
+        from src.api.admin.socketio import emitters
+        import asyncio
+        asyncio.create_task(emitters.admin_emit_tables_and_commands(db=db, store_id=store.id))
+
+        audit.log(
+            action=AuditAction.MERGE_COMMANDS,
+            entity_type=AuditEntityType.ORDER,
+            changes={"source": body["source_command_id"], "target": body["target_command_id"]},
+            description="Unificou comandas"
+        )
+        db.commit()
+        return {"status": "ok" if ok else "noop"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/move-table", response_model=TableOut)
+async def move_table(
+    body: dict,
+    db: GetDBDep,
+    store: GetStoreDep,
+    user: GetCurrentUserDep,
+    audit: GetAuditLoggerDep,
+):
+    """Move mesa para outro salão"""
+    required = ["table_id", "new_saloon_id"]
+    if not all(k in body for k in required):
+        raise HTTPException(status_code=422, detail="Parâmetros ausentes")
+
+    service = TableService(db)
+    try:
+        table = service.move_table_to_saloon(store.id, int(body["table_id"]), int(body["new_saloon_id"]))
+
+        from src.api.admin.socketio import emitters
+        import asyncio
+        asyncio.create_task(emitters.admin_emit_tables_and_commands(db=db, store_id=store.id))
+
+        audit.log(
+            action=AuditAction.UPDATE_TABLE,
+            entity_type=AuditEntityType.TABLE,
+            entity_id=table.id,
+            changes={"new_saloon_id": body["new_saloon_id"]},
+            description=f"Moveu mesa {table.id} para salão {body['new_saloon_id']}"
+        )
+        db.commit()
+        return table
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/command-adjustments", status_code=status.HTTP_200_OK)
+async def command_adjustments(
+    body: dict,
+    db: GetDBDep,
+    store: GetStoreDep,
+    user: GetCurrentUserDep,
+    audit: GetAuditLoggerDep,
+):
+    """Aplica ajustes (desconto/notas) na comanda"""
+    if "command_id" not in body:
+        raise HTTPException(status_code=422, detail="command_id é obrigatório")
+
+    service = TableService(db)
+    try:
+        cmd = service.apply_command_adjustments(
+            store.id,
+            int(body["command_id"]),
+            float(body["discount_value"]) if body.get("discount_value") is not None else None,
+            body.get("notes")
+        )
+
+        from src.api.admin.socketio import emitters
+        import asyncio
+        asyncio.create_task(emitters.admin_emit_tables_and_commands(db=db, store_id=store.id))
+
+        audit.log(
+            action=AuditAction.UPDATE_TABLE,
+            entity_type=AuditEntityType.ORDER,
+            entity_id=cmd.id,
+            changes={k: body[k] for k in body.keys()},
+            description="Aplicou ajustes na comanda"
+        )
+        db.commit()
+        return {"status": "ok", "command_id": cmd.id}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

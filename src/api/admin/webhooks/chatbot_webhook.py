@@ -3,6 +3,7 @@
 import os
 import secrets
 from fastapi import APIRouter, Depends, Header, HTTPException
+from src.core.rate_limit.rate_limit import RateLimitDependency, RATE_LIMITS
 
 from src.api.admin.socketio.emitters import emit_chatbot_config_update, emit_store_updates
 from src.api.schemas.chatbot.chatbot_config import ChatbotWebhookPayload
@@ -40,7 +41,11 @@ def verify_webhook_secret(x_webhook_secret: str = Header(None)):
 @router.post(
     "/chatbot/update",
     summary="Webhook para receber atualizações do serviço de Chatbot",
-    dependencies=[Depends(verify_webhook_secret), Depends(verify_hmac_signature)],
+    dependencies=[
+        Depends(verify_webhook_secret),
+        Depends(verify_hmac_signature),
+        Depends(RateLimitDependency(RATE_LIMITS["webhook"]))
+    ],
     include_in_schema=False
 )
 async def chatbot_webhook(payload: ChatbotWebhookPayload, db: GetDBDep):
