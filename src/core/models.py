@@ -3013,6 +3013,8 @@ class ChatbotMessage(Base, TimestampMixin):
     )
 
 
+
+
 class ChatbotConversationMetadata(Base, TimestampMixin):
     __tablename__ = "chatbot_conversation_metadata"
 
@@ -3020,21 +3022,36 @@ class ChatbotConversationMetadata(Base, TimestampMixin):
     chat_id: Mapped[str] = mapped_column(String(100), primary_key=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), primary_key=True)
 
-    customer_name: Mapped[str | None] = mapped_column(String(100))
-    last_message_preview: Mapped[str | None] = mapped_column(Text)
+    customer_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    last_message_preview: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_message_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     customer_profile_pic_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
 
     # O campo mágico para o nosso controle
     unread_count: Mapped[int] = mapped_column(default=0)
 
-    store: Mapped["Store"] = relationship()
+    # ✅ ADICIONE ESTES CAMPOS (já vem do TimestampMixin, mas deixa explícito)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        index=True
+    )
 
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+
+    store: Mapped["Store"] = relationship()
 
     # ✅ ADICIONAR ESTES ÍNDICES
     __table_args__ = (
         Index('idx_conversation_metadata_store', 'store_id'),
         Index('idx_conversation_metadata_timestamp', 'last_message_timestamp'),
+        Index('idx_conversation_metadata_created', 'created_at'),
         Index(
             'idx_conversation_metadata_unread',
             'store_id',
@@ -3048,6 +3065,8 @@ class ChatbotConversationMetadata(Base, TimestampMixin):
             postgresql_where=text("last_message_timestamp >= NOW() - INTERVAL '30 days'")
         ),
     )
+
+
 
 # ✅ DEPOIS (CORRETO):
 class MonthlyCharge(Base, TimestampMixin):
