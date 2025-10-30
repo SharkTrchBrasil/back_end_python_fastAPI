@@ -36,6 +36,7 @@ from src.api.app.events.totem_namespace import TotemNamespace
 from src.core.dependencies import GetCurrentAdminUserDep
 
 from src.core.monitoring.middleware import MetricsMiddleware
+from src.core.middleware.correlation import CorrelationIdMiddleware
 from src.core.rate_limit.rate_limit import limiter, rate_limit_exceeded_handler, check_redis_connection
 from src.socketio_instance import sio
 from src.api.admin import router as admin_router
@@ -172,6 +173,7 @@ fast_app = FastAPI(
 )
 
 # Adicionar middleware
+fast_app.add_middleware(CorrelationIdMiddleware)
 fast_app.add_middleware(MetricsMiddleware)
 
 # ═══════════════════════════════════════════════════════════

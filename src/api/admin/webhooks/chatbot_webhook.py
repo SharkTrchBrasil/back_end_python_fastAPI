@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from src.api.admin.socketio.emitters import emit_chatbot_config_update, emit_store_updates
 from src.api.schemas.chatbot.chatbot_config import ChatbotWebhookPayload
 from src.core import models
+from src.core.security.hmac import verify_hmac_signature
 from src.core.database import GetDBDep
 
 router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
@@ -39,7 +40,7 @@ def verify_webhook_secret(x_webhook_secret: str = Header(None)):
 @router.post(
     "/chatbot/update",
     summary="Webhook para receber atualizações do serviço de Chatbot",
-    dependencies=[Depends(verify_webhook_secret)],
+    dependencies=[Depends(verify_webhook_secret), Depends(verify_hmac_signature)],
     include_in_schema=False
 )
 async def chatbot_webhook(payload: ChatbotWebhookPayload, db: GetDBDep):

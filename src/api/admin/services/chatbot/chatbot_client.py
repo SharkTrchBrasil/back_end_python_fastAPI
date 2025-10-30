@@ -5,6 +5,10 @@ import httpx
 from typing import Optional, Dict, Any
 import asyncio
 from contextlib import asynccontextmanager
+import hmac
+import hashlib
+import json
+import uuid
 
 
 class ChatbotClient:
@@ -30,12 +34,27 @@ class ChatbotClient:
 
         headers = {
             'x-webhook-secret': self.secret,
-            'user-agent': 'FastAPI-Chatbot-Client/1.0',
-            'content-type': 'application/json'
+            'user-agent': 'FastAPI-Chatbot-Client/1.0'
         }
 
         if 'headers' in kwargs:
             headers.update(kwargs.pop('headers'))
+
+        # Assinatura HMAC
+        timestamp = str(int(asyncio.get_event_loop().time() * 1000))
+        nonce = str(uuid.uuid4())
+
+        body_str = '{}'
+        if 'json' in kwargs and kwargs['json'] is not None:
+            body_str = json.dumps(kwargs['json'], separators=(',', ':'), ensure_ascii=False)
+            headers['content-type'] = 'application/json'
+
+        payload = f"{timestamp}.{nonce}.{body_str}"
+        signature = hmac.new(self.secret.encode('utf-8'), payload.encode('utf-8'), hashlib.sha256).hexdigest()
+        headers['x-signature'] = signature
+        headers['x-timestamp'] = timestamp
+        headers['x-nonce'] = nonce
+        headers['x-correlation-id'] = headers.get('x-correlation-id', f"fa-{uuid.uuid4()}")
 
         for attempt in range(self.max_retries):
             try:
