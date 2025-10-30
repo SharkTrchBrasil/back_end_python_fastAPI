@@ -203,8 +203,6 @@ class TableService:
 
         return command
 
-
-
     def close_table(self, store_id: int, table_id: int, command_id: int) -> models.Tables:
         """Fecha uma mesa e sua comanda"""
         table = self.db.query(models.Tables).filter(
@@ -224,61 +222,61 @@ class TableService:
         if not command:
             raise ValueError("Comanda não encontrada")
 
-		# Fecha a comanda
-		command.status = CommandStatus.CLOSED
+        # ✅ INÍCIO DO BLOCO CORRIGIDO (agora indentado)
+        # Fecha a comanda
+        command.status = CommandStatus.CLOSED
 
-		# Normaliza pedidos da comanda para contarem no dashboard/performance
-		orders = self.db.query(models.Order).filter(
-			models.Order.command_id == command_id,
-			models.Order.store_id == store_id
-		).all()
+        # Normaliza pedidos da comanda para contarem no dashboard/performance
+        orders = self.db.query(models.Order).filter(
+            models.Order.command_id == command_id,
+            models.Order.store_id == store_id
+        ).all()
 
-		# Fallback de método de pagamento padrão (ex.: Dinheiro) se ausente
-		default_pm = None
-		try:
-			default_pm = (
-				self.db.query(models.StorePaymentMethodActivation)
-				.join(models.PlatformPaymentMethod)
-				.filter(
-					models.StorePaymentMethodActivation.store_id == store_id,
-					models.PlatformPaymentMethod.name.in_(["Dinheiro", "Cash"])
-				)
-				.first()
-			)
-		except Exception:
-			default_pm = None
+        # Fallback de método de pagamento padrão (ex.: Dinheiro) se ausente
+        default_pm = None
+        try:
+            default_pm = (
+                self.db.query(models.StorePaymentMethodActivation)
+                .join(models.PlatformPaymentMethod)
+                .filter(
+                    models.StorePaymentMethodActivation.store_id == store_id,
+                    models.PlatformPaymentMethod.name.in_(["Dinheiro", "Cash"])
+                )
+                .first()
+            )
+        except Exception:
+            default_pm = None
 
-		for order in orders:
-			# Considera pedido concluído e pago ao fechar mesa
-			order.order_status = OrderStatus.DELIVERED
-			order.payment_status = PaymentStatus.PAID
-			if getattr(order, 'payment_method', None) is None and default_pm is not None:
-				try:
-					order.payment_method = default_pm
-				except Exception:
-					pass
-			# delivered_at opcional
-			if hasattr(order, 'delivered_at') and getattr(order, 'delivered_at') is None:
-				setattr(order, 'delivered_at', datetime.now(timezone.utc))
-			# Garantir campos numéricos não nulos
-			order.total_price = order.total_price or 0
-			order.subtotal_price = order.subtotal_price or order.total_price
-			order.discounted_total_price = order.discounted_total_price or order.total_price
-			# Tipos padronizados para relatórios
-			order.order_type = SalesChannel.TABLE
-			setattr(order, 'delivery_type', 'in_store')
-			setattr(order, 'consumption_type', 'dine_in')
+        for order in orders:
+            # Considera pedido concluído e pago ao fechar mesa
+            order.order_status = OrderStatus.DELIVERED
+            order.payment_status = PaymentStatus.PAID
+            if getattr(order, 'payment_method', None) is None and default_pm is not None:
+                try:
+                    order.payment_method = default_pm
+                except Exception:
+                    pass
+            # delivered_at opcional
+            if hasattr(order, 'delivered_at') and getattr(order, 'delivered_at') is None:
+                setattr(order, 'delivered_at', datetime.now(timezone.utc))
+            # Garantir campos numéricos não nulos
+            order.total_price = order.total_price or 0
+            order.subtotal_price = order.subtotal_price or order.total_price
+            order.discounted_total_price = order.discounted_total_price or order.total_price
+            # Tipos padronizados para relatórios
+            order.order_type = SalesChannel.TABLE
+            setattr(order, 'delivery_type', 'in_store')
+            setattr(order, 'consumption_type', 'dine_in')
 
-		# Libera a mesa
-		table.status = TableStatus.AVAILABLE
-		table.current_capacity = 0
-		table.closed_at = datetime.now(timezone.utc)
+        # Libera a mesa
+        table.status = TableStatus.AVAILABLE
+        table.current_capacity = 0
+        table.closed_at = datetime.now(timezone.utc)
+        # ✅ FIM DO BLOCO CORRIGIDO
 
         self.db.commit()
         self.db.refresh(table)
         return table
-
-    # ========== OPERAÇÕES AVANÇADAS: TRANSFER/SPLIT/MERGE/MOVE ==========
 
     def transfer_items_between_commands(self, store_id: int, from_command_id: int, to_command_id: int, order_product_ids: list[int]) -> bool:
         """Transfere itens selecionados entre comandas (mesma loja)"""
