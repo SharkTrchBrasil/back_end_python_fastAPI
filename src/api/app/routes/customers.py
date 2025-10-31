@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
+import base64
 
 from src.api.schemas.customer.customer_totem import (
     CustomerCreate,
@@ -190,3 +191,89 @@ def get_customer_address(customer_id: int, address_id: int, db: GetDBDep):
     if not address:
         raise HTTPException(status_code=404, detail="Endereço não encontrado")
     return address
+
+
+@router.get("/{customer_id}/orders", response_model=list)
+def get_customer_orders(customer_id: int, db: GetDBDep):
+    """Retorna o histórico de pedidos do cliente"""
+    from src.core.models import Order, OrderProduct
+    from sqlalchemy.orm import selectinload
+    
+    orders = db.scalars(
+        select(Order)
+        .options(
+            selectinload(Order.products),
+            selectinload(Order.store)
+        )
+        .where(Order.customer_id == customer_id)
+        .order_by(Order.created_at.desc())
+    ).all()
+    
+    return [
+        {
+            "id": order.id,
+            "sequential_id": order.sequential_id,
+            "public_id": order.public_id,
+            "store_id": order.store_id,
+            "order_type": order.order_type,
+            "delivery_type": order.delivery_type,
+            "payment_status": order.payment_status.value if hasattr(order.payment_status, 'value') else str(order.payment_status),
+            "order_status": order.order_status.value if hasattr(order.order_status, 'value') else str(order.order_status),
+            "total_price": order.total_price,
+            "subtotal_price": order.subtotal_price,
+            "delivery_fee": order.delivery_fee,
+            "discount_amount": order.discount_amount,
+            "needs_change": order.needs_change,
+            "change_amount": order.change_amount,
+            "created_at": order.created_at.isoformat() if order.created_at else None,
+            "charge": None,  # Charge não está disponível no histórico
+            "totem_id": order.totem_id,
+            "products": [
+                {
+                    "id": op.id,
+                    "name": op.product_name,
+                    "quantity": op.quantity,
+                    "price": op.total_price,
+                    "variants": [],  # Simplificado por enquanto
+                }
+                for op in order.products
+            ],
+            "street": order.street,
+            "number": order.number,
+            "neighborhood": order.neighborhood,
+            "city": order.city,
+            "complement": order.complement,
+            "observation": order.observation,
+        }
+        for order in orders
+    ]
+
+
+@router.post("/{customer_id}/photo", response_model=CustomerOut)
+async def upload_customer_photo(
+    customer_id: int,
+    db: GetDBDep,
+    photo: UploadFile = File(...),
+):
+    """Endpoint para upload de foto do cliente"""
+    query = select(Customer).options(
+        selectinload(Customer.customer_addresses)
+    ).where(Customer.id == customer_id)
+
+    result = db.execute(query)
+    customer = result.scalars().first()
+
+    if not customer:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+    
+    # Lê o arquivo
+    photo_bytes = await photo.read()
+    
+    # Por enquanto, salva como base64 (temporário)
+    # TODO: Em produção, fazer upload para S3/Cloudinary e salvar URL
+    photo_base64 = base64.b64encode(photo_bytes).decode('utf-8')
+    customer.photo = f"data:image/jpeg;base64,{photo_base64}"
+    
+    db.commit()
+    db.refresh(customer)
+    return customer

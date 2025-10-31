@@ -48,3 +48,4 @@ class CustomerOut(CustomerBase):
 class CustomerUpdate(BaseModel):
     name: str = Field(..., min_length=2)
     phone: str = Field(..., min_length=8)
+    email: Optional[EmailStr] = None  # Opcional para permitir atualização sem mudar email
