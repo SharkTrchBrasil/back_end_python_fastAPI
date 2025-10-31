@@ -71,6 +71,7 @@ class CommandOut(BaseModel):
                 for product in order.products:
                     items.append({
                         'order_id': order.id,
+                        'order_product_id': product.id,  # ✅ ID do OrderProduct para remover item
                         'product_id': product.product_id,
                         'product_name': product.name,
                         'quantity': product.quantity,
@@ -102,6 +103,7 @@ class CommandOut(BaseModel):
 # ✅ NOVO: Schema para os itens da comanda
 class CommandItemOut(BaseModel):
     order_id: int
+    order_product_id: int  # ✅ ID do OrderProduct para operações de remover/atualizar
     product_id: int
     product_name: str
     quantity: int
