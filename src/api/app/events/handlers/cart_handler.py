@@ -189,6 +189,59 @@ async def get_or_create_cart(sid, data=None):
                 db.commit()
                 db.refresh(cart)
 
+            # ✅ VERIFICA E REMOVE ITENS SEM ESTOQUE DO CARRINHO
+            items_removed = []
+            for cart_item in list(cart.items):  # Lista convertida para permitir remoção durante iteração
+                product = db.query(models.Product).options(
+                    selectinload(models.Product.variant_links)
+                    .selectinload(models.ProductVariantLink.variant)
+                    .selectinload(models.Variant.options)
+                ).filter_by(id=cart_item.product_id).first()
+                
+                should_remove = False
+                reason = ""
+                
+                if not product:
+                    should_remove = True
+                    reason = "produto não encontrado"
+                elif not product.is_actually_available:
+                    should_remove = True
+                    reason = "produto sem estoque"
+                elif product.control_stock and product.stock_quantity < cart_item.quantity:
+                    should_remove = True
+                    reason = f"estoque insuficiente (disponível: {product.stock_quantity}, solicitado: {cart_item.quantity})"
+                else:
+                    # Verifica estoque das variantes (complementos)
+                    for cart_variant in cart_item.variants:
+                        for cart_option in cart_variant.options:
+                            variant_option = db.query(models.VariantOption).filter_by(
+                                id=cart_option.variant_option_id
+                            ).first()
+                            
+                            if variant_option and not variant_option.is_actually_available:
+                                should_remove = True
+                                reason = f"complemento '{variant_option.resolvedName}' sem estoque"
+                                break
+                            elif variant_option and variant_option.track_inventory:
+                                total_quantity_needed = cart_option.quantity * cart_item.quantity
+                                if variant_option.stock_quantity < total_quantity_needed:
+                                    should_remove = True
+                                    reason = f"complemento '{variant_option.resolvedName}' com estoque insuficiente"
+                                    break
+                        if should_remove:
+                            break
+                
+                if should_remove:
+                    print(f"🗑️ Removendo '{product.name if product else 'Produto desconhecido'}' do carrinho: {reason}")
+                    items_removed.append(product.name if product else 'Produto desconhecido')
+                    db.delete(cart_item)
+            
+            # Salva as remoções se houver
+            if items_removed:
+                db.commit()
+                db.refresh(cart)
+                print(f"✅ {len(items_removed)} itens removidos do carrinho")
+
             final_cart_schema = _build_cart_schema(cart)
             return {"success": True, "cart": final_cart_schema.model_dump(mode="json")}
 

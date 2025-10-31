@@ -78,6 +78,7 @@ class Config(BaseSettings):
     PAGARME_WEBHOOK_USER: str = "menuhub_webhook"
     PAGARME_WEBHOOK_PASSWORD: str
 
+
     # ═══════════════════════════════════════════════════════════
     # 💬 CHATBOT
     # ═══════════════════════════════════════════════════════════
@@ -239,6 +240,7 @@ if config.is_development:
     print(f"🌍 Ambiente: {config.ENVIRONMENT}")
     print(f"🗄️ Database: {config.DATABASE_URL.split('@')[1] if '@' in config.DATABASE_URL else 'OK'}")
     print(f"💳 Pagar.me: {config.PAGARME_ENVIRONMENT}")
+
     print(f"🔴 Redis: {'✅' if config.REDIS_URL else '❌'}")
     print(f"🌐 CORS Origins: {len(config.get_allowed_origins_list())} origens")
     print(f"🔧 CORS Methods: {', '.join(config.get_allowed_methods())}")

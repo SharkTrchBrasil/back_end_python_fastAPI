@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 
 # Este é o novo payload que o Flutter vai enviar.
 # Apenas as informações que o backend ainda não sabe.
@@ -12,3 +13,6 @@ class CreateOrderInput(BaseModel):
     # O ID do endereço pode ser opcional se o usuário retirar na loja
     address_id: Optional[int] = None
     delivery_fee: Optional[int] = None
+    # Campos de agendamento
+    is_scheduled: Optional[bool] = False
+    scheduled_for: Optional[datetime] = None

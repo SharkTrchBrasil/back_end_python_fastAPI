@@ -1,7 +1,6 @@
 
 from typing import cast
-
-
+from sqlalchemy.orm import selectinload
 
 from src.api.admin.events.handlers.order_handler import process_new_order_automations
 from src.api.admin.socketio.emitters import admin_emit_order_updated_from_obj
@@ -11,7 +10,7 @@ from src.api.admin.utils.order_code import generate_unique_public_id, gerar_sequ
 from src.core import models
 
 from src.core.database import get_db_manager
-from src.core.utils.enums import OrderStatus, SalesChannel, PaymentStatus
+from src.core.utils.enums import OrderStatus, SalesChannel, PaymentStatus, ProductStatus
 
 from src.socketio_instance import sio
 
@@ -51,6 +50,56 @@ async def create_order_from_cart(sid, data):
             if not cart or not cart.items:
                 return {'error': 'Seu carrinho está vazio.'}
 
+            # 2.1. ✅ VALIDAÇÃO DE ESTOQUE ANTES DE CRIAR O PEDIDO
+            stock_validation_errors = []
+            for cart_item in cart.items:
+                # Carrega o produto com relacionamentos necessários
+                product = db.query(models.Product).options(
+                    selectinload(models.Product.variant_links)
+                    .selectinload(models.ProductVariantLink.variant)
+                    .selectinload(models.Variant.options)
+                ).filter_by(id=cart_item.product_id).first()
+                
+                if not product:
+                    stock_validation_errors.append(f"Produto '{cart_item.product.name}' não encontrado.")
+                    continue
+                
+                # Valida estoque do produto principal
+                if not product.is_actually_available:
+                    stock_validation_errors.append(
+                        f"Produto '{product.name}' está sem estoque."
+                    )
+                    continue
+                
+                # Valida se a quantidade solicitada está disponível
+                if product.control_stock and product.stock_quantity < cart_item.quantity:
+                    stock_validation_errors.append(
+                        f"Produto '{product.name}': estoque insuficiente. Disponível: {product.stock_quantity}, solicitado: {cart_item.quantity}."
+                    )
+                
+                # Valida estoque das variantes (complementos)
+                for cart_variant in cart_item.variants:
+                    for cart_option in cart_variant.options:
+                        variant_option = db.query(models.VariantOption).filter_by(
+                            id=cart_option.variant_option_id
+                        ).first()
+                        
+                        if variant_option and not variant_option.is_actually_available:
+                            stock_validation_errors.append(
+                                f"Complemento '{variant_option.resolvedName}' do produto '{product.name}' está sem estoque."
+                            )
+                        elif variant_option and variant_option.track_inventory:
+                            # Calcula quantidade total necessária (quantidade do complemento * quantidade do item)
+                            total_quantity_needed = cart_option.quantity * cart_item.quantity
+                            if variant_option.stock_quantity < total_quantity_needed:
+                                stock_validation_errors.append(
+                                    f"Complemento '{variant_option.resolvedName}' do produto '{product.name}': estoque insuficiente. "
+                                    f"Disponível: {variant_option.stock_quantity}, necessário: {total_quantity_needed}."
+                                )
+            
+            if stock_validation_errors:
+                return {'error': 'Erro de estoque: ' + '; '.join(stock_validation_errors)}
+
             # ✅ A CORREÇÃO FINAL ESTÁ AQUI
             payment_activation = db.query(models.StorePaymentMethodActivation).filter_by(
                 platform_payment_method_id=input_data.payment_method_id,  # Procura pelo ID da plataforma
@@ -86,7 +135,9 @@ async def create_order_from_cart(sid, data):
                 change_amount=input_data.change_for,
                 delivery_fee = input_data.delivery_fee,
                 payment_status=PaymentStatus.PENDING,
-                order_status=OrderStatus.PENDING
+                order_status=OrderStatus.PENDING,
+                is_scheduled=input_data.is_scheduled or False,
+                scheduled_for=input_data.scheduled_for
             )
 
             if address:

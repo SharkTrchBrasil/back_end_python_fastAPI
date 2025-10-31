@@ -1,5 +1,5 @@
 # src/api/services/table_service.py
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
 
@@ -122,6 +122,9 @@ class TableService:
 
         if not table:
             raise ValueError("Mesa não encontrada")
+        
+        # Salva status anterior para log
+        old_status = table.status
 
         if request.name is not None:
             table.name = request.name
@@ -130,7 +133,22 @@ class TableService:
         if request.location_description is not None:
             table.location_description = request.location_description
         if request.status is not None:
-            table.status = TableStatus(request.status)
+            new_status = TableStatus(request.status)
+            table.status = new_status
+            # Atualiza cor baseada no status
+            table.status_color = self._get_status_color(new_status)
+            
+            # Se mudou o status, registra no histórico
+            if old_status != new_status:
+                self._log_table_activity(
+                    table_id=table_id,
+                    store_id=store_id,
+                    action_type="status_changed",
+                    details={
+                        "from_status": old_status.value,
+                        "to_status": new_status.value
+                    }
+                )
 
         self.db.commit()
         self.db.refresh(table)
@@ -189,7 +207,22 @@ class TableService:
         # Atualiza o status da mesa (se houver)
         if table is not None:
             table.status = TableStatus.OCCUPIED
+            table.status_color = self._get_status_color(TableStatus.OCCUPIED)
             table.opened_at = datetime.now(timezone.utc)
+            table.current_capacity = request.customer_capacity if hasattr(request, 'customer_capacity') else 1
+            
+            # Registra no log de atividades
+            self._log_table_activity(
+                table_id=table.id,
+                store_id=store_id,
+                action_type="table_opened",
+                command_id=command.id,
+                performed_by=request.attendant_id,
+                details={
+                    "customer_name": request.customer_name,
+                    "customer_contact": request.customer_contact
+                }
+            )
 
         self.db.commit()
         self.db.refresh(command)
@@ -268,10 +301,47 @@ class TableService:
             setattr(order, 'delivery_type', 'in_store')
             setattr(order, 'consumption_type', 'dine_in')
 
+        # Calcula duração da ocupação
+        duration_minutes = None
+        if table.opened_at:
+            duration = datetime.now(timezone.utc) - table.opened_at
+            duration_minutes = int(duration.total_seconds() / 60)
+        
+        # Calcula receita total da comanda
+        total_revenue = sum(order.total_price or 0 for order in orders)
+        
+        # Atualiza estatísticas diárias da mesa
+        table.total_orders_today += len(orders)
+        table.total_revenue_today += total_revenue
+        
         # Libera a mesa
         table.status = TableStatus.AVAILABLE
+        table.status_color = self._get_status_color(TableStatus.AVAILABLE)
         table.current_capacity = 0
         table.closed_at = datetime.now(timezone.utc)
+        
+        # Registra no log de atividades
+        self._log_table_activity(
+            table_id=table_id,
+            store_id=store_id,
+            action_type="table_closed",
+            command_id=command_id,
+            revenue=total_revenue,
+            details={
+                "duration_minutes": duration_minutes,
+                "total_orders": len(orders),
+                "total_revenue": total_revenue
+            }
+        )
+        
+        # Atualiza o duration_minutes no log
+        if duration_minutes:
+            last_log = self.db.query(models.TableActivityLog).filter(
+                models.TableActivityLog.table_id == table_id,
+                models.TableActivityLog.action_type == "table_closed"
+            ).order_by(models.TableActivityLog.created_at.desc()).first()
+            if last_log:
+                last_log.duration_minutes = duration_minutes
         # ✅ FIM DO BLOCO CORRIGIDO
 
         self.db.commit()
@@ -576,8 +646,357 @@ class TableService:
         """Busca uma mesa com todos os relacionamentos carregados"""
         return self.db.query(models.Tables).options(
             selectinload(models.Tables.commands),
-            selectinload(models.Tables.orders)
+            selectinload(models.Tables.orders),
+            selectinload(models.Tables.assigned_employee)
         ).filter(
             models.Tables.id == table_id,
             models.Tables.store_id == store_id
         ).first()
+    
+    # ========== NOVAS FUNCIONALIDADES ==========
+    
+    def assign_employee_to_table(self, store_id: int, table_id: int, employee_id: int | None, performed_by: int | None = None) -> models.Tables:
+        """Atribui um funcionário a uma mesa"""
+        table = self.db.query(models.Tables).filter(
+            models.Tables.id == table_id,
+            models.Tables.store_id == store_id
+        ).first()
+        
+        if not table:
+            raise ValueError("Mesa não encontrada")
+        
+        # Se employee_id for None, desatribui o funcionário
+        if employee_id is not None:
+            # Verifica se o funcionário existe e tem acesso à loja
+            employee = self.db.query(models.User).join(
+                models.StoreAccess
+            ).filter(
+                models.User.id == employee_id,
+                models.StoreAccess.store_id == store_id
+            ).first()
+            
+            if not employee:
+                raise ValueError("Funcionário não encontrado ou sem acesso à loja")
+        
+        # Atribui ou desatribui
+        old_employee_id = table.assigned_employee_id
+        table.assigned_employee_id = employee_id
+        
+        # Registra no log
+        self._log_table_activity(
+            table_id=table_id,
+            store_id=store_id,
+            action_type="employee_assigned" if employee_id else "employee_unassigned",
+            details={
+                "old_employee_id": old_employee_id,
+                "new_employee_id": employee_id
+            },
+            performed_by=performed_by
+        )
+        
+        self.db.commit()
+        self.db.refresh(table)
+        return table
+    
+    def get_table_dashboard(self, store_id: int) -> dict:
+        """Retorna dados para o dashboard de mesas com status visual"""
+        from sqlalchemy import func
+        
+        # Busca todos os salões com suas mesas
+        saloons = self.db.query(models.Saloon).options(
+            selectinload(models.Saloon.tables).selectinload(models.Tables.commands),
+            selectinload(models.Saloon.tables).selectinload(models.Tables.assigned_employee)
+        ).filter(
+            models.Saloon.store_id == store_id,
+            models.Saloon.is_active == True
+        ).order_by(models.Saloon.display_order).all()
+        
+        # Estatísticas gerais
+        total_tables = 0
+        occupied_tables = 0
+        available_tables = 0
+        reserved_tables = 0
+        total_revenue_today = 0
+        total_orders_today = 0
+        
+        saloons_data = []
+        
+        for saloon in saloons:
+            saloon_tables = []
+            
+            for table in saloon.tables:
+                if table.is_deleted:
+                    continue
+                    
+                total_tables += 1
+                
+                # Conta por status
+                if table.status == TableStatus.OCCUPIED:
+                    occupied_tables += 1
+                elif table.status == TableStatus.AVAILABLE:
+                    available_tables += 1
+                elif table.status == TableStatus.RESERVED:
+                    reserved_tables += 1
+                
+                # Atualiza cor do status
+                table.status_color = self._get_status_color(table.status)
+                
+                # Calcula totais da mesa
+                table_revenue = 0
+                active_command = None
+                
+                for command in table.commands:
+                    if command.status == CommandStatus.ACTIVE:
+                        active_command = command
+                        # Calcula total da comanda ativa
+                        for order in command.orders:
+                            table_revenue += order.total_price or 0
+                
+                saloon_tables.append({
+                    "id": table.id,
+                    "name": table.name,
+                    "status": table.status.value,
+                    "status_color": table.status_color,
+                    "max_capacity": table.max_capacity,
+                    "current_capacity": table.current_capacity,
+                    "location_description": table.location_description,
+                    "assigned_employee_id": table.assigned_employee_id,
+                    "assigned_employee_name": table.assigned_employee.name if table.assigned_employee else None,
+                    "active_command_id": active_command.id if active_command else None,
+                    "current_revenue": table_revenue,
+                    "last_activity_at": table.last_activity_at.isoformat() if table.last_activity_at else None
+                })
+                
+                total_revenue_today += table.total_revenue_today or 0
+                total_orders_today += table.total_orders_today or 0
+            
+            saloons_data.append({
+                "id": saloon.id,
+                "name": saloon.name,
+                "tables": saloon_tables,
+                "total_tables": len(saloon_tables),
+                "occupied_count": sum(1 for t in saloon_tables if t["status"] == "OCCUPIED"),
+                "available_count": sum(1 for t in saloon_tables if t["status"] == "AVAILABLE")
+            })
+        
+        # Calcula tempo médio de ocupação
+        avg_occupation = self._calculate_average_occupation_time(store_id)
+        
+        return {
+            "saloons": saloons_data,
+            "total_tables": total_tables,
+            "occupied_tables": occupied_tables,
+            "available_tables": available_tables,
+            "reserved_tables": reserved_tables,
+            "total_revenue_today": total_revenue_today,
+            "total_orders_today": total_orders_today,
+            "average_occupation_time": avg_occupation
+        }
+    
+    def get_table_activity_report(self, store_id: int, table_id: int, start_date: datetime | None = None, end_date: datetime | None = None) -> dict:
+        """Gera relatório de atividades de uma mesa"""
+        from sqlalchemy import func
+        
+        table = self.db.query(models.Tables).filter(
+            models.Tables.id == table_id,
+            models.Tables.store_id == store_id
+        ).first()
+        
+        if not table:
+            raise ValueError("Mesa não encontrada")
+        
+        # Define período padrão (últimos 30 dias)
+        if not end_date:
+            end_date = datetime.now(timezone.utc)
+        if not start_date:
+            start_date = end_date - timedelta(days=30)
+        
+        # Busca atividades no período
+        activities = self.db.query(models.TableActivityLog).filter(
+            models.TableActivityLog.table_id == table_id,
+            models.TableActivityLog.created_at >= start_date,
+            models.TableActivityLog.created_at <= end_date
+        ).order_by(models.TableActivityLog.created_at.desc()).all()
+        
+        # Estatísticas
+        total_revenue = sum(a.revenue_generated for a in activities if a.revenue_generated)
+        total_orders = len([a for a in activities if a.action_type == "order_created"])
+        
+        # Calcula tempo médio de ocupação
+        occupation_times = [a.duration_minutes for a in activities if a.duration_minutes]
+        avg_duration = sum(occupation_times) / len(occupation_times) if occupation_times else 0
+        
+        # Encontra hora mais movimentada
+        hour_counts = {}
+        for activity in activities:
+            hour = activity.created_at.hour
+            hour_counts[hour] = hour_counts.get(hour, 0) + 1
+        
+        busiest_hour = max(hour_counts, key=hour_counts.get) if hour_counts else None
+        
+        # Formata atividades para retorno
+        activities_data = []
+        for activity in activities[:50]:  # Limita últimas 50 atividades
+            activities_data.append({
+                "id": activity.id,
+                "action_type": activity.action_type,
+                "details": activity.action_details,
+                "performed_by": activity.user.name if activity.user else None,
+                "created_at": activity.created_at.isoformat(),
+                "revenue": activity.revenue_generated
+            })
+        
+        return {
+            "table_id": table_id,
+            "table_name": table.name,
+            "period": {
+                "start": start_date.isoformat(),
+                "end": end_date.isoformat()
+            },
+            "total_revenue": total_revenue,
+            "total_orders": total_orders,
+            "total_customers": len(set(a.performed_by for a in activities if a.performed_by)),
+            "average_duration_minutes": avg_duration,
+            "busiest_hour": busiest_hour,
+            "activities": activities_data
+        }
+    
+    def split_payment(self, store_id: int, command_id: int, split_type: str, splits: list[dict]) -> list[models.OrderPartialPayment]:
+        """Divide o pagamento de uma comanda"""
+        command = self.db.query(models.Command).filter(
+            models.Command.id == command_id,
+            models.Command.store_id == store_id
+        ).first()
+        
+        if not command:
+            raise ValueError("Comanda não encontrada")
+        
+        if command.status != CommandStatus.ACTIVE:
+            raise ValueError("Apenas comandas ativas podem ter pagamento dividido")
+        
+        # Calcula total da comanda
+        total_amount = 0
+        for order in command.orders:
+            total_amount += order.total_price or 0
+        
+        if total_amount == 0:
+            raise ValueError("Comanda sem valor para dividir")
+        
+        partial_payments = []
+        
+        if split_type == "equal":
+            # Divide igualmente
+            num_splits = len(splits)
+            amount_per_person = total_amount // num_splits
+            remainder = total_amount % num_splits
+            
+            for i, split in enumerate(splits):
+                amount = amount_per_person
+                if i == 0:  # Adiciona resto ao primeiro
+                    amount += remainder
+                
+                payment = models.OrderPartialPayment(
+                    order_id=command.orders[0].id,  # Usa primeiro pedido da comanda
+                    amount=amount,
+                    received_by=split.get("customer_name", f"Cliente {i+1}"),
+                    notes=f"Split {split_type} - Parte {i+1}/{num_splits}"
+                )
+                self.db.add(payment)
+                partial_payments.append(payment)
+        
+        elif split_type == "percentage":
+            # Divide por percentual
+            for split in splits:
+                percentage = split.get("percentage", 0)
+                amount = int(total_amount * percentage / 100)
+                
+                payment = models.OrderPartialPayment(
+                    order_id=command.orders[0].id,
+                    amount=amount,
+                    received_by=split.get("customer_name", "Cliente"),
+                    notes=f"Split {percentage}%"
+                )
+                self.db.add(payment)
+                partial_payments.append(payment)
+        
+        elif split_type == "custom":
+            # Valores customizados
+            for split in splits:
+                amount = split.get("amount", 0)
+                
+                payment = models.OrderPartialPayment(
+                    order_id=command.orders[0].id,
+                    amount=amount,
+                    received_by=split.get("customer_name", "Cliente"),
+                    notes=f"Split customizado"
+                )
+                self.db.add(payment)
+                partial_payments.append(payment)
+        
+        # Atualiza comanda
+        command.payment_split_type = split_type
+        
+        # Registra no log
+        self._log_table_activity(
+            table_id=command.table_id,
+            store_id=store_id,
+            action_type="payment_split",
+            command_id=command_id,
+            details={
+                "split_type": split_type,
+                "num_splits": len(splits),
+                "total_amount": total_amount
+            }
+        )
+        
+        self.db.commit()
+        return partial_payments
+    
+    # ========== MÉTODOS AUXILIARES PRIVADOS ==========
+    
+    def _get_status_color(self, status: TableStatus) -> str:
+        """Retorna a cor associada ao status da mesa"""
+        color_map = {
+            TableStatus.AVAILABLE: "#28a745",     # Verde
+            TableStatus.OCCUPIED: "#dc3545",      # Vermelho
+            TableStatus.RESERVED: "#ffc107",      # Amarelo
+            TableStatus.MAINTENANCE: "#6c757d",   # Cinza
+            TableStatus.CLEANING: "#17a2b8"       # Azul
+        }
+        return color_map.get(status, "#6c757d")
+    
+    def _log_table_activity(self, table_id: int, store_id: int, action_type: str, details: dict | None = None, performed_by: int | None = None, command_id: int | None = None, revenue: int = 0):
+        """Registra atividade no log da mesa"""
+        log = models.TableActivityLog(
+            table_id=table_id,
+            store_id=store_id,
+            action_type=action_type,
+            action_details=details,
+            performed_by=performed_by,
+            command_id=command_id,
+            revenue_generated=revenue
+        )
+        self.db.add(log)
+        
+        # Atualiza última atividade da mesa
+        table = self.db.query(models.Tables).filter(models.Tables.id == table_id).first()
+        if table:
+            table.last_activity_at = datetime.now(timezone.utc)
+    
+    def _calculate_average_occupation_time(self, store_id: int) -> float:
+        """Calcula tempo médio de ocupação das mesas"""
+        from sqlalchemy import func
+        
+        # Busca logs de ocupação dos últimos 7 dias
+        seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+        
+        avg_time = self.db.query(
+            func.avg(models.TableActivityLog.duration_minutes)
+        ).filter(
+            models.TableActivityLog.store_id == store_id,
+            models.TableActivityLog.action_type == "table_closed",
+            models.TableActivityLog.created_at >= seven_days_ago,
+            models.TableActivityLog.duration_minutes.isnot(None)
+        ).scalar()
+        
+        return float(avg_time) if avg_time else 0.0

@@ -16,7 +16,7 @@ from src.api.admin.utils.authorize_admin import authorize_admin_by_jwt
 
 from src.core import models
 from src.api.admin.socketio.emitters import (
-    admin_emit_order_updated_from_obj, admin_emit_new_print_jobs
+    admin_emit_order_updated_from_obj, admin_emit_new_print_jobs, admin_emit_products_updated
 )
 from src.core.cache.cache_manager import logger, cache_manager
 from src.core.database import get_db_manager
@@ -128,6 +128,8 @@ async def handle_update_order_status(self, sid, data):
             if new_status_str == OrderStatus.DELIVERED.value:
                 decrease_stock_for_order(order, db)
                 business_actions.append("Estoque baixado")
+                # ✅ Notifica atualização de produtos após baixa de estoque
+                asyncio.create_task(admin_emit_products_updated(db, order.store_id))
 
             if new_status_str == OrderStatus.FINALIZED.value:
                 calculate_and_apply_cashback_for_order(order, db)

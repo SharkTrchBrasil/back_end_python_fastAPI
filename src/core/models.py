@@ -226,6 +226,62 @@ class Store(Base, TimestampMixin):
         else:
             self._pagarme_card_id_encrypted = encryption_service.encrypt(value)
 
+    # ✅ CAMPOS DO MERCADO PAGO:
+    mercadopago_user_id: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        index=True,
+        doc="ID do usuário no Mercado Pago"
+    )
+
+    # ✅ CAMPO CRIPTOGRAFADO (armazena bytes)
+    _mercadopago_access_token_encrypted: Mapped[bytes | None] = mapped_column(
+        "mercadopago_access_token",  # Nome da coluna no banco
+        LargeBinary,
+        nullable=True,
+        doc="Access token do Mercado Pago (criptografado)"
+    )
+
+    mercadopago_public_key: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        doc="Public key do Mercado Pago"
+    )
+
+    mercadopago_connected_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Data da conexão com Mercado Pago"
+    )
+
+    mercadopago_last_sync_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Última sincronização com Mercado Pago"
+    )
+
+    # ✅ PROPERTY QUE DESCRIPTOGRAFA AUTOMATICAMENTE
+    @hybrid_property
+    def mercadopago_access_token(self) -> str | None:
+        """Retorna o access_token descriptografado"""
+        if not self._mercadopago_access_token_encrypted:
+            return None
+        try:
+            return encryption_service.decrypt(self._mercadopago_access_token_encrypted)
+        except Exception as e:
+            import logging
+            logging.error(f"Falha ao descriptografar access_token da loja {self.id}: {e}")
+            return None
+
+    # ✅ SETTER QUE CRIPTOGRAFA AUTOMATICAMENTE
+    @mercadopago_access_token.setter
+    def mercadopago_access_token(self, value: str | None):
+        """Salva o access_token criptografado"""
+        if value is None:
+            self._mercadopago_access_token_encrypted = None
+        else:
+            self._mercadopago_access_token_encrypted = encryption_service.encrypt(value)
+
 
 
 
@@ -395,7 +451,11 @@ class User(Base, TimestampMixin):
     verification_code: Mapped[Optional[str]] = mapped_column(nullable=True)  # ALTERADO
     cpf: Mapped[Optional[str]] = mapped_column(unique=True, index=True, nullable=True)  # ALTERADO
     birth_date: Mapped[Optional[date]] = mapped_column(nullable=True)  # ALTERADO
-
+    
+    # ✅ NOVOS CAMPOS PARA LOGIN COM PIN
+    pin_code: Mapped[str | None] = mapped_column(String(6), nullable=True, unique=True, index=True)
+    pin_attempts: Mapped[int] = mapped_column(default=0)
+    pin_locked_until: Mapped[datetime | None] = mapped_column(nullable=True)
 
     referral_code: Mapped[str] = mapped_column(unique=True, index=True)
     referred_by_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)  # ALTERADO
@@ -769,6 +829,18 @@ class Product(Base, TimestampMixin):
         if self.gallery_images:
             return self.gallery_images[0].file_key
         return None
+
+    @hybrid_property
+    def is_actually_available(self) -> bool:
+        """Verifica a disponibilidade real do produto, considerando o controle de estoque."""
+        # Se o produto está inativo ou arquivado, não está disponível
+        if self.status == ProductStatus.INACTIVE or self.status == ProductStatus.ARCHIVED:
+            return False
+        # Se não controla estoque, está disponível
+        if not self.control_stock:
+            return True
+        # Se controla estoque, verifica se há estoque disponível
+        return self.stock_quantity > 0
 
     __table_args__ = (
         Index('idx_products_store_active', 'store_id', 'status'),
@@ -2264,7 +2336,6 @@ class Saloon(Base, TimestampMixin):
     )
 
 
-
 class Tables(Base, TimestampMixin):
     __tablename__ = "tables"
 
@@ -2280,6 +2351,13 @@ class Tables(Base, TimestampMixin):
         default=TableStatus.AVAILABLE,
         server_default=TableStatus.AVAILABLE.value  # Opcional, mas bom: define o padrão no DB
     )
+    
+    # ✅ NOVOS CAMPOS PARA MELHORIAS DO SISTEMA
+    assigned_employee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    status_color: Mapped[str | None] = mapped_column(String(7), nullable=True, default="#28a745")  # Cor para dashboard
+    last_activity_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    total_orders_today: Mapped[int] = mapped_column(default=0)
+    total_revenue_today: Mapped[int] = mapped_column(default=0)  # Em centavos
 
     max_capacity: Mapped[int] = mapped_column(default=4)
     current_capacity: Mapped[int] = mapped_column(default=0)
@@ -2291,7 +2369,10 @@ class Tables(Base, TimestampMixin):
 
     # ✅ NOVO RELACIONAMENTO: Mesa para Salão
     saloon: Mapped["Saloon"] = relationship(back_populates="tables")
-
+    
+    # ✅ NOVO RELACIONAMENTO: Funcionário atribuído
+    assigned_employee: Mapped["User | None"] = relationship(foreign_keys=[assigned_employee_id])
+    
     # Relacionamento com Order (já estava correto)
     orders: Mapped[list["Order"]] = relationship(back_populates="table")
 
@@ -2300,6 +2381,9 @@ class Tables(Base, TimestampMixin):
 
     # ✅ back_populates corrigido para "table"
     history: Mapped[list["TableHistory"]] = relationship(back_populates="table")
+    
+    # ✅ NOVO: Logs de atividades
+    activity_logs: Mapped[list["TableActivityLog"]] = relationship(back_populates="table")
 
 
 
@@ -2330,6 +2414,12 @@ class Command(Base, TimestampMixin):
     )
     attendant_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)  # Observações especiais
+    
+    # ✅ NOVOS CAMPOS PARA MELHORIAS
+    split_from_command_id: Mapped[int | None] = mapped_column(ForeignKey("commands.id", ondelete="SET NULL"), nullable=True)
+    payment_split_type: Mapped[str | None] = mapped_column(String(20), nullable=True)  # 'equal', 'percentage', 'custom'
+    discount_amount: Mapped[int] = mapped_column(default=0)  # Em centavos
+    service_charge: Mapped[int] = mapped_column(default=0)  # Taxa de serviço em centavos
 
 
     table: Mapped["Tables | None"] = relationship(back_populates="commands")
@@ -2388,6 +2478,33 @@ class TableHistory(Base):
     # ✅ Relacionamento corrigido
     table: Mapped["Tables"] = relationship(back_populates="history")
     user: Mapped["User | None"] = relationship()
+
+
+class TableActivityLog(Base, TimestampMixin):
+    """Histórico detalhado de atividades das mesas para relatórios e análise"""
+    __tablename__ = "table_activity_log"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    table_id: Mapped[int] = mapped_column(ForeignKey("tables.id", ondelete="CASCADE"), index=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id", ondelete="CASCADE"), index=True)
+    command_id: Mapped[int | None] = mapped_column(ForeignKey("commands.id", ondelete="SET NULL"), nullable=True)
+    
+    action_type: Mapped[str] = mapped_column(String(50))  # 'open', 'close', 'transfer', 'split', 'add_item', etc.
+    action_details: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Detalhes adicionais em JSON
+    
+    performed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    revenue_generated: Mapped[int] = mapped_column(default=0)  # Receita gerada nesta ação (em centavos)
+    duration_minutes: Mapped[int | None] = mapped_column(nullable=True)  # Duração da ocupação da mesa
+    
+    # Relacionamentos
+    table: Mapped["Tables"] = relationship(back_populates="activity_logs")
+    store: Mapped["Store"] = relationship()
+    command: Mapped["Command | None"] = relationship()
+    user: Mapped["User | None"] = relationship()
+    
+    __table_args__ = (
+        Index('idx_table_activity_created_at', 'created_at'),
+    )
 
 
 

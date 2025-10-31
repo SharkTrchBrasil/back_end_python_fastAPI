@@ -134,6 +134,12 @@ class TableOut(TableBase):
     store_id: int
     saloon_id: int
     status: TableStatus
+    status_color: Optional[str] = "#28a745"  # Cor do status
+    assigned_employee_id: Optional[int] = None
+    assigned_employee_name: Optional[str] = None  # Nome do funcionário
+    last_activity_at: Optional[datetime] = None
+    total_orders_today: int = 0
+    total_revenue_today: int = 0
     commands: List[CommandSchema] = []
 
     class Config:
@@ -241,3 +247,42 @@ class UpdateSaloonRequest(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     display_order: Optional[int] = Field(None, ge=0)
     is_active: Optional[bool] = None
+
+
+# ✅ NOVOS SCHEMAS PARA FUNCIONALIDADES ADICIONAIS
+
+class AssignEmployeeRequest(BaseModel):
+    """Schema para atribuir funcionário a uma mesa"""
+    table_id: int = Field(..., gt=0)
+    employee_id: Optional[int] = Field(None, description="ID do funcionário ou None para desatribuir")
+
+
+class TableActivityReport(BaseModel):
+    """Schema para relatório de atividades da mesa"""
+    table_id: int
+    table_name: str
+    total_revenue: int  # Em centavos
+    total_orders: int
+    total_customers: int
+    average_duration_minutes: float
+    busiest_hour: Optional[int] = None
+    activities: List[dict] = []  # Lista de atividades recentes
+
+
+class SplitPaymentRequest(BaseModel):
+    """Schema para split de conta"""
+    command_id: int = Field(..., gt=0)
+    split_type: str = Field(..., description="'equal', 'percentage', 'custom'")
+    splits: List[dict] = Field(..., description="Detalhes do split")
+    
+
+class TableDashboardOut(BaseModel):
+    """Schema para dashboard de mesas com status visual"""
+    saloons: List[dict]  # Lista de salões com suas mesas e status colorido
+    total_tables: int
+    occupied_tables: int
+    available_tables: int
+    reserved_tables: int
+    total_revenue_today: int
+    total_orders_today: int
+    average_occupation_time: float

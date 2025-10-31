@@ -1,7 +1,7 @@
 # Arquivo: src/services/stock_service.py
 from sqlalchemy.orm import Session, selectinload
 from src.core import models
-from src.core.utils.enums import ProductType  # Supondo que seu enum esteja aqui
+from src.core.utils.enums import ProductType, ProductStatus
 
 
 def decrease_stock_for_order(order: models.Order, db: Session):
@@ -38,6 +38,12 @@ def decrease_stock_for_order(order: models.Order, db: Session):
                     component_product.stock_quantity -= quantity_to_decrease
                     print(
                         f"    - Componente '{component_product.name}': baixou {quantity_to_decrease} unidades. Novo estoque: {component_product.stock_quantity}")
+                    # ✅ Auto-pausa componente quando estoque zerar
+                    if component_product.stock_quantity <= 0:
+                        for category_link in component_product.category_links:
+                            if category_link.is_available:
+                                category_link.is_available = False
+                                print(f"      ⚠️  Componente '{component_product.name}' pausado automaticamente (estoque zerado)")
             # Nota: O estoque do produto "Kit" em si não é alterado.
 
         # --- CAMINHO 2: O PRODUTO É INDIVIDUAL ---
@@ -52,6 +58,12 @@ def decrease_stock_for_order(order: models.Order, db: Session):
                 product_to_update.stock_quantity -= order_quantity
                 print(
                     f"    - Produto principal: baixou {order_quantity} unidades. Novo estoque: {product_to_update.stock_quantity}")
+                # ✅ Auto-pausa produto quando estoque zerar
+                if product_to_update.stock_quantity <= 0:
+                    for category_link in product_to_update.category_links:
+                        if category_link.is_available:
+                            category_link.is_available = False
+                            print(f"      ⚠️  Produto '{product_to_update.name}' pausado automaticamente (estoque zerado)")
 
             # 2b: Baixa no estoque das variantes (complementos)
             for order_variant in order_product.variants:
@@ -65,6 +77,10 @@ def decrease_stock_for_order(order: models.Order, db: Session):
                         variant_option_master.stock_quantity -= quantity_to_decrease
                         print(
                             f"      - Complemento '{variant_option_master.resolvedName}': baixou {quantity_to_decrease} unidades. Novo estoque: {variant_option_master.stock_quantity}")
+                        # ✅ Auto-pausa complemento quando estoque zerar
+                        if variant_option_master.stock_quantity <= 0 and variant_option_master.available:
+                            variant_option_master.available = False
+                            print(f"        ⚠️  Complemento '{variant_option_master.resolvedName}' pausado automaticamente (estoque zerado)")
 
     print("Baixa de estoque concluída.")
 
@@ -94,10 +110,17 @@ def restock_for_canceled_order(order: models.Order, db: Session):
                 ).with_for_update().first()
 
                 if component_product and component_product.control_stock:
+                    old_stock = component_product.stock_quantity
                     quantity_to_increase = component_link.quantity * order_quantity
                     component_product.stock_quantity += quantity_to_increase
                     print(
                         f"    - Componente '{component_product.name}': devolveu {quantity_to_increase} unidades. Novo estoque: {component_product.stock_quantity}")
+                    # ✅ Reativa componente automaticamente se estava com estoque zerado
+                    if old_stock <= 0 and component_product.stock_quantity > 0:
+                        for category_link in component_product.category_links:
+                            if not category_link.is_available:
+                                category_link.is_available = True
+                                print(f"      ✅ Componente '{component_product.name}' reativado automaticamente (estoque restaurado)")
 
         # --- LÓGICA DE DEVOLUÇÃO PARA PRODUTOS INDIVIDUAIS ---
         elif product_master.product_type == ProductType.PREPARED:
@@ -107,9 +130,16 @@ def restock_for_canceled_order(order: models.Order, db: Session):
             ).with_for_update().first()
 
             if product_to_update.control_stock:
+                old_stock = product_to_update.stock_quantity
                 product_to_update.stock_quantity += order_quantity
                 print(
                     f"    - Produto principal: devolveu {order_quantity} unidades. Novo estoque: {product_to_update.stock_quantity}")
+                # ✅ Reativa produto automaticamente se estava com estoque zerado
+                if old_stock <= 0 and product_to_update.stock_quantity > 0:
+                    for category_link in product_to_update.category_links:
+                        if not category_link.is_available:
+                            category_link.is_available = True
+                            print(f"      ✅ Produto '{product_to_update.name}' reativado automaticamente (estoque restaurado)")
 
             for order_variant in order_product.variants:
                 for order_option in order_variant.options:
@@ -118,9 +148,14 @@ def restock_for_canceled_order(order: models.Order, db: Session):
                     ).with_for_update().first()
 
                     if variant_option_master and variant_option_master.track_inventory:
+                        old_stock = variant_option_master.stock_quantity
                         quantity_to_increase = order_option.quantity * order_quantity
                         variant_option_master.stock_quantity += quantity_to_increase
                         print(
                             f"      - Complemento '{variant_option_master.resolvedName}': devolveu {quantity_to_increase} unidades. Novo estoque: {variant_option_master.stock_quantity}")
+                        # ✅ Reativa complemento automaticamente se estava com estoque zerado
+                        if old_stock <= 0 and variant_option_master.stock_quantity > 0 and not variant_option_master.available:
+                            variant_option_master.available = True
+                            print(f"        ✅ Complemento '{variant_option_master.resolvedName}' reativado automaticamente (estoque restaurado)")
 
     print("Retorno ao estoque concluído.")

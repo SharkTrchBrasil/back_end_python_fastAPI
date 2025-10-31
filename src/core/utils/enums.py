@@ -149,6 +149,36 @@ class FoodTagEnum(str, enum.Enum):
     ORGANIC = "Orgânico"
     SUGAR_FREE = "Sem açúcar"
     LAC_FREE = "Zero lactose"
+    GLUTEN_FREE = "Sem glúten"
+    SPICY = "Picante"
+    KIDS = "Infantil"
+    FITNESS = "Fitness"
+    LOW_CARB = "Low Carb"
+
+
+# Kitchen Status
+class KitchenStatus(str, enum.Enum):
+    NEW = "NEW"
+    PREPARING = "PREPARING"
+    READY = "READY"
+    DELIVERED = "DELIVERED"
+    CANCELLED = "CANCELLED"
+
+
+# Waiter Call Status
+class WaiterCallStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    ANSWERED = "ANSWERED"
+    CANCELLED = "CANCELLED"
+
+
+# Print Status
+class PrintStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    PRINTING = "PRINTING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    RETRY = "RETRY"
 
 
 

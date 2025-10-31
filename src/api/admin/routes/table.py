@@ -1,10 +1,14 @@
 # src/api/routes/admin/table.py
 from fastapi import APIRouter, HTTPException, status, Request
+from datetime import datetime
 
 from src.api.admin.services.table_service import TableService
+from src.core import models
+from src.core.utils.enums import TableStatus
 from src.api.schemas.tables.table import SaloonOut, CreateSaloonRequest, UpdateSaloonRequest, TableOut, \
     CreateTableRequest, UpdateTableRequest, OpenTableRequest, CloseTableRequest, AddItemToTableRequest, \
-    RemoveItemFromTableRequest
+    RemoveItemFromTableRequest, AssignEmployeeRequest, TableActivityReport, SplitPaymentRequest, \
+    TableDashboardOut
 
 from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep, GetCurrentUserDep, GetAuditLoggerDep
@@ -535,3 +539,197 @@ async def remove_item_from_table(
         return {"message": "Item removido com sucesso"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ========== NOVAS ROTAS PARA FUNCIONALIDADES AVANÇADAS ==========
+
+@router.post("/assign-employee", status_code=status.HTTP_200_OK)
+async def assign_employee_to_table(
+    request: AssignEmployeeRequest,
+    db: GetDBDep,
+    store: GetStoreDep,
+    user: GetCurrentUserDep,
+    audit: GetAuditLoggerDep,
+):
+    """Atribui um funcionário a uma mesa"""
+    service = TableService(db)
+    
+    try:
+        table = service.assign_employee_to_table(
+            store.id, 
+            request.table_id, 
+            request.employee_id,
+            performed_by=user.id
+        )
+        
+        # Emite evento via socket
+        from src.api.admin.socketio import emitters
+        import asyncio
+        asyncio.create_task(
+            emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
+        )
+        
+        audit.log(
+            action=AuditAction.UPDATE_TABLE,
+            entity_type=AuditEntityType.TABLE,
+            entity_id=request.table_id,
+            changes={
+                "employee_id": request.employee_id,
+                "action": "assign_employee" if request.employee_id else "unassign_employee"
+            },
+            description=f"{'Atribuiu' if request.employee_id else 'Removeu'} funcionário da mesa {request.table_id}"
+        )
+        db.commit()
+        return {
+            "message": "Funcionário atribuído com sucesso" if request.employee_id else "Funcionário desatribuído",
+            "table": TableOut.from_orm(table)
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/dashboard", response_model=TableDashboardOut)
+async def get_tables_dashboard(
+    db: GetDBDep,
+    store: GetStoreDep,
+    user: GetCurrentUserDep,
+):
+    """Retorna dashboard visual das mesas com status colorido"""
+    service = TableService(db)
+    
+    try:
+        dashboard_data = service.get_table_dashboard(store.id)
+        return TableDashboardOut(**dashboard_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar dashboard: {str(e)}")
+
+
+@router.get("/{table_id}/activity-report", response_model=TableActivityReport)
+async def get_table_activity_report(
+    table_id: int,
+    db: GetDBDep,
+    store: GetStoreDep,
+    user: GetCurrentUserDep,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+):
+    """Gera relatório de atividades de uma mesa"""
+    from datetime import datetime
+    
+    service = TableService(db)
+    
+    try:
+        report = service.get_table_activity_report(
+            store.id, 
+            table_id,
+            start_date,
+            end_date
+        )
+        return TableActivityReport(**report)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar relatório: {str(e)}")
+
+
+@router.post("/split-payment", status_code=status.HTTP_201_CREATED)
+async def split_payment(
+    request: SplitPaymentRequest,
+    db: GetDBDep,
+    store: GetStoreDep,
+    user: GetCurrentUserDep,
+    audit: GetAuditLoggerDep,
+):
+    """Divide o pagamento de uma comanda entre múltiplos clientes"""
+    service = TableService(db)
+    
+    try:
+        partial_payments = service.split_payment(
+            store.id,
+            request.command_id,
+            request.split_type,
+            request.splits
+        )
+        
+        # Emite evento via socket
+        from src.api.admin.socketio import emitters
+        import asyncio
+        asyncio.create_task(
+            emitters.admin_emit_tables_and_commands(db=db, store_id=store.id)
+        )
+        
+        audit.log(
+            action=AuditAction.SPLIT_ORDER_PAYMENT,
+            entity_type=AuditEntityType.COMMAND,
+            entity_id=request.command_id,
+            changes=request.model_dump(),
+            description=f"Dividiu pagamento da comanda {request.command_id} - {request.split_type}"
+        )
+        db.commit()
+        
+        return {
+            "message": "Pagamento dividido com sucesso",
+            "partial_payments": [
+                {
+                    "id": p.id,
+                    "amount": p.amount,
+                    "received_by": p.received_by,
+                    "notes": p.notes
+                } for p in partial_payments
+            ]
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/statistics/today")
+async def get_today_statistics(
+    db: GetDBDep,
+    store: GetStoreDep,
+    user: GetCurrentUserDep,
+):
+    """Retorna estatísticas do dia atual das mesas"""
+    from sqlalchemy import func
+    from datetime import date
+    
+    today = date.today()
+    
+    # Query para estatísticas agregadas
+    stats = db.query(
+        func.sum(models.Tables.total_orders_today).label("total_orders"),
+        func.sum(models.Tables.total_revenue_today).label("total_revenue"),
+        func.count(models.Tables.id).label("total_tables"),
+        func.sum(func.case([(models.Tables.status == TableStatus.OCCUPIED, 1)], else_=0)).label("occupied_count")
+    ).filter(
+        models.Tables.store_id == store.id,
+        models.Tables.is_deleted == False
+    ).first()
+    
+    # Busca top mesas por receita
+    top_tables = db.query(
+        models.Tables.id,
+        models.Tables.name,
+        models.Tables.total_revenue_today,
+        models.Tables.total_orders_today
+    ).filter(
+        models.Tables.store_id == store.id,
+        models.Tables.is_deleted == False,
+        models.Tables.total_revenue_today > 0
+    ).order_by(models.Tables.total_revenue_today.desc()).limit(5).all()
+    
+    return {
+        "date": today.isoformat(),
+        "total_orders": stats.total_orders or 0,
+        "total_revenue": stats.total_revenue or 0,
+        "total_tables": stats.total_tables or 0,
+        "occupied_tables": stats.occupied_count or 0,
+        "occupation_rate": (stats.occupied_count / stats.total_tables * 100) if stats.total_tables else 0,
+        "top_tables": [
+            {
+                "id": t.id,
+                "name": t.name,
+                "revenue": t.total_revenue_today,
+                "orders": t.total_orders_today
+            } for t in top_tables
+        ]
+    }

@@ -61,6 +61,7 @@ from src.api.admin.routes.import_menu import router as import_menu_router
 from src.api.admin.routes.sessions import router as sessions_router
 from src.api.admin.routes.audit import router as audit_router
 from src.api.admin.routes.print_layouts import router as print_layouts_router
+from src.api.admin.routes.mercadopago import router as mercadopago_router
 
 
 
@@ -141,3 +142,4 @@ router.include_router(import_menu_router)
 router.include_router(sessions_router)
 router.include_router(audit_router)
 router.include_router(print_layouts_router)
+router.include_router(mercadopago_router)
