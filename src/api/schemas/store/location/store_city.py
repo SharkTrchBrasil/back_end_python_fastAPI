@@ -11,6 +11,8 @@ class StoreCityUpsertSchema(BaseModel):
     name: str
     delivery_fee: int = 0
     is_active: bool = True
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     neighborhoods: List[NeighborhoodNestedInputSchema] = [] # Usa o novo schema aninhado
 
     model_config = {
@@ -24,6 +26,8 @@ class StoreCitySchema(BaseModel):
     name: str
     delivery_fee: int = 0
     is_active: bool = True
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     neighborhoods: List[StoreNeighborhoodSchema] = []
 
     model_config = {

@@ -7,6 +7,8 @@ class NeighborhoodNestedInputSchema(BaseModel):
     name: str
     delivery_fee: int = 0
     is_active: bool = True
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -18,6 +20,8 @@ class StoreNeighborhoodBaseSchema(BaseModel):
     delivery_fee: int = 0
     free_delivery: bool = False
     is_active: bool = True
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
     model_config = ConfigDict(
         from_attributes=True,

@@ -10,6 +10,7 @@ from src.core.database import GetDBDep
 from src.core.dependencies import GetStoreDep
 from src.core.models import StoreCity, Store, StoreNeighborhood
 from src.api.schemas.store.location.store_city import StoreCitySchema, StoreCityUpsertSchema
+from src.services.geocoding_service import GeocodingService
 
 router = APIRouter(prefix="/stores/{store_id}", tags=["Cities & Neighborhoods"])
 
@@ -46,6 +47,22 @@ async def upsert_city_with_neighborhoods(
     city_db.name = city_data.name
     city_db.delivery_fee = city_data.delivery_fee
     city_db.is_active = city_data.is_active
+    
+    # ✅ Geocoding automático: tenta obter coordenadas se não foram fornecidas
+    if city_data.latitude is None or city_data.longitude is None:
+        # Tenta obter coordenadas automaticamente via geocoding
+        coordinates = await GeocodingService.geocode_city(city_data.name, store.state)
+        if coordinates:
+            city_db.latitude = coordinates[0]
+            city_db.longitude = coordinates[1]
+        else:
+            # Mantém None se não conseguir (opcional)
+            city_db.latitude = city_data.latitude
+            city_db.longitude = city_data.longitude
+    else:
+        # Usa as coordenadas fornecidas (se vierem do admin via API direta)
+        city_db.latitude = city_data.latitude
+        city_db.longitude = city_data.longitude
 
     existing_neighborhoods_map = {n.id: n for n in city_db.neighborhoods}
     incoming_neighborhood_ids = {n.id for n in city_data.neighborhoods if n.id}
@@ -59,16 +76,36 @@ async def upsert_city_with_neighborhoods(
     updated_neighborhoods_list = []
     for hood_data in city_data.neighborhoods:
         hood_db = existing_neighborhoods_map.get(hood_data.id) if hood_data.id else None
+        
+        # ✅ Geocoding automático para bairros
+        hood_lat = hood_data.latitude
+        hood_lon = hood_data.longitude
+        
+        if hood_lat is None or hood_lon is None:
+            # Tenta obter coordenadas automaticamente
+            coordinates = await GeocodingService.geocode_neighborhood(
+                hood_data.name, 
+                city_data.name, 
+                store.state
+            )
+            if coordinates:
+                hood_lat = coordinates[0]
+                hood_lon = coordinates[1]
+        
         if hood_db:
             hood_db.name = hood_data.name
             hood_db.delivery_fee = hood_data.delivery_fee
             hood_db.is_active = hood_data.is_active
+            hood_db.latitude = hood_lat
+            hood_db.longitude = hood_lon
             updated_neighborhoods_list.append(hood_db)
         else:
             new_hood = StoreNeighborhood(
                 name=hood_data.name,
                 delivery_fee=hood_data.delivery_fee,
                 is_active=hood_data.is_active,
+                latitude=hood_lat,
+                longitude=hood_lon,
             )
             updated_neighborhoods_list.append(new_hood)
 
