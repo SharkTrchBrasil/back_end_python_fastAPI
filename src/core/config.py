@@ -53,44 +53,50 @@ class Config(BaseSettings):
     # ═══════════════════════════════════════════════════════════
     # ☁️ AWS S3
     # ═══════════════════════════════════════════════════════════
+    # ✅ CORREÇÃO: Campos opcionais para permitir desenvolvimento local e migrations
+    # sem precisar configurar credenciais AWS
 
-    AWS_ACCESS_KEY_ID: str
-    AWS_SECRET_ACCESS_KEY: str
-    AWS_REGION: str
-    AWS_BUCKET_NAME: str
+    AWS_ACCESS_KEY_ID: Optional[str] = None
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None
+    AWS_REGION: Optional[str] = None
+    AWS_BUCKET_NAME: Optional[str] = None
 
     # ═══════════════════════════════════════════════════════════
     # 📧 EMAIL (RESEND)
     # ═══════════════════════════════════════════════════════════
+    # ✅ CORREÇÃO: Opcional para permitir migrations sem configurar email
 
-    RESEND_API_KEY: str
+    RESEND_API_KEY: Optional[str] = None
 
     # ═══════════════════════════════════════════════════════════
     # 💳 PAGAR.ME
     # ═══════════════════════════════════════════════════════════
+    # ✅ CORREÇÃO: Opcional para permitir migrations sem configurar Pagarme
 
-    PAGARME_SECRET_KEY: str
-    PAGARME_PUBLIC_KEY: str
+    PAGARME_SECRET_KEY: Optional[str] = None
+    PAGARME_PUBLIC_KEY: Optional[str] = None
     PAGARME_ENVIRONMENT: str = "test"
     PAGARME_API_URL: str = "https://api.pagar.me/core/v5"
 
     # Webhook
     PAGARME_WEBHOOK_USER: str = "menuhub_webhook"
-    PAGARME_WEBHOOK_PASSWORD: str
+    PAGARME_WEBHOOK_PASSWORD: Optional[str] = None
 
 
     # ═══════════════════════════════════════════════════════════
     # 💬 CHATBOT
     # ═══════════════════════════════════════════════════════════
+    # ✅ CORREÇÃO: Opcional para permitir migrations sem configurar chatbot
 
-    CHATBOT_SERVICE_URL: str
-    CHATBOT_WEBHOOK_SECRET: str
+    CHATBOT_SERVICE_URL: Optional[str] = None
+    CHATBOT_WEBHOOK_SECRET: Optional[str] = None
 
     # ═══════════════════════════════════════════════════════════
     # 🔒 CRIPTOGRAFIA
     # ═══════════════════════════════════════════════════════════
+    # ✅ CORREÇÃO: Opcional para permitir migrations (será validado apenas quando necessário)
 
-    ENCRYPTION_KEY: str
+    ENCRYPTION_KEY: Optional[str] = None
 
     # ═══════════════════════════════════════════════════════════
     # 🌐 CORS
@@ -218,7 +224,8 @@ def validate_config():
     if len(config.SECRET_KEY) < 32:
         errors.append("SECRET_KEY muito curta (mínimo 32 caracteres)")
 
-    if not config.PAGARME_SECRET_KEY.startswith("sk_"):
+    # ✅ CORREÇÃO: Valida PAGARME_SECRET_KEY apenas se estiver presente
+    if config.PAGARME_SECRET_KEY and not config.PAGARME_SECRET_KEY.startswith("sk_"):
         errors.append("PAGARME_SECRET_KEY inválida")
 
     if config.ENVIRONMENT not in ["development", "test", "production"]:
