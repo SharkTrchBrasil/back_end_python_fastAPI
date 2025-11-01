@@ -1,9 +1,12 @@
 # src/api/admin/routes/products.py
+import logging
 import math
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Request, Form, UploadFile, File, Query
 from pydantic import ValidationError
 from starlette import status
+
+log = logging.getLogger(__name__)
 
 from src.api.admin.routes import product_category_link
 from src.api.admin.socketio.emitters import emit_updates_products
@@ -108,40 +111,64 @@ async def create_simple_product(
                     "is_new": False
                 })
             else:
-                # Nova variante
-                new_variant = models.Variant(
-                    name=variant_data.name,
-                    type=variant_data.type.value,
-                    store_id=store.id
-                )
-                db.add(new_variant)
-                db.flush()
+                # ✅ Nova variante - Verifica se já existe uma variante com o mesmo nome na loja
+                existing_variant = db.query(models.Variant).filter(
+                    models.Variant.store_id == store.id,
+                    models.Variant.name == variant_data.name
+                ).first()
 
-                options_count = 0
-                if variant_data.options:
-                    for option_data in variant_data.options:
-                        db.add(models.VariantOption(
-                            variant_id=new_variant.id,
-                            store_id=store.id,
-                            **option_data.model_dump(exclude={'image', 'variant_id'})
-                        ))
-                        options_count += 1
+                if existing_variant:
+                    # ✅ Variante já existe - reutiliza ela
+                    log(f'[Product Creation] Variante "{variant_data.name}" já existe (ID: {existing_variant.id}). Reutilizando...')
+                    variant_id_to_use = existing_variant.id
+                    is_new_variant = False
+                    options_count = len(existing_variant.options) if existing_variant.options else 0
+                else:
+                    # ✅ Variante não existe - cria nova
+                    new_variant = models.Variant(
+                        name=variant_data.name,
+                        type=variant_data.type.value,
+                        store_id=store.id
+                    )
+                    db.add(new_variant)
+                    db.flush()
 
+                    options_count = 0
+                    if variant_data.options:
+                        for option_data in variant_data.options:
+                            db.add(models.VariantOption(
+                                variant_id=new_variant.id,
+                                store_id=store.id,
+                                **option_data.model_dump(exclude={'image', 'variant_id'})
+                            ))
+                            options_count += 1
+
+                    variant_id_to_use = new_variant.id
+                    is_new_variant = True
+
+                # ✅ Cria o vínculo do produto com a variante (nova ou existente)
                 db.add(models.ProductVariantLink(
                     product_id=new_product.id,
-                    variant_id=new_variant.id,
+                    variant_id=variant_id_to_use,
                     min_selected_options=link_data.min_selected_options,
                     max_selected_options=link_data.max_selected_options,
                     ui_display_mode=link_data.ui_display_mode,
                     available=link_data.available
                 ))
 
-                new_variants_created.append({
-                    "variant_id": new_variant.id,
-                    "variant_name": new_variant.name,
-                    "options_count": options_count,
-                    "is_new": True
-                })
+                if is_new_variant:
+                    new_variants_created.append({
+                        "variant_id": variant_id_to_use,
+                        "variant_name": variant_data.name,
+                        "options_count": options_count,
+                        "is_new": True
+                    })
+                else:
+                    variant_links_created.append({
+                        "variant_id": variant_id_to_use,
+                        "variant_name": variant_data.name,
+                        "is_new": False
+                    })
 
     # ✅ LOG DE CRIAÇÃO BEM-SUCEDIDA
     audit.log(

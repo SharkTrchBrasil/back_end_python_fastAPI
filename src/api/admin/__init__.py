@@ -61,7 +61,7 @@ from src.api.admin.routes.print_layouts import router as print_layouts_router
 
 # ✅ Importação do MercadoPago com tratamento de erro
 try:
-    from src.api.admin.routes.mercadopago import router as mercadopago_router
+from src.api.admin.routes.mercadopago import router as mercadopago_router
     MERCADOPAGO_AVAILABLE = True
 except (ImportError, ModuleNotFoundError) as e:
     import logging
@@ -134,4 +134,4 @@ router.include_router(print_layouts_router)
 
 # ✅ Inclui MercadoPago apenas se estiver disponível
 if MERCADOPAGO_AVAILABLE:
-    router.include_router(mercadopago_router)
+router.include_router(mercadopago_router)
