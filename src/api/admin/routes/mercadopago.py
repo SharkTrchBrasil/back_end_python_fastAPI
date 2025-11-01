@@ -21,7 +21,7 @@ from src.api.schemas.financial.mercadopago import (
     MercadoPagoRefundRequest
 )
 from src.api.admin.services.mercadopago_service import (
-    mercadopago_service,
+    get_mercadopago_service,
     MercadoPagoError
 )
 
@@ -61,7 +61,8 @@ async def connect_mercadopago(
 
     # Testa a conexão com as credenciais
     try:
-        user_info = mercadopago_service._make_request(
+        service = get_mercadopago_service()
+        user_info = service._make_request(
             "GET",
             "/users/me",
             access_token=request_data.access_token
@@ -174,7 +175,8 @@ async def create_pix_payment(
 
     # Cria o pagamento
     try:
-        payment_response = mercadopago_service.create_pix_payment(
+        service = get_mercadopago_service()
+        payment_response = service.create_pix_payment(
             amount=payment_data.amount,
             description=payment_data.description,
             payer_email=payment_data.payer_email,

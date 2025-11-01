@@ -21,31 +21,62 @@ logger = logging.getLogger(__name__)
 
 
 class MercadoPagoService:
-    """Serviço para integração com Mercado Pago"""
+    """Serviço para integração com Mercado Pago
+    
+    Nota: As credenciais do Mercado Pago são por loja (store).
+    Este serviço funciona sem credenciais globais, usando sempre
+    o token da loja específica em cada operação.
+    """
 
     def __init__(self):
         logger.info("═" * 60)
         logger.info("🔧 [MercadoPagoService] Inicializando...")
 
-        self.app_id = config.MERCADOPAGO_APP_ID
-        self.access_token = config.MERCADOPAGO_ACCESS_TOKEN
-        self.public_key = config.MERCADOPAGO_PUBLIC_KEY
-        self.base_url = config.MERCADOPAGO_API_URL
-        self.environment = config.MERCADOPAGO_ENVIRONMENT
-        self.webhook_secret = config.MERCADOPAGO_WEBHOOK_SECRET
+        # ✅ Credenciais são opcionais - sistema usa credenciais por loja
+        # Tenta obter do config se existir (para compatibilidade), mas não é obrigatório
+        # Usa getattr com valor padrão para evitar erros do Pydantic quando campos não existem
+        try:
+            # Tenta acessar usando getattr com fallback seguro
+            self.app_id = getattr(config, 'MERCADOPAGO_APP_ID', None)
+        except (AttributeError, KeyError):
+            self.app_id = None
+            
+        try:
+            self.access_token = getattr(config, 'MERCADOPAGO_ACCESS_TOKEN', None)
+        except (AttributeError, KeyError):
+            self.access_token = None
+            
+        try:
+            self.public_key = getattr(config, 'MERCADOPAGO_PUBLIC_KEY', None)
+        except (AttributeError, KeyError):
+            self.public_key = None
+            
+        try:
+            self.base_url = getattr(config, 'MERCADOPAGO_API_URL', 'https://api.mercadopago.com')
+        except (AttributeError, KeyError):
+            self.base_url = 'https://api.mercadopago.com'
+            
+        try:
+            self.environment = getattr(config, 'MERCADOPAGO_ENVIRONMENT', 'production')
+        except (AttributeError, KeyError):
+            self.environment = 'production'
+            
+        try:
+            self.webhook_secret = getattr(config, 'MERCADOPAGO_WEBHOOK_SECRET', None)
+        except (AttributeError, KeyError):
+            self.webhook_secret = None
 
         self.is_test_mode = self.environment.lower() in ["sandbox", "test", "testing"]
 
-        logger.info(f"📋 [Config] App ID: {self.app_id}")
-        logger.info(f"📋 [Config] Access Token: {self.access_token[:15]}...")
-        logger.info(f"📋 [Config] Public Key: {self.public_key[:20]}...")
         logger.info(f"📋 [Config] Base URL: {self.base_url}")
         logger.info(f"🔧 [Config] Ambiente: {self.environment.upper()}")
         logger.info(f"🔧 [Config] Modo Teste: {self.is_test_mode}")
-
-        if not self.access_token:
-            logger.error("❌ MERCADOPAGO_ACCESS_TOKEN não está configurada!")
-            raise ValueError("MERCADOPAGO_ACCESS_TOKEN não está configurada!")
+        
+        # ✅ Não requer credenciais globais - cada loja tem suas próprias
+        if self.access_token:
+            logger.info(f"📋 [Config] Access Token global configurado: {self.access_token[:15]}...")
+        else:
+            logger.info("ℹ️  [Config] Sistema usa credenciais por loja (sem token global)")
 
         self.session = requests.Session()
         retry_strategy = Retry(
@@ -58,14 +89,14 @@ class MercadoPagoService:
         self.session.mount("https://", adapter)
         self.session.mount("http://", adapter)
 
+        # ✅ Headers padrão (sem token - será fornecido por loja)
         self.session.headers.update({
-            "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
             "Accept": "application/json"
         })
 
-        logger.info(f"📤 [Headers] Authorization: Bearer {self.access_token[:30]}...")
         logger.info("✅ [MercadoPagoService] Inicializado com sucesso!")
+        logger.info("   ⚠️  Nota: Use sempre store_access_token nas operações")
         logger.info("═" * 60)
 
     @circuit_breaker_decorator(
@@ -441,8 +472,16 @@ class MercadoPagoError(Exception):
     pass
 
 
-# Singleton
-mercadopago_service = MercadoPagoService()
+# ✅ Singleton lazy - só instancia quando necessário
+# Não requer credenciais globais para funcionar
+mercadopago_service = None
+
+def get_mercadopago_service() -> MercadoPagoService:
+    """Retorna instância do serviço (lazy initialization)"""
+    global mercadopago_service
+    if mercadopago_service is None:
+        mercadopago_service = MercadoPagoService()
+    return mercadopago_service
 
 
 
