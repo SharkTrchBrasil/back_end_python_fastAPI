@@ -17,29 +17,56 @@ from src.api.schemas.orders.cart import (CartSchema, CartItemSchema,
 
 
 
-def _get_item_fingerprint(product_id: int,  category_id: int, variants_input: list, note: str | None) -> str:
+def _get_item_fingerprint(product_id: int, category_id: int, variants_input: list, note: str | None) -> str:
     """
-    Cria uma "impressão digital" única para um item, agora incluindo a observação.
+    Cria uma "impressão digital" única para um item, incluindo produto, categoria, variantes e observação.
+    
+    Args:
+        product_id: ID do produto
+        category_id: ID da categoria
+        variants_input: Lista de variantes (dicts ou objetos)
+        note: Observação do item (pode ser None ou string vazia)
+    
+    Returns:
+        String única que identifica a configuração completa do item
     """
-    # Normaliza a nota: remove espaços extras e converte para minúsculas.
-    # "Sem cebola" e " sem cebola " serão tratados como iguais.
-    normalized_note = note.strip().lower() if note else ""
+    # ✅ CORREÇÃO: Garante que note é tratado corretamente (None ou string)
+    if note is None:
+        normalized_note = ""
+    else:
+        # Normaliza a nota: remove espaços extras e converte para minúsculas.
+        # "Sem cebola" e " sem cebola " serão tratados como iguais.
+        normalized_note = note.strip().lower() if note else ""
 
-    if not variants_input and not normalized_note:
-        return f"prod:{product_id}"
-
-    parts = []
+    parts = [f"prod:{product_id}", f"cat:{category_id}"]
+    
     if variants_input:
-        for variant in sorted(variants_input, key=lambda v: v['variant_id']):
-            variant_id = variant['variant_id']
-            option_ids = sorted([opt['variant_option_id'] for opt in variant['options']])
-            parts.append(f"var{variant_id}-opts{','.join(map(str, option_ids))}")
+        for variant in sorted(variants_input, key=lambda v: v.get('variant_id', 0) if isinstance(v, dict) else getattr(v, 'variant_id', 0)):
+            if isinstance(variant, dict):
+                variant_id = variant.get('variant_id', 0)
+                options = variant.get('options', [])
+            else:
+                variant_id = getattr(variant, 'variant_id', 0)
+                options = getattr(variant, 'options', [])
+            
+            if options:
+                option_ids = []
+                for opt in options:
+                    if isinstance(opt, dict):
+                        option_ids.append(opt.get('variant_option_id', 0))
+                    else:
+                        option_ids.append(getattr(opt, 'variant_option_id', 0))
+                
+                if option_ids:
+                    sorted_option_ids = sorted([oid for oid in option_ids if oid > 0])
+                    if sorted_option_ids:
+                        parts.append(f"var{variant_id}-opts{','.join(map(str, sorted_option_ids))}")
 
     # Adiciona a nota normalizada ao fingerprint se ela existir
     if normalized_note:
         parts.append(f"note:{normalized_note}")
 
-    return f"prod:{product_id}|cat:{category_id}|" + '|'.join(parts)
+    return '|'.join(parts)
 
 
 def _get_full_cart_query(db, customer_id: int, store_id: int) -> models.Cart | None:
@@ -304,25 +331,80 @@ async def update_cart_item(sid, data):
                     db.delete(existing_item)
                 else:
                     existing_item.quantity = update_data.quantity
-                    existing_item.note = update_data.note
-                    existing_item.variants = []
+                    existing_item.note = update_data.note or None  # ✅ Garante que string vazia vira None
+                    existing_item.category_id = update_data.category_id
+                    
+                    # Remove variantes antigas
+                    for old_variant in list(existing_item.variants):
+                        db.delete(old_variant)
+                    existing_item.variants.clear()
                     db.flush()
+                    
+                    # Adiciona novas variantes
                     if update_data.variants:
-                        # ... (lógica de variantes aqui)
                         for variant_input in update_data.variants:
-                            new_variant = models.CartItemVariant(...)
-                            existing_item.variants.append(new_variant)
+                            # ✅ CORREÇÃO: SQLAlchemy com Mapped precisa atribuir valores após criação
+                            new_variant = models.CartItemVariant()
+                            new_variant.cart_item_id = existing_item.id
+                            new_variant.variant_id = variant_input.variant_id
+                            new_variant.store_id = customer_session.store_id
+                            db.add(new_variant)
+                            db.flush()
+                            
+                            # Adiciona opções da variante
+                            for option_input in variant_input.options:
+                                if option_input.quantity > 0:
+                                    # ✅ CORREÇÃO: SQLAlchemy com Mapped precisa atribuir valores após criação
+                                    new_option = models.CartItemVariantOption()
+                                    new_option.cart_item_variant_id = new_variant.id
+                                    new_option.variant_option_id = option_input.variant_option_id
+                                    new_option.quantity = option_input.quantity
+                                    new_option.store_id = customer_session.store_id
+                                    db.add(new_option)
+                    
+                    # Converte variants_input para formato de dicionário para fingerprint
+                    variants_dict = []
+                    if update_data.variants:
+                        for variant_input in update_data.variants:
+                            variant_dict = {
+                                'variant_id': variant_input.variant_id,
+                                'options': [
+                                    {'variant_option_id': opt.variant_option_id}
+                                    for opt in variant_input.options
+                                    if opt.quantity > 0
+                                ]
+                            }
+                            if variant_dict['options']:
+                                variants_dict.append(variant_dict)
+                    
                     existing_item.fingerprint = _get_item_fingerprint(
-
-                        update_data.product_id, data.get('variants', []), update_data.note
+                        update_data.product_id,
+                        update_data.category_id,
+                        variants_dict,
+                        update_data.note
                     )
 
             # ✅ --- MODO ADIÇÃO ---
             else:
+                # Converte variants_input para formato de dicionário para fingerprint
+                variants_dict = []
+                if update_data.variants:
+                    for variant_input in update_data.variants:
+                        variant_dict = {
+                            'variant_id': variant_input.variant_id,
+                            'options': [
+                                {'variant_option_id': opt.variant_option_id}
+                                for opt in variant_input.options
+                                if opt.quantity > 0
+                            ]
+                        }
+                        if variant_dict['options']:
+                            variants_dict.append(variant_dict)
+                
                 fingerprint = _get_item_fingerprint(
                     update_data.product_id,
-                    update_data.category_id,  # ✅ Passe o category_id
-                    data.get('variants', []),
+                    update_data.category_id,
+                    variants_dict,
                     update_data.note
                 )
 
@@ -339,22 +421,73 @@ async def update_cart_item(sid, data):
                     else:
                         print(
                             f"🔄 Item idêntico (ID: {existing_item.id}) encontrado. Nova quantidade: {existing_item.quantity}.")
-                        existing_item.note = update_data.note
+                        existing_item.note = update_data.note or None  # ✅ Garante que string vazia vira None
+                        existing_item.category_id = update_data.category_id
+                        
+                        # Remove variantes antigas e adiciona novas (mesmo que seja idêntico, atualiza para garantir consistência)
+                        for old_variant in list(existing_item.variants):
+                            db.delete(old_variant)
+                        existing_item.variants.clear()
+                        db.flush()
+                        
+                        # Adiciona novas variantes
+                        if update_data.variants:
+                            for variant_input in update_data.variants:
+                                # ✅ CORREÇÃO: SQLAlchemy com Mapped precisa atribuir valores após criação
+                                new_variant = models.CartItemVariant()
+                                new_variant.cart_item_id = existing_item.id
+                                new_variant.variant_id = variant_input.variant_id
+                                new_variant.store_id = customer_session.store_id
+                                db.add(new_variant)
+                                db.flush()
+                                
+                                # Adiciona opções da variante
+                                for option_input in variant_input.options:
+                                    if option_input.quantity > 0:
+                                        # ✅ CORREÇÃO: SQLAlchemy com Mapped precisa atribuir valores após criação
+                                        new_option = models.CartItemVariantOption()
+                                        new_option.cart_item_variant_id = new_variant.id
+                                        new_option.variant_option_id = option_input.variant_option_id
+                                        new_option.quantity = option_input.quantity
+                                        new_option.store_id = customer_session.store_id
+                                        db.add(new_option)
 
                 else:
                     if update_data.quantity > 0:
                         print(f"✨ Item novo (Fingerprint: {fingerprint}). Criando no carrinho.")
-                        new_item = models.CartItem(
-                            cart_id=cart.id, store_id=customer_session.store_id,
-                            product_id=update_data.product_id, category_id=update_data.category_id,quantity=update_data.quantity,
-                            note=update_data.note, fingerprint=fingerprint
-                        )
-                        if update_data.variants:
-                            # ... (lógica de variantes para novo item)
-                            for variant_input in update_data.variants:
-                                new_variant = models.CartItemVariant(...)
-                                new_item.variants.append(new_variant)
+                        # ✅ CORREÇÃO: SQLAlchemy com Mapped precisa atribuir valores após criação
+                        new_item = models.CartItem()
+                        new_item.cart_id = cart.id
+                        new_item.store_id = customer_session.store_id
+                        new_item.product_id = update_data.product_id
+                        new_item.category_id = update_data.category_id
+                        new_item.quantity = update_data.quantity
+                        new_item.note = update_data.note or None  # ✅ Garante que string vazia vira None
+                        new_item.fingerprint = fingerprint
                         db.add(new_item)
+                        db.flush()
+                        
+                        # Adiciona variantes para novo item
+                        if update_data.variants:
+                            for variant_input in update_data.variants:
+                                # ✅ CORREÇÃO: SQLAlchemy com Mapped precisa atribuir valores após criação
+                                new_variant = models.CartItemVariant()
+                                new_variant.cart_item_id = new_item.id
+                                new_variant.variant_id = variant_input.variant_id
+                                new_variant.store_id = customer_session.store_id
+                                db.add(new_variant)
+                                db.flush()
+                                
+                                # Adiciona opções da variante
+                                for option_input in variant_input.options:
+                                    if option_input.quantity > 0:
+                                        # ✅ CORREÇÃO: SQLAlchemy com Mapped precisa atribuir valores após criação
+                                        new_option = models.CartItemVariantOption()
+                                        new_option.cart_item_variant_id = new_variant.id
+                                        new_option.variant_option_id = option_input.variant_option_id
+                                        new_option.quantity = option_input.quantity
+                                        new_option.store_id = customer_session.store_id
+                                        db.add(new_option)
 
             # O commit fica no final para salvar qualquer uma das operações
             db.commit()
