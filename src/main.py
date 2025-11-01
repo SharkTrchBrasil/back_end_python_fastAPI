@@ -44,6 +44,7 @@ from src.api.app import router as app_router
 from src.api.admin.webhooks.chatbot_webhook import router as chatbot_webhooks_router
 from src.api.admin.webhooks import chatbot_message_webhook
 from src.api.admin.webhooks.pagarme_webhook import router as pagarme_webhook_router
+from src.core.circuit_breaker import get_all_circuit_breakers_status
 
 # ✅ Sistema de cache
 from src.core.cache import cache_manager
@@ -318,6 +319,16 @@ async def cache_stats(current_admin: GetCurrentAdminUserDep) -> dict:
 
     return {
         **cache_manager.get_stats(),
+        "accessed_by": current_admin.email,
+        "accessed_at": datetime.utcnow().isoformat()
+    }
+
+
+@fast_app.get("/circuit-breaker/status", tags=["Monitoring"], include_in_schema=False)
+async def circuit_breaker_status(current_admin: GetCurrentAdminUserDep) -> dict:
+    """Endpoint protegido para admins monitorarem Circuit Breakers"""
+    return {
+        "circuit_breakers": get_all_circuit_breakers_status(),
         "accessed_by": current_admin.email,
         "accessed_at": datetime.utcnow().isoformat()
     }

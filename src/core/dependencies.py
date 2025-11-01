@@ -12,7 +12,6 @@ from src.core import models
 from src.core.database import GetDBDep
 from src.core.security.security import verify_access_token, oauth2_scheme
 from src.core.utils.enums import Roles
-from typing import Annotated
 from fastapi import Depends
 
 from src.core.utils.audit import AuditLogger
