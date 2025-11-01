@@ -58,18 +58,7 @@ from src.api.admin.routes.import_menu import router as import_menu_router
 from src.api.admin.routes.sessions import router as sessions_router
 from src.api.admin.routes.audit import router as audit_router
 from src.api.admin.routes.print_layouts import router as print_layouts_router
-
-# ✅ Importação do MercadoPago com tratamento de erro
-try:
 from src.api.admin.routes.mercadopago import router as mercadopago_router
-    MERCADOPAGO_AVAILABLE = True
-except (ImportError, ModuleNotFoundError) as e:
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.warning(f"⚠️ MercadoPago router não disponível: {e}")
-    MERCADOPAGO_AVAILABLE = False
-    # Cria router vazio para evitar erro
-    mercadopago_router = APIRouter()
 
 router = APIRouter(prefix="/admin")
 
@@ -132,6 +121,4 @@ router.include_router(sessions_router)
 router.include_router(audit_router)
 router.include_router(print_layouts_router)
 
-# ✅ Inclui MercadoPago apenas se estiver disponível
-if MERCADOPAGO_AVAILABLE:
 router.include_router(mercadopago_router)
