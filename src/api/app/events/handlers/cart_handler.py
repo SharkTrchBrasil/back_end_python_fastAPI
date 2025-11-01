@@ -491,9 +491,20 @@ async def update_cart_item(sid, data):
 
             # O commit fica no final para salvar qualquer uma das operações
             db.commit()
-
-            # Retorna o estado atualizado e completo do carrinho
+            
+            # ✅ CORREÇÃO: Após commit, precisa fazer refresh do objeto cart em memória
+            # para que os novos itens criados sejam refletidos
+            db.refresh(cart)
+            # Força o carregamento lazy dos itens (se necessário)
+            _ = cart.items
+            
+            # ✅ CORREÇÃO ADICIONAL: Busca o carrinho novamente com eager loading
+            # para garantir que todos os relacionamentos estejam carregados
             updated_cart = _get_full_cart_query(db, customer_session.customer_id, customer_session.store_id)
+            
+            if not updated_cart:
+                return {'error': 'Erro ao buscar carrinho atualizado.'}
+            
             final_cart_schema = _build_cart_schema(updated_cart)
             return {"success": True, "cart": final_cart_schema.model_dump(mode="json")}
 
