@@ -1,7 +1,8 @@
 # src/api/admin/routes/variants.py
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, status
 from sqlalchemy.orm import joinedload
+from sqlalchemy.exc import IntegrityError
 
 from src.api.app.socketio.socketio_emitters import emit_products_updated
 from src.api.crud import crud_variant
@@ -35,39 +36,59 @@ async def create_product_variant(
     - Rastreia opções criadas junto
     - Monitora preços e configurações
     """
+    try:
+        db_variant = crud_variant.create_variant(
+            db=db,
+            store_id=store.id,
+            variant_data=variant
+        )
 
-    db_variant = crud_variant.create_variant(
-        db=db,
-        store_id=store.id,
-        variant_data=variant
-    )
+        # ✅ LOG DE CRIAÇÃO BEM-SUCEDIDA
+        audit.log(
+            action=AuditAction.CREATE_VARIANT,
+            entity_type=AuditEntityType.VARIANT,
+            entity_id=db_variant.id,
+            changes={
+                "store_name": store.name,
+                "variant_name": db_variant.name,
+                "variant_type": db_variant.type,
+                "options_count": len(variant.options) if variant.options else 0,
+                "options": [
+                    {
+                        "name": opt.name_override or (f"Produto #{opt.linked_product_id}" if opt.linked_product_id else "Opção sem nome"),
+                        "price": float(opt.price_override) / 100 if opt.price_override else 0,
+                        "linked_product_id": opt.linked_product_id
+                    }
+                    for opt in (variant.options or [])
+                ]
+            },
+            description=f"Grupo '{db_variant.name}' criado com {len(variant.options or [])} opções"
+        )
 
-    # ✅ LOG DE CRIAÇÃO BEM-SUCEDIDA
-    audit.log(
-        action=AuditAction.CREATE_VARIANT,
-        entity_type=AuditEntityType.VARIANT,
-        entity_id=db_variant.id,
-        changes={
-            "store_name": store.name,
-            "variant_name": db_variant.name,
-            "variant_type": db_variant.type,
-            "options_count": len(variant.options) if variant.options else 0,
-            "options": [
-                {
-                    "name": opt.name_override or (f"Produto #{opt.linked_product_id}" if opt.linked_product_id else "Opção sem nome"),
-                    "price": float(opt.price_override) / 100 if opt.price_override else 0,
-                    "linked_product_id": opt.linked_product_id
-                }
-                for opt in (variant.options or [])
-            ]
-        },
-        description=f"Grupo '{db_variant.name}' criado com {len(variant.options or [])} opções"
-    )
+        db.commit()
 
-    db.commit()
-
-    await emit_products_updated(db, db_variant.store_id)
-    return db_variant
+        await emit_products_updated(db, db_variant.store_id)
+        return db_variant
+    except IntegrityError as e:
+        db.rollback()
+        # ✅ Verifica se é erro de duplicação de nome na mesma loja
+        if 'uq_variant_store_name' in str(e.orig) or 'variants_name_key' in str(e.orig):
+            # ✅ LOG DE ERRO DE DUPLICAÇÃO
+            audit.log_failed_action(
+                action=AuditAction.CREATE_VARIANT,
+                entity_type=AuditEntityType.VARIANT,
+                error=f"Tentativa de criar grupo '{variant.name}' duplicado na loja {store.id}"
+            )
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Já existe um grupo de complementos com o nome '{variant.name}' nesta loja. Escolha um nome diferente."
+            )
+        # Re-lança outros erros de integridade
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao criar grupo de complementos: {str(e)}"
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

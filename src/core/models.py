@@ -937,7 +937,8 @@ class Variant(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    name: Mapped[str] = mapped_column(unique=True, doc="Nome único do template. Ex: 'Adicionais', 'Bebidas', 'Molhos'")
+    # ✅ CORREÇÃO: Nome não é mais único globalmente, apenas dentro de cada loja
+    name: Mapped[str] = mapped_column(doc="Nome do template. Ex: 'Adicionais', 'Bebidas', 'Molhos'. Deve ser único por loja.")
     is_available: Mapped[bool] = mapped_column(default=True)
 
     type: Mapped[VariantType] = mapped_column(
@@ -960,6 +961,9 @@ class Variant(Base, TimestampMixin):
 
 
     __table_args__ = (
+        # ✅ CORREÇÃO: Constraint de unicidade composta (store_id, name)
+        # Permite que diferentes lojas tenham grupos com o mesmo nome
+        UniqueConstraint('store_id', 'name', name='uq_variant_store_name'),
         Index('idx_variants_store_type', 'store_id', 'type'),
     )
 
