@@ -54,9 +54,9 @@ async def create_product_variant(
             "options_count": len(variant.options) if variant.options else 0,
             "options": [
                 {
-                    "name": opt.name,
-                    "price": float(opt.price) / 100 if opt.price else 0,
-                    "max_quantity": opt.max_quantity
+                    "name": opt.name_override or (f"Produto #{opt.linked_product_id}" if opt.linked_product_id else "Opção sem nome"),
+                    "price": float(opt.price_override) / 100 if opt.price_override else 0,
+                    "linked_product_id": opt.linked_product_id
                 }
                 for opt in (variant.options or [])
             ]
@@ -122,8 +122,8 @@ async def patch_product_variant(
         "options": [
             {
                 "id": opt.id,
-                "name": opt.name,
-                "price": float(opt.price) / 100 if opt.price else 0
+                "name": opt.resolved_name,
+                "price": float(opt.resolved_price) / 100
             }
             for opt in (variant.options or [])
         ]
@@ -208,9 +208,8 @@ async def delete_product_variant(
         "options": [
             {
                 "id": opt.id,
-                "name": opt.name,
-                "price": float(opt.price) / 100 if opt.price else 0,
-                "max_quantity": opt.max_quantity,
+                "name": opt.resolved_name,
+                "price": float(opt.resolved_price) / 100,
                 "linked_product_id": opt.linked_product_id
             }
             for opt in (variant.options or [])

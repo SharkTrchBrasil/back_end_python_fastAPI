@@ -81,13 +81,12 @@ async def create_product_variant_option(
         changes={
             "variant_name": variant.name,
             "option_id": db_option.id,
-            "option_name": db_option.name,
-            "price": float(db_option.price) / 100 if db_option.price else 0,
-            "max_quantity": db_option.max_quantity,
+            "option_name": db_option.resolved_name,
+            "price": float(db_option.resolved_price) / 100,
             "linked_product_id": db_option.linked_product_id,
             "has_image": bool(file_key)
         },
-        description=f"Opção '{db_option.name}' criada no grupo '{variant.name}'"
+        description=f"Opção '{db_option.resolved_name}' criada no grupo '{variant.name}'"
     )
 
     db.commit()
@@ -148,9 +147,8 @@ async def patch_product_variant_option(
 
     # ✅ CAPTURA ESTADO ANTERIOR
     old_values = {
-        "name": option.name,
-        "price": float(option.price) / 100 if option.price else 0,
-        "max_quantity": option.max_quantity,
+        "name": option.resolved_name,
+        "price": float(option.resolved_price) / 100,
         "linked_product_id": option.linked_product_id,
         "file_key": option.file_key
     }
@@ -183,11 +181,11 @@ async def patch_product_variant_option(
 
     # ✅ DETECTA MUDANÇA DE PREÇO (CRÍTICO!)
     price_changed = False
-    if option.price != (old_values["price"] * 100):
+    if option.resolved_price != (old_values["price"] * 100):
         price_changed = True
         changes["price_critical"] = {
             "from": old_values["price"],
-            "to": float(option.price) / 100 if option.price else 0
+            "to": float(option.resolved_price) / 100
         }
 
     # ✅ LOG DE ATUALIZAÇÃO
@@ -200,12 +198,12 @@ async def patch_product_variant_option(
         changes={
             "variant_name": option.variant.name,
             "option_id": option.id,
-            "option_name": option.name,
+            "option_name": option.resolved_name,
             "old_values": old_values,
             "changes": changes,
             "price_changed": price_changed
         },
-        description=f"Opção '{option.name}' atualizada {'⚠️ PREÇO ALTERADO' if price_changed else ''}"
+        description=f"Opção '{option.resolved_name}' atualizada {'⚠️ PREÇO ALTERADO' if price_changed else ''}"
     )
 
     db.commit()
@@ -239,9 +237,8 @@ async def delete_product_variant_option(
     # ✅ CAPTURA DADOS ANTES DE DELETAR
     option_data = {
         "option_id": option.id,
-        "name": option.name,
-        "price": float(option.price) / 100 if option.price else 0,
-        "max_quantity": option.max_quantity,
+        "name": option.resolved_name,
+        "price": float(option.resolved_price) / 100,
         "linked_product_id": option.linked_product_id,
         "variant_id": option.variant_id,
         "variant_name": option.variant.name,
@@ -257,7 +254,7 @@ async def delete_product_variant_option(
             "deleted_by": user.name,
             "option_data": option_data
         },
-        description=f"⚠️ Opção '{option.name}' DELETADA do grupo '{option.variant.name}'"
+        description=f"⚠️ Opção '{option.resolved_name}' DELETADA do grupo '{option.variant.name}'"
     )
 
     db.delete(option)
